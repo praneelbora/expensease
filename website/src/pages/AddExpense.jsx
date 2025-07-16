@@ -91,6 +91,20 @@ const AddExpense = () => {
 
         return totalPaid === amount;
     };
+    useEffect(() => {
+        setMode(""); // or "" if you want user to reselect
+        setSelectedFriends(prevFriends =>
+            prevFriends.map(friend => ({
+                ...friend,
+                paying: false,
+                owing: false,
+                payAmount: 0,
+                oweAmount: 0,
+                owePercent: 0
+            }))
+        );
+    }, [amount]);
+
 
     const handleSubmitExpense = async () => {
         const expenseData = {
@@ -127,7 +141,7 @@ const AddExpense = () => {
 
             // Reset all form states
             setDesc('');
-            setAmount(0);
+            setAmount();
             setMode('');
             setSelectedFriends([]);
             setGroupSelect(null); // Optional: reset group if desired
@@ -371,13 +385,19 @@ const AddExpense = () => {
         setSelectedFriends(updatedSelected);
 
         // Reflect selection state in filtered list
-        const updatedFiltered = filteredFriends.map(f => ({
-            ...f,
-            selected: updatedSelected.some(sel => sel._id === f._id),
-        }));
+        const updatedFiltered = friends
+            .map(friend => ({
+                ...friend,
+                selected: updatedSelected.some(sel => sel._id === friend._id),
+            }))
+            .filter(friend =>
+                friend.name.toLowerCase().includes(val.toLowerCase()) ||
+                friend.email.toLowerCase().includes(val.toLowerCase())
+            );
 
         updatedFiltered.sort((a, b) => (b.selected === true) - (a.selected === true));
         setFilteredFriends(updatedFiltered);
+
         setVal('');
     };
 
@@ -513,22 +533,21 @@ const AddExpense = () => {
                             </div>
                         )}
                         <div className="flex flex-wrap my-4 gap-2">
-                            {/* {!groupSelect && selectedFriends.map((friend) => (
-                  <div
-                    key={'selected' + friend._id}
-                    className="flex w-min items-center h-[30px] gap-2 ps-3 overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]"
-                  >
-                    <p className="capitalize">{friend.name}</p>
-                    <button
-                      onClick={() => handleRemoveFriend(friend)}
-                      className={`px-2 h-full -mt-[2px] ${
-                        deleteConfirmMap[friend._id] ? 'bg-red-500' : 'bg-transparent'
-                      }`}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))} */}
+                            {!groupSelect && selectedFriends.map((friend) => (
+                                <div
+                                    key={'selected' + friend._id}
+                                    className="flex items-center h-[30px] gap-2 ps-3 overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]"
+                                >
+                                    <p className="capitalize">{friend.name}</p>
+                                    <button
+                                        onClick={() => handleRemoveFriend(friend)}
+                                        className={`px-2 h-full -mt-[2px] ${deleteConfirmMap[friend._id] ? 'bg-red-500' : 'bg-transparent'
+                                            }`}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
                             {groupSelect && (<>
                                 <p className="uppercae text-[14px] text-[#EBF1D5] w-full mb-1">GROUP SELECTED</p>
                                 <div
@@ -546,7 +565,7 @@ const AddExpense = () => {
                                 </div>
                             </>)}
 
-                            {/* {!groupSelect && <div className="flex grow justify-end ms-16">
+                            {!groupSelect && <div className="flex grow justify-end ms-16">
                   {!isMePresent && (
                     <button
                       onClick={addMe}
@@ -555,7 +574,7 @@ const AddExpense = () => {
                       + Add Me
                     </button>
                   )}
-                                </div>} */}
+                                </div>}
                         </div>
 
                         {selectedFriends.length > 0 && val === '' && (
