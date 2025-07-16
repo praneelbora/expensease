@@ -8,6 +8,7 @@ import AddExpense from "./pages/AddExpense";
 import Expenses from "./pages/Expenses";
 import GroupDetails from "./pages/GroupDetails";
 import Account from "./pages/Account";
+import Logout from "./pages/Logout";
 import Cookies from "js-cookie";
 
 // ✅ Updated PrivateRoute using context
@@ -17,7 +18,7 @@ function PrivateRoute({ children }) {
 }
 
 function App() {
-    const { user } = useAuth(); // use user info for redirects
+    const { user, logout } = useAuth(); // use user info for redirects
 
     return (
         <Routes>
@@ -53,6 +54,10 @@ function App() {
             <Route
                 path="/account"
                 element={<PrivateRoute><Account /></PrivateRoute>}
+            />
+            <Route
+                path="/logout"
+                element={<Logout />}
             />
             <Route
                 path="/"

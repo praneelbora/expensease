@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }) => {
 
         } catch (error) {
             console.error("Error loading user data:", error);
-            // Optionally logout on any unknown error:
+
             setUser(null);
             Cookies.remove('userToken');
             navigate("/login");
@@ -79,12 +79,8 @@ export const AuthProvider = ({ children }) => {
         navigate("/login");
     };
     useEffect(() => {
-        if (!token) navigate("/login");
-        else {
-            fetchUserData()
-            setUserToken(token)
-        }
-    }, [token,]);
+        fetchUserData()
+    }, []);
 
     return (
         <AuthContext.Provider value={{ user, login, logout, userToken }}>
