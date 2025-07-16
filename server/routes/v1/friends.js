@@ -10,40 +10,69 @@ router.post('/request', auth, async (req, res) => {
   try {
     const { email } = req.body;
     const senderId = req.user.id;
-    
-    const receiver = await User.findOne({ email: email });
-    if (!receiver) return res.status(404).json({ message: 'User not found' });
+
+    const receiver = await User.findOne({ email });
+    if (!receiver) return res.status(404).json({ message: 'Receiver not found' });
+
+    if (receiver._id.equals(senderId)) {
+      return res.status(400).json({ message: 'Cannot send request to yourself' });
+    }
 
     const sender = await User.findById(senderId);
-    if (!receiver) return res.status(404).json({ message: 'User not found' });
-  
-    // Check if already exists
-    const existing = await FriendRequest.findOne({
-      sender: sender._id, receiver: receiver._id, status: 'pending'
+    if (!sender) return res.status(404).json({ message: 'Sender not found' });
+
+    // Already friends
+    if (sender.friends.includes(receiver._id)) {
+      return res.status(400).json({ message: 'You are already friends' });
+    }
+
+    // Request already sent
+    const existingRequest = await FriendRequest.findOne({
+      sender: sender._id,
+      receiver: receiver._id,
+      status: 'pending',
     });
-    if (existing) return res.status(400).json({ msg: 'Request already sent' });
-    let existing2 = await FriendRequest.findOne({
-      sender: receiver._id, receiver: sender._id, status: 'pending'
+    if (existingRequest) {
+      return res.status(400).json({ message: 'Friend request already sent' });
+    }
+
+    // Check if reverse request exists → accept it instead
+    const reverseRequest = await FriendRequest.findOne({
+      sender: receiver._id,
+      receiver: sender._id,
+      status: 'pending',
     });
-    if(existing2){
-      existing2.status = 'accepted'
-      await existing2.save()
+
+    if (reverseRequest) {
+      reverseRequest.status = 'accepted';
+      await reverseRequest.save();
+
       sender.friends.push(receiver._id);
       receiver.friends.push(sender._id);
+
       await sender.save();
       await receiver.save();
-      return res.status(200).json({ msg: 'Friends' });
+
+      return res.status(200).json({ message: 'Friend request auto-accepted' });
     }
-    const newRequest = new FriendRequest({ sender: sender._id, receiver: receiver._id });
+
+    // Create new friend request
+    const newRequest = new FriendRequest({
+      sender: sender._id,
+      receiver: receiver._id,
+      status: 'pending',
+    });
+
     await newRequest.save();
-    res.status(201).json(newRequest);
+
+    res.status(201).json({ message: 'Friend request sent', request: newRequest });
 
   } catch (error) {
-    console.log('friends/request error: ',error);
-        res.status(500).json({ error: error.message });
+    console.error('friends/request error:', error);
+    res.status(500).json({ error: error.message });
   }
-  
 });
+
 router.post('/accept', auth, async (req, res) => {
   try {
     const { requestId } = req.body;
@@ -72,6 +101,7 @@ router.post('/accept', auth, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 router.post('/reject', auth, async (req, res) => {
   try {
     const { requestId } = req.body;
@@ -84,6 +114,23 @@ router.post('/reject', auth, async (req, res) => {
     request.status = 'rejected';
     await request.save();
     res.json({ msg: 'Friend request rejected' });
+  } catch (error) {
+    console.log('friends/reject error: ',error);
+    res.status(500).json({ error: error.message });
+  }
+  
+});
+
+router.post('/cancel', auth, async (req, res) => {
+  try {
+    const { requestId } = req.body;
+    const request = await FriendRequest.findById(requestId);
+
+    if (!request || request.sender.toString() !== req.user.id) {
+      return res.status(403).json({ msg: 'Not authorized' });
+    }
+    await FriendRequest.findByIdAndDelete(requestId);
+    res.json({ msg: 'Friend request deleted' });
   } catch (error) {
     console.log('friends/reject error: ',error);
     res.status(500).json({ error: error.message });

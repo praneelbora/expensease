@@ -29,5 +29,6 @@ app.use('/api/v1/groups', groups);
 app.use('/api/v1/friends', friends);
 app.use('/api/v1/expenses', expenses);
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+module.exports = app;
+// const PORT = process.env.PORT || 3000;
+// app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

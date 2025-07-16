@@ -58,7 +58,7 @@ const Groups = () => {
                             <div
                                 key={group._id}
                                 onClick={() => navigate(`/groups/${group._id}`)}
-                                className="flex flex-col gap-2 cursor-pointer hover:bg-[#1f1f1f] pb-3 rounded-md transition"
+                                className="flex flex-col gap-2 cursor-pointer hover:bg-[#1f1f1f] mt-2 pb-3 rounded-md transition"
                             >
                                 <h2 className="text-xl font-semibold">{group.name}</h2>
                                 <hr />
@@ -67,7 +67,7 @@ const Groups = () => {
                     </div>
                 )}
             </div>
-            <Modal setShowModal={setShowModal} showModal={showModal} />
+            <Modal setShowModal={setShowModal} showModal={showModal} fetchGroups={fetchGroups}/>
 
         </MainLayout>
     );

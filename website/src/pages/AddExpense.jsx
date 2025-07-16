@@ -516,12 +516,12 @@ const AddExpense = () => {
                                 <p className="uppercae text-[14px] text-[#EBF1D5] w-full mb-1">GROUP SELECTED</p>
                                 <div
                                     key={'selected' + groupSelect._id}
-                                    className="flex w-min items-center h-[30px] gap-2 ps-3 overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]"
+                                    className="flex items-center h-[30px] gap-1 ps-3 overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]"
                                 >
                                     <p className="capitalize">{groupSelect.name}</p>
                                     <button
                                         onClick={() => handleRemoveGroup(groupSelect)}
-                                        className={`px-2 h-full -mt-[2px] ${deleteConfirmMap[groupSelect._id] ? 'bg-red-500' : 'bg-transparent'
+                                        className={`px-2 h-full pb-[2px] ${deleteConfirmMap[groupSelect._id] ? 'bg-red-500' : 'bg-transparent'
                                             }`}
                                     >
                                         ×

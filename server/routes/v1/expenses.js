@@ -69,5 +69,24 @@ router.get('/group/:id', auth, async (req, res) => {
   }
 });
 
+router.get('/', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
 
+    const expenses = await Expense.find({
+      $or: [
+        { createdBy: userId },
+        { 'splits.friendId': userId }
+      ]
+    })
+    .sort({ createdAt: -1 })
+    .populate('createdBy', 'name email')
+    .populate('splits.friendId', 'name email'); // Populate user info in splits
+
+    res.json({expenses,id: req.user.id});
+  } catch (error) {
+    console.error('Error fetching expenses:', error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
 module.exports = router;

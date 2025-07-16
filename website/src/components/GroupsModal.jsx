@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Cookies from 'js-cookie'
 
-export default function Navbar({ setShowModal, showModal }) {
+export default function Navbar({ setShowModal, showModal, fetchGroups }) {
     const [val, setVal] = useState('')
     const [name, setName] = useState('')
     const [friends, setFriends] = useState([]);
@@ -124,6 +124,7 @@ export default function Navbar({ setShowModal, showModal }) {
             }
 
             // Optional: Reset state, close modal, navigate, etc.
+            fetchGroups()
             setName('');
             setSelectedFriends([{ _id: 'me', name: 'Me', paying: false, owing: false, oweAmount: 0, owePercent: 0 }]);
             setShowModal(false);
@@ -183,12 +184,12 @@ export default function Navbar({ setShowModal, showModal }) {
                                     {selectedFriends.map((friend) => (
                                         <div
                                             key={'selected' + friend._id}
-                                            className={`flex w-min items-center h-[30px] gap-2 ${friend._id != 'me' ? 'ps-3' : 'px-3'} overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]`}
+                                            className={`flex items-center gap-1 h-[30px] ${friend._id != 'me' ? 'ps-3' : 'px-3'} overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]`}
                                         >
                                             <p className="capitalize">{friend.name}</p>
                                             {friend._id != 'me' && <button
                                                 onClick={() => handleRemoveFriend(friend)}
-                                                className={`px-2 h-full -mt-[2px] ${deleteConfirmMap[friend._id] ? 'bg-red-500' : 'bg-transparent'
+                                                className={`px-2 h-full pb-[2px] ${deleteConfirmMap[friend._id] ? 'bg-red-500' : 'bg-transparent'
                                                     }`}
                                             >
                                                 ×
@@ -210,7 +211,7 @@ export default function Navbar({ setShowModal, showModal }) {
                                             <hr />
                                         </div>
                                     ))}
-                                </div> : val.length > 0 && <p className="text-[#55554f]">Please add friends before adding to the group</p>}
+                                </div> : val.length > 0 && selectedFriends.length==0 && <p className="text-[#55554f]">Please add friends before adding to the group</p>}
 
 
                             </div>

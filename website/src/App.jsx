@@ -4,6 +4,9 @@ import Register from "./pages/Register";
 import Groups from "./pages/Groups";
 import Friends from "./pages/Friends";
 import AddExpense from "./pages/AddExpense";
+import Expenses from './pages/Expenses';
+
+
 import GroupDetails from './pages/GroupDetails';
 import Account from "./pages/Account";
 import Cookies from 'js-cookie'
@@ -41,10 +44,17 @@ function App() {
                 element={
                     <Friends />
                 }
-            /><Route
+            />
+            <Route
                 path="/add-expense"
                 element={
                     <AddExpense />
+                }
+            />
+            <Route
+                path="/expenses"
+                element={
+                    <Expenses />
                 }
             />
             <Route

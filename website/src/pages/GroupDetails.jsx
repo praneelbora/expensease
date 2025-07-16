@@ -33,7 +33,7 @@ const GroupDetails = () => {
 
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
-            return `${payers[0].friendId.name} paid`;
+            return `${payers[0].friendId._id==userID?'You':payers[0].friendId.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         } else {

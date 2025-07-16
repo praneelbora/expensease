@@ -7,14 +7,47 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
     const [sent, setSent] = useState([])
     const [received, setreceived] = useState([])
     const addFriend = async () => {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': Cookies.get('userToken'),
+      },
+      body: JSON.stringify({ email: val }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Show meaningful message from backend if exists
+      const errorMsg = data.message || data.error || "Failed to send friend request";
+      alert(errorMsg); // or use toast(errorMsg)
+      return;
+    }
+
+    // Success: refresh lists and close modal
+    fetchFriends();
+    sentRequests();
+    receivedRequests();
+    setShowModal(false);
+    alert(data.message || "Friend request sent"); // Optional success message
+
+  } catch (error) {
+    console.error("Error Sending Request:", error);
+    alert("Something went wrong. Please try again.");
+  }
+};
+
+    const accept = async (id) => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/request`, {
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/accept`, {
                 headers: {
                     "Content-Type": "application/json",
                     'x-auth-token': Cookies.get('userToken')
                 },
                 method: 'POST',
-                body: JSON.stringify({ email: val })
+                body: JSON.stringify({ requestId: id })
             });
 
             if (!response.ok) {
@@ -22,12 +55,64 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
             }
             else {
                 fetchFriends()
+                sentRequests()
+                receivedRequests()
                 setShowModal(false)
             }
         } catch (error) {
             console.error("Error Sending Request:", error);
-        } 
+        }
     };
+    const reject = async (id) => {
+        try {
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/reject`, {
+                headers: {
+                    "Content-Type": "application/json",
+                    'x-auth-token': Cookies.get('userToken')
+                },
+                method: 'POST',
+                body: JSON.stringify({ requestId: id })
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to add friend");
+            }
+            else {
+                fetchFriends()
+                sentRequests()
+                receivedRequests()
+                setShowModal(false)
+            }
+        } catch (error) {
+            console.error("Error Sending Request:", error);
+        }
+    };
+
+    const cancel = async (id) => {
+        try {
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/cancel`, {
+                headers: {
+                    "Content-Type": "application/json",
+                    'x-auth-token': Cookies.get('userToken')
+                },
+                method: 'POST',
+                body: JSON.stringify({ requestId: id })
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to add friend");
+            }
+            else {
+                fetchFriends()
+                sentRequests()
+                receivedRequests()
+                setShowModal(false)
+            }
+        } catch (error) {
+            console.error("Error Sending Request:", error);
+        }
+    };
+
     const sentRequests = async () => {
         try {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/sent`, {
@@ -124,8 +209,8 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                                                                 <p className="text-[12px] text-[#EBF1D5] lowercase">{req.sender.email}</p>
                                                             </div>
                                                             <div className="flex flex-row w-min gap-2">
-                                                                <button className="border-[#34C759] text-[#34C759] border-[1px] h-[40px] w-[40px] px-2 rounded-md" onClick={() => addFriend()}>Y</button>
-                                                                <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] w-[40px] px-2 rounded-md" onClick={() => addFriend()}>N</button>
+                                                                <button className="border-[#34C759] text-[#34C759] border-[1px] h-[40px] px-2 rounded-md" onClick={() => accept(req._id)}>Accept</button>
+                                                                <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-3 rounded-md" onClick={() => reject(req._id)}>X</button>
                                                             </div>
                                                         </div>
                                                         <hr />
@@ -148,7 +233,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                                                                 <p className="text-[12px] text-[#EBF1D5] lowercase">{req.receiver.email}</p>
                                                             </div>
                                                             <div className="flex flex-row w-min">
-                                                                <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-2 rounded-md" onClick={() => addFriend()}>Cancel</button>
+                                                                <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-2 rounded-md" onClick={() => cancel(req._id)}>Cancel</button>
                                                             </div>
                                                         </div>
                                                         <hr />
