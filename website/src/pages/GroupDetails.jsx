@@ -206,7 +206,7 @@ const GroupDetails = () => {
                     <div className="flex flex-col gap-4">
                         <div className="flex flex-col gap-2">
                             <p className="text-[14px] uppercase">Group Name</p>
-                            <h1 className="text-3xl font-bold">{group.name}</h1>
+                            <h1 className="text-3xl font-bold capitalize">{group.name}</h1>
                         </div>
                         <hr />
                         <div className="flex flex-col">

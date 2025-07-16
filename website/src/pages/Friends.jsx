@@ -54,7 +54,7 @@ const Friends = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {friends.map((friend, index) => (
                             <div key={friend._id} className="flex flex-col gap-2">
-                                <h2 className="text-xl font-semibold">{friend.name}</h2>
+                                <h2 className="text-xl font-semibold capitalize">{friend.name}</h2>
                                 <hr />
                             </div>
                         ))}

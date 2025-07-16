@@ -464,11 +464,11 @@ const AddExpense = () => {
                                     {filteredGroups.map((group) => (
                                         <div className="flex flex-col gap-2" key={group._id}>
                                             <div
-                                                className={`flex flex-row w-full justify-between items-center cursor-pointer`}
+                                                className={`flex flex-col gap-2 cursor-pointer hover:bg-[#1f1f1f] mt-2 py-1 rounded-md transition`}
                                                 onClick={() => toggleGroupSelection(group)}
                                             >
                                                 <div className="flex flex-col">
-                                                    <h2 className="text-xl capitalize text-[#EBF1D5] flex flex-row items-center gap-2">
+                                                    <h2 className="text-xl text-[#EBF1D5] flex flex-row items-center gap-2 capitalize">
                                                         {group.name}
                                                     </h2>
                                                 </div>

@@ -58,9 +58,9 @@ const Groups = () => {
                             <div
                                 key={group._id}
                                 onClick={() => navigate(`/groups/${group._id}`)}
-                                className="flex flex-col gap-2 cursor-pointer hover:bg-[#1f1f1f] mt-2 pb-3 rounded-md transition"
+                                className="flex flex-col gap-2 cursor-pointer hover:bg-[#1f1f1f] mt-2 py-1 rounded-md transition"
                             >
-                                <h2 className="text-xl font-semibold">{group.name}</h2>
+                                <h2 className="text-xl font-semibold capitalize">{group.name}</h2>
                                 <hr />
                             </div>
                         ))}
