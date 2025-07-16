@@ -1,15 +1,14 @@
 import { useAuth } from '../context/AuthContext';
 import MainLayout from '../layouts/MainLayout';
-import Cookies from 'js-cookie'
 
 const Account = () => {
-    const { logout, user } = useAuth() // assuming `user` contains logged in user details
+    const { logout, user, userToken } = useAuth() // assuming `user` contains logged in user details
     return (
         <MainLayout>
             <div className="text-[#EBF1D5] bg-[#121212] max-h-screen flex flex-col grow h-full">
                 <h1 className="text-3xl font-bold mb-6">My Account</h1>
 
-                {(user || Cookies.get('userToken')) ? (
+                {(user || userToken) ? (
                     <div className="flex flex-col grow h-full gap-4">
                         <div>
                             <p className="text-lg font-semibold">Name</p>

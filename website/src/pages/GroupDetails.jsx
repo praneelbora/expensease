@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
-import Cookies from 'js-cookie'
+import { useAuth } from "../context/AuthContext";
 
 const GroupDetails = () => {
+    const { userToken } = useAuth()
     const { id } = useParams();
     const [group, setGroup] = useState(null);
     const [groupExpenses, setGroupExpenses] = useState([]);
@@ -33,7 +34,7 @@ const GroupDetails = () => {
 
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
-            return `${payers[0].friendId._id==userID?'You':payers[0].friendId.name} paid`;
+            return `${payers[0].friendId._id == userID ? 'You' : payers[0].friendId.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         } else {
@@ -63,7 +64,7 @@ const GroupDetails = () => {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/groups/${id}`, {
                 headers: {
                     "Content-Type": "application/json",
-                    "x-auth-token": Cookies.get('userToken'),
+                    "x-auth-token": userToken
                 },
             });
 
@@ -73,7 +74,7 @@ const GroupDetails = () => {
 
             setGroup(data);
         } catch (error) {
-            console.error("Error loading group:", err);
+            console.error("Group Details Page - Error loading group:", err);
         } finally {
             setLoading(false);
         }
@@ -84,7 +85,7 @@ const GroupDetails = () => {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/group/${id}`, {
                 headers: {
                     "Content-Type": "application/json",
-                    "x-auth-token": Cookies.get('userToken'),
+                    "x-auth-token": userToken
                 },
             });
 
@@ -95,7 +96,7 @@ const GroupDetails = () => {
             setGroupExpenses(data.group.expenses);
             setUserID(data.id);
         } catch (error) {
-            console.error("Error loading group:", err);
+            console.error("Group Details Page - Error loading group expenses:", err);
         } finally {
             setLoading(false);
         }
@@ -196,7 +197,7 @@ const GroupDetails = () => {
     }, [id]);
 
     return (
-        <MainLayout>
+        <MainLayout groupId={id}>
             <div className="text-[#EBF1D5]">
                 {loading ? (
                     <p>Loading...</p>
@@ -217,8 +218,8 @@ const GroupDetails = () => {
                                         key={member._id}
                                         onClick={() => (selectedMember === member._id) ? setSelectedMember(null) : setSelectedMember(member._id)}
                                         className={`px-3 py-1 rounded-full font-semibold border text-sm capitalize transition ${selectedMember === member._id
-                                                ? 'bg-green-300 border-green-300 text-black'
-                                                : 'text-[#EBF1D5] border-[#EBF1D5]'
+                                            ? 'bg-green-300 border-green-300 text-black'
+                                            : 'text-[#EBF1D5] border-[#EBF1D5]'
                                             }`}
                                     >
                                         {member.name}

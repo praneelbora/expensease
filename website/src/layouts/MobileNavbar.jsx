@@ -7,13 +7,13 @@ import {
   User,
 } from "lucide-react";
 
-const MobileNavbar = () => {
+const MobileNavbar = ({groupId}) => {
   const location = useLocation();
 
   const navItems = [
     { to: "/friends", label: "Friends", icon: <Users size={20} /> },
     { to: "/groups", label: "Groups", icon: <Wallet size={20} /> },
-    { to: "/add-expense", label: "Add", icon: <Plus size={28} />, isCenter: true },
+    { to: "/add-expense", label: "Add", icon: <Plus size={28} />, isCenter: true, state: groupId ? { groupId } : null,special: true },
     { to: "/expenses", label: "Expenses", icon: <List size={20} /> },
     { to: "/account", label: "Account", icon: <User size={20} /> },
   ];
@@ -28,6 +28,7 @@ const MobileNavbar = () => {
             <Link
               to={item.to}
               key={index}
+              state={item.state}
               className={`flex flex-col items-center justify-center text-sm ${
                 isActive ? "text-teal-300" : "text-[#EBF1D5]"
               } ${item.isCenter ? "relative z-10 -mt-6 bg-teal-500 text-white w-14 h-14 rounded-full shadow-md" : "flex-1"}`}

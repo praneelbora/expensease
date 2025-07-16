@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import Cookies from 'js-cookie'
+import { useAuth } from "../context/AuthContext";
 
 export default function Navbar({ setShowModal, showModal, fetchGroups }) {
+    const { userToken } = useAuth()
     const [val, setVal] = useState('')
     const [name, setName] = useState('')
     const [friends, setFriends] = useState([]);
@@ -47,7 +48,7 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/`, {
                 headers: {
                     "Content-Type": "application/json",
-                    'x-auth-token': Cookies.get('userToken'),
+                    'x-auth-token': userToken,
                 },
             });
 
@@ -112,7 +113,7 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "x-auth-token": Cookies.get('userToken'),
+                    "x-auth-token": userToken,
                 },
                 body: JSON.stringify({ name, memberIds: members }),
             });
@@ -211,7 +212,7 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
                                             <hr />
                                         </div>
                                     ))}
-                                </div> : val.length > 0 && selectedFriends.length==0 && <p className="text-[#55554f]">Please add friends before adding to the group</p>}
+                                </div> : val.length > 0 && selectedFriends.length == 0 && <p className="text-[#55554f]">Please add friends before adding to the group</p>}
 
 
                             </div>

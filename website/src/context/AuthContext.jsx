@@ -2,13 +2,12 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom"; // ✅ Correct import
 import Cookies from "js-cookie";
-
 export const AuthContext = createContext();
-
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    const [userToken, setUserToken] = useState(null);
     const navigate = useNavigate();
-
+    const token = Cookies.get('userToken')
     const fetchUserData = async () => {
         try {
             const token = Cookies.get('userToken');
@@ -46,7 +45,7 @@ export const AuthProvider = ({ children }) => {
             navigate("/login");
         }
     };
-
+    
 
     const login = async (email, password) => {
         try {
@@ -62,6 +61,7 @@ export const AuthProvider = ({ children }) => {
                 const data = await response.json();
                 const token = data.responseBody["x-auth-token"]; // Adjust key if needed
                 Cookies.set("userToken", token, { expires: 100 });
+                setUserToken(token)
                 setUser(data.user); // If your backend sends user object
                 navigate("/groups");
             } else {
@@ -79,14 +79,15 @@ export const AuthProvider = ({ children }) => {
         navigate("/login");
     };
     useEffect(() => {
-
-        const token = Cookies.get("userToken");
         if (!token) navigate("/login");
-        else fetchUserData()
-    }, []);
+        else {
+            fetchUserData()
+            setUserToken(token)
+        }
+    }, [token,]);
 
     return (
-        <AuthContext.Provider value={{ user, login, logout }}>
+        <AuthContext.Provider value={{ user, login, logout, userToken }}>
             {children}
         </AuthContext.Provider>
     );

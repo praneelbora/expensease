@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal";
-import Cookies from 'js-cookie'
 
+import { useAuth } from "../context/AuthContext";
 const Expenses = () => {
+    const { userToken } = useAuth()
     const [expenses, setExpenses] = useState([]);
     const [userID, setUserID] = useState();
     const [showModal, setShowModal] = useState(false);
@@ -17,7 +18,7 @@ const Expenses = () => {
 
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
-            return `${payers[0].friendId._id==userID?'You':payers[0].friendId.name} paid`;
+            return `${payers[0].friendId._id == userID ? 'You' : payers[0].friendId.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         } else {
@@ -47,7 +48,7 @@ const Expenses = () => {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses`, {
                 headers: {
                     "Content-Type": "application/json",
-                    "x-auth-token": Cookies.get('userToken'),
+                    "x-auth-token": userToken
                 },
             });
 
@@ -55,7 +56,7 @@ const Expenses = () => {
 
             if (!response.ok) throw new Error(data.message || "Failed to fetch expenses");
             console.log(data);
-            
+
             setExpenses(data.expenses);
             setUserID(data.id);
         } catch (error) {

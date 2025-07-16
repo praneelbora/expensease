@@ -1,13 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
 import { User, Users, Plus, Wallet, List } from "lucide-react";
 
-const SideNavbar = () => {
+const SideNavbar = ({groupId}) => {
   const location = useLocation();
 
   const navItems = [
     { to: "/friends", label: "Friends", icon: <Users size={20} /> },
     { to: "/groups", label: "Groups", icon: <Wallet size={20} /> },
-    { to: "/add-expense", label: "Add", icon: <Plus size={20} /> },
+    { to: "/add-expense", label: "Add", icon: <Plus size={20} />, state: groupId ? { groupId } : null,special: true },
     { to: "/expenses", label: "Expenses", icon: <List size={20} /> },
     { to: "/account", label: "Account", icon: <User size={20} /> },
   ];
@@ -22,6 +22,7 @@ const SideNavbar = () => {
             <Link
               key={item.to}
               to={item.to}
+              state={item.state}
               className={`w-full flex flex-col items-center justify-center py-2 rounded-md transition 
                 ${isActive ? "bg-[#2a2a2a] text-teal-300" : "hover:text-teal-300"}`}
             >

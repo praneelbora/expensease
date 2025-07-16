@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import MainLayout from '../layouts/MainLayout';
-import Cookies from 'js-cookie'
+import { useLocation } from 'react-router-dom';
+import { useRef } from 'react';
+import { useAuth } from "../context/AuthContext";
 
 const AddExpense = () => {
     const [friends, setFriends] = useState([]);
+    const { userToken } = useAuth()
+    const location = useLocation();
     const [filteredFriends, setFilteredFriends] = useState([]);
     const [filteredGroups, setFilteredGroups] = useState([]);
     const [groups, setGroups] = useState([]);
@@ -16,9 +20,27 @@ const AddExpense = () => {
 
     const [deleteConfirmMap, setDeleteConfirmMap] = useState({});
     const [groupSelect, setGroupSelect] = useState();
-
+    const hasPreselectedGroup = useRef(false);
     // Checks if "Me" is present
     const isMePresent = selectedFriends.some(f => f._id === 'me');
+
+    useEffect(() => {
+        if (
+            !hasPreselectedGroup.current &&
+            groups.length > 0 &&
+            location.state?.groupId
+        ) {
+            const preselectedGroup = groups.find(
+                g => g._id === location.state.groupId
+            );
+
+            if (preselectedGroup) {
+                toggleGroupSelection(preselectedGroup);
+                hasPreselectedGroup.current = true; // mark as initialized
+            }
+        }
+    }, [groups, location.state]);
+
 
     // Remove a friend after confirmation
     const handleRemoveFriend = (friend) => {
@@ -94,7 +116,7 @@ const AddExpense = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-auth-token': Cookies.get('userToken')
+                    'x-auth-token': userToken
                 },
                 body: JSON.stringify(expenseData)
             });
@@ -141,7 +163,7 @@ const AddExpense = () => {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/`, {
                 headers: {
                     "Content-Type": "application/json",
-                    'x-auth-token': Cookies.get('userToken'),
+                    'x-auth-token': userToken
                 },
             });
 
@@ -401,7 +423,7 @@ const AddExpense = () => {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/groups/`, {
                 headers: {
                     "Content-Type": "application/json",
-                    'x-auth-token': Cookies.get('userToken'),
+                    'x-auth-token': userToken
                 },
             });
 
@@ -417,7 +439,7 @@ const AddExpense = () => {
             }
 
         } catch (error) {
-            console.error("Error loading groups:", error);
+            console.error("Add Expense Page - Error loading groups:", error);
         } finally {
             setLoading(false);
         }
@@ -462,17 +484,12 @@ const AddExpense = () => {
                                 <div>
                                     {groups.length > 0 && <p className="uppercae text-[14px] text-[#EBF1D5] w-full mb-1">GROUPS</p>}
                                     {filteredGroups.map((group) => (
-                                        <div className="flex flex-col gap-2" key={group._id}>
-                                            <div
-                                                className={`flex flex-col gap-2 cursor-pointer hover:bg-[#1f1f1f] mt-2 py-1 rounded-md transition`}
-                                                onClick={() => toggleGroupSelection(group)}
-                                            >
-                                                <div className="flex flex-col">
-                                                    <h2 className="text-xl text-[#EBF1D5] flex flex-row items-center gap-2 capitalize">
-                                                        {group.name}
-                                                    </h2>
-                                                </div>
-                                            </div>
+                                        <div
+                                            key={group._id}
+                                            onClick={() => toggleGroupSelection(group)}
+                                            className="flex flex-col gap-1 cursor-pointer hover:bg-[#1f1f1f] py-1 rounded-md transition"
+                                        >
+                                            <h2 className="text-xl font-semibold capitalize">{group.name}</h2>
                                             <hr />
                                         </div>
                                     ))}
@@ -480,18 +497,18 @@ const AddExpense = () => {
 
                                 </div>
                                 <div>
-                                    {/* {filteredFriends.length>0 && <p className="uppercae text-[14px] text-[#EBF1D5] mb-1">FRIENDS</p>}
-                {filteredFriends.map((friend) => (
-                  <div className="flex flex-col gap-2" onClick={() => toggleFriendSelection(friend)} key={friend._id}>
-                    <div className="flex flex-row w-full justify-between items-center">
-                      <div className="flex flex-col">
-                        <h2 className="text-xl capitalize text-[#EBF1D5]">{friend.name}</h2>
-                        <p className="lowercase text-[#81827C]">{friend.email}</p>
-                      </div>
-                    </div>
-                    <hr />
-                  </div>
-                ))} */}
+                                    {filteredFriends.length > 0 && <p className="uppercae text-[14px] text-[#EBF1D5] mb-1">FRIENDS</p>}
+                                    {filteredFriends.map((friend) => (
+                                        <div className="flex flex-col gap-2" onClick={() => toggleFriendSelection(friend)} key={friend._id}>
+                                            <div className="flex flex-row w-full justify-between items-center">
+                                                <div className="flex flex-col">
+                                                    <h2 className="text-xl capitalize text-[#EBF1D5]">{friend.name}</h2>
+                                                    <p className="lowercase text-[#81827C]">{friend.email}</p>
+                                                </div>
+                                            </div>
+                                            <hr />
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         )}

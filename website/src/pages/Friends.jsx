@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import MainLayout from '../layouts/MainLayout';
 import Modal from '../components/FriendsModal';
-import Cookies from 'js-cookie'
-
+import { useAuth } from "../context/AuthContext";
 const Friends = () => {
+    const { userToken } = useAuth()
     const [friends, setFriends] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -13,7 +13,7 @@ const Friends = () => {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/`, {
                 headers: {
                     "Content-Type": "application/json",
-                    'x-auth-token': Cookies.get('userToken'),
+                    'x-auth-token': userToken
                 },
             });
 

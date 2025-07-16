@@ -1,50 +1,50 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import Cookies from 'js-cookie'
+import { useAuth } from "../context/AuthContext";
 
 export default function Navbar({ setShowModal, showModal, fetchFriends }) {
+    const { userToken } = useAuth()
     const [val, setVal] = useState('')
     const [sent, setSent] = useState([])
     const [received, setreceived] = useState([])
     const addFriend = async () => {
-  try {
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/request`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-auth-token': Cookies.get('userToken'),
-      },
-      body: JSON.stringify({ email: val }),
-    });
+        try {
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/request`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': userToken,
+                },
+                body: JSON.stringify({ email: val }),
+            });
 
-    const data = await response.json();
+            const data = await response.json();
 
-    if (!response.ok) {
-      // Show meaningful message from backend if exists
-      const errorMsg = data.message || data.error || "Failed to send friend request";
-      alert(errorMsg); // or use toast(errorMsg)
-      return;
-    }
+            if (!response.ok) {
+                // Show meaningful message from backend if exists
+                const errorMsg = data.message || data.error || "Failed to send friend request";
+                alert(errorMsg); // or use toast(errorMsg)
+                return;
+            }
 
-    // Success: refresh lists and close modal
-    fetchFriends();
-    sentRequests();
-    receivedRequests();
-    setShowModal(false);
-    alert(data.message || "Friend request sent"); // Optional success message
+            // Success: refresh lists and close modal
+            fetchFriends();
+            sentRequests();
+            receivedRequests();
+            setShowModal(false);
+            alert(data.message || "Friend request sent"); // Optional success message
 
-  } catch (error) {
-    console.error("Error Sending Request:", error);
-    alert("Something went wrong. Please try again.");
-  }
-};
+        } catch (error) {
+            console.error("Error Sending Request:", error);
+            alert("Something went wrong. Please try again.");
+        }
+    };
 
     const accept = async (id) => {
         try {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/accept`, {
                 headers: {
                     "Content-Type": "application/json",
-                    'x-auth-token': Cookies.get('userToken')
+                    'x-auth-token': userToken
                 },
                 method: 'POST',
                 body: JSON.stringify({ requestId: id })
@@ -68,7 +68,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/reject`, {
                 headers: {
                     "Content-Type": "application/json",
-                    'x-auth-token': Cookies.get('userToken')
+                    'x-auth-token': userToken
                 },
                 method: 'POST',
                 body: JSON.stringify({ requestId: id })
@@ -93,7 +93,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/cancel`, {
                 headers: {
                     "Content-Type": "application/json",
-                    'x-auth-token': Cookies.get('userToken')
+                    'x-auth-token': userToken
                 },
                 method: 'POST',
                 body: JSON.stringify({ requestId: id })
@@ -118,7 +118,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/sent`, {
                 headers: {
                     "Content-Type": "application/json",
-                    'x-auth-token': Cookies.get('userToken')
+                    'x-auth-token': userToken
                 },
             });
 
@@ -140,7 +140,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/received`, {
                 headers: {
                     "Content-Type": "application/json",
-                    'x-auth-token': Cookies.get('userToken')
+                    'x-auth-token': userToken
                 },
             });
 
