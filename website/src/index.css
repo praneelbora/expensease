@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+body {
+    background-color: #121212;
+}
+
+input::placeholder {
+    color: #81827C;
+}
+
+input:focus {
+    outline: none;
+}
+
+hr {
+    color: #81827C;
+}
