@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal";
-
+import { useNavigate } from "react-router-dom"; // ✅ Correct import
 import { useAuth } from "../context/AuthContext";
+import { Plus } from "lucide-react";
 const Expenses = () => {
     const { userToken } = useAuth()
+    const [loading, setLoading] = useState(true);
     const [expenses, setExpenses] = useState([]);
     const [userID, setUserId] = useState();
     const [showModal, setShowModal] = useState(false);
+        const navigate = useNavigate();
 
     const getPayerInfo = (splits) => {
         const userSplit = splits.find(s => s.friendId && s.friendId._id === userID);
@@ -61,6 +64,8 @@ const Expenses = () => {
             setUserId(data.id);
         } catch (error) {
             console.error("Error loading expenses:", error);
+        } finally{
+            setLoading(false)
         }
     };
 
@@ -71,9 +76,21 @@ const Expenses = () => {
     return (
         <MainLayout>
             <div className="text-[#EBF1D5]">
-                <h1 className="text-3xl font-bold mb-4">All Expenses</h1>
+                <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
+                            <h1 className="text-3xl font-bold capitalize">All Expenses</h1>
+                            <button
+                        className={`flex flex-col items-center justify-center z-10 bg-lime-200 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
+                        onClick={() => navigate('/add-expense')}
+                    >
+                        <Plus strokeWidth={3} size={20} />
+                    </button>
+                            </div>
                 <ul className="flex flex-col w-full gap-2">
-                    {expenses.map((exp) => (
+                    {loading ? (
+                    <p>Loading expenses...</p>
+                ) : expenses?.length === 0 ? (
+                    <p>No expenses found.</p>
+                ) : expenses?.map((exp) => (
                         <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[50px]">
                             <div className="flex flex-col justify-center items-center">
                                 <p className="text-[14px] uppercase">{(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}</p>

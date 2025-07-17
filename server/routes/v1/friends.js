@@ -148,6 +148,7 @@ router.get('/sent', auth, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 router.get('/received', auth, async (req, res) => {
   try {
     const receivedRequests = await FriendRequest.find({receiver: req.user.id, status: 'pending'}).populate('sender');
@@ -166,6 +167,65 @@ router.get('/', auth, async (req, res) => {
     res.status(200).json(user.friends);
   } catch (error) {
     console.log('friends/ error: ', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+router.post('/request-link', auth, async (req, res) => {
+  try {
+    const { toId } = req.body; // could be JWT or senderId encoded
+    const userId = req.user.id;
+    
+    if (userId === toId) {
+      return res.status(400).json({ message: "Cannot accept your own invite" });
+    }
+
+    const sender = await User.findById(userId);
+    const receiver = await User.findById(toId);
+
+    if (!sender || !receiver) return res.status(404).json({ message: 'User not found' });
+
+    // Same logic as existing
+    if (receiver.friends.includes(sender._id)) {
+      return res.status(400).json({ message: 'Already friends' });
+    }
+
+    const reverseRequest = await FriendRequest.findOne({
+      sender: receiver._id,
+      receiver: sender._id,
+      status: 'pending',
+    });
+
+    if (reverseRequest) {
+      reverseRequest.status = 'accepted';
+      await reverseRequest.save();
+      receiver.friends.push(sender._id);
+      sender.friends.push(receiver._id);
+      await receiver.save();
+      await sender.save();
+      return res.status(200).json({ message: 'Friend request accepted from link' });
+    }
+
+    const existingRequest = await FriendRequest.findOne({
+      sender: sender._id,
+      receiver: receiver._id,
+      status: 'pending',
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({ message: 'Request already sent' });
+    }
+
+    const newRequest = new FriendRequest({
+      sender: sender._id,
+      receiver: receiver._id,
+      status: 'pending',
+    });
+
+    await newRequest.save();
+
+    res.status(201).json({ message: 'Friend request sent via link' });
+  } catch (error) {
+    console.error('from-link error:', error);
     res.status(500).json({ error: error.message });
   }
 });

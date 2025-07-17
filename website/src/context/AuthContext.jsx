@@ -44,24 +44,38 @@ export const AuthProvider = ({ children }) => {
 
 
     const linkLogin = async (token) => {
-    try {
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users/login?token=${token}`);
-        const data = await response.json();
+        try {
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users/login?token=${token}`);
+            const data = await response.json();
 
-        if (!response.ok) {
-            throw new Error(data.error || "Login link expired or invalid.");
+            if (!response.ok) {
+                throw new Error(data.error || "Login link expired or invalid.");
+            }
+
+            const authToken = data.responseBody["x-auth-token"];
+            Cookies.set("userToken", authToken, { expires: 100 });
+            setUserToken(authToken);
+            setUser(data.user);
+            const pendingCode = localStorage.getItem("pendingGroupJoin");
+            const pendingFriend = localStorage.getItem("pendingFriendAdd");
+
+            if (pendingCode) {
+                localStorage.removeItem("pendingGroupJoin");
+                navigate(`/groups?join=${pendingCode}`);
+            } else if (pendingFriend) {
+                localStorage.removeItem("pendingFriendAdd");
+                navigate(`/friends/join/${pendingFriend}`);
+            }
+
+            else {
+                navigate("/groups");
+            }
+
+        } catch (err) {
+            console.error("link login error:", err);
+            alert(err.message); // ✅ show token-related errors
         }
-
-        const authToken = data.responseBody["x-auth-token"];
-        Cookies.set("userToken", authToken, { expires: 100 });
-        setUserToken(authToken);
-        setUser(data.user);
-        navigate("/groups");
-    } catch (err) {
-        console.error("link login error:", err);
-        alert(err.message); // ✅ show token-related errors
-    }
-};
+    };
 
 
 

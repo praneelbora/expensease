@@ -7,6 +7,7 @@ export default function LoginRegister() {
     const [step, setStep] = useState("email"); // "email", "name", or "submitted"
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [userName, setUserName] = useState("");
 
     const loginOrRegister = async (email, name = null) => {
         const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users/login`, {
@@ -14,7 +15,7 @@ export default function LoginRegister() {
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify(name ? { email, name } : { email }),
+            body: JSON.stringify((name) ? { email, name } : { email }),
         });
 
         const data = await response.json();
@@ -94,8 +95,24 @@ export default function LoginRegister() {
                                     onChange={(e) => setName(e.target.value)}
                                     required
                                     disabled={loading}
-                                    placeholder="Your name"
+                                    placeholder="Your Full Name"
                                 />
+                                <div>
+
+                                </div>
+                                {/* <label className="block text-sm mb-1">User Name</label>
+                                <input
+                                    type="text"
+                                    className="bg-[#1f1f1f] w-full text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base"
+                                    value={userName}
+                                    onChange={(e) => setUserName(e.target.value)}
+                                    required
+                                    disabled={loading}
+                                    placeholder="User name"
+                                />
+<p className="text-xs text-gray-400 mt-1">
+  Username must be 4–15 characters, start with a letter, and can include letters, numbers, and underscores (_).
+</p> */}
                             </>
                         )}
 

@@ -1,8 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import MainLayout from '../layouts/MainLayout';
 import Modal from '../components/FriendsModal';
 import { useAuth } from "../context/AuthContext";
+import { useLocation } from "react-router-dom";
+
+import {
+    Users,
+    Wallet,
+    Plus,
+    List,
+    User,
+} from "lucide-react";
 const Friends = () => {
+    const location = useLocation();
+
     const { userToken } = useAuth()
     const [friends, setFriends] = useState([]);
     const [showModal, setShowModal] = useState(false);
@@ -58,7 +69,49 @@ const Friends = () => {
             console.error("Error loading expenses:", error);
         }
     };
+        const hasRequestedRef = useRef(false);
 
+        useEffect(() => {
+            const params = new URLSearchParams(location.search);
+            const toId = params.get("add");
+    
+            if (toId && !hasRequestedRef.current) {
+                hasRequestedRef.current = true; // ensure it runs only once
+                handleSendRequest(toId);
+            }
+        }, [location]);
+        const handleSendRequest = async (toId) => {
+        try {
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/request-link`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': userToken,
+                },
+                body: JSON.stringify({ toId }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                // Show meaningful message from backend if exists
+                const errorMsg = data.message || data.error || "Failed to send friend request";
+                alert(errorMsg); // or use toast(errorMsg)
+                return;
+            }
+
+            // Success: refresh lists and close modal
+            // fetchFriends();
+            // sentRequests();
+            // receivedRequests();
+            // setShowModal(false);
+            alert(data.message || "Friend request sent"); // Optional success message
+
+        } catch (error) {
+            console.error("Error Sending Request:", error);
+            alert("Something went wrong. Please try again.");
+        }
+    };
     useEffect(() => {
         fetchExpenses();
     }, []);
@@ -66,9 +119,14 @@ const Friends = () => {
     return (
         <MainLayout>
             <div className="max-h-screen bg-[#121212] text-[#EBF1D5] overflow-hidden">
-                <div className="flex flex-row justify-between">
-                    <h1 className="text-3xl font-bold mb-6">Friends</h1>
-                    <button className="border-[1px] h-[40px] px-2 rounded-md" onClick={() => setShowModal(true)}>Add New</button>
+                <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
+                            <h1 className="text-3xl font-bold capitalize">All Friends</h1>
+                    <button
+                        className={`flex flex-col items-center justify-center z-10 bg-lime-200 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
+                        onClick={() => setShowModal(true)}
+                    >
+                        <Plus strokeWidth={3} size={20} />
+                    </button>
                 </div>
 
 

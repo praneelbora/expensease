@@ -486,9 +486,12 @@ const AddExpense = () => {
     return (
         <MainLayout>
             <div className="max-h-screen bg-[#121212] text-[#EBF1D5] overflow-hidden">
-                <div className="flex flex-row justify-between">
-                    <h1 className="text-3xl font-bold mb-6">Add Expense</h1>
+                <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
+                            <h1 className="text-3xl font-bold capitalize">Add Expense</h1>
                 </div>
+                <div className="flex flex-col mt-2">
+
+                {(!groupSelect && selectedFriends.length==0) && <p className="text-[14px] text-[#81827C] mb-1">Select a group or friends you want to add an expense with.</p>}
                 {!groupSelect && <input
                     className="w-full bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3 flex-1"
                     placeholder="Search For Friends / Groups"
@@ -497,12 +500,10 @@ const AddExpense = () => {
                 />}
                 {loading ? (
                     <p>Loading friends...</p>
-                ) : filteredFriends.length === 0 ? (
-                    <p>No friends found.</p>
                 ) : (
                     <div className="flex w-full flex-col">
                         {(selectedFriends.length === 0 || val.length > 0) && (
-                            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 px-2 mt-4`}>
+                            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2 mt-4`}>
                                 <div>
                                     {groups.length > 0 && <p className="uppercae text-[14px] text-[#EBF1D5] w-full mb-1">GROUPS</p>}
                                     {filteredGroups.map((group) => (
@@ -515,11 +516,9 @@ const AddExpense = () => {
                                             <hr />
                                         </div>
                                     ))}
-
-
                                 </div>
                                 <div>
-                                    {filteredFriends.length > 0 && <p className="uppercae text-[14px] text-[#EBF1D5] mb-1">FRIENDS</p>}
+                                    {filteredFriends.length > 0 && <p className={`uppercae text-[14px] text-[#EBF1D5] mb-1 ${filteredGroups.length>0 && 'mt-4'}`}>FRIENDS</p>}
                                     {filteredFriends.map((friend) => (
                                         <div className="flex flex-col gap-2" onClick={() => toggleFriendSelection(friend)} key={friend._id}>
                                             <div className="flex flex-row w-full justify-between items-center">
@@ -599,7 +598,7 @@ const AddExpense = () => {
                                 />
                                 {desc.length > 0 && amount > 0 && (
                                     <div className="flex flex-col gap-4">
-                                        <p className="text-lg font-medium">Paid by</p>
+                                        <p className="text-lg font-medium">Paid by <span className="text-[14px] text-[#81827C] mb-1">(Select the people who paid.)</span></p>
 
                                         {/* 1. Selection view */}
                                         <div className="w-full flex flex-wrap gap-2">
@@ -688,7 +687,7 @@ const AddExpense = () => {
                                             <p>₹{getPaidAmountInfoTop()} / ₹{amount.toFixed(2)}</p>
                                             <p className="text-[#a0a0a0]">₹{getPaidAmountInfoBottom()} left</p>
                                         </div>}
-                                        <p className="text-lg font-medium">Owed by</p>
+                                        <p className="text-lg font-medium">Owed by  <span className="text-[14px] text-[#81827C] mb-1">(Select the people who owe.)</span></p>
 
 
                                         {/* 0. Selection view */}
@@ -832,6 +831,7 @@ const AddExpense = () => {
                     </div>
                 }
 
+            </div>
             </div>
         </MainLayout>
     );

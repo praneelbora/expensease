@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { Share2 } from "lucide-react";
 
 export default function Navbar({ setShowModal, showModal, fetchFriends }) {
-    const { userToken } = useAuth()
+    const { userToken, user } = useAuth()
     const [val, setVal] = useState('')
     const [sent, setSent] = useState([])
     const [received, setreceived] = useState([])
@@ -158,6 +159,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
         sentRequests()
         receivedRequests()
     }, [])
+
     if (showModal) return (
 
         <>
@@ -165,7 +167,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                 className="justify-center items-center flex overflow-x-hidden overflow-y-auto fixed inset-0 z-[5000] outline-none focus:outline-none backdrop-blur-sm bg-[rgba(0,0,0,0.2)]"
                 onClick={() => setShowModal(false)}
             >
-                <div className="relative my-6 mx-auto w-[95dvw] lg:w-[80dvw] xl:w-[40dvw] h-auto px-3" onClick={(e) => e.stopPropagation()}>
+                <div className="relative my-6 mx-auto w-[95dvw] lg:w-[80dvw] xl:w-[40dvw] h-auto" onClick={(e) => e.stopPropagation()}>
                     {/*content*/}
                     <div className="rounded-[24px] shadow-lg relative flex flex-col w-full bg-[#212121]">
                         {/*header*/}
@@ -185,15 +187,45 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
 
                         {/*body*/}
                         <div className="w-full flex flex-col p-5 gap-6">
-                            <div className="w-full flex flex-row gap-3">
-                                <input
-                                    className="bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3 flex-1"
+                            <div className="w-full flex flex-row gap-3 items-center">
+    <input
+        className="bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3 flex-1"
+        placeholder='Enter Email ID'
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+    />
+    <button
+        className="border-[#EBF1D5] text-[#EBF1D5] border-[1px] h-[40px] px-2 rounded-md"
+        onClick={() => addFriend()}
+    >
+        Add
+    </button>
+    <button
+        className="flex items-center justify-center w-[40px] h-[40px] rounded-full shadow-md border border-[#EBF1D5] text-[#EBF1D5]"
+        onClick={() => {
+            const friendLink = `${import.meta.env.VITE_FRONTEND_URL}/friends/add/${user._id}`;
+            const message = `Let's connect on SplitFree! 🤝\n\nTap this link to login and send me a friend request:\n${friendLink}`;
 
-                                    placeholder='Enter Email ID'
-                                    value={val}
-                                    onChange={(e) => setVal(e.target.value)} />
-                                <button className="border-[#EBF1D5] text-[#EBF1D5] border-[1px] h-[40px] px-2 rounded-md" onClick={() => addFriend()}>Add</button>
-                            </div>
+            if (navigator.share) {
+                navigator
+                    .share({
+                        title: "Add me on SplitFree!",
+                        text: message,
+                        url: friendLink,
+                    })
+                    .then(() => console.log("Shared successfully"))
+                    .catch((err) => console.error("Sharing failed", err));
+            } else {
+                navigator.clipboard.writeText(message);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            }
+        }}
+    >
+        <Share2 strokeWidth={2} size={20} />
+    </button>
+</div>
+
                             <div className="w-full gap-3">
                                 {received.length > 0 &&
                                     <div className="flex flex-col gap-2">

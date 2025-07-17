@@ -5,7 +5,13 @@ import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
 import { useAuth } from "../context/AuthContext";
 import SettleModal from '../components/SettleModal';
 import Cookies from 'js-cookie';
-
+import {
+    Users,
+    Wallet,
+    Share2,
+    List,
+    User,
+} from "lucide-react";
 const GroupDetails = () => {
     const { userToken } = useAuth()
     const { id } = useParams();
@@ -20,7 +26,7 @@ const GroupDetails = () => {
     const [settleFrom, setSettleFrom] = useState('');
     const [settleTo, setSettleTo] = useState('');
     const [settleAmount, setSettleAmount] = useState('');
-    const [settleNote, setSettleNote] = useState('');
+    const [copied, setCopied] = useState(false);
 
     const handleSettle = async ({ payerId, receiverId, amount, description }) => {
         if (!payerId || !receiverId || !amount) {
@@ -273,8 +279,47 @@ const GroupDetails = () => {
                 ) : (
                     <>
                         {/* Sticky Group Name */}
-                        <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5]">
+                        <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                             <h1 className="text-3xl font-bold capitalize">{group.name}</h1>
+                            <div className="flex flex-col items-end">
+                                <button
+                                    className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
+                                    onClick={() => {
+                                        const message = `You're invited to join my group on SplitFree! 🎉
+Use this code to join: ${group.code}
+
+Or simply tap the link below to log in and join instantly:
+${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
+                                        const message1 = `Use this code: ${group.code}
+
+Or just click the link below to join directly:
+${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
+
+                                        if (navigator.share) {
+                                            navigator
+                                                .share({
+                                                    title: "Join my group on SplitFree",
+                                                    text: message1,
+                                                    url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`,
+                                                })
+                                                .then(() => console.log("Shared successfully"))
+                                                .catch((err) => console.error("Sharing failed", err));
+                                        } else {
+                                            navigator.clipboard.writeText(message);
+                                            setCopied(true);
+                                            setTimeout(() => setCopied(false), 2000); // hide after 2 seconds
+                                        }
+                                    }}
+                                >
+                                    <Share2 strokeWidth={2} size={20} />
+                                </button>
+
+                                {copied && (
+                                    <p className="text-gray-500 text-[9px] font-semibold transition-opacity">
+                                        Copied to clipboard!
+                                    </p>
+                                )}
+                            </div>
                         </div>
 
                         {/* Scrollable Content */}

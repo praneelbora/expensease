@@ -1,15 +1,36 @@
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState, useContext, useRef } from "react";
 import MainLayout from '../layouts/MainLayout';
 import Modal from '../components/GroupsModal';
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Cookies from "js-cookie";
+import { useLocation } from "react-router-dom";
+import {
+    Users,
+    Wallet,
+    Plus,
+    List,
+    User,
+} from "lucide-react";
 const Groups = () => {
+
     const navigate = useNavigate();
+    const location = useLocation();
     const { userToken } = useAuth()
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const hasJoinedRef = useRef(false);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const joinCode = params.get("join");
+
+        if (joinCode && !hasJoinedRef.current) {
+            hasJoinedRef.current = true; // ensure it runs only once
+            handleJoinGroup(joinCode);
+        }
+    }, [location]);
 
     const fetchGroups = async () => {
         try {
@@ -74,7 +95,30 @@ const Groups = () => {
             setLoading(false);
         }
     };
+    const handleJoinGroup = async (joinCode) => {
+        try {
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/groups/join`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-auth-token": userToken,
+                },
+                body: JSON.stringify({ code: joinCode }),
+            });
 
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || "Failed to join group");
+            }
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete("join");
+            window.history.replaceState({}, "", newUrl);
+            fetchGroups();
+        } catch (error) {
+            console.error("Join group error:", error.message);
+        }
+    };
     useEffect(() => {
         if (!userToken) return;
         fetchGroups();
@@ -83,9 +127,14 @@ const Groups = () => {
     return (
         <MainLayout>
             <div className="max-h-screen bg-[#121212] text-[#EBF1D5]">
-                <div className="flex flex-row justify-between">
-                    <h1 className="text-3xl font-bold mb-6">Groups</h1>
-                    <button className="border-[1px] h-[40px] px-2 rounded-md" onClick={() => setShowModal(true)}>Add New</button>
+                <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
+                            <h1 className="text-3xl font-bold capitalize">All Groups</h1>
+                    <button
+                        className={`flex flex-col items-center justify-center z-10 bg-lime-200 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
+                        onClick={() => setShowModal(true)}
+                    >
+                        <Plus strokeWidth={3} size={20} />
+                    </button>
                 </div>
                 {loading ? (
                     <p>Loading groups...</p>
@@ -104,7 +153,7 @@ const Groups = () => {
                                     {group?.totalOwe && group?.totalOwe != 0 && <div className="flex flex-col">
                                         <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-green-500'} text-[12px] text-right`}>{group.totalOwe > 0 ? 'you owe' : 'you are owed'}</p>
                                         <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-green-500'} text-[16px] -mt-[4px] text-right`}>
-                                            ₹ {Math.abs(group.totalOwe)}
+                                            ₹ {Math.abs(group.totalOwe.toFixed(2))}
                                         </p>
 
                                     </div>
