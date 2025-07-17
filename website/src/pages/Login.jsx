@@ -20,7 +20,7 @@ export default function LoginRegister() {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Login/Register failed");
 
-        return data.message; // e.g., "Magic login link sent to email!"
+        return data.message; // e.g., "Login link sent to email!"
     };
 
     const handleSubmit = async (e) => {

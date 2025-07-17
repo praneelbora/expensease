@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const auth = require('../../middleware/auth');
-const { sendMagicLinkEmail } = require('./email');
+const { sendLoginLinkEmail } = require('./email');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -31,9 +31,9 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign({ id: user._id, type: 'login' }, JWT_SECRET, { expiresIn: '10m' });
 
-    await sendMagicLinkEmail(user.email, token, user.name);
+    await sendLoginLinkEmail(user.email, token, user.name);
 
-    res.json({ message: 'Magic login link sent to email!' });
+    res.json({ message: 'Login link sent to email!' });
 
   } catch (err) {
     console.error('Login error:', err);
@@ -41,7 +41,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ✅ Verify Magic Login Link
+// ✅ Verify Login Link
 router.get('/login', async (req, res) => {
     const { token } = req.query;
     try {

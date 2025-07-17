@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
         setUser(data.user);
         navigate("/groups");
     } catch (err) {
-        console.error("Magic login error:", err);
+        console.error("link login error:", err);
         alert(err.message); // ✅ show token-related errors
     }
 };
