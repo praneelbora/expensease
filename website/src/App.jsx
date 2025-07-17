@@ -10,10 +10,12 @@ import GroupDetails from "./pages/GroupDetails";
 import Account from "./pages/Account";
 import Logout from "./pages/Logout";
 import Cookies from "js-cookie";
+import { Loader } from "lucide-react";
 
 // ✅ Updated PrivateRoute using context
 function PrivateRoute({ children }) {
-    const { user } = useAuth();
+    const { user, authLoading } = useAuth();
+    if(authLoading) return <Loader />
     return user ? children : <Navigate to="/login" />;
 }
 
@@ -24,11 +26,11 @@ function App() {
         <Routes>
             <Route
                 path="/login"
-                element={(Cookies.get('userToken'))? <Navigate to="/groups" /> : <Login />}
+                element={user ? <Navigate to="/groups" /> : <Login />}
             />
             <Route
                 path="/register"
-                element={(Cookies.get('userToken'))? <Navigate to="/groups" /> : <Register />}
+                element={user ? <Navigate to="/groups" /> : <Register />}
             />
 
             <Route

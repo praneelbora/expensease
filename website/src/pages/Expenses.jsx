@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 const Expenses = () => {
     const { userToken } = useAuth()
     const [expenses, setExpenses] = useState([]);
-    const [userID, setUserID] = useState();
+    const [userID, setUserId] = useState();
     const [showModal, setShowModal] = useState(false);
 
     const getPayerInfo = (splits) => {
@@ -58,7 +58,7 @@ const Expenses = () => {
             console.log(data);
 
             setExpenses(data.expenses);
-            setUserID(data.id);
+            setUserId(data.id);
         } catch (error) {
             console.error("Error loading expenses:", error);
         }

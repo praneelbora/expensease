@@ -4,6 +4,7 @@ import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
 import { useAuth } from "../context/AuthContext";
 import SettleModal from '../components/SettleModal';
+import Cookies from 'js-cookie';
 
 const GroupDetails = () => {
     const { userToken } = useAuth()
@@ -12,7 +13,7 @@ const GroupDetails = () => {
     const [groupExpenses, setGroupExpenses] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [userID, setUserID] = useState();
+    const [userID, setUserId] = useState();
     const [selectedMember, setSelectedMember] = useState(null);
     const [showMembers, setShowMembers] = useState(false);
     const [showSettleModal, setShowSettleModal] = useState(false);
@@ -85,17 +86,17 @@ const GroupDetails = () => {
         }
     };
 
-const getSettleDirectionText = (splits) => {
-  const payer = splits.find(s => s.paying && s.payAmount > 0);
-  const receiver = splits.find(s => s.owing && s.oweAmount > 0);
+    const getSettleDirectionText = (splits) => {
+        const payer = splits.find(s => s.paying && s.payAmount > 0);
+        const receiver = splits.find(s => s.owing && s.oweAmount > 0);
 
-  if (!payer || !receiver) return "Invalid settlement";
+        if (!payer || !receiver) return "Invalid settlement";
 
-  const payerName = payer.friendId._id === userID ? "You" : payer.friendId.name;
-  const receiverName = receiver.friendId._id === userID ? "you" : receiver.friendId.name;
+        const payerName = payer.friendId._id === userID ? "You" : payer.friendId.name;
+        const receiverName = receiver.friendId._id === userID ? "you" : receiver.friendId.name;
 
-  return `${payerName} paid ${receiverName}`;
-};
+        return `${payerName} paid ${receiverName}`;
+    };
 
 
 
@@ -121,7 +122,7 @@ const getSettleDirectionText = (splits) => {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/groups/${id}`, {
                 headers: {
                     "Content-Type": "application/json",
-                    "x-auth-token": userToken
+                    "x-auth-token": Cookies.get('userToken')
                 },
             });
 
@@ -131,7 +132,7 @@ const getSettleDirectionText = (splits) => {
 
             setGroup(data);
         } catch (error) {
-            console.error("Group Details Page - Error loading group:", err);
+            console.error("Group Details Page - Error loading group:", error);
         } finally {
             setLoading(false);
         }
@@ -151,10 +152,10 @@ const getSettleDirectionText = (splits) => {
 
             if (!response.ok) throw new Error(data.message || "Failed to fetch group");
 
-            setGroupExpenses(data.group.expenses);
-            setUserID(data.id);
+            setGroupExpenses(data.expenses);
+            setUserId(data.id);
         } catch (error) {
-            console.error("Group Details Page - Error loading group expenses:", err);
+            console.error("Group Details Page - Error loading group expenses:", error);
         } finally {
             setLoading(false);
         }
@@ -168,7 +169,7 @@ const getSettleDirectionText = (splits) => {
             totalDebt[member._id] = 0;
         });
         console.log(totalDebt);
-        
+
         // Calculate the total amount each member owes or is owed
         groupExpenses.forEach(exp => {
             exp.splits.forEach(split => {
@@ -187,7 +188,7 @@ const getSettleDirectionText = (splits) => {
             });
         });
         console.log(totalDebt);
-        
+
         return totalDebt;
     };
 
@@ -246,11 +247,11 @@ const getSettleDirectionText = (splits) => {
         return acc;
     }, {});
 
-useEffect(() => {
-    if (group && group.members && groupExpenses.length > 0) {
-        setTotalDebt(calculateDebt(groupExpenses, group.members)); // Always recalculate
-    }
-}, [group, groupExpenses]);
+    useEffect(() => {
+        if (group && group?.members && groupExpenses?.length > 0) {
+            setTotalDebt(calculateDebt(groupExpenses, group.members)); // Always recalculate
+        }
+    }, [group, groupExpenses]);
 
     useEffect(() => {
         if (totalDebt) {
@@ -272,7 +273,7 @@ useEffect(() => {
                 ) : (
                     <>
                         {/* Sticky Group Name */}
-                        <div className="bg-[#121212] sticky -top-[5px] z-10 border-b border-[#EBF1D5]">
+                        <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5]">
                             <h1 className="text-3xl font-bold capitalize">{group.name}</h1>
                         </div>
 
@@ -341,62 +342,61 @@ useEffect(() => {
                             <div className="flex flex-col">
                                 <p className="text-[14px] my-2 uppercase">Expenses</p>
                                 <ul className="flex flex-col w-full gap-2">
-                                    {filteredExpenses
-                                        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                    {filteredExpenses?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
                                         .map((exp) => (
                                             <>
-                                            
-                                            {exp.typeOf!='settle'?
-                                            <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[50px]">
-                                                <div className="flex flex-col justify-center items-center">
-                                                    <p className="text-[14px] uppercase">
-                                                        {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
-                                                    </p>
-                                                    <p className="text-[22px] -mt-[6px]">
-                                                        {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
-                                                    </p>
-                                                </div>
-                                                <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
-                                                <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
-                                                    {/* Left: Description and payer info */}
-                                                    <div className="flex flex-col justify-center min-w-0">
-                                                        <p className="text-[22px] capitalize truncate">{exp.description}</p>
-                                                        <p className="text-[14px] text-[#81827C] capitalize -mt-[6px]">
-                                                            {getPayerInfo(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
-                                                        </p>
-                                                    </div>
 
-                                                    {/* Right: Owe info */}
-                                                    <div className="flex flex-col justify-center items-end text-right shrink-0">
-                                                        <p className="text-[13px] whitespace-nowrap">{getOweInfo(exp.splits)?.text}</p>
-                                                        <p className="text-[22px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(exp.splits)?.amount}</p>
-                                                    </div>
-                                                </div>
+                                                {exp.typeOf != 'settle' ?
+                                                    <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[50px]">
+                                                        <div className="flex flex-col justify-center items-center">
+                                                            <p className="text-[14px] uppercase">
+                                                                {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
+                                                            </p>
+                                                            <p className="text-[22px] -mt-[6px]">
+                                                                {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
+                                                            </p>
+                                                        </div>
+                                                        <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
+                                                        <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
+                                                            {/* Left: Description and payer info */}
+                                                            <div className="flex flex-col justify-center min-w-0">
+                                                                <p className="text-[22px] capitalize truncate">{exp.description}</p>
+                                                                <p className="text-[14px] text-[#81827C] capitalize -mt-[6px]">
+                                                                    {getPayerInfo(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
+                                                                </p>
+                                                            </div>
 
-                                            </div>:
-                                            <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[20px]">
-                                                <div className="flex flex-col justify-center items-center">
-                                                    <p className="text-[14px] uppercase">
-                                                        {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
-                                                    </p>
-                                                    <p className="text-[22px] -mt-[6px]">
-                                                        {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
-                                                    </p>
-                                                </div>
-                                                <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
-                                                <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
-                                                    {/* Left: Description and payer info */}
-                                                    <div className="flex flex-col justify-center min-w-0">
-                                                        <p className="text-[14px] text-[#81827C] capitalize">
-                                                            {getSettleDirectionText(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
-                                                        </p>
-                                                    </div>
-                                                </div>
+                                                            {/* Right: Owe info */}
+                                                            <div className="flex flex-col justify-center items-end text-right shrink-0">
+                                                                <p className="text-[13px] whitespace-nowrap">{getOweInfo(exp.splits)?.text}</p>
+                                                                <p className="text-[22px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(exp.splits)?.amount}</p>
+                                                            </div>
+                                                        </div>
 
-                                            </div>
-                                            }
+                                                    </div> :
+                                                    <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[20px]">
+                                                        <div className="flex flex-col justify-center items-center">
+                                                            <p className="text-[14px] uppercase">
+                                                                {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
+                                                            </p>
+                                                            <p className="text-[22px] -mt-[6px]">
+                                                                {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
+                                                            </p>
+                                                        </div>
+                                                        <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
+                                                        <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
+                                                            {/* Left: Description and payer info */}
+                                                            <div className="flex flex-col justify-center min-w-0">
+                                                                <p className="text-[14px] text-[#81827C] capitalize">
+                                                                    {getSettleDirectionText(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                    </div>
+                                                }
                                             </>
-                                            
+
                                         ))}
                                 </ul>
                             </div>

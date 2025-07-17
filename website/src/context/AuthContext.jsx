@@ -6,45 +6,40 @@ export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [userToken, setUserToken] = useState(null);
+    const [authLoading, setAuthLoading] = useState(true);
     const navigate = useNavigate();
-    const token = Cookies.get('userToken')
+
     const fetchUserData = async () => {
-        try {
-            const token = Cookies.get('userToken');
-            if (!token) {
-                throw new Error("No token found");
-            }
+    try {
+        const token = Cookies.get('userToken');
+        if (!token) {
+            setAuthLoading(false);
+            return;
+        }
 
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    'x-auth-token': token,
-                },
-            });
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users`, {
+            headers: {
+                "Content-Type": "application/json",
+                'x-auth-token': token,
+            },
+        });
 
-            if (response.status === 401) {
-                // 🔐 Unauthorized: Log out
-                setUser(null);
-                Cookies.remove('userToken');
-                navigate("/login");
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error("Failed to fetch user data");
-            }
-
+        if (response.ok) {
             const data = await response.json();
             setUser(data);
-
-        } catch (error) {
-            console.error("Error loading user data:", error);
-
+        } else {
             setUser(null);
             Cookies.remove('userToken');
-            navigate("/login");
         }
-    };
+    } catch (err) {
+        console.error("Error loading user data:", err);
+        setUser(null);
+        Cookies.remove('userToken');
+    } finally {
+        setAuthLoading(false);
+    }
+};
+
     
 
     const login = async (email, password) => {
@@ -79,11 +74,12 @@ export const AuthProvider = ({ children }) => {
         navigate("/login");
     };
     useEffect(() => {
+        const token = Cookies.get("userToken");
+        if (token) setUserToken(token);
         fetchUserData()
     }, []);
-
     return (
-        <AuthContext.Provider value={{ user, login, logout, userToken }}>
+        <AuthContext.Provider value={{ user, login, logout, userToken, authLoading }}>
             {children}
         </AuthContext.Provider>
     );

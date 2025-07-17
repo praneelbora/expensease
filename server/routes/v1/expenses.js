@@ -26,18 +26,6 @@ router.post('/', auth, async (req, res) => {
 
     await newExpense.save();
 
-    // If groupId is provided, push expense to that group's expenses array
-    if (groupId) {
-      await Group.findByIdAndUpdate(
-        groupId,
-        { 
-          $push: { expenses: newExpense._id },
-          $set: { updatedAt: Date.now() }
-        },
-        { new: true }
-      );
-    }
-
     res.status(201).json(newExpense);
   } catch (error) {
     console.error(error);
@@ -49,22 +37,18 @@ router.get('/group/:id', auth, async (req, res) => {
   try {
     const groupId = req.params.id;
 
-    const group = await Group.findById(groupId)
-      .populate({
-        path: 'expenses',
-        populate: [
-          { path: 'createdBy' },
-          { path: 'splits.friendId' }
-        ]
-      })
-      .populate('members', 'name email');
+    const group = await Group.findById(groupId).populate('members', 'name email');
 
     if (!group) {
       return res.status(404).json({ error: 'Group not found' });
     }
-    console.log(group.expenses.length);
-    
-    res.status(200).json({group, id: req.user.id});
+
+    const expenses = await Expense.find({ groupId })
+      .populate('createdBy', 'name email')
+      .populate('splits.friendId', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ group, expenses, id: req.user.id });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch group expenses' });
@@ -102,6 +86,7 @@ router.post('/settle', auth, async (req, res) => {
 
     const settleExpense = new Expense({
       createdBy: fromUserId,
+      groupId,
       description: note || `Settled ₹${amount}`,
       amount,
       typeOf: 'settle',
@@ -123,18 +108,6 @@ router.post('/settle', auth, async (req, res) => {
     });
 
     await settleExpense.save();
-
-    // 🔥 Push it into the group's expenses array
-    if (groupId) {
-      await Group.findByIdAndUpdate(
-        groupId,
-        {
-          $push: { expenses: settleExpense._id },
-          $set: { updatedAt: Date.now() }
-        },
-        { new: true }
-      );
-    }
 
     res.status(201).json(settleExpense);
   } catch (err) {

@@ -7,6 +7,8 @@ const Friends = () => {
     const [friends, setFriends] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [expenses, setExpenses] = useState([]); // ✅ Array of expenses
+    const [userId, setUserId] = useState(null);
 
     const fetchFriends = async () => {
         try {
@@ -36,6 +38,30 @@ const Friends = () => {
     useEffect(() => {
         fetchFriends();
     }, []);
+    const fetchExpenses = async () => {
+        try {
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses`, {
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-auth-token": userToken
+                },
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) throw new Error(data.message || "Failed to fetch expenses");
+            console.log(data);
+            setExpenses(data.expenses.filter(exp => exp.groupId == undefined));
+            setUserId(data.id);
+
+        } catch (error) {
+            console.error("Error loading expenses:", error);
+        }
+    };
+
+    useEffect(() => {
+        fetchExpenses();
+    }, []);
 
     return (
         <MainLayout>
@@ -52,12 +78,51 @@ const Friends = () => {
                     <p>No friends found.</p>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {friends.map((friend, index) => (
-                            <div key={friend._id} className="flex flex-col gap-2">
-                                <h2 className="text-xl font-semibold capitalize">{friend.name}</h2>
-                                <hr />
-                            </div>
-                        ))}
+                        {friends.map((friend) => {
+                            const friendExpenses = expenses?.filter(exp =>
+                                exp.splits.some(split => {
+                                    return split.friendId?._id?.toString() === friend._id?.toString()
+                                })
+                            );
+                            console.log(friendExpenses);
+
+                            // Compute net balance (user - friend) for those expenses
+                            let balance = 0;
+                            friendExpenses.forEach(exp => {
+                                exp.splits.forEach(split => {
+                                    if (split.friendId?._id?.toString() === friend._id?.toString()) {
+                                        if (split.owing) {
+                                            balance += split.oweAmount || 0;
+                                        }
+                                        if (split.paying) {
+                                            balance -= split.payAmount || 0;
+                                        }
+                                    }
+                                });
+                            });
+
+                            return (
+                                <div key={friend._id} className="flex flex-col gap-2">
+                                    <div className="flex flex-1 flex-row justify-between items-center align-middle">
+                                        <h2 className="text-xl font-semibold capitalize">{friend.name}</h2>
+                                        {balance !== 0 && !isNaN(balance) && (
+                                            <div className="flex flex-col">
+                                                <p className={`${balance < 0 ? 'text-red-500' : 'text-green-500'} text-[12px] text-right`}>
+                                                    {balance < 0 ? 'you owe' : 'you are owed'}
+                                                </p>
+                                                <p className={`${balance < 0 ? 'text-red-500' : 'text-green-500'} text-[16px] -mt-[4px] text-right`}>
+                                                    ₹ {Math.abs(balance.toFixed(2))}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                    </div>
+                                    <hr />
+                                </div>
+                            );
+                        })}
+
+
                     </div>
                 )}
             </div>

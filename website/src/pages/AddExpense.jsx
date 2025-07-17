@@ -210,7 +210,7 @@ const AddExpense = () => {
         if (mode === "percent") {
             const totalPercent = selectedFriends
                 .filter(friend => friend.owing)
-                .reduce((sum, f) => sum + (f.owePercent || 0), 0);
+                .reduce((sum, f) => sum + (parseInt(f.owePercent) || 0), 0);
 
             return totalPercent === 100 && isPaidAmountValid();
         }
@@ -408,12 +408,12 @@ const AddExpense = () => {
         const owingFriends = selectedFriends.filter(f => f.owing);
 
         if (mode === 'percent') {
-            const totalPercent = owingFriends.reduce((sum, f) => sum + (f.owePercent || 0), 0);
+            const totalPercent = owingFriends.reduce((sum, f) => sum + parseFloat(f.owePercent || 0), 0);
             return `${totalPercent.toFixed(2)} / 100%`;
         }
 
         if (mode === 'value') {
-            const totalValue = owingFriends.reduce((sum, f) => sum + (f.oweAmount || 0), 0);
+            const totalValue = owingFriends.reduce((sum, f) => sum + parseFloat(f.oweAmount || 0), 0);
             return `₹${totalValue.toFixed(2)} / ₹${amount.toFixed(2)}`;
         }
 
@@ -424,7 +424,9 @@ const AddExpense = () => {
         const owingFriends = selectedFriends.filter(f => f.owing);
 
         if (mode === 'percent') {
-            const totalPercent = owingFriends.reduce((sum, f) => sum + (f.owePercent || 0), 0);
+            console.log(owingFriends);
+            const totalPercent = owingFriends.reduce((sum, f) => sum + (parseInt(f.owePercent) || 0), 0);
+            
             const remaining = 100 - totalPercent;
             return `${remaining.toFixed(2)}% left`;
         }
