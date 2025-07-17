@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from "react-router";
 import { useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
 import Groups from "./pages/Groups";
 import Friends from "./pages/Friends";
 import AddExpense from "./pages/AddExpense";
@@ -9,6 +8,7 @@ import Expenses from "./pages/Expenses";
 import GroupDetails from "./pages/GroupDetails";
 import Account from "./pages/Account";
 import Logout from "./pages/Logout";
+import LinkLogin from "./pages/LinkLogin";
 import Cookies from "js-cookie";
 import { Loader } from "lucide-react";
 
@@ -28,11 +28,6 @@ function App() {
                 path="/login"
                 element={user ? <Navigate to="/groups" /> : <Login />}
             />
-            <Route
-                path="/register"
-                element={user ? <Navigate to="/groups" /> : <Register />}
-            />
-
             <Route
                 path="/groups"
                 element={<PrivateRoute><Groups /></PrivateRoute>}
@@ -61,6 +56,8 @@ function App() {
                 path="/logout"
                 element={<Logout />}
             />
+            <Route path="/link-login" element={<LinkLogin />} />
+
             <Route
                 path="/"
                 element={<Navigate to={user ? "/groups" : "/login"} />}

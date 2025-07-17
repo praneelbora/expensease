@@ -3,81 +3,81 @@ const router = express.Router();
 const User = require('../../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 const auth = require('../../middleware/auth');
+const { sendMagicLinkEmail } = require('./email');
 
-// Register
-router.post('/register', async (req, res) => {
-    const { name, email, password } = req.body;
-    try {
-        console.log(password);
+const JWT_SECRET = process.env.JWT_SECRET;
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ name, email, password: hashedPassword });
-        await newUser.save();
-        res.status(201).json({ message: 'User registered successfully' });
-    } catch (error) {
-        console.log('users/register error: ', error);
-        res.status(400).json({ error: error.message });
-    }
-});
-
-// Login
 router.post('/login', async (req, res) => {
-    const { email, password } = req.body;
-    console.log(email, password);
+  const { email, name } = req.body;
+    console.log('login');
+    
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  try {
+    let user = await User.findOne({ email });
+
+    if (!user && name) {
+      // ✅ Create user if not found and name is provided
+      user = await User.create({ email, name });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const token = jwt.sign({ id: user._id, type: 'login' }, JWT_SECRET, { expiresIn: '10m' });
+
+    await sendMagicLinkEmail(user.email, token, user.name);
+
+    res.json({ message: 'Magic login link sent to email!' });
+
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+// ✅ Verify Magic Login Link
+router.get('/login', async (req, res) => {
+    const { token } = req.query;
     try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            console.log('User not found');
-            return res.status(404).json({ error: 'User not found' });
-        }
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            console.log('Invalid credentials');
-            return res.status(400).json({ error: 'Invalid credentials' });
-        }
-        console.log(isMatch);
-        
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-         const responseBody = {
-            "x-auth-token": token, // Include the token
-        };
-        return res.status(200).send({ responseBody, user: { id: user._id, name: user.name, email: user.email } });
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded.type !== 'login') throw new Error('Invalid token type');
 
-        // const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
-        // const responseBody = {
-        //     "x-auth-token": token, // Include the token
-        // };
-        // res.status(200).send({ new: user.isNew, responseBody });
+        const user = await User.findById(decoded.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
 
+        const authToken = jwt.sign({ id: user._id }, JWT_SECRET);
 
-    } catch (error) {
-        console.log((error));
-
-        return res.status(500).json({ error: error.message });
+        res.json({
+            responseBody: { "x-auth-token": authToken },
+            user: { id: user._id, name: user.name, email: user.email },
+        });
+    } catch (err) {
+        console.error('login verify link error:', err);
+        res.status(400).json({ error: 'Invalid or expired login link' });
     }
 });
 
+// // 👤 Authenticated User Info
 router.get('/', auth, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id);
-        return res.status(200).json(user);
+        const user = await User.findById(req.user.id)
+        res.json(user);
     } catch (error) {
-        console.log((error));
-        return res.status(500).json({ error: error.message });
+        console.error('/ GET user error:', error);
+        res.status(500).json({ error: 'Failed to fetch user' });
     }
 });
 
-router.get('/ping', async (req, res) => {
-    try {
-        console.log('ping');
-        res.status(200).send('🚀 Server is running!');
-    } catch (error) {
-        console.log('ping/ error: ', error);
-
-        res.status(500).json({ error: error.message });
-    }
+// // 🔁 Ping
+router.get('/ping', (req, res) => {
+    console.log('ping');
+    res.send('🚀 Server is running!');
 });
-
 
 module.exports = router;

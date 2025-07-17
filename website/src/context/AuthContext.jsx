@@ -7,40 +7,63 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [userToken, setUserToken] = useState(null);
     const [authLoading, setAuthLoading] = useState(true);
+
     const navigate = useNavigate();
 
     const fetchUserData = async () => {
-    try {
-        const token = Cookies.get('userToken');
-        if (!token) {
-            setAuthLoading(false);
-            return;
-        }
+        try {
+            const token = Cookies.get('userToken');
+            if (!token) {
+                setAuthLoading(false);
+                return;
+            }
 
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users`, {
-            headers: {
-                "Content-Type": "application/json",
-                'x-auth-token': token,
-            },
-        });
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users`, {
+                headers: {
+                    "Content-Type": "application/json",
+                    'x-auth-token': token,
+                },
+            });
 
-        if (response.ok) {
-            const data = await response.json();
-            setUser(data);
-        } else {
+            if (response.ok) {
+                const data = await response.json();
+                setUser(data);
+            } else {
+                setUser(null);
+                Cookies.remove('userToken');
+            }
+        } catch (err) {
+            console.error("Error loading user data:", err);
             setUser(null);
             Cookies.remove('userToken');
+        } finally {
+            setAuthLoading(false);
         }
+    };
+
+
+
+    const linkLogin = async (token) => {
+    try {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users/login?token=${token}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Login link expired or invalid.");
+        }
+
+        const authToken = data.responseBody["x-auth-token"];
+        Cookies.set("userToken", authToken, { expires: 100 });
+        setUserToken(authToken);
+        setUser(data.user);
+        navigate("/groups");
     } catch (err) {
-        console.error("Error loading user data:", err);
-        setUser(null);
-        Cookies.remove('userToken');
-    } finally {
-        setAuthLoading(false);
+        console.error("Magic login error:", err);
+        alert(err.message); // ✅ show token-related errors
     }
 };
 
-    
+
 
     const login = async (email, password) => {
         try {
@@ -79,7 +102,7 @@ export const AuthProvider = ({ children }) => {
         fetchUserData()
     }, []);
     return (
-        <AuthContext.Provider value={{ user, login, logout, userToken, authLoading }}>
+        <AuthContext.Provider value={{ user, login, logout, userToken, authLoading, linkLogin }}>
             {children}
         </AuthContext.Provider>
     );
