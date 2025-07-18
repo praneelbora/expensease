@@ -11,16 +11,16 @@ const MobileNavbar = ({ groupId }) => {
     const location = useLocation();
 
     const navItems = [
-        { to: "/friends", label: "Friends", icon: <Users size={20} /> },
-        { to: "/groups", label: "Groups", icon: <Wallet size={20} /> },
-        { to: "/add-expense", label: "Add", icon: <Plus size={28} />, isCenter: true, state: groupId ? { groupId } : null, special: true },
-        { to: "/expenses", label: "Expenses", icon: <List size={20} /> },
-        { to: "/account", label: "Account", icon: <User size={20} /> },
+        { to: "/friends", label: "Friends", icon: <Users size={22} /> },
+        { to: "/groups", label: "Groups", icon: <Wallet size={22} /> },
+        { to: "/add-expense", label: "Add", icon: <Plus strokeWidth={3}  size={28} />, isCenter: true, state: groupId ? { groupId } : null, special: true },
+        { to: "/expenses", label: "Expenses", icon: <List size={22} /> },
+        { to: "/account", label: "Account", icon: <User size={22} /> },
     ];
 
     return (
         <div className="fixed bottom-0 left-0 w-full bg-[#1f1f1f] text-[#EBF1D5] border-t border-[#333] z-40">
-            <div className="flex justify-around items-center px-2 py-2 relative">
+            <div className="flex justify-around items-center px-2 pt-3 relative pb-4">
                 {navItems.map((item, index) => {
                     const isActive = location.pathname === item.to;
 

@@ -42,7 +42,6 @@ export const AuthProvider = ({ children }) => {
     };
 
 
-
     const linkLogin = async (token) => {
         try {
             const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users/login?token=${token}`);

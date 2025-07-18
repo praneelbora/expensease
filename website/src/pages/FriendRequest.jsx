@@ -10,7 +10,7 @@ export default function FriendJoinRedirect() {
 
     useEffect(() => {
         if (authLoading) return;
-        
+
         if (!user) {
             localStorage.setItem("pendingFriendAdd", senderId);
             navigate("/login");

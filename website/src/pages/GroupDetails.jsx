@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
 import { useAuth } from "../context/AuthContext";
@@ -11,9 +11,15 @@ import {
     Share2,
     List,
     User,
+    Plus,
+    Eye,
+    EyeClosed,
+    Settings,
+    ChevronLeft,
 } from "lucide-react";
 const GroupDetails = () => {
     const { userToken } = useAuth()
+    const navigate = useNavigate()
     const { id } = useParams();
     const [group, setGroup] = useState(null);
     const [groupExpenses, setGroupExpenses] = useState([]);
@@ -280,8 +286,14 @@ const GroupDetails = () => {
                     <>
                         {/* Sticky Group Name */}
                         <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
-                            <h1 className="text-3xl font-bold capitalize">{group.name}</h1>
+                            <div className="flex flex-row gap-2">
+                        <button onClick={()=>navigate(`/groups`)}>
+                                    <ChevronLeft />
+                                </button>
+                                <h1 className="text-3xl font-bold capitalize">{group.name}</h1>
+                                </div>
                             <div className="flex flex-col items-end">
+                            <div className="flex flex-row items-end">
                                 <button
                                     className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
                                     onClick={() => {
@@ -313,7 +325,14 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 >
                                     <Share2 strokeWidth={2} size={20} />
                                 </button>
+                                <button
+                                    className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
+                                    onClick={() => {navigate(`/groups/settings/${group._id}`)}} >
+                                         <Settings strokeWidth={2} size={20} />
+                                </button>
+                                
 
+                                    </div>
                                 {copied && (
                                     <p className="text-gray-500 text-[9px] font-semibold transition-opacity">
                                         Copied to clipboard!
@@ -332,9 +351,9 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     <p className="text-[14px] uppercase">Members</p>
                                     <button
                                         onClick={() => setShowMembers((prev) => !prev)}
-                                        className="text-sm border border-[#EBF1D5] rounded-full px-4 py-1 uppercase"
+                                        className="text-sm rounded-full uppercase"
                                     >
-                                        {showMembers ? "Hide" : "View"}
+                                        {showMembers ? <Eye/>:<EyeClosed/>}
                                     </button>
                                 </div>
 
@@ -364,7 +383,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                             <hr />
 
                             {/* Debt Summary */}
-                            <div className="flex flex-col">
+                            {groupExpenses && groupExpenses.length>0 &&<> <div className="flex flex-col">
                                 <div className="flex justify-between items-center">
                                     <p className="text-[14px] uppercase">Debt Summary</p>
                                     <button
@@ -381,11 +400,18 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 ))}
                             </div>
 
-                            <hr />
+                            <hr /></>}
 
                             {/* Expenses */}
                             <div className="flex flex-col">
-                                <p className="text-[14px] my-2 uppercase">Expenses</p>
+                                <div className="flex flex-row justify-between">
+                                    <p className="text-[14px] my-2 uppercase">Expenses</p>
+                                    <button
+                                    className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
+                                    onClick={() => {navigate('/add-expense')}}>
+                                        <Plus size={20}/>
+                                    </button>
+                                    </div>
                                 <ul className="flex flex-col w-full gap-2">
                                     {filteredExpenses?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
                                         .map((exp) => (
@@ -433,7 +459,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                             {/* Left: Description and payer info */}
                                                             <div className="flex flex-col justify-center min-w-0">
                                                                 <p className="text-[14px] text-[#81827C] capitalize">
-                                                                    {getSettleDirectionText(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
+                                                                    {getSettleDirectionText(exp.splits)} {`₹${exp.amount.toFixed(2)}`}
                                                                 </p>
                                                             </div>
                                                         </div>

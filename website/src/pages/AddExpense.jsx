@@ -3,6 +3,7 @@ import MainLayout from '../layouts/MainLayout';
 import { useLocation } from 'react-router-dom';
 import { useRef } from 'react';
 import { useAuth } from "../context/AuthContext";
+import { Loader } from "lucide-react";
 
 const AddExpense = () => {
     const [friends, setFriends] = useState([]);
@@ -426,7 +427,7 @@ const AddExpense = () => {
         if (mode === 'percent') {
             console.log(owingFriends);
             const totalPercent = owingFriends.reduce((sum, f) => sum + (parseInt(f.owePercent) || 0), 0);
-            
+
             const remaining = 100 - totalPercent;
             return `${remaining.toFixed(2)}% left`;
         }
@@ -487,351 +488,354 @@ const AddExpense = () => {
         <MainLayout>
             <div className="max-h-screen bg-[#121212] text-[#EBF1D5] overflow-hidden">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
-                            <h1 className="text-3xl font-bold capitalize">Add Expense</h1>
+                    <h1 className="text-3xl font-bold capitalize">Add Expense</h1>
                 </div>
                 <div className="flex flex-col mt-2">
 
-                {(!groupSelect && selectedFriends.length==0) && <p className="text-[14px] text-[#81827C] mb-1">Select a group or friends you want to add an expense with.</p>}
-                {!groupSelect && <input
-                    className="w-full bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3 flex-1"
-                    placeholder="Search For Friends / Groups"
-                    value={val}
-                    onChange={(e) => setVal(e.target.value)}
-                />}
-                {loading ? (
-                    <p>Loading friends...</p>
-                ) : (
-                    <div className="flex w-full flex-col">
-                        {(selectedFriends.length === 0 || val.length > 0) && (
-                            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2 mt-4`}>
-                                <div>
-                                    {groups.length > 0 && <p className="uppercae text-[14px] text-[#EBF1D5] w-full mb-1">GROUPS</p>}
-                                    {filteredGroups.map((group) => (
-                                        <div
-                                            key={group._id}
-                                            onClick={() => toggleGroupSelection(group)}
-                                            className="flex flex-col gap-1 cursor-pointer hover:bg-[#1f1f1f] py-1 rounded-md transition"
-                                        >
-                                            <h2 className="text-xl font-semibold capitalize">{group.name}</h2>
-                                            <hr />
-                                        </div>
-                                    ))}
-                                </div>
-                                <div>
-                                    {filteredFriends.length > 0 && <p className={`uppercae text-[14px] text-[#EBF1D5] mb-1 ${filteredGroups.length>0 && 'mt-4'}`}>FRIENDS</p>}
-                                    {filteredFriends.map((friend) => (
-                                        <div className="flex flex-col gap-2" onClick={() => toggleFriendSelection(friend)} key={friend._id}>
-                                            <div className="flex flex-row w-full justify-between items-center">
-                                                <div className="flex flex-col">
-                                                    <h2 className="text-xl capitalize text-[#EBF1D5]">{friend.name}</h2>
-                                                    <p className="lowercase text-[#81827C]">{friend.email}</p>
-                                                </div>
-                                            </div>
-                                            <hr />
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        <div className="flex flex-wrap my-4 gap-2">
-                            {!groupSelect && selectedFriends.map((friend) => (
-                                <div
-                                    key={'selected' + friend._id}
-                                    className="flex items-center h-[30px] gap-2 ps-3 overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]"
-                                >
-                                    <p className="capitalize">{friend.name}</p>
-                                    <button
-                                        onClick={() => handleRemoveFriend(friend)}
-                                        className={`px-2 h-full -mt-[2px] ${deleteConfirmMap[friend._id] ? 'bg-red-500' : 'bg-transparent'
-                                            }`}
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            ))}
-                            {groupSelect && (<>
-                                <p className="uppercae text-[14px] text-[#EBF1D5] w-full mb-1">GROUP SELECTED</p>
-                                <div
-                                    key={'selected' + groupSelect._id}
-                                    className="flex items-center h-[30px] gap-1 ps-3 overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]"
-                                >
-                                    <p className="capitalize">{groupSelect.name}</p>
-                                    <button
-                                        onClick={() => handleRemoveGroup(groupSelect)}
-                                        className={`px-2 h-full pb-[2px] ${deleteConfirmMap[groupSelect._id] ? 'bg-red-500' : 'bg-transparent'
-                                            }`}
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            </>)}
+                    {(!groupSelect && selectedFriends.length == 0) && <p className="text-[14px] text-[#81827C] mb-1">Select a group or friends you want to add an expense with.</p>}
+                    {!groupSelect && <input
+                        className="w-full bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3 flex-1"
+                        placeholder="Search For Friends / Groups"
+                        value={val}
+                        onChange={(e) => setVal(e.target.value)}
+                    />}
+                    {loading ? (
+                        <div className="flex flex-col justify-center items-center flex-1 py-5">
 
-                            {!groupSelect && <div className="flex grow justify-end ms-16">
-                  {!isMePresent && (
-                    <button
-                      onClick={addMe}
-                      className="text-sm border border-[#EBF1D5] text-[#EBF1D5] px-3 py-1 rounded-xl hover:bg-[#3a3a3a] transition"
-                    >
-                      + Add Me
-                    </button>
-                  )}
-                                </div>}
+                            <Loader />
                         </div>
+                    ) : (
+                        <div className="flex w-full flex-col">
+                            {(selectedFriends.length === 0 || val.length > 0) && (
+                                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2 mt-4`}>
+                                    <div>
+                                        {groups.length > 0 && <p className="uppercae text-[14px] text-[#EBF1D5] w-full mb-1">GROUPS</p>}
+                                        {filteredGroups.map((group) => (
+                                            <div
+                                                key={group._id}
+                                                onClick={() => toggleGroupSelection(group)}
+                                                className="flex flex-col gap-1 cursor-pointer hover:bg-[#1f1f1f] py-1 rounded-md transition"
+                                            >
+                                                <h2 className="text-xl font-semibold capitalize">{group.name}</h2>
+                                                <hr />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div>
+                                        {filteredFriends.length > 0 && <p className={`uppercae text-[14px] text-[#EBF1D5] mb-1 ${filteredGroups.length > 0 && 'mt-4'}`}>FRIENDS</p>}
+                                        {filteredFriends.map((friend) => (
+                                            <div className="flex flex-col gap-2" onClick={() => toggleFriendSelection(friend)} key={friend._id}>
+                                                <div className="flex flex-row w-full justify-between items-center">
+                                                    <div className="flex flex-col">
+                                                        <h2 className="text-xl capitalize text-[#EBF1D5]">{friend.name}</h2>
+                                                        <p className="lowercase text-[#81827C]">{friend.email}</p>
+                                                    </div>
+                                                </div>
+                                                <hr />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="flex flex-wrap my-4 gap-2">
+                                {!groupSelect && selectedFriends.map((friend) => (
+                                    <div
+                                        key={'selected' + friend._id}
+                                        className="flex items-center h-[30px] gap-2 ps-3 overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]"
+                                    >
+                                        <p className="capitalize">{friend.name}</p>
+                                        <button
+                                            onClick={() => handleRemoveFriend(friend)}
+                                            className={`px-2 h-full -mt-[2px] ${deleteConfirmMap[friend._id] ? 'bg-red-500' : 'bg-transparent'
+                                                }`}
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                ))}
+                                {groupSelect && (<>
+                                    <p className="uppercae text-[14px] text-[#EBF1D5] w-full mb-1">GROUP SELECTED</p>
+                                    <div
+                                        key={'selected' + groupSelect._id}
+                                        className="flex items-center h-[30px] gap-1 ps-3 overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]"
+                                    >
+                                        <p className="capitalize">{groupSelect.name}</p>
+                                        <button
+                                            onClick={() => handleRemoveGroup(groupSelect)}
+                                            className={`px-2 h-full pb-[2px] ${deleteConfirmMap[groupSelect._id] ? 'bg-red-500' : 'bg-transparent'
+                                                }`}
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                </>)}
 
-                        {selectedFriends.length > 0 && val === '' && (
-                            <div className="flex flex-col mt-4 gap-4 w-full">
-                                <div className="flex flex-row w-full">
+                                {!groupSelect && <div className="flex grow justify-end ms-16">
+                                    {!isMePresent && (
+                                        <button
+                                            onClick={addMe}
+                                            className="text-sm border border-[#EBF1D5] text-[#EBF1D5] px-3 py-1 rounded-xl hover:bg-[#3a3a3a] transition"
+                                        >
+                                            + Add Me
+                                        </button>
+                                    )}
+                                </div>}
+                            </div>
+
+                            {selectedFriends.length > 0 && val === '' && (
+                                <div className="flex flex-col mt-4 gap-4 w-full">
+                                    <div className="flex flex-row w-full">
+                                        <input
+                                            className="w-full text-[#EBF1D5] text-[20px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
+
+                                            placeholder="Description"
+                                            value={desc}
+                                            onChange={(e) => setDesc(e.target.value)}
+                                        />
+                                    </div>
                                     <input
                                         className="w-full text-[#EBF1D5] text-[20px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
-
-                                        placeholder="Description"
-                                        value={desc}
-                                        onChange={(e) => setDesc(e.target.value)}
+                                        type="number"
+                                        placeholder="Amount"
+                                        value={amount}
+                                        onChange={(e) => setAmount(parseInt(e.target.value))}
                                     />
-                                </div>
-                                <input
-                                    className="w-full text-[#EBF1D5] text-[20px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
-                                    type="number"
-                                    placeholder="Amount"
-                                    value={amount}
-                                    onChange={(e) => setAmount(parseInt(e.target.value))}
-                                />
-                                {desc.length > 0 && amount > 0 && (
-                                    <div className="flex flex-col gap-4">
-                                        <p className="text-lg font-medium">Paid by <span className="text-[14px] text-[#81827C] mb-1">(Select the people who paid.)</span></p>
+                                    {desc.length > 0 && amount > 0 && (
+                                        <div className="flex flex-col gap-4">
+                                            <p className="text-lg font-medium">Paid by <span className="text-[14px] text-[#81827C] mb-1">(Select the people who paid.)</span></p>
 
-                                        {/* 1. Selection view */}
-                                        <div className="w-full flex flex-wrap gap-2">
-                                            {[
-                                                ...selectedFriends
-                                            ].map((friend) => {
-                                                const paying = friend.paying || false;
+                                            {/* 1. Selection view */}
+                                            <div className="w-full flex flex-wrap gap-2">
+                                                {[
+                                                    ...selectedFriends
+                                                ].map((friend) => {
+                                                    const paying = friend.paying || false;
 
-                                                return (
-                                                    <div
-                                                        key={`select-${friend._id}`}
-                                                        onClick={() => {
-                                                            const existingIndex = selectedFriends.findIndex(f => f._id === friend._id);
-                                                            let updated = [...selectedFriends];
+                                                    return (
+                                                        <div
+                                                            key={`select-${friend._id}`}
+                                                            onClick={() => {
+                                                                const existingIndex = selectedFriends.findIndex(f => f._id === friend._id);
+                                                                let updated = [...selectedFriends];
 
-                                                            if (existingIndex !== -1) {
-                                                                // Toggle paying
-                                                                updated[existingIndex] = {
-                                                                    ...updated[existingIndex],
-                                                                    paying: !updated[existingIndex].paying
-                                                                };
-                                                            }
-
-                                                            // Distribute payAmounts equally
-                                                            const payers = updated.filter(f => f.paying);
-                                                            const numPayers = payers.length;
-
-                                                            const equalAmount = numPayers > 0 ? Math.floor((amount / numPayers) * 100) / 100 : 0;
-                                                            const totalSoFar = equalAmount * numPayers;
-                                                            const leftover = parseFloat((amount - totalSoFar).toFixed(2)); // leftover due to rounding
-
-                                                            let count = 0;
-
-                                                            updated = updated.map(f => {
-                                                                if (!f.paying) return { ...f, payAmount: 0 };
-
-                                                                count++;
-                                                                let pay = equalAmount;
-                                                                if (count === numPayers) {
-                                                                    pay = parseFloat((equalAmount + leftover).toFixed(2)); // last one covers the rounding diff
+                                                                if (existingIndex !== -1) {
+                                                                    // Toggle paying
+                                                                    updated[existingIndex] = {
+                                                                        ...updated[existingIndex],
+                                                                        paying: !updated[existingIndex].paying
+                                                                    };
                                                                 }
 
-                                                                return {
-                                                                    ...f,
-                                                                    payAmount: pay
-                                                                };
-                                                            });
+                                                                // Distribute payAmounts equally
+                                                                const payers = updated.filter(f => f.paying);
+                                                                const numPayers = payers.length;
 
-                                                            setSelectedFriends(updated);
-
-                                                        }}
-                                                        className={`px-3 py-1 rounded-xl border-2 cursor-pointer transition-all text-sm ${paying ? 'bg-green-300 text-black border-green-300' : 'bg-transparent text-[#EBF1D5] border-[#81827C]'
-                                                            }`}
-                                                    >
-                                                        <p className="capitalize">{friend.name}</p>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        {/* 2. Amount input view for multiple payers */}
-                                        {selectedFriends.filter(f => f.paying).length > 1 && (
-                                            <div className="w-full flex flex-col gap-2">
-                                                {selectedFriends
-                                                    .filter(f => f.paying)
-                                                    .map((friend) => (
-                                                        <div key={`payAmount-${friend._id}`} className="flex justify-between items-center w-full">
-                                                            <p className="capitalize text-[#EBF1D5]">{friend.name}</p>
-                                                            <input
-                                                                className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
-                                                                type="number"
-                                                                value={friend.payAmount}
-                                                                onChange={(e) => {
-                                                                    const updated = selectedFriends.map(f =>
-                                                                        f._id === friend._id ? { ...f, payAmount: parseFloat(e.target.value || 0) } : f
-                                                                    );
-                                                                    setSelectedFriends(updated);
-                                                                }}
-                                                                placeholder="Amount"
-                                                            />
-                                                        </div>
-                                                    ))}
-                                            </div>
-                                        )}
-                                        {!isPaidAmountValid() && <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
-                                            <p>₹{getPaidAmountInfoTop()} / ₹{amount.toFixed(2)}</p>
-                                            <p className="text-[#a0a0a0]">₹{getPaidAmountInfoBottom()} left</p>
-                                        </div>}
-                                        <p className="text-lg font-medium">Owed by  <span className="text-[14px] text-[#81827C] mb-1">(Select the people who owe.)</span></p>
-
-
-                                        {/* 0. Selection view */}
-                                        <div className="w-full flex flex-wrap gap-2">
-                                            {[
-                                                ...selectedFriends
-                                            ].map((friend) => {
-                                                const owing = friend.owing || false;
-
-                                                return (
-                                                    <div
-                                                        key={`select-${friend._id}`}
-                                                        onClick={() => {
-                                                            const existingIndex = selectedFriends.findIndex(f => f._id === friend._id);
-                                                            let updated = [...selectedFriends];
-
-                                                            if (existingIndex !== -1) {
-                                                                // Toggle owing
-                                                                updated[existingIndex] = {
-                                                                    ...updated[existingIndex],
-                                                                    owing: !updated[existingIndex].owing
-                                                                };
-                                                            }
-
-                                                            // Update selected friends and distribute amounts if needed
-                                                            const payers = updated.filter(f => f.owing);
-                                                            if (mode === "equal") {
-                                                                const owingFriends = updated.filter(f => f.owing);
-                                                                const numOwing = owingFriends.length;
-
-                                                                const equalAmount = numOwing > 0 ? Math.floor((amount / numOwing) * 100) / 100 : 0; // floor to 2 decimals
-                                                                const totalSoFar = equalAmount * numOwing;
-                                                                const leftover = parseFloat((amount - totalSoFar).toFixed(2)); // amount left due to rounding
+                                                                const equalAmount = numPayers > 0 ? Math.floor((amount / numPayers) * 100) / 100 : 0;
+                                                                const totalSoFar = equalAmount * numPayers;
+                                                                const leftover = parseFloat((amount - totalSoFar).toFixed(2)); // leftover due to rounding
 
                                                                 let count = 0;
 
-                                                                updated = updated.map((f) => {
-                                                                    if (!f.owing) return { ...f, oweAmount: 0, owePercent: undefined };
+                                                                updated = updated.map(f => {
+                                                                    if (!f.paying) return { ...f, payAmount: 0 };
 
                                                                     count++;
-                                                                    let owe = equalAmount;
-                                                                    if (count === numOwing) {
-                                                                        owe = parseFloat((equalAmount + leftover).toFixed(2)); // last gets the leftover
+                                                                    let pay = equalAmount;
+                                                                    if (count === numPayers) {
+                                                                        pay = parseFloat((equalAmount + leftover).toFixed(2)); // last one covers the rounding diff
                                                                     }
 
                                                                     return {
                                                                         ...f,
-                                                                        oweAmount: owe,
-                                                                        owePercent: undefined
+                                                                        payAmount: pay
                                                                     };
                                                                 });
-                                                            }
 
+                                                                setSelectedFriends(updated);
 
-                                                            setSelectedFriends(updated);
-                                                        }}
-                                                        className={`px-3 py-1 rounded-xl border-2 cursor-pointer transition-all text-sm ${owing ? 'bg-green-300 text-black border-green-300' : 'bg-transparent text-[#EBF1D5] border-[#81827C]'
-                                                            }`}
-                                                    >
-                                                        <p className="capitalize">{friend.name}</p>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                                                            }}
+                                                            className={`px-3 py-1 rounded-xl border-2 cursor-pointer transition-all text-sm ${paying ? 'bg-green-300 text-black border-green-300' : 'bg-transparent text-[#EBF1D5] border-[#81827C]'
+                                                                }`}
+                                                        >
+                                                            <p className="capitalize">{friend.name}</p>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
 
-                                        {/* 1. Mode Selection */}
-                                        <div className="flex gap-4">
-                                            <button
-                                                onClick={() => toggleMode("equal")}
-                                                className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "equal" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
-                                            >
-                                                =
-                                            </button>
-                                            <button
-                                                onClick={() => toggleMode("value")}
-                                                className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "value" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
-                                            >
-                                                1.23
-                                            </button>
-                                            <button
-                                                onClick={() => toggleMode("percent")}
-                                                className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "percent" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
-                                            >
-                                                %
-                                            </button>
-                                        </div>
-
-                                        {/* 2. Amount input view for multiple owe-ers */}
-                                        {selectedFriends.filter(f => f.owing).length > 1 && (
-                                            <div className="w-full flex flex-col gap-2">
-                                                {selectedFriends
-                                                    .filter(f => f.owing)
-                                                    .map((friend) => (
-                                                        <div key={`payAmount-${friend._id}`} className="flex justify-between items-center w-full">
-                                                            <p className="capitalize text-[#EBF1D5]">{friend.name}</p>
-
-                                                            {/* Conditionally render input based on mode */}
-                                                            {mode === "percent" ? (
+                                            {/* 2. Amount input view for multiple payers */}
+                                            {selectedFriends.filter(f => f.paying).length > 1 && (
+                                                <div className="w-full flex flex-col gap-2">
+                                                    {selectedFriends
+                                                        .filter(f => f.paying)
+                                                        .map((friend) => (
+                                                            <div key={`payAmount-${friend._id}`} className="flex justify-between items-center w-full">
+                                                                <p className="capitalize text-[#EBF1D5]">{friend.name}</p>
                                                                 <input
                                                                     className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
                                                                     type="number"
-                                                                    value={friend.owePercent || ''}
-                                                                    onChange={(e) => handleOwePercentChange(friend._id, e.target.value)}
-                                                                    placeholder="Percent"
-                                                                />
-                                                            ) : mode === "value" ? (
-                                                                <input
-                                                                    className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
-                                                                    type="number"
-                                                                    value={friend.oweAmount || ''}
-                                                                    onChange={(e) => handleOweChange(friend._id, e.target.value)}
+                                                                    value={friend.payAmount}
+                                                                    onChange={(e) => {
+                                                                        const updated = selectedFriends.map(f =>
+                                                                            f._id === friend._id ? { ...f, payAmount: parseFloat(e.target.value || 0) } : f
+                                                                        );
+                                                                        setSelectedFriends(updated);
+                                                                    }}
                                                                     placeholder="Amount"
                                                                 />
-                                                            ) : (
-                                                                <p className="text-[#EBF1D5]">{friend.oweAmount || 0}</p>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-            <div className="w-full flex items-start pt-[20px] justify-start align-middle h-[150px]">
-                {shouldShowSubmitButton() ? (
-                    <button
-                        type="submit"
-                        onClick={() => handleSubmitExpense()}
-                        className="w-full py-2 border border-1 bg-green-300 border-green-300 rounded text-[#000]"
-                    >
-                        Save Expense
-                    </button>
-                ) :
-                    <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
-                        <p>{getRemainingTop()}</p>
-                        <p className="text-[#a0a0a0]">{getRemainingBottom()}</p>
-                    </div>
-                }
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            )}
+                                            {!isPaidAmountValid() && <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
+                                                <p>₹{getPaidAmountInfoTop()} / ₹{amount.toFixed(2)}</p>
+                                                <p className="text-[#a0a0a0]">₹{getPaidAmountInfoBottom()} left</p>
+                                            </div>}
+                                            <p className="text-lg font-medium">Owed by  <span className="text-[14px] text-[#81827C] mb-1">(Select the people who owe.)</span></p>
 
-            </div>
+
+                                            {/* 0. Selection view */}
+                                            <div className="w-full flex flex-wrap gap-2">
+                                                {[
+                                                    ...selectedFriends
+                                                ].map((friend) => {
+                                                    const owing = friend.owing || false;
+
+                                                    return (
+                                                        <div
+                                                            key={`select-${friend._id}`}
+                                                            onClick={() => {
+                                                                const existingIndex = selectedFriends.findIndex(f => f._id === friend._id);
+                                                                let updated = [...selectedFriends];
+
+                                                                if (existingIndex !== -1) {
+                                                                    // Toggle owing
+                                                                    updated[existingIndex] = {
+                                                                        ...updated[existingIndex],
+                                                                        owing: !updated[existingIndex].owing
+                                                                    };
+                                                                }
+
+                                                                // Update selected friends and distribute amounts if needed
+                                                                const payers = updated.filter(f => f.owing);
+                                                                if (mode === "equal") {
+                                                                    const owingFriends = updated.filter(f => f.owing);
+                                                                    const numOwing = owingFriends.length;
+
+                                                                    const equalAmount = numOwing > 0 ? Math.floor((amount / numOwing) * 100) / 100 : 0; // floor to 2 decimals
+                                                                    const totalSoFar = equalAmount * numOwing;
+                                                                    const leftover = parseFloat((amount - totalSoFar).toFixed(2)); // amount left due to rounding
+
+                                                                    let count = 0;
+
+                                                                    updated = updated.map((f) => {
+                                                                        if (!f.owing) return { ...f, oweAmount: 0, owePercent: undefined };
+
+                                                                        count++;
+                                                                        let owe = equalAmount;
+                                                                        if (count === numOwing) {
+                                                                            owe = parseFloat((equalAmount + leftover).toFixed(2)); // last gets the leftover
+                                                                        }
+
+                                                                        return {
+                                                                            ...f,
+                                                                            oweAmount: owe,
+                                                                            owePercent: undefined
+                                                                        };
+                                                                    });
+                                                                }
+
+
+                                                                setSelectedFriends(updated);
+                                                            }}
+                                                            className={`px-3 py-1 rounded-xl border-2 cursor-pointer transition-all text-sm ${owing ? 'bg-green-300 text-black border-green-300' : 'bg-transparent text-[#EBF1D5] border-[#81827C]'
+                                                                }`}
+                                                        >
+                                                            <p className="capitalize">{friend.name}</p>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* 1. Mode Selection */}
+                                            <div className="flex gap-4">
+                                                <button
+                                                    onClick={() => toggleMode("equal")}
+                                                    className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "equal" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
+                                                >
+                                                    =
+                                                </button>
+                                                <button
+                                                    onClick={() => toggleMode("value")}
+                                                    className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "value" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
+                                                >
+                                                    1.23
+                                                </button>
+                                                <button
+                                                    onClick={() => toggleMode("percent")}
+                                                    className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "percent" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
+                                                >
+                                                    %
+                                                </button>
+                                            </div>
+
+                                            {/* 2. Amount input view for multiple owe-ers */}
+                                            {selectedFriends.filter(f => f.owing).length > 1 && (
+                                                <div className="w-full flex flex-col gap-2">
+                                                    {selectedFriends
+                                                        .filter(f => f.owing)
+                                                        .map((friend) => (
+                                                            <div key={`payAmount-${friend._id}`} className="flex justify-between items-center w-full">
+                                                                <p className="capitalize text-[#EBF1D5]">{friend.name}</p>
+
+                                                                {/* Conditionally render input based on mode */}
+                                                                {mode === "percent" ? (
+                                                                    <input
+                                                                        className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
+                                                                        type="number"
+                                                                        value={friend.owePercent || ''}
+                                                                        onChange={(e) => handleOwePercentChange(friend._id, e.target.value)}
+                                                                        placeholder="Percent"
+                                                                    />
+                                                                ) : mode === "value" ? (
+                                                                    <input
+                                                                        className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
+                                                                        type="number"
+                                                                        value={friend.oweAmount || ''}
+                                                                        onChange={(e) => handleOweChange(friend._id, e.target.value)}
+                                                                        placeholder="Amount"
+                                                                    />
+                                                                ) : (
+                                                                    <p className="text-[#EBF1D5]">{friend.oweAmount || 0}</p>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+                <div className="w-full flex items-start pt-[20px] justify-start align-middle h-[150px]">
+                    {shouldShowSubmitButton() ? (
+                        <button
+                            type="submit"
+                            onClick={() => handleSubmitExpense()}
+                            className="w-full py-2 border border-1 bg-green-300 border-green-300 rounded text-[#000]"
+                        >
+                            Save Expense
+                        </button>
+                    ) :
+                        <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
+                            <p>{getRemainingTop()}</p>
+                            <p className="text-[#a0a0a0]">{getRemainingBottom()}</p>
+                        </div>
+                    }
+
+                </div>
             </div>
         </MainLayout>
     );

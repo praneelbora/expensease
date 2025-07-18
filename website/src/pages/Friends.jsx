@@ -10,6 +10,7 @@ import {
     Plus,
     List,
     User,
+    Loader,
 } from "lucide-react";
 const Friends = () => {
     const location = useLocation();
@@ -131,11 +132,16 @@ const Friends = () => {
 
 
                 {loading ? (
-                    <p>Loading friends...</p>
+                    <div className="flex flex-col justify-center items-center flex-1 py-5">
+                    <Loader />
+                    </div>
                 ) : friends.length === 0 ? (
+                                        <div className="flex flex-col justify-center items-center flex-1 py-5">
+
                     <p>No friends found.</p>
+                    </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-4 mt-4">
                         {friends.map((friend) => {
                             const friendExpenses = expenses?.filter(exp =>
                                 exp.splits.some(split => {

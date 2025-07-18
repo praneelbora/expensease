@@ -10,9 +10,13 @@ import Account from "./pages/Account";
 import Logout from "./pages/Logout";
 import LinkLogin from "./pages/LinkLogin";
 import GroupJoin from "./pages/GroupJoin";
+import GroupSettings from "./pages/GroupSettings";
 import Cookies from "js-cookie";
 import { Loader } from "lucide-react";
 import FriendRequest from "./pages/FriendRequest";
+import { useLocation } from "react-router-dom";
+import { useEffect } from "react";
+
 
 // ✅ Updated PrivateRoute using context
 function PrivateRoute({ children }) {
@@ -23,6 +27,18 @@ function PrivateRoute({ children }) {
 
 function App() {
     const { user, logout } = useAuth(); // use user info for redirects
+    const location = useLocation();
+    const { linkLogin } = useAuth();
+    useEffect(() => {
+        const urlParams = new URLSearchParams(location.search);
+        const token = urlParams.get("token");
+
+        if (token) {
+            linkLogin(token);
+            // Optionally: clean URL so token isn't visible after login
+            window.history.replaceState({}, document.title, "/"); // 👈 removes token from URL
+        }
+    }, []); // 👈 Remove `location` from dependency to run only once on mount
 
     return (
         <Routes>
@@ -37,6 +53,9 @@ function App() {
             <Route
                 path="/groups/:id"
                 element={<PrivateRoute><GroupDetails /></PrivateRoute>}
+            />            <Route
+                path="/groups/settings/:id"
+                element={<PrivateRoute><GroupSettings /></PrivateRoute>}
             />
             <Route
                 path="/friends"
