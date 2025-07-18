@@ -70,6 +70,7 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
             fetchGroups();
             setJoinCode('');
             setErrorMessage('');
+            setGroupCreatedCode('')
             setShowModal(false);
         } catch (error) {
             console.error("Join group error:", error.message);
@@ -189,6 +190,8 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
                 className="justify-center items-center flex overflow-x-hidden overflow-y-auto fixed inset-0 z-[5000] outline-none focus:outline-none backdrop-blur-sm bg-[rgba(0,0,0,0.2)]"
                 onClick={() => {
                     setErrorMessage('');
+                    setJoinCode('');
+                    setGroupCreatedCode('');
                     setShowModal(false);
                 }}
             >
@@ -205,7 +208,10 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
                             <button
                                 className="absolute top-[13px] right-[12px] p-1 ml-auto bg-transparent border-0 text-[#EBF1D5] float-right text-2xl leading-none font-semibold outline-none focus:outline-none"
                                 onClick={() => {
-                                    setErrorMessage(''); setShowModal(false);
+                                    setErrorMessage('');
+                                    setJoinCode('');
+                                    setGroupCreatedCode('');
+                                    setShowModal(false);
                                 }}
                             >
                                 <span className="bg-transparent text-[#EBF1D5] h-6 w-6 block outline-none focus:outline-none">
