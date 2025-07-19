@@ -56,7 +56,7 @@ export default function LoginRegister() {
     return (
         <div className="h-screen w-full flex items-center justify-center bg-[#121212] text-[#EBF1D5]">
             <div className="w-full max-w-md p-8 space-y-6 bg-[#121212]">
-                <h2 className="text-3xl font-bold text-center">Split-Free Access</h2>
+                <h2 className="text-3xl font-bold text-center">Split-Free Login</h2>
 
                 {step === "submitted" ? (
                     <p className="text-center text-green-400">

@@ -85,7 +85,7 @@ const Expenses = () => {
                         <Plus strokeWidth={3} size={20} />
                     </button>
                 </div>
-                <ul className="flex flex-col w-full gap-2">
+                <ul className="flex flex-col w-full gap-2 mt-3">
                     {loading ? (
                         <div className="flex flex-col justify-center items-center flex-1 py-5">
                             <Loader />
@@ -118,7 +118,7 @@ const Expenses = () => {
                 </ul>
             </div>
             {showModal && (
-                <ExpenseModal showModal={showModal} setShowModal={setShowModal} />
+                <ExpenseModal showModal={showModal} setShowModal={setShowModal} fetchExpenses={fetchExpenses}/>
             )}
         </MainLayout>
     );

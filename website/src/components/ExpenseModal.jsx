@@ -1,4 +1,4 @@
-export default function ExpenseModal({ showModal, setShowModal }) {
+export default function ExpenseModal({ showModal, setShowModal, fetchExpenses }) {
     const { description, amount, createdAt, createdBy, splits, groupId } = showModal;
     console.log(showModal);
 
@@ -10,6 +10,31 @@ export default function ExpenseModal({ showModal, setShowModal }) {
             return `${payers.length} people paid`;
         } else {
             return `No one paid`;
+        }
+    };
+    const handleDelete = async () => {
+        const confirmDelete = window.confirm("Are you sure you want to delete this expense?");
+        if (!confirmDelete || !showModal._id) return;
+
+        try {
+            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/${showModal._id}`, {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+
+            if (res.ok) {
+                alert("Expense deleted successfully!");
+                fetchExpenses()
+                setShowModal(false);
+                // Optional: Trigger a refresh or notify parent
+            } else {
+                alert("Failed to delete expense.");
+            }
+        } catch (err) {
+            console.error("Error deleting expense:", err);
+            alert("Something went wrong while deleting.");
         }
     };
 
@@ -42,14 +67,14 @@ export default function ExpenseModal({ showModal, setShowModal }) {
                         </div>
 
                         {/* Body */}
-                        <div className="w-full flex flex-col p-5 gap-3 max-h-[70dvh] overflow-scroll">
+                        <div className="w-full flex flex-col p-3 gap-3 max-h-[70dvh] overflow-scroll">
                             <div className="w-full flex flex-row justify-between">
-                                <div className="flex flex-col">
-                                    <div className="flex flex-row justify-between">
+                                <div className="w-full flex flex-col">
+                                    <div className="w-full flex flex-row justify-between">
                                         <p className="text-[#EBF1D5] text-[26px]">₹{amount.toFixed(2)}</p>
                                         <p className="text-[#EBF1D5] text-[16px]">{formatDate(createdAt)}</p>
                                     </div>
-                                    <p className="text-[#EBF1D5] text-[20px] capitalize">sadnadkaldj aksdjakdj alksdjaskldjakl djalsdjakdalsdjadkdjalk djakl s</p>
+                                    <p className="text-[#EBF1D5] text-[20px] capitalize">{description}</p>
                                 </div>
                             </div>
                             <hr />
@@ -74,7 +99,18 @@ export default function ExpenseModal({ showModal, setShowModal }) {
 
                         {/* Footer */}
                         <div className="flex items-center justify-end p-5 border-t border-solid border-[rgba(255,255,255,0.1)] rounded-b">
-                            {/* Add any footer actions here */}
+                            <button
+                                onClick={handleDelete}
+                                className="text-red-500 border border-red-500 px-4 py-2 rounded-md hover:bg-red-500 hover:text-white transition"
+                            >
+                                Delete Expense
+                            </button>
+                            <button
+                                onClick={() => setShowModal(false)}
+                                className="ml-2 text-[#EBF1D5] border border-[#EBF1D5] px-4 py-2 rounded-md hover:bg-[#3a3a3a] transition"
+                            >
+                                Close
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -408,7 +408,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     <p className="text-[14px] my-2 uppercase">Expenses</p>
                                     <button
                                     className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
-                                    onClick={() => {navigate('/add-expense')}}>
+                                    onClick={() => navigate('/add-expense', { state: { groupId: id } })}>
                                         <Plus size={20}/>
                                     </button>
                                     </div>

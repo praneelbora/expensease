@@ -486,7 +486,7 @@ const AddExpense = () => {
 
     return (
         <MainLayout>
-            <div className="max-h-screen bg-[#121212] text-[#EBF1D5] overflow-hidden">
+            <div className="max-h-screen bg-[#121212] text-[#EBF1D5]">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">Add Expense</h1>
                 </div>
@@ -507,7 +507,7 @@ const AddExpense = () => {
                     ) : (
                         <div className="flex w-full flex-col">
                             {(selectedFriends.length === 0 || val.length > 0) && (
-                                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2 mt-4`}>
+                                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 px-2 mt-4`}>
                                     <div>
                                         {groups.length > 0 && <p className="uppercae text-[14px] text-[#EBF1D5] w-full mb-1">GROUPS</p>}
                                         {filteredGroups.map((group) => (
@@ -537,7 +537,7 @@ const AddExpense = () => {
                                     </div>
                                 </div>
                             )}
-                            <div className="flex flex-wrap my-4 gap-2">
+                            <div className="flex flex-wrap mt-2 gap-2">
                                 {!groupSelect && selectedFriends.map((friend) => (
                                     <div
                                         key={'selected' + friend._id}
@@ -583,7 +583,7 @@ const AddExpense = () => {
                             </div>
 
                             {selectedFriends.length > 0 && val === '' && (
-                                <div className="flex flex-col mt-4 gap-4 w-full">
+                                <div className="flex flex-col mt-1 gap-2 w-full">
                                     <div className="flex flex-row w-full">
                                         <input
                                             className="w-full text-[#EBF1D5] text-[20px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
@@ -756,27 +756,41 @@ const AddExpense = () => {
                                                     );
                                                 })}
                                             </div>
+                                            <div className="flex flex-col gap-1">
+                                                {mode === "" ? (
+                                                    <p>Select how to split</p>
+                                                ) : (
+                                                    <p>
+                                                        Split{" "}
+                                                        {mode === "equal"
+                                                            ? "Equally"
+                                                            : mode === "amount"
+                                                                ? "By Amounts"
+                                                                : "By Percentages"}
+                                                    </p>
+                                                )}
 
-                                            {/* 1. Mode Selection */}
-                                            <div className="flex gap-4">
-                                                <button
-                                                    onClick={() => toggleMode("equal")}
-                                                    className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "equal" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
-                                                >
-                                                    =
-                                                </button>
-                                                <button
-                                                    onClick={() => toggleMode("value")}
-                                                    className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "value" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
-                                                >
-                                                    1.23
-                                                </button>
-                                                <button
-                                                    onClick={() => toggleMode("percent")}
-                                                    className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "percent" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
-                                                >
-                                                    %
-                                                </button>
+                                                {/* 1. Mode Selection */}
+                                                <div className="flex gap-4">
+                                                    <button
+                                                        onClick={() => toggleMode("equal")}
+                                                        className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "equal" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
+                                                    >
+                                                        =
+                                                    </button>
+                                                    <button
+                                                        onClick={() => toggleMode("value")}
+                                                        className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "value" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
+                                                    >
+                                                        1.23
+                                                    </button>
+                                                    <button
+                                                        onClick={() => toggleMode("percent")}
+                                                        className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "percent" ? "bg-green-300 text-[#000] border-green-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
+                                                    >
+                                                        %
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             {/* 2. Amount input view for multiple owe-ers */}
@@ -819,7 +833,7 @@ const AddExpense = () => {
                         </div>
                     )}
                 </div>
-                <div className="w-full flex items-start pt-[20px] justify-start align-middle h-[150px]">
+                <div className="w-full flex items-start pt-[20px] pb-[150px] mb-[150px] justify-start align-middle h-[150px]">
                     {shouldShowSubmitButton() ? (
                         <button
                             type="submit"
