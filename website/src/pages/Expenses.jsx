@@ -4,8 +4,10 @@ import ExpenseModal from "../components/ExpenseModal";
 import { useNavigate } from "react-router-dom"; // ✅ Correct import
 import { useAuth } from "../context/AuthContext";
 import { Loader, Plus } from "lucide-react";
+import { getAllExpenses } from '../services/ExpenseService';
+
 const Expenses = () => {
-    const { userToken } = useAuth()
+    const { userToken } = useAuth() || {}
     const [loading, setLoading] = useState(true);
     const [expenses, setExpenses] = useState([]);
     const [userID, setUserId] = useState();
@@ -47,27 +49,15 @@ const Expenses = () => {
     };
 
     const fetchExpenses = async () => {
-        try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-auth-token": userToken
-                },
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) throw new Error(data.message || "Failed to fetch expenses");
-            console.log(data);
-
-            setExpenses(data.expenses);
-            setUserId(data.id);
-        } catch (error) {
-            console.error("Error loading expenses:", error);
-        } finally {
-            setLoading(false)
-        }
-    };
+            try {
+                const data = await getAllExpenses(userToken);
+                setUserId(data.id);
+                setExpenses(data.expenses)
+                setLoading(false)
+            } catch (error) {
+                console.error("Error loading expenses:", error);
+            }
+        };
 
     useEffect(() => {
         fetchExpenses();
@@ -75,7 +65,7 @@ const Expenses = () => {
 
     return (
         <MainLayout>
-            <div className="text-[#EBF1D5]">
+            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">All Expenses</h1>
                     <button
@@ -85,7 +75,8 @@ const Expenses = () => {
                         <Plus strokeWidth={3} size={20} />
                     </button>
                 </div>
-                <ul className="flex flex-col w-full gap-2 mt-3">
+                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
+                <ul className="h-full flex flex-col w-full gap-2">
                     {loading ? (
                         <div className="flex flex-col justify-center items-center flex-1 py-5">
                             <Loader />
@@ -117,8 +108,9 @@ const Expenses = () => {
                     ))}
                 </ul>
             </div>
+            </div>
             {showModal && (
-                <ExpenseModal showModal={showModal} setShowModal={setShowModal} fetchExpenses={fetchExpenses}/>
+                <ExpenseModal showModal={showModal} setShowModal={setShowModal} fetchExpenses={fetchExpenses} userToken={userToken}/>
             )}
         </MainLayout>
     );

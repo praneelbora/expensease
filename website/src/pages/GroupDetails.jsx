@@ -4,6 +4,7 @@ import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
 import { useAuth } from "../context/AuthContext";
 import SettleModal from '../components/SettleModal';
+import { getGroupDetails, fetchGroupExpenses } from '../services/GroupService';
 import Cookies from 'js-cookie';
 import {
     Users,
@@ -16,9 +17,12 @@ import {
     EyeClosed,
     Settings,
     ChevronLeft,
+    Loader
 } from "lucide-react";
+import { settleExpense } from '../services/ExpenseService';
+
 const GroupDetails = () => {
-    const { userToken } = useAuth()
+    const { userToken } = useAuth() || {}
     const navigate = useNavigate()
     const { id } = useParams();
     const [group, setGroup] = useState(null);
@@ -34,38 +38,14 @@ const GroupDetails = () => {
     const [settleAmount, setSettleAmount] = useState('');
     const [copied, setCopied] = useState(false);
 
+
     const handleSettle = async ({ payerId, receiverId, amount, description }) => {
-        if (!payerId || !receiverId || !amount) {
-            alert("Please fill all required fields.");
-            return;
-        }
-
         try {
-            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/settle`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': userToken
-                },
-                body: JSON.stringify({
-                    fromUserId: payerId,
-                    toUserId: receiverId,
-                    amount: parseFloat(amount),
-                    description,
-                    groupId: id
-                })
-            });
-
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.message || "Failed to settle");
-            }
-
+            await settleExpense({ payerId, receiverId, amount, description, groupId: id }, userToken);
             await fetchGroupExpenses();
             alert("Settlement recorded successfully!");
         } catch (err) {
-            console.error("Error in settlement:", err);
-            alert("Could not settle the amount.");
+            alert(err.message || "Could not settle the amount.");
         }
     };
 
@@ -131,17 +111,7 @@ const GroupDetails = () => {
 
     const fetchGroup = async () => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/groups/${id}`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-auth-token": Cookies.get('userToken')
-                },
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) throw new Error(data.message || "Failed to fetch group");
-
+            const data = await getGroupDetails(id, userToken)
             setGroup(data);
         } catch (error) {
             console.error("Group Details Page - Error loading group:", error);
@@ -152,18 +122,9 @@ const GroupDetails = () => {
 
     const fetchGroupExpenses = async () => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/group/${id}`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-auth-token": userToken
-                },
-            });
-
-            const data = await response.json();
+            const data = await fetchGroupExpenses(id, userToken)
             console.log(data);
-
             if (!response.ok) throw new Error(data.message || "Failed to fetch group");
-
             setGroupExpenses(data.expenses);
             setUserId(data.id);
         } catch (error) {
@@ -277,83 +238,83 @@ const GroupDetails = () => {
 
     return (
         <MainLayout groupId={id}>
-            <div className="text-[#EBF1D5] flex flex-col overflow-y-auto no-scrollbar">
-                {loading ? (
-                    <p>Loading...</p>
-                ) : !group ? (
-                    <p>Group not found</p>
-                ) : (
-                    <>
-                        {/* Sticky Group Name */}
-                        <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
-                            <div className="flex flex-row gap-2">
-                        <button onClick={()=>navigate(`/groups`)}>
-                                    <ChevronLeft />
-                                </button>
-                                <h1 className="text-3xl font-bold capitalize">{group.name}</h1>
-                                </div>
-                            <div className="flex flex-col items-end">
-                            <div className="flex flex-row items-end">
-                                <button
-                                    className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
-                                    onClick={() => {
-                                        const message = `You're invited to join my group on SplitFree! 🎉
+            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col">
+                <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
+                    <div className="flex flex-row gap-2">
+                        <button onClick={() => navigate(`/groups`)}>
+                            <ChevronLeft />
+                        </button>
+                        <h1 className={`${group?.name ? 'text-[#EBF1D5]' : 'text-[#121212]'} text-3xl font-bold capitalize`}>{group?.name ? group?.name : "Loading"}</h1>
+                    </div>
+                    {group && <div className="flex flex-col items-end">
+                        <div className="flex flex-row items-end">
+                            <button
+                                className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
+                                onClick={() => {
+                                    const message = `You're invited to join my group on SplitFree! 🎉
 Use this code to join: ${group.code}
 
 Or simply tap the link below to log in and join instantly:
 ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
-                                        const message1 = `Use this code: ${group.code}
+                                    const message1 = `Use this code: ${group.code}
 
 Or just click the link below to join directly:
 ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
 
-                                        if (navigator.share) {
-                                            navigator
-                                                .share({
-                                                    title: "Join my group on SplitFree",
-                                                    text: message1,
-                                                    url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`,
-                                                })
-                                                .then(() => console.log("Shared successfully"))
-                                                .catch((err) => console.error("Sharing failed", err));
-                                        } else {
-                                            navigator.clipboard.writeText(message);
-                                            setCopied(true);
-                                            setTimeout(() => setCopied(false), 2000); // hide after 2 seconds
-                                        }
-                                    }}
-                                >
-                                    <Share2 strokeWidth={2} size={20} />
-                                </button>
-                                <button
-                                    className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
-                                    onClick={() => {navigate(`/groups/settings/${group._id}`)}} >
-                                         <Settings strokeWidth={2} size={20} />
-                                </button>
-                                
+                                    if (navigator.share) {
+                                        navigator
+                                            .share({
+                                                title: "Join my group on SplitFree",
+                                                text: message1,
+                                                url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`,
+                                            })
+                                            .then(() => console.log("Shared successfully"))
+                                            .catch((err) => console.error("Sharing failed", err));
+                                    } else {
+                                        navigator.clipboard.writeText(message);
+                                        setCopied(true);
+                                        setTimeout(() => setCopied(false), 2000); // hide after 2 seconds
+                                    }
+                                }}
+                            >
+                                <Share2 strokeWidth={2} size={20} />
+                            </button>
+                            <button
+                                className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
+                                onClick={() => { navigate(`/groups/settings/${group._id}`) }} >
+                                <Settings strokeWidth={2} size={20} />
+                            </button>
 
-                                    </div>
-                                {copied && (
-                                    <p className="text-gray-500 text-[9px] font-semibold transition-opacity">
-                                        Copied to clipboard!
-                                    </p>
-                                )}
-                            </div>
+
                         </div>
+                        {copied && (
+                            <p className="text-gray-500 text-[9px] font-semibold transition-opacity">
+                                Copied to clipboard!
+                            </p>
+                        )}
+                    </div>}
+                </div>
+                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar gap-3">
 
-                        {/* Scrollable Content */}
-                        <div className="flex-1 overflow-y-auto no-scrollbar pt-3 pb-[20px] flex flex-col gap-3">
+                    {loading ? (
+                        <div className="flex flex-col justify-center items-center flex-1 py-5">
+                            <Loader />
+                        </div>
+                    ) : !group ? (
+                        <p>Group not found</p>
+                    ) : (
+                        <div className="flex flex-col gap-y-3 gap-x-4">
 
                             {/* Toggle Button */}
                             <div className="flex flex-col gap-2">
                                 {/* Header Row */}
                                 <div className="flex justify-between items-center">
-                                    <p className="text-[14px] uppercase">Members</p>
+                                    <p className="text-[14px] text-teal-500 uppercase">Members</p>
                                     <button
                                         onClick={() => setShowMembers((prev) => !prev)}
-                                        className="text-sm rounded-full uppercase"
+                                        className="text-sm rounded-full uppercase text-teal-500"
                                     >
-                                        {showMembers ? <Eye/>:<EyeClosed/>}
+                                        {showMembers ? <Eye /> : <EyeClosed />}
                                     </button>
                                 </div>
 
@@ -369,7 +330,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                         : setSelectedMember(member._id)
                                                 }
                                                 className={`px-3 py-1 rounded-full font-semibold border text-sm capitalize transition ${selectedMember === member._id
-                                                    ? 'bg-green-300 border-green-300 text-black'
+                                                    ? 'bg-teal-300 border-teal-300 text-black'
                                                     : 'text-[#EBF1D5] border-[#EBF1D5]'
                                                     }`}
                                             >
@@ -383,12 +344,12 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                             <hr />
 
                             {/* Debt Summary */}
-                            {groupExpenses && groupExpenses.length>0 &&<> <div className="flex flex-col">
+                            {groupExpenses && groupExpenses.length > 0 && <> <div className="flex flex-col">
                                 <div className="flex justify-between items-center">
-                                    <p className="text-[14px] uppercase">Debt Summary</p>
+                                    <p className="text-[14px] text-teal-500 uppercase">Debt Summary</p>
                                     <button
                                         onClick={() => setShowSettleModal(true)}
-                                        className="text-sm border border-[#EBF1D5] rounded-full px-4 py-1 uppercase"
+                                        className="text-sm border border-teal-500 rounded-md px-2 py-0.5 uppercase text-teal-500"
                                     >
                                         Settle
                                     </button>
@@ -400,18 +361,19 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 ))}
                             </div>
 
-                            <hr /></>}
+                                <hr /></>}
 
                             {/* Expenses */}
                             <div className="flex flex-col">
                                 <div className="flex flex-row justify-between">
-                                    <p className="text-[14px] my-2 uppercase">Expenses</p>
+                                    <p className="text-[14px]
+                                          text-teal-500 uppercase">Expenses</p>
                                     <button
-                                    className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
-                                    onClick={() => navigate('/add-expense', { state: { groupId: id } })}>
-                                        <Plus size={20}/>
+                                        className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
+                                        onClick={() => navigate('/add-expense', { state: { groupId: id } })}>
+                                        <Plus className="text-teal-500" size={20} />
                                     </button>
-                                    </div>
+                                </div>
                                 <ul className="flex flex-col w-full gap-2">
                                     {filteredExpenses?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
                                         .map((exp) => (
@@ -471,14 +433,15 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                         ))}
                                 </ul>
                             </div>
+
                         </div>
-                    </>
-                )}
+                    )}
+                </div>
             </div>
 
 
             {showModal && (
-                <ExpenseModal showModal={showModal} setShowModal={setShowModal} />
+                <ExpenseModal showModal={showModal} fetchExpenses={fetchGroupExpenses} setShowModal={setShowModal} userToken={userToken} />
             )}
             {showSettleModal && (
                 <SettleModal

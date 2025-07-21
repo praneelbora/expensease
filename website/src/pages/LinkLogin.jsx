@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 function LinkLogin() {
-  const { linkLogin } = useAuth();
+  const { handleLinkLogin } = useAuth() || {};
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -13,7 +13,7 @@ function LinkLogin() {
     const token = query.get("token");
 
     if (token) {
-      linkLogin(token)
+      handleLinkLogin(token)
         .then(() => {
           navigate("/"); // or your dashboard route
         })
@@ -24,7 +24,7 @@ function LinkLogin() {
     } else {
       navigate("/login?error=missing_token");
     }
-  }, [location.search, linkLogin, navigate]);
+  }, [location.search, handleLinkLogin, navigate]);
 
   return <p>Logging you in...</p>;
 }

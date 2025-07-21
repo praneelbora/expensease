@@ -5,19 +5,14 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Cookies from "js-cookie";
 import { useLocation } from "react-router-dom";
-import {
-    Users,
-    Wallet,
-    Plus,
-    List,
-    User,
-    Loader,
-} from "lucide-react";
+import { Users, Wallet, Plus, List, User, Loader } from "lucide-react";
+import { getAllGroups, fetchGroupExpenses } from "../services/GroupService";
+
 const Groups = () => {
 
     const navigate = useNavigate();
     const location = useLocation();
-    const { userToken } = useAuth()
+    const { userToken } = useAuth() || {}
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -35,60 +30,41 @@ const Groups = () => {
 
     const fetchGroups = async () => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/groups/`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    'x-auth-token': Cookies.get('userToken')
-                },
-            });
 
-            if (!response.ok) {
-                throw new Error("Failed to fetch groups");
+            const data = await getAllGroups(userToken)
+            if (data.length > 0) {
+                console.log(data);
+                setGroups(data);
             }
-            else {
-                const data = await response.json();
-                if (data.length > 0) {
-                    console.log(data);
-                    setGroups(data);
+            const enhancedGroups = await Promise.all(data.map(async (group) => {
+                try {
+                    const result = await fetchGroupExpenses(group._id, userToken)
+                    const groupExpenses = result.expenses;
+                    const userId = result.id;
+
+                    let totalOwe = 0;
+
+                    groupExpenses.forEach(exp => {
+                        exp.splits.forEach(split => {
+                            if (split.friendId._id === userId) {
+                                totalOwe += split.oweAmount || 0;
+                                totalOwe -= split.payAmount || 0;
+                            }
+                        });
+                    });
+
+                    return {
+                        ...group,
+                        totalOwe: totalOwe != 0 ? totalOwe : null
+                    };
+                } catch (e) {
+                    console.error("Error fetching group expenses:", e);
+                    return group;
                 }
-                const enhancedGroups = await Promise.all(data.map(async (group) => {
-                    try {
-                        const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/group/${group._id}`, {
-                            headers: {
-                                "Content-Type": "application/json",
-                                "x-auth-token": Cookies.get('userToken')
-                            },
-                        });
+            }));
+            setGroups(enhancedGroups);
 
-                        const result = await res.json();
-                        const groupExpenses = result.expenses;
-                        const userId = result.id;
 
-                        let totalOwe = 0;
-
-                        groupExpenses.forEach(exp => {
-                            exp.splits.forEach(split => {
-                                if (split.friendId._id === userId) {
-                                    totalOwe += split.oweAmount || 0;
-                                    totalOwe -= split.payAmount || 0;
-                                }
-                            });
-                        });
-
-                        return {
-                            ...group,
-                            totalOwe: totalOwe != 0 ? totalOwe : null
-                        };
-                    } catch (e) {
-                        console.error("Error fetching group expenses:", e);
-                        return group;
-                    }
-                }));
-                console.log(enhancedGroups);
-
-                setGroups(enhancedGroups);
-
-            }
 
         } catch (error) {
             console.error("Groups Page - Error loading groups:", error);
@@ -98,17 +74,7 @@ const Groups = () => {
     };
     const handleJoinGroup = async (joinCode) => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/groups/join`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-auth-token": userToken,
-                },
-                body: JSON.stringify({ code: joinCode }),
-            });
-
-            const data = await response.json();
-
+            const data = await joinGroup(joinCode, userToken)
             if (!response.ok) {
                 throw new Error(data.message || "Failed to join group");
             }
@@ -127,9 +93,9 @@ const Groups = () => {
 
     return (
         <MainLayout>
-            <div className="max-h-screen bg-[#121212] text-[#EBF1D5]">
+            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
-                            <h1 className="text-3xl font-bold capitalize">All Groups</h1>
+                    <h1 className="text-3xl font-bold capitalize">All Groups</h1>
                     <button
                         className={`flex flex-col items-center justify-center z-10 bg-lime-200 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
                         onClick={() => setShowModal(true)}
@@ -137,38 +103,41 @@ const Groups = () => {
                         <Plus strokeWidth={3} size={20} />
                     </button>
                 </div>
-                {loading ? (
-                    <div className="flex flex-col justify-center items-center flex-1 py-5">
-                    <Loader />
-                    </div>
-                ) : groups?.length === 0 ? (
-                                        <div className="flex flex-col justify-center items-center flex-1 py-5">
-<p>No groups found.</p>
-</div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-4 mt-4">
-                        {groups?.map((group) => (
-                            <div
-                                key={group._id}
-                                onClick={() => navigate(`/groups/${group._id}`)}
-                                className="flex flex-col gap-1 cursor-pointer hover:bg-[#1f1f1f] ounded-md transition h-[45px] justify-between"
-                            >
-                                <div className="flex flex-1 flex-row justify-between items-center align-middle">
-                                    <h2 className="text-xl font-semibold capitalize">{group.name}</h2>
-                                    {group?.totalOwe && group?.totalOwe != 0 && <div className="flex flex-col">
-                                        <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-green-500'} text-[12px] text-right`}>{group.totalOwe > 0 ? 'you owe' : 'you are owed'}</p>
-                                        <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-green-500'} text-[16px] -mt-[4px] text-right`}>
-                                            ₹ {Math.abs(group.totalOwe.toFixed(2))}
-                                        </p>
+                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
 
+                    {loading ? (
+                        <div className="flex flex-col justify-center items-center flex-1 py-5">
+                            <Loader />
+                        </div>
+                    ) : groups?.length === 0 ? (
+                        <div className="flex flex-col justify-center items-center flex-1 py-5">
+                            <p>No groups found.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-4">
+                            {groups?.map((group) => (
+                                <div
+                                    key={group._id}
+                                    onClick={() => navigate(`/groups/${group._id}`)}
+                                    className="flex flex-col gap-2 h-[45px]"
+                                >
+                                    <div className="flex flex-1 flex-row justify-between items-center align-middle">
+                                        <h2 className="text-xl font-semibold capitalize">{group.name}</h2>
+                                        {group?.totalOwe && group?.totalOwe != 0 && <div className="flex flex-col">
+                                            <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-teal-500'} text-[12px] text-right`}>{group.totalOwe > 0 ? 'you owe' : 'you are owed'}</p>
+                                            <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-teal-500'} text-[16px] -mt-[4px] text-right`}>
+                                                ₹ {Math.abs(group.totalOwe.toFixed(2))}
+                                            </p>
+
+                                        </div>
+                                        }
                                     </div>
-                                    }
+                                    <hr />
                                 </div>
-                                <hr />
-                            </div>
-                        ))}
-                    </div>
-                )}
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
             <Modal setShowModal={setShowModal} showModal={showModal} fetchGroups={fetchGroups} />
 

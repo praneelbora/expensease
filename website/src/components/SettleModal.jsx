@@ -105,7 +105,7 @@ export default function SettleModal({ setShowModal, group, onSubmit }) {
                             </button>
                             <button
                                 onClick={handleConfirm}
-                                className="bg-green-400 text-black px-4 py-2 rounded font-semibold"
+                                className="bg-teal-400 text-black px-4 py-2 rounded font-semibold"
                             >
                                 Confirm
                             </button>

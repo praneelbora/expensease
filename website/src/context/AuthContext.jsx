@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom"; // ✅ Correct import
 import Cookies from "js-cookie";
+import { fetchUserData, linkLogin } from "../services/UserService";
 export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -10,99 +11,24 @@ export const AuthProvider = ({ children }) => {
 
     const navigate = useNavigate();
 
-    const fetchUserData = async () => {
+    const handleLinkLogin = async (token) => {
         try {
-            const token = Cookies.get('userToken');
-            if (!token) {
-                setAuthLoading(false);
-                return;
-            }
-
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    'x-auth-token': token,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setUser(data);
-            } else {
-                setUser(null);
-                Cookies.remove('userToken');
-            }
-        } catch (err) {
-            console.error("Error loading user data:", err);
-            setUser(null);
-            Cookies.remove('userToken');
-        } finally {
-            setAuthLoading(false);
-        }
-    };
-
-
-    const linkLogin = async (token) => {
-        try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users/login?token=${token}`);
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || "Login link expired or invalid.");
-            }
-
-            const authToken = data.responseBody["x-auth-token"];
-            Cookies.set("userToken", authToken, { expires: 100 });
+            const { user, token: authToken } = await linkLogin(token);
+            setUser(user);
             setUserToken(authToken);
-            setUser(data.user);
-            const pendingCode = localStorage.getItem("pendingGroupJoin");
-            const pendingFriend = localStorage.getItem("pendingFriendAdd");
-
-            if (pendingCode) {
-                localStorage.removeItem("pendingGroupJoin");
-                navigate(`/groups?join=${pendingCode}`);
-            } else if (pendingFriend) {
-                localStorage.removeItem("pendingFriendAdd");
-                navigate(`/friends/join/${pendingFriend}`);
-            }
-
-            else {
-                navigate("/groups");
-            }
-
+            // handle pending redirects here...
         } catch (err) {
-            console.error("link login error:", err);
-            alert(err.message); // ✅ show token-related errors
+            alert(err.message);
         }
     };
 
-
-
-    const login = async (email, password) => {
-        try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users/login`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ email, password }),
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                const token = data.responseBody["x-auth-token"]; // Adjust key if needed
-                Cookies.set("userToken", token, { expires: 100 });
-                setUserToken(token)
-                setUser(data.user); // If your backend sends user object
-                navigate("/groups");
-            } else {
-                alert("Invalid credentials");
-            }
-        } catch (error) {
-            console.log("login error: ", error);
-            alert(`${error}`);
-        }
+    const loadUserData = async () => {
+        const user = await fetchUserData();
+        setUser(user);
+        setAuthLoading(false);
     };
+
+
 
     const logout = () => {
         setUser(null);
@@ -112,10 +38,10 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const token = Cookies.get("userToken");
         if (token) setUserToken(token);
-        fetchUserData()
+        loadUserData()
     }, []);
     return (
-        <AuthContext.Provider value={{ user, login, logout, userToken, authLoading, linkLogin }}>
+        <AuthContext.Provider value={{ user, logout, userToken, authLoading, handleLinkLogin }}>
             {children}
         </AuthContext.Provider>
     );

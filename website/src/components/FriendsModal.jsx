@@ -1,163 +1,93 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Share2 } from "lucide-react";
-
+import {
+    sendFriendRequest,
+    acceptFriendRequest,
+    rejectFriendRequest,
+    cancelFriendRequest,
+    fetchSentRequests,
+    fetchReceivedRequests,
+} from "../services/FriendService";
 export default function Navbar({ setShowModal, showModal, fetchFriends }) {
     const { userToken, user } = useAuth()
     const [val, setVal] = useState('')
     const [sent, setSent] = useState([])
     const [received, setreceived] = useState([])
-    const addFriend = async () => {
+
+
+    // Add friend
+    const handleAddFriend = async () => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/request`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': userToken,
-                },
-                body: JSON.stringify({ email: val }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                // Show meaningful message from backend if exists
-                const errorMsg = data.message || data.error || "Failed to send friend request";
-                alert(errorMsg); // or use toast(errorMsg)
-                return;
-            }
-
-            // Success: refresh lists and close modal
+            const data = await sendFriendRequest(val, userToken);
+            alert(data.message || "Friend request sent!");
             fetchFriends();
-            sentRequests();
-            receivedRequests();
+            handleSentRequests();
+            handleReceivedRequests();
             setShowModal(false);
-            alert(data.message || "Friend request sent"); // Optional success message
-
-        } catch (error) {
-            console.error("Error Sending Request:", error);
-            alert("Something went wrong. Please try again.");
+        } catch (err) {
+            alert(err.message || "Something went wrong.");
         }
     };
 
-    const accept = async (id) => {
+    const handleAccept = async (id) => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/accept`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    'x-auth-token': userToken
-                },
-                method: 'POST',
-                body: JSON.stringify({ requestId: id })
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to add friend");
-            }
-            else {
-                fetchFriends()
-                sentRequests()
-                receivedRequests()
-                setShowModal(false)
-            }
-        } catch (error) {
-            console.error("Error Sending Request:", error);
+            await acceptFriendRequest(id, userToken);
+            fetchFriends();
+            handleSentRequests();
+            handleReceivedRequests();
+            setShowModal(false);
+        } catch (err) {
+            alert(err.message || "Error accepting request");
         }
     };
-    const reject = async (id) => {
+
+    const handleReject = async (id) => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/reject`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    'x-auth-token': userToken
-                },
-                method: 'POST',
-                body: JSON.stringify({ requestId: id })
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to add friend");
-            }
-            else {
-                fetchFriends()
-                sentRequests()
-                receivedRequests()
-                setShowModal(false)
-            }
-        } catch (error) {
-            console.error("Error Sending Request:", error);
+            await rejectFriendRequest(id, userToken);
+            fetchFriends();
+            handleSentRequests();
+            handleReceivedRequests();
+            setShowModal(false);
+        } catch (err) {
+            alert(err.message || "Error rejecting request");
         }
     };
 
-    const cancel = async (id) => {
+    const handleCancel = async (id) => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/cancel`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    'x-auth-token': userToken
-                },
-                method: 'POST',
-                body: JSON.stringify({ requestId: id })
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to add friend");
-            }
-            else {
-                fetchFriends()
-                sentRequests()
-                receivedRequests()
-                setShowModal(false)
-            }
-        } catch (error) {
-            console.error("Error Sending Request:", error);
+            await cancelFriendRequest(id, userToken);
+            fetchFriends();
+            handleSentRequests();
+            handleReceivedRequests();
+            setShowModal(false);
+        } catch (err) {
+            alert(err.message || "Error cancelling request");
         }
     };
 
-    const sentRequests = async () => {
+    // Update sent/received
+    const handleSentRequests = async () => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/sent`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    'x-auth-token': userToken
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to add friend");
-            }
-            else {
-                const responseJson = await response.json()
-                console.log(responseJson);
-
-                setSent(responseJson)
-            }
-        } catch (error) {
-            console.error("Error Sending Request:", error);
+            const sent = await fetchSentRequests(userToken);
+            setSent(sent);
+        } catch (err) {
+            alert(err.message || "Failed to load sent requests");
         }
     };
-    const receivedRequests = async () => {
+
+    const handleReceivedRequests = async () => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/received`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    'x-auth-token': userToken
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to add friend");
-            }
-            else {
-                setreceived(await response.json())
-            }
-        } catch (error) {
-            console.error("Error Sending Request:", error);
+            const received = await fetchReceivedRequests(userToken);
+            setreceived(received);
+        } catch (err) {
+            alert(err.message || "Failed to load received requests");
         }
     };
+
     useEffect(() => {
-        sentRequests()
-        receivedRequests()
+        handleSentRequests()
+        handleReceivedRequests()
     }, [])
 
     if (showModal) return (
@@ -188,43 +118,43 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                         {/*body*/}
                         <div className="w-full flex flex-col p-5 gap-6">
                             <div className="w-full flex flex-row gap-3 items-center">
-    <input
-        className="bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3 flex-1"
-        placeholder='Enter Email ID'
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-    />
-    <button
-        className="border-[#EBF1D5] text-[#EBF1D5] border-[1px] h-[40px] px-2 rounded-md"
-        onClick={() => addFriend()}
-    >
-        Add
-    </button>
-    <button
-        className="flex items-center justify-center w-[40px] h-[40px] rounded-full shadow-md border border-[#EBF1D5] text-[#EBF1D5]"
-        onClick={() => {
-            const friendLink = `${import.meta.env.VITE_FRONTEND_URL}/friends/add/${user._id}`;
-            const message = `Let's connect on SplitFree! 🤝\n\nTap this link to login and send me a friend request:\n${friendLink}`;
+                                <input
+                                    className="bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3 flex-1"
+                                    placeholder='Enter Email ID'
+                                    value={val}
+                                    onChange={(e) => setVal(e.target.value)}
+                                />
+                                <button
+                                    className="border-[#EBF1D5] text-[#EBF1D5] border-[1px] h-[40px] px-2 rounded-md"
+                                    onClick={() => handleAddFriend()}
+                                >
+                                    Add
+                                </button>
+                                <button
+                                    className="flex items-center justify-center w-[40px] h-[40px] rounded-full shadow-md border border-[#EBF1D5] text-[#EBF1D5]"
+                                    onClick={() => {
+                                        const friendLink = `${import.meta.env.VITE_FRONTEND_URL}/friends/add/${user._id}`;
+                                        const message = `Let's connect on SplitFree! 🤝\n\nTap this link to login and send me a friend request:\n${friendLink}`;
 
-            if (navigator.share) {
-                navigator
-                    .share({
-                        title: "Add me on SplitFree!",
-                        text: message,
-                        url: friendLink,
-                    })
-                    .then(() => console.log("Shared successfully"))
-                    .catch((err) => console.error("Sharing failed", err));
-            } else {
-                navigator.clipboard.writeText(message);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-            }
-        }}
-    >
-        <Share2 strokeWidth={2} size={20} />
-    </button>
-</div>
+                                        if (navigator.share) {
+                                            navigator
+                                                .share({
+                                                    title: "Add me on SplitFree!",
+                                                    text: message,
+                                                    url: friendLink,
+                                                })
+                                                .then(() => console.log("Shared successfully"))
+                                                .catch((err) => console.error("Sharing failed", err));
+                                        } else {
+                                            navigator.clipboard.writeText(message);
+                                            setCopied(true);
+                                            setTimeout(() => setCopied(false), 2000);
+                                        }
+                                    }}
+                                >
+                                    <Share2 strokeWidth={2} size={20} />
+                                </button>
+                            </div>
 
                             <div className="w-full gap-3">
                                 {received.length > 0 &&
@@ -241,8 +171,8 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                                                                 <p className="text-[12px] text-[#EBF1D5] lowercase">{req.sender.email}</p>
                                                             </div>
                                                             <div className="flex flex-row w-min gap-2">
-                                                                <button className="border-[#34C759] text-[#34C759] border-[1px] h-[40px] px-2 rounded-md" onClick={() => accept(req._id)}>Accept</button>
-                                                                <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-3 rounded-md" onClick={() => reject(req._id)}>X</button>
+                                                                <button className="border-[#34C759] text-[#34C759] border-[1px] h-[40px] px-2 rounded-md" onClick={() => handleAccept(req._id)}>Accept</button>
+                                                                <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-3 rounded-md" onClick={() => handleReject(req._id)}>X</button>
                                                             </div>
                                                         </div>
                                                         <hr />
@@ -265,7 +195,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                                                                 <p className="text-[12px] text-[#EBF1D5] lowercase">{req.receiver.email}</p>
                                                             </div>
                                                             <div className="flex flex-row w-min">
-                                                                <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-2 rounded-md" onClick={() => cancel(req._id)}>Cancel</button>
+                                                                <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-2 rounded-md" onClick={() => handleCancel(req._id)}>Cancel</button>
                                                             </div>
                                                         </div>
                                                         <hr />

@@ -20,21 +20,21 @@ import { useEffect } from "react";
 
 // ✅ Updated PrivateRoute using context
 function PrivateRoute({ children }) {
-    const { user, authLoading } = useAuth();
+    const { user, authLoading } = useAuth() || {};
     if (authLoading) return <Loader />
     return user ? children : <Navigate to="/login" />;
 }
 
 function App() {
-    const { user, logout } = useAuth(); // use user info for redirects
+    const { user, logout } = useAuth() || {}; // use user info for redirects
     const location = useLocation();
-    const { linkLogin } = useAuth();
+    const { handleLinkLogin } = useAuth() || {};
     useEffect(() => {
         const urlParams = new URLSearchParams(location.search);
         const token = urlParams.get("token");
 
         if (token) {
-            linkLogin(token);
+            handleLinkLogin(token);
             // Optionally: clean URL so token isn't visible after login
             window.history.replaceState({}, document.title, "/"); // 👈 removes token from URL
         }

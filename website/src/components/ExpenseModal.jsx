@@ -1,4 +1,6 @@
-export default function ExpenseModal({ showModal, setShowModal, fetchExpenses }) {
+import { deleteExpense } from "../services/ExpenseService";
+
+export default function ExpenseModal({ showModal, setShowModal, fetchExpenses, userToken }) {
     const { description, amount, createdAt, createdBy, splits, groupId } = showModal;
     console.log(showModal);
 
@@ -12,31 +14,20 @@ export default function ExpenseModal({ showModal, setShowModal, fetchExpenses })
             return `No one paid`;
         }
     };
-    const handleDelete = async () => {
-        const confirmDelete = window.confirm("Are you sure you want to delete this expense?");
-        if (!confirmDelete || !showModal._id) return;
 
-        try {
-            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/${showModal._id}`, {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            });
+const handleDelete = async () => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this expense?");
+    if (!confirmDelete || !showModal._id) return;
 
-            if (res.ok) {
-                alert("Expense deleted successfully!");
-                fetchExpenses()
-                setShowModal(false);
-                // Optional: Trigger a refresh or notify parent
-            } else {
-                alert("Failed to delete expense.");
-            }
-        } catch (err) {
-            console.error("Error deleting expense:", err);
-            alert("Something went wrong while deleting.");
-        }
-    };
+    try {
+        await deleteExpense(showModal._id, userToken); // pass the expense ID and token
+        alert("Expense deleted successfully!");
+        fetchExpenses(); 
+        setShowModal(false); // close modal
+    } catch (err) {
+        alert(err.message || "Something went wrong while deleting.");
+    }
+};
 
     const formatDate = (date) => {
         const d = new Date(date);

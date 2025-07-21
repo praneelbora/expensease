@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { joinGroup, createGroup } from "../services/GroupService";
+import { getFriends } from "../services/FriendService";
 
 export default function Navbar({ setShowModal, showModal, fetchGroups }) {
-    const { userToken } = useAuth()
+    const { userToken } = useAuth() || {}
     const [val, setVal] = useState('')
     const [name, setName] = useState('')
     const [friends, setFriends] = useState([]);
@@ -52,16 +54,7 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
     const handleJoinGroup = async () => {
         setErrorMessage(''); // Clear previous
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/groups/join`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-auth-token": userToken,
-                },
-                body: JSON.stringify({ code: joinCode }),
-            });
-
-            const data = await response.json();
+            const data = await joinGroup(joinCode, userToken)
 
             if (!response.ok) {
                 throw new Error(data.message || "Failed to join group");
@@ -79,24 +72,13 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
     };
 
 
-    const fetchFriends = async () => {
+    const handleFetchFriends = async () => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/friends/`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    'x-auth-token': userToken,
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to fetch friends");
-            } else {
-                const data = await response.json();
-                if (data.length > 0) {
-                    console.log(data);
-                    setFriends(data);
-                    friendFilter('');
-                }
+            const data = await getFriends(userToken)
+            if (data.length > 0) {
+                console.log(data);
+                setFriends(data);
+                friendFilter('');
             }
         } catch (error) {
             console.error("Error loading friends:", error);
@@ -106,7 +88,7 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
     useEffect(() => {
         setGroupMode('create');
         setJoinCode('');
-        showModal && fetchFriends()
+        showModal && handleFetchFriends()
 
     }, [showModal])
     useEffect(() => {
@@ -143,40 +125,19 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
         setFilteredFriends(filtered);
     };
 
-    const handleCreateGroup = async () => {
-        if (!name.trim()) return;
 
-        const members = selectedFriends
-            .filter(friend => friend._id !== 'me')
-            .map(friend => friend._id);
-
-        try {
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/groups/`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-auth-token": userToken,
-                },
-                body: JSON.stringify({ name, memberIds: members }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || "Failed to create group");
-            }
-
-            fetchGroups();
-            setGroupCreatedCode(data?.code || ''); // Save the group code
-            setName('');
-            setSelectedFriends([{ _id: 'me', name: 'Me', paying: false, owing: false, oweAmount: 0, owePercent: 0 }]);
-            setErrorMessage('');
-            // Don't close modal now — we show the code
-
-        } catch (error) {
-            console.error("Group creation error:", error.message);
-        }
-    };
+const handleCreateGroup = async () => {
+    try {
+        const data = await createGroup(name, selectedFriends, userToken);
+        fetchGroups();
+        setGroupCreatedCode(data?.code || '');
+        setName('');
+        setSelectedFriends([{ _id: 'me', name: 'Me', paying: false, owing: false, oweAmount: 0, owePercent: 0 }]);
+        setErrorMessage('');
+    } catch (error) {
+        setErrorMessage(error.message);
+    }
+};
 
 
 
@@ -223,7 +184,7 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
                         {/*body*/}
                         <div className="w-full flex flex-col p-3 gap-6 max-h-[70dvh]">
                             {groupCreatedCode ? (
-                                <div className="flex flex-col items-center justify-center  text-green-200 rounded-lg text-center">
+                                <div className="flex flex-col items-center justify-center  text-teal-200 rounded-lg text-center">
                                     <p className="text-lg font-semibold">🎉 Group Created Successfully!</p>
                                     <p className="text-sm mt-1">Share this code with friends to join:</p>
                                     <div className="text-2xl font-bold bg-[#EBF1D5] text-[#121212] px-4 py-2 rounded-md mt-2 tracking-widest">
@@ -237,7 +198,7 @@ Click on this link to login & join now!
 ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
                                             );
                                         }}
-                                        className="mt-4 px-4 py-2 bg-green-500 text-[#121212] rounded-lg hover:bg-green-400 text-sm font-medium"
+                                        className="mt-4 px-4 py-2 bg-teal-500 text-[#121212] rounded-lg hover:bg-teal-400 text-sm font-medium"
                                     >
                                         📋 Copy to Clipboard
                                     </button>
@@ -343,7 +304,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
                                     disabled={name.length === 0}
                                     className={`w-full py-2 border rounded-[8px] text-[#000] transition 
             ${name.length > 0
-                                            ? 'bg-green-300 border-green-300 cursor-pointer'
+                                            ? 'bg-teal-300 border-teal-300 cursor-pointer'
                                             : 'bg-gray-500 border-gray-500 cursor-not-allowed'}
         `}
                                 >

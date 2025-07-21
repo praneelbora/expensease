@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { loginOrRegister } from "../services/UserService";
 
 export default function LoginRegister() {
     const [email, setEmail] = useState("");
@@ -9,19 +10,23 @@ export default function LoginRegister() {
     const [error, setError] = useState(null);
     const [userName, setUserName] = useState("");
 
-    const loginOrRegister = async (email, name = null) => {
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/users/login`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify((name) ? { email, name } : { email }),
-        });
+    const handleLoginOrRegister = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await loginOrRegister(email, step === "name" ? name : null);
 
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Login/Register failed");
-
-        return data.message; // e.g., "Login link sent to email!"
+            if (result.error) {
+                setError(result.error);
+            } else {
+                setMessage(result.message || "Check your email for the login link.");
+                setStep("submitted");
+            }
+        } catch (err) {
+            setError("Unexpected error occurred. Please try again.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -32,7 +37,7 @@ export default function LoginRegister() {
         try {
             if (step === "email") {
                 try {
-                    await loginOrRegister(email); // try login
+                    await handleLoginOrRegister(email); // try login
                     setStep("submitted");
                 } catch (err) {
                     if (err.message === "User not found") {
@@ -42,7 +47,7 @@ export default function LoginRegister() {
                     }
                 }
             } else if (step === "name") {
-                await loginOrRegister(email, name); // register and login
+                await handleLoginOrRegister(email, name); // register and login
                 setStep("submitted");
             }
         } catch (err) {
@@ -59,7 +64,7 @@ export default function LoginRegister() {
                 <h2 className="text-3xl font-bold text-center">Split-Free Login</h2>
 
                 {step === "submitted" ? (
-                    <p className="text-center text-green-400">
+                    <p className="text-center text-teal-400">
                         Login link sent to <strong>{email}</strong>. Check your inbox!
                     </p>
                 ) : (

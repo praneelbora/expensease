@@ -6,7 +6,7 @@ import { Loader } from "lucide-react";
 export default function GroupJoinRedirect() {
     const { code } = useParams();
     const navigate = useNavigate();
-    const { user, authLoading } = useAuth();
+    const { user, authLoading } = useAuth() || {};
 
     useEffect(() => {
         if (authLoading) return; // Wait until auth state is loaded
