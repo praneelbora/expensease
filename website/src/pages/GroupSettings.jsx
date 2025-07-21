@@ -3,17 +3,19 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getGroupDetails, updateGroupName, leaveGroup, deleteGroup, removeMember, promoteMember, demoteMember } from "../services/GroupService";
 import MainLayout from "../layouts/MainLayout";
-import { ChevronLeft,Loader } from "lucide-react";
+import { ChevronLeft, Loader } from "lucide-react";
 import { getFriends, sendFriendRequest } from "../services/FriendService";
+import { getGroupExpenses } from "../services/GroupService";
 
 export default function GroupSettings() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { user, userToken } = useAuth() || {};
+    const { user, userToken } = useAuth();
     const [group, setGroup] = useState(null);
     const [newGroupName, setNewGroupName] = useState("");
     const [loading, setLoading] = useState(false);
     const [friends, setFriends] = useState([]);
+    const [groupExpenses, setGroupExpenses] = useState([]);
     const fetchFriends = async () => {
         try {
             const data = await getFriends(userToken)
@@ -22,14 +24,53 @@ export default function GroupSettings() {
             console.error("Error fetching friends:", err);
         }
     };
+    const [totals, setTotals] = useState(null);
+    const fetchGroupExpenses = async () => {
+            try {
+                const data = await getGroupExpenses(id, userToken)
+                setGroupExpenses(data.expenses);
+            } catch (error) {
+                // console.error("Group Details Page - Error loading group expenses:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+useEffect(() => {
+    if (!group, !user._id) return;
+
+    let totalExpense = 0;
+    let totalPaid = 0;
+    let yourExpense = 0;
+    let groupExpense = 0
+    groupExpenses?.forEach(exp => {
+        exp.splits.forEach(split => {
+            console.log(split);
+            if(exp.typeOf=='expense') groupExpense += split.oweAmount;
+            if (split.friendId?._id === user._id) {
+                totalPaid += split.payAmount || 0;
+                totalExpense += split.oweAmount || 0;
+                if(exp.typeOf=='expense')
+                    yourExpense +=split.oweAmount
+            }
+        });
+    });
+
+    setTotals({
+        expense: totalExpense,
+        yourExpense: yourExpense,
+        balance: totalPaid - totalExpense,
+        groupExpense: groupExpense
+    });
+}, [groupExpenses]);
 
     useEffect(() => {
         fetchGroup();
+        fetchGroupExpenses()
         fetchFriends();
     }, [id]);
     const addFriend = async (email) => {
         try {
-            const data = await sendFriendRequest(email,userToken)
+            const data = await sendFriendRequest(email, userToken)
             alert(data.message || "Friend request sent!");
             fetchFriends();
         } catch (err) {
@@ -104,62 +145,89 @@ export default function GroupSettings() {
                         <p>Group not found</p>
                     ) : (
                         <div className="flex flex-col gap-y-3 gap-x-4">
-                            
-                    <div className="flex flex-col gap-2 ">
-                        <label className="block text-[16px] uppercase text-teal-500">Group Name</label>
-                        <input
-                            value={newGroupName}
-                            onChange={(e) => setNewGroupName(e.target.value)}
-                            className="p-2 border rounded w-full"
-                        />
-                        {newGroupName != group?.name && <button
-                            onClick={handleGroupRename}
-                            className="mt-2 px-4 py-2 bg-teal-500 text-white rounded"
-                        >
-                            Save
-                        </button>}
-                    </div>
 
-                    <div>
-                        <h3 className="font-medium mb-2 text-[16px] uppercase text-teal-500">Members</h3>
-                        <ul className="space-y-3">
-                            {group?.members.map((member) => {
-                                const isMe = member?._id === user?._id;
-                                const isFriend = friends.some(friend => friend?._id === member?._id);
+                            <div className="flex flex-col gap-2 ">
+                                <label className="block text-[16px] uppercase text-teal-500">Group Name</label>
+                                <input
+                                    value={newGroupName}
+                                    onChange={(e) => setNewGroupName(e.target.value)}
+                                    className="p-2 border rounded w-full"
+                                />
+                                {newGroupName != group?.name && <button
+                                    onClick={handleGroupRename}
+                                    className="mt-2 px-4 py-2 bg-teal-500 text-white rounded"
+                                >
+                                    Save
+                                </button>}
+                            </div>
+                            {/* Net Balance Summary Box */}
+                            <div className="bg-[#1E1E1E] p-4 rounded-xl shadow space-y-4 mt-4">
+                                <div>
+                                    <h2 className="text-xl font-semibold mb-2">Summary</h2>
+                                    <p className={`text-lg ${totals?.balance < 0 ? 'text-red-500' : 'text-teal-500'}`}>
+                                        {totals?.balance < 0 ? 'You owe' : 'You are owed'}
+                                    </p>
+                                    <p className="text-2xl font-bold">
+                                        ₹ {Math.abs(totals?.balance).toFixed(2)}
+                                    </p>
+                                </div>
 
-                                return (
-                                    <li key={member._id} className="flex items-center justify-between">
-                                        <div>
-                                            {member.name} {isMe && "(You)"}
-                                            {group?.admins?.includes(member._id) && <span className="ml-2 text-xs bg-gray-200 px-1 rounded">Admin</span>}
-                                        </div>
-                                        <div className="space-x-2">
-                                            {(!isMe && !isFriend) && (
-                                                <button
-                                                    onClick={() => addFriend(member.email)}
-                                                    className="text-sm text-blue-500"
-                                                >
-                                                    Add Friend
-                                                </button>
-                                            )}
-                                            {isAdmin && !isMe && (
-                                                <>
-                                                    {group.admins.includes(member._id) ? (
-                                                        <button onClick={() => handleDemote(member._id)} className="text-sm text-orange-600">Demote</button>
-                                                    ) : (
-                                                        <button onClick={() => handlePromote(member._id)} className="text-sm text-teal-600">Promote</button>
+                                <div className="grid grid-cols-2 gap-4 text-sm text-gray-400">
+                                    <div className="flex flex-col bg-[#2A2A2A] p-3 rounded-lg">
+                                        <span className="text-xs text-gray-400"> Your Expenses</span>
+                                        <span className="text-teal-500 text-lg font-semibold">
+                                            ₹ {totals?.yourExpense?.toFixed(2)}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-col bg-[#2A2A2A] p-3 rounded-lg">
+                                        <span className="text-xs text-gray-400">Group Expenses</span>
+                                        <span className="text-teal-500 text-lg font-semibold">
+                                            ₹ {(totals?.groupExpense).toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className="font-medium mb-2 text-[16px] uppercase text-teal-500">Members</h3>
+                                <ul className="space-y-3">
+                                    {group?.members.map((member) => {
+                                        const isMe = member?._id === user?._id;
+                                        const isFriend = friends.some(friend => friend?._id === member?._id);
+
+                                        return (
+                                            <li key={member._id} className="flex items-center justify-between">
+                                                <div>
+                                                    {member.name} {isMe && "(You)"}
+                                                    {group?.admins?.includes(member._id) && <span className="ml-2 text-xs bg-gray-200 px-1 rounded">Admin</span>}
+                                                </div>
+                                                <div className="space-x-2">
+                                                    {(!isMe && !isFriend) && (
+                                                        <button
+                                                            onClick={() => addFriend(member.email)}
+                                                            className="text-sm text-blue-500"
+                                                        >
+                                                            Add Friend
+                                                        </button>
                                                     )}
-                                                    <button onClick={() => handleRemoveMember(member._id)} className="text-sm text-red-600">Remove</button>
-                                                </>
-                                            )}
-                                        </div>
-                                    </li>
-                                );
-                            })}
+                                                    {isAdmin && !isMe && (
+                                                        <>
+                                                            {group.admins.includes(member._id) ? (
+                                                                <button onClick={() => handleDemote(member._id)} className="text-sm text-orange-600">Demote</button>
+                                                            ) : (
+                                                                <button onClick={() => handlePromote(member._id)} className="text-sm text-teal-600">Promote</button>
+                                                            )}
+                                                            <button onClick={() => handleRemoveMember(member._id)} className="text-sm text-red-600">Remove</button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </li>
+                                        );
+                                    })}
 
-                        </ul>
-                    </div>
-                </div>)}
+                                </ul>
+                            </div>
+                        </div>)}
                 </div>
 
                 {/* <div className="border-t pt-4">

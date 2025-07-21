@@ -488,7 +488,7 @@ const AddExpense = () => {
                                         <div>
                                             {filteredFriends.length > 0 && <p className={`text-[14px] text-teal-500 uppercase  mb-1 ${filteredGroups.length > 0 && 'mt-4'}`}>FRIENDS</p>}
                                             {filteredFriends.map((friend) => (
-                                                <div className="flex flex-col gap-2" onClick={() => toggleFriendSelection(friend)} key={friend._id}>
+                                                <div className="flex flex-col gap-1 mt-1Fsett" onClick={() => toggleFriendSelection(friend)} key={friend._id}>
                                                     <div className="flex flex-row w-full justify-between items-center">
                                                         <div className="flex flex-col">
                                                             <h2 className="text-xl capitalize text-[#EBF1D5]">{friend.name}</h2>

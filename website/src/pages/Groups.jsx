@@ -17,6 +17,7 @@ const Groups = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const hasJoinedRef = useRef(false);
+        const round = (val) => Math.round(val * 100) / 100;
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -46,15 +47,15 @@ const Groups = () => {
                     groupExpenses.forEach(exp => {
                         exp.splits.forEach(split => {
                             if (split.friendId._id === userId) {
-                                totalOwe += split.oweAmount || 0;
-                                totalOwe -= split.payAmount || 0;
+                                totalOwe += round(split.oweAmount) || 0;
+                                totalOwe -= round(split.payAmount) || 0;
                             }
                         });
                     });
 
                     return {
                         ...group,
-                        totalOwe: totalOwe != 0 ? totalOwe : null
+                        totalOwe: round(totalOwe) != 0 ? round(totalOwe) : null
                     };
                 } catch (e) {
                     console.error("Error fetching group expenses:", e);

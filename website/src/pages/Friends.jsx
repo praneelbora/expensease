@@ -26,6 +26,7 @@ const Friends = () => {
     const [userId, setUserId] = useState(null);
     const [selectedFriend, setSelectedFriend] = useState(null);
     const [showFriendExpenseModal, setShowFriendExpenseModal] = useState(false);
+            const round = (val) => Math.round(val * 100) / 100;
 
     const [receivedRequests, setReceivedRequests] = useState([]);
     const fetchReceived = async () => {
@@ -157,10 +158,10 @@ const Friends = () => {
                                     exp.splits.forEach(split => {
                                         if (split.friendId?._id?.toString() === friend._id?.toString()) {
                                             if (split.owing) {
-                                                balance += split.oweAmount || 0;
+                                                balance += round(split.oweAmount) || 0;
                                             }
                                             if (split.paying) {
-                                                balance -= split.payAmount || 0;
+                                                balance -= round(split.payAmount) || 0;
                                             }
                                         }
                                     });
@@ -173,10 +174,10 @@ const Friends = () => {
                                     }} key={friend._id} className="flex flex-col gap-2 h-[45px]">
                                         <div className="flex flex-1 flex-row justify-between items-center align-middle">
                                             <h2 className="text-xl font-semibold capitalize">{friend.name}</h2>
-                                            {balance !== 0 && !isNaN(balance) && (
+                                            {round(balance) !== 0 && !isNaN(balance) && (
                                                 <div className="flex flex-col">
                                                     <p className={`${balance < 0 ? 'text-red-500' : 'text-teal-500'} text-[12px] text-right`}>
-                                                        {balance < 0 ? 'you owe' : 'you are owed'}
+                                                        {round(balance) < 0 ? 'you owe' : 'you are owed'}
                                                     </p>
                                                     <p className={`${balance < 0 ? 'text-red-500' : 'text-teal-500'} text-[16px] -mt-[4px] text-right`}>
                                                         ₹ {Math.abs(balance.toFixed(2))}

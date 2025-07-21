@@ -85,26 +85,34 @@ const Expenses = () => {
                         <div className="flex flex-col justify-center items-center flex-1 py-5">
                             <p>No expenses found.</p>
                         </div>
-                    ) : expenses?.map((exp) => (
+                    ) : expenses?.filter(exp =>exp.typeOf=='expense')?.map((exp) => (
                         <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[50px]">
-                            <div className="flex flex-col justify-center items-center">
-                                <p className="text-[14px] uppercase">{(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}</p>
-                                <p className="text-[22px] -mt-[6px]">{(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}</p>
-                            </div>
-                            <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
-                            <div className="flex grow flex-row justify-between">
-                                <div className="flex flex-col justify-center">
-                                    <p className="text-[22px] capitalize">{exp.description}</p>
-                                    <p className="text-[14px] text-[#81827C] capitalize -mt-[6px]">
-                                        {getPayerInfo(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
-                                    </p>
-                                </div>
-                                <div className="flex flex-col justify-center items-end">
-                                    <p className="text-[14px]">{getOweInfo(exp.splits)?.text}</p>
-                                    <p className="text-[22px] capitalize -mt-[6px]">{getOweInfo(exp.splits)?.amount}</p>
-                                </div>
-                            </div>
-                        </div>
+                                                        <div className="flex flex-col justify-center items-center">
+                                                            <p className="text-[14px] uppercase">
+                                                                {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
+                                                            </p>
+                                                            <p className="text-[22px] -mt-[6px]">
+                                                                {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
+                                                            </p>
+                                                        </div>
+                                                        <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
+                                                        <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
+                                                            {/* Left: Description and payer info */}
+                                                            <div className="flex flex-col justify-center min-w-0">
+                                                                <p className="text-[22px] capitalize truncate">{exp.description}</p>
+                                                                <p className="text-[14px] text-[#81827C] capitalize -mt-[6px]">
+                                                                    {getPayerInfo(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
+                                                                </p>
+                                                            </div>
+
+                                                            {/* Right: Owe info */}
+                                                            <div className="flex flex-col justify-center items-end text-right shrink-0">
+                                                                <p className="text-[13px] whitespace-nowrap">{getOweInfo(exp.splits)?.text}</p>
+                                                                <p className="text-[22px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(exp.splits)?.amount}</p>
+                                                            </div>
+                                                        </div>
+
+                                                    </div> 
                     ))}
                 </ul>
             </div>

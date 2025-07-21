@@ -11,6 +11,7 @@ import Logout from "./pages/Logout";
 import LinkLogin from "./pages/LinkLogin";
 import GroupJoin from "./pages/GroupJoin";
 import GroupSettings from "./pages/GroupSettings";
+import SupportDev from "./pages/SupportDev";
 import Cookies from "js-cookie";
 import { Loader } from "lucide-react";
 import FriendRequest from "./pages/FriendRequest";
@@ -72,6 +73,10 @@ function App() {
             <Route
                 path="/account"
                 element={<PrivateRoute><Account /></PrivateRoute>}
+            />
+            <Route
+                path="/supportdeveloper"
+                element={<PrivateRoute><SupportDev /></PrivateRoute>}
             />
             <Route
                 path="/logout"

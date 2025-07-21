@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import React, { Fragment } from 'react';
 import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
@@ -29,7 +30,7 @@ const GroupDetails = () => {
     const [groupExpenses, setGroupExpenses] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [userID, setUserId] = useState();
+    const [userId, setUserId] = useState();
     const [selectedMember, setSelectedMember] = useState(null);
     const [showMembers, setShowMembers] = useState(false);
     const [showSettleModal, setShowSettleModal] = useState(false);
@@ -42,7 +43,7 @@ const GroupDetails = () => {
     const handleSettle = async ({ payerId, receiverId, amount, description }) => {
         try {
             await settleExpense({ payerId, receiverId, amount, description, groupId: id }, userToken);
-            await getGroupExpenses();
+            await getGroupExpenses(id, userToken);
             alert("Settlement recorded successfully!");
         } catch (err) {
             alert(err.message || "Could not settle the amount.");
@@ -62,7 +63,7 @@ const GroupDetails = () => {
         : groupExpenses;
 
     const getPayerInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userID);
+        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
 
         if (!userSplit || (!userSplit.payAmount && !userSplit.oweAmount)) {
             return "You were not involved";
@@ -70,7 +71,7 @@ const GroupDetails = () => {
 
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
-            return `${payers[0].friendId._id == userID ? 'You' : payers[0].friendId.name} paid`;
+            return `${payers[0].friendId._id == userId ? 'You' : payers[0].friendId.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         } else {
@@ -84,8 +85,8 @@ const GroupDetails = () => {
 
         if (!payer || !receiver) return "Invalid settlement";
 
-        const payerName = payer.friendId._id === userID ? "You" : payer.friendId.name;
-        const receiverName = receiver.friendId._id === userID ? "you" : receiver.friendId.name;
+        const payerName = payer.friendId._id === userId ? "You" : payer.friendId.name;
+        const receiverName = receiver.friendId._id === userId ? "you" : receiver.friendId.name;
 
         return `${payerName} paid ${receiverName}`;
     };
@@ -93,7 +94,7 @@ const GroupDetails = () => {
 
 
     const getOweInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userID);
+        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
 
         if (!userSplit) return null;
 
@@ -183,16 +184,19 @@ const GroupDetails = () => {
 
             // Determine how much is transferred between them
             const transactionAmount = Math.min(oweAmount, owedAmount);
+            console.log(transactionAmount);
 
-            transactions.push({
-                from: owe[i].memberId,
-                to: owed[j].memberId,
-                amount: transactionAmount
-            });
-
+            if (transactionAmount > 0.1) {
+                transactions.push({
+                    from: owe[i].memberId,
+                    to: owed[j].memberId,
+                    amount: round(transactionAmount)
+                });
+            }
             // Adjust the amounts
-            owe[i].amount -= transactionAmount;
-            owed[j].amount -= transactionAmount;
+            owe[i].amount = round(owe[i].amount - transactionAmount);
+            owed[j].amount = round(owed[j].amount - transactionAmount);
+
 
             if (owe[i].amount === 0) i++;
             if (owed[j].amount === 0) j++;
@@ -203,10 +207,11 @@ const GroupDetails = () => {
     const [totalDebt, setTotalDebt] = useState(null);
     const [simplifiedTransactions, setSimplifiedTransactions] = useState(null);
     const getMemberName = (memberId) => {
+        if (memberId == userId) return "You"
         const member = group.members.find(m => m._id === memberId);
         return member ? member.name : "Unknown";
     };
-    const userDebts = simplifiedTransactions?.filter(t => t.from === userID) || [];
+    const userDebts = simplifiedTransactions?.filter(t => t.from === userId) || [];
 
     const groupedDebts = userDebts.reduce((acc, curr) => {
         if (!acc[curr.to]) acc[curr.to] = 0;
@@ -229,6 +234,7 @@ const GroupDetails = () => {
         fetchGroup();
         fetchGroupExpenses();
     }, [id]);
+    const round = (val) => Math.round(val * 100) / 100;
 
     return (
         <MainLayout groupId={id}>
@@ -347,11 +353,28 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                         Settle
                                     </button>
                                 </div>
-                                {simplifiedTransactions?.map((transaction, index) => (
-                                    <div key={index}>
-                                        {`${getMemberName(transaction.from)} owes ${getMemberName(transaction.to)} ₹${transaction.amount.toFixed(2)}`}
-                                    </div>
-                                ))}
+                                {simplifiedTransactions?.map((transaction, index) => {
+                                    const name1 = getMemberName(transaction.from);
+                                    const name2 = getMemberName(transaction.to);
+                                    const amt = transaction.amount.toFixed(2);
+
+                                    const isYouPaying = name1 === "You";
+                                    const isYouReceiving = name2 === "You";
+                                    const isYou = name1 === "You" || name2 === "You";
+                                    const amountColor = isYouPaying
+                                        ? "text-red-500"
+                                        : isYouReceiving
+                                            ? "text-green-500"
+                                            : ""; // or leave blank for no color
+                                    const textColor = isYou ? "" : "text-[#81827C]"
+                                    return (
+                                        <div key={index} className={textColor}>
+                                            {`${name1} ${isYouPaying ? "owe" : "owes"} ${name2} `}
+                                            <span className={amountColor}>₹{amt}</span>
+                                        </div>
+                                    );
+                                })}
+
                             </div>
 
                                 <hr /></>}
@@ -370,7 +393,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 <ul className="flex flex-col w-full gap-2">
                                     {filteredExpenses?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
                                         .map((exp) => (
-                                            <>
+                                            <React.Fragment key={exp._id}>
 
                                                 {exp.typeOf != 'settle' ?
                                                     <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[50px]">
@@ -421,7 +444,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
 
                                                     </div>
                                                 }
-                                            </>
+                                            </React.Fragment>
 
                                         ))}
                                 </ul>
@@ -440,8 +463,11 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                 <SettleModal
                     setShowModal={setShowSettleModal}
                     group={group}
+                    simplifiedTransactions={simplifiedTransactions}
                     onSubmit={handleSettle}
+                    userId={userId}
                 />
+
             )}
 
 

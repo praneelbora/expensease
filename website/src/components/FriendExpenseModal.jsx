@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
 import { settleFriendExpense } from "../services/ExpenseService";
 
-export default function FriendExpenseModal({ show, onClose, friend, expenses, userId, userToken, onSettle }) {
+export default function FriendExpenseModal({
+    show,
+    onClose,
+    friend,
+    expenses,
+    userId,
+    userToken,
+    onSettle
+}) {
     const [settleLoading, setSettleLoading] = useState(false);
 
-    const handleSettle = async () => {
+    const handleSettleAll = async () => {
         try {
             setSettleLoading(true);
             await settleFriendExpense(friend._id, userToken);
@@ -40,7 +48,7 @@ export default function FriendExpenseModal({ show, onClose, friend, expenses, us
                         </button>
                     </div>
 
-                    <div className="p-5 flex flex-col gap-4">
+                    <div className="p-5 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
                         {expenses.length === 0 ? (
                             <p>No expenses</p>
                         ) : (
@@ -49,31 +57,37 @@ export default function FriendExpenseModal({ show, onClose, friend, expenses, us
                                     <p className="text-lg font-semibold">{exp.title}</p>
                                     <p className="text-sm text-gray-400">₹ {exp.amount.toFixed(2)}</p>
                                     <div className="text-sm mt-1">
-                                        {exp.splits.map((split, idx) => (
-                                            <p key={idx}>
-                                                {split.friendId?._id === friend._id
-                                                    ? split.paying
-                                                        ? `${friend.name} paid ₹${split.payAmount}`
-                                                        : `${friend.name} owes ₹${split.oweAmount}`
-                                                    : split.paying
-                                                        ? `You paid ₹${split.payAmount}`
-                                                        : `You owe ₹${split.oweAmount}`}
-                                            </p>
-                                        ))}
+                                        {exp.splits.map((split, idx) => {
+                                            const isFriend = split.friendId?._id === friend._id;
+                                            const isPaying = split.paying;
+
+                                            return (
+                                                <p key={idx}>
+                                                    {isFriend
+                                                        ? isPaying
+                                                            ? `${friend.name} paid ₹${split.payAmount}`
+                                                            : `${friend.name} owes ₹${split.oweAmount}`
+                                                        : isPaying
+                                                            ? `You paid ₹${split.payAmount}`
+                                                            : `You owe ₹${split.oweAmount}`
+                                                    }
+                                                </p>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             ))
                         )}
 
-                        {/* {expenses.length > 0 && (
+                        {expenses.length > 0 && (
                             <button
                                 className="bg-teal-300 text-black rounded-md px-4 py-2 mt-2"
-                                onClick={handleSettle}
+                                onClick={handleSettleAll}
                                 disabled={settleLoading}
                             >
                                 {settleLoading ? "Settling..." : "Settle All"}
                             </button>
-                        )} */}
+                        )}
                     </div>
                 </div>
             </div>
