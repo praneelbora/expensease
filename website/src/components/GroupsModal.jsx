@@ -76,7 +76,6 @@ export default function Navbar({ setShowModal, showModal, fetchGroups }) {
         try {
             const data = await getFriends(userToken)
             if (data.length > 0) {
-                console.log(data);
                 setFriends(data);
                 friendFilter('');
             }

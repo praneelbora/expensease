@@ -143,7 +143,6 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                                                     text: message,
                                                     url: friendLink,
                                                 })
-                                                .then(() => console.log("Shared successfully"))
                                                 .catch((err) => console.error("Sharing failed", err));
                                         } else {
                                             navigator.clipboard.writeText(message);

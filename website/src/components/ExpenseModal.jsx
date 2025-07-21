@@ -2,8 +2,6 @@ import { deleteExpense } from "../services/ExpenseService";
 
 export default function ExpenseModal({ showModal, setShowModal, fetchExpenses, userToken }) {
     const { description, amount, createdAt, createdBy, splits, groupId } = showModal;
-    console.log(showModal);
-
     const getPayerInfo = (splits) => {
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {

@@ -31,8 +31,6 @@ const Friends = () => {
     const fetchReceived = async () => {
         try {
             const data = await fetchReceivedRequests(userToken);
-            console.log(data);
-
             setReceivedRequests(data.slice(0, 4)); // show only first 2-4
         } catch (err) {
             console.error("Error fetching received requests:", err);

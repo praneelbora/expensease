@@ -33,7 +33,6 @@ const Groups = () => {
 
             const data = await getAllGroups(userToken)
             if (data.length > 0) {
-                console.log(data);
                 setGroups(data);
             }
             const enhancedGroups = await Promise.all(data.map(async (group) => {

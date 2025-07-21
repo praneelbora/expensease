@@ -123,7 +123,6 @@ const GroupDetails = () => {
     const fetchGroupExpenses = async () => {
         try {
             const data = await fetchGroupExpenses(id, userToken)
-            console.log(data);
             if (!response.ok) throw new Error(data.message || "Failed to fetch group");
             setGroupExpenses(data.expenses);
             setUserId(data.id);
@@ -141,8 +140,6 @@ const GroupDetails = () => {
         members.forEach(member => {
             totalDebt[member._id] = 0;
         });
-        console.log(totalDebt);
-
         // Calculate the total amount each member owes or is owed
         groupExpenses.forEach(exp => {
             exp.splits.forEach(split => {
@@ -160,8 +157,6 @@ const GroupDetails = () => {
                 }
             });
         });
-        console.log(totalDebt);
-
         return totalDebt;
     };
 
@@ -268,7 +263,6 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                 text: message1,
                                                 url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`,
                                             })
-                                            .then(() => console.log("Shared successfully"))
                                             .catch((err) => console.error("Sharing failed", err));
                                     } else {
                                         navigator.clipboard.writeText(message);

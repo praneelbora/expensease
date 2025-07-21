@@ -289,8 +289,6 @@ const AddExpense = () => {
 
     const toggleGroupSelection = (group) => {
         const isSelected = group.selected;
-        console.log(group);
-
         // Deselect group
         if (group._id == groupSelect?._id) {
             const groupMemberIds = group.members.map(m => m._id);
@@ -404,9 +402,7 @@ const AddExpense = () => {
         const owingFriends = selectedFriends.filter(f => f.owing);
 
         if (mode === 'percent') {
-            console.log(owingFriends);
             const totalPercent = owingFriends.reduce((sum, f) => sum + (parseInt(f.owePercent) || 0), 0);
-
             const remaining = 100 - totalPercent;
             return `${remaining.toFixed(2)}% left`;
         }
@@ -424,7 +420,6 @@ const AddExpense = () => {
         try {
             const data = await getAllGroups(userToken)
             if (data.length > 0) {
-                console.log(data);
                 setGroups(data);
             }
 

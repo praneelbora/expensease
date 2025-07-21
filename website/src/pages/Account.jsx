@@ -23,8 +23,6 @@ const Account = () => {
             if (share.owing) totalOwe += exp.typeOf == 'expense' ? share.oweAmount : 0;
             if (share.paying) totalPay += share.payAmount;
         });
-        console.log({ balance: totalPay - totalOwe, expense: totalOwe });
-
         return { balance: totalPay - totalOwe, expense: totalOwe };
     };
 

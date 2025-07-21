@@ -51,9 +51,7 @@ export const getAllExpenses = async (userToken) => {
 
         if (!res.ok) {
             throw new Error(data.message || "Failed to fetch expenses");
-        }
-        console.log(data);
-        
+        }        
         return data;
     } catch (err) {
         console.error("Error in deleteExpense:", err);
