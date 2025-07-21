@@ -94,3 +94,24 @@ export const settleExpense = async ({ payerId, receiverId, amount, description, 
         throw err;
     }
 };
+
+export const settleFriendExpense = async (userToken, friendId) => {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/settle/friend/${friendId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-auth-token": userToken,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to settle friend expense");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Settle friend expense error:", error);
+    throw error;
+  }
+};

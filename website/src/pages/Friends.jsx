@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import MainLayout from '../layouts/MainLayout';
 import Modal from '../components/FriendsModal';
+import FriendExpenseModal from '../components/FriendExpenseModal';
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "react-router-dom";
-import { getFriends,acceptLinkFriendRequest } from "../services/FriendService";
+import { getFriends, acceptLinkFriendRequest } from "../services/FriendService";
+import { fetchReceivedRequests, acceptFriendRequest, rejectFriendRequest } from "../services/FriendService";
 import { getAllExpenses } from "../services/ExpenseService";
 import {
     Users,
@@ -22,6 +24,20 @@ const Friends = () => {
     const [loading, setLoading] = useState(true);
     const [expenses, setExpenses] = useState([]); // ✅ Array of expenses
     const [userId, setUserId] = useState(null);
+    const [selectedFriend, setSelectedFriend] = useState(null);
+    const [showFriendExpenseModal, setShowFriendExpenseModal] = useState(false);
+
+    const [receivedRequests, setReceivedRequests] = useState([]);
+    const fetchReceived = async () => {
+        try {
+            const data = await fetchReceivedRequests(userToken);
+            console.log(data);
+
+            setReceivedRequests(data.slice(0, 4)); // show only first 2-4
+        } catch (err) {
+            console.error("Error fetching received requests:", err);
+        }
+    };
 
     const fetchFriends = async () => {
         try {
@@ -36,6 +52,7 @@ const Friends = () => {
     };
 
     useEffect(() => {
+        fetchReceived()
         fetchFriends();
     }, []);
     const fetchExpenses = async () => {
@@ -59,23 +76,23 @@ const Friends = () => {
             handleLinkRequest(toId);
         }
     }, [location]);
-const handleLinkRequest = async (toId) => {
-    try {
-        const data = await acceptLinkFriendRequest(toId, userToken);
+    const handleLinkRequest = async (toId) => {
+        try {
+            const data = await acceptLinkFriendRequest(toId, userToken);
 
-        if (data.error || data.message?.toLowerCase().includes("error")) {
-            // Show error from backend if present
-            const errorMsg = data.message || data.error || "Failed to send friend request.";
-            alert(errorMsg); // You can replace with toast(errorMsg)
-            return;
+            if (data.error || data.message?.toLowerCase().includes("error")) {
+                // Show error from backend if present
+                const errorMsg = data.message || data.error || "Failed to send friend request.";
+                alert(errorMsg); // You can replace with toast(errorMsg)
+                return;
+            }
+
+            alert(data.message || "Friend request sent successfully."); // Success feedback
+        } catch (error) {
+            console.error("Error sending link request:", error);
+            alert("Something went wrong. Please try again.");
         }
-
-        alert(data.message || "Friend request sent successfully."); // Success feedback
-    } catch (error) {
-        console.error("Error sending link request:", error);
-        alert("Something went wrong. Please try again.");
-    }
-};
+    };
 
     useEffect(() => {
         fetchExpenses();
@@ -106,6 +123,30 @@ const handleLinkRequest = async (toId) => {
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-4">
+                            {receivedRequests.length > 0 && (
+                                <div className="bg-[#212121] p-3 rounded-lg">
+                                    <h2 className="text-xl font-bold pb-2">Friend Requests</h2>
+                                    <hr />
+                                    {receivedRequests.map((req) => {
+                                        return (
+                                            <div className="flex flex-col gap-2 mt-2">
+                                                <div className="flex flex-row w-full h-[50px] justify-between items-center">
+                                                    <div className="flex flex-col h-full justify-around">
+                                                        <p className="text-[20px] text-[#EBF1D5] capitalize">{req.sender.name}</p>
+                                                        <p className="text-[12px] text-[#EBF1D5] lowercase">{req.sender.email}</p>
+                                                    </div>
+                                                    <div className="flex flex-row w-min gap-2">
+                                                        <button className="border-[#34C759] text-[#34C759] border-[1px] h-[40px] px-2 rounded-md" onClick={() => handleAccept(req._id)}>Accept</button>
+                                                        <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-3 rounded-md" onClick={() => handleReject(req._id)}>X</button>
+                                                    </div>
+                                                </div>
+                                                <hr />
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+
                             {friends.map((friend) => {
                                 const friendExpenses = expenses?.filter(exp =>
                                     exp.splits.some(split => {
@@ -128,7 +169,10 @@ const handleLinkRequest = async (toId) => {
                                 });
 
                                 return (
-                                    <div key={friend._id} className="flex flex-col gap-2 h-[45px]">
+                                    <div onClick={() => {
+                                        setSelectedFriend(friend); // new state
+                                        setShowFriendExpenseModal(true); // new state
+                                    }} key={friend._id} className="flex flex-col gap-2 h-[45px]">
                                         <div className="flex flex-1 flex-row justify-between items-center align-middle">
                                             <h2 className="text-xl font-semibold capitalize">{friend.name}</h2>
                                             {balance !== 0 && !isNaN(balance) && (
@@ -147,13 +191,30 @@ const handleLinkRequest = async (toId) => {
                                     </div>
                                 );
                             })}
+                            <p className="text-center text-sm text-lime-100">
+                                {friends.length} Friends
+                            </p>
 
 
                         </div>
                     )}
                 </div>
             </div>
-            <Modal setShowModal={setShowModal} showModal={showModal} fetchFriends={fetchFriends} userToken={userToken}/>
+            <Modal setShowModal={setShowModal} showModal={showModal} fetchFriends={fetchFriends} userToken={userToken} />
+            {showFriendExpenseModal && selectedFriend && (
+                <FriendExpenseModal
+                    show={showFriendExpenseModal}
+                    onClose={() => setShowFriendExpenseModal(false)}
+                    friend={selectedFriend}
+                    expenses={expenses.filter(exp =>
+                        exp.splits.some(split => split.friendId?._id === selectedFriend._id)
+                    )}
+                    userId={userId}
+                    userToken={userToken}
+                    onSettle={fetchExpenses}
+                />
+            )}
+
         </MainLayout>
     );
 };

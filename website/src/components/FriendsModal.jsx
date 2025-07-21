@@ -13,7 +13,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
     const { userToken, user } = useAuth()
     const [val, setVal] = useState('')
     const [sent, setSent] = useState([])
-    const [received, setreceived] = useState([])
+    const [received, setReceived] = useState([])
 
 
     // Add friend
@@ -79,7 +79,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
     const handleReceivedRequests = async () => {
         try {
             const received = await fetchReceivedRequests(userToken);
-            setreceived(received);
+            setReceived(received);
         } catch (err) {
             alert(err.message || "Failed to load received requests");
         }
@@ -159,7 +159,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                             <div className="w-full gap-3">
                                 {received.length > 0 &&
                                     <div className="flex flex-col gap-2">
-                                        <p className="uppercase text-[#EBF1D5]">Received Requests</p>
+                                        <p className="uppercase text-[#EBF1D5]">Friend Requests</p>
                                         <div className="w-full flex flex-col">
                                             <hr />
                                             {received.map((req) => {
