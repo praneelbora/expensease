@@ -123,7 +123,7 @@ export const demoteMember = async (groupId, memberId, userToken) => {
     return data;
 };
 
-export const fetchGroupExpenses = async (groupId, userToken) => {
+export const getGroupExpenses = async (groupId, userToken) => {
     const response = await fetch(`${BASE_URL}/v1/expenses/group/${groupId}`, {
         headers: {
             "Content-Type": "application/json",
@@ -131,6 +131,8 @@ export const fetchGroupExpenses = async (groupId, userToken) => {
         },
     });
     const data = await response.json();
+    console.log(data);
+    
     if (!response.ok) throw new Error(data.message || "Failed to fetch group expenses");
     return data;
 };

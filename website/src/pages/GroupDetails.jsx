@@ -4,7 +4,7 @@ import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
 import { useAuth } from "../context/AuthContext";
 import SettleModal from '../components/SettleModal';
-import { getGroupDetails, fetchGroupExpenses } from '../services/GroupService';
+import { getGroupDetails, getGroupExpenses } from '../services/GroupService';
 import Cookies from 'js-cookie';
 import {
     Users,
@@ -42,7 +42,7 @@ const GroupDetails = () => {
     const handleSettle = async ({ payerId, receiverId, amount, description }) => {
         try {
             await settleExpense({ payerId, receiverId, amount, description, groupId: id }, userToken);
-            await fetchGroupExpenses();
+            await getGroupExpenses();
             alert("Settlement recorded successfully!");
         } catch (err) {
             alert(err.message || "Could not settle the amount.");
@@ -114,7 +114,7 @@ const GroupDetails = () => {
             const data = await getGroupDetails(id, userToken)
             setGroup(data);
         } catch (error) {
-            console.error("Group Details Page - Error loading group:", error);
+            // console.error("Group Details Page - Error loading group:", error);
         } finally {
             setLoading(false);
         }
@@ -122,12 +122,11 @@ const GroupDetails = () => {
 
     const fetchGroupExpenses = async () => {
         try {
-            const data = await fetchGroupExpenses(id, userToken)
-            if (!response.ok) throw new Error(data.message || "Failed to fetch group");
+            const data = await getGroupExpenses(id, userToken)
             setGroupExpenses(data.expenses);
             setUserId(data.id);
         } catch (error) {
-            console.error("Group Details Page - Error loading group expenses:", error);
+            // console.error("Group Details Page - Error loading group expenses:", error);
         } finally {
             setLoading(false);
         }

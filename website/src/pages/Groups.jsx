@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import Cookies from "js-cookie";
 import { useLocation } from "react-router-dom";
 import { Users, Wallet, Plus, List, User, Loader } from "lucide-react";
-import { getAllGroups, fetchGroupExpenses } from "../services/GroupService";
+import { getAllGroups, getGroupExpenses } from "../services/GroupService";
 
 const Groups = () => {
 
@@ -37,7 +37,7 @@ const Groups = () => {
             }
             const enhancedGroups = await Promise.all(data.map(async (group) => {
                 try {
-                    const result = await fetchGroupExpenses(group._id, userToken)
+                    const result = await getGroupExpenses(group._id, userToken)
                     const groupExpenses = result.expenses;
                     const userId = result.id;
 
