@@ -17,6 +17,12 @@ const groupSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    settings: {
+        enforcePrivacy: {
+            type: Boolean,
+            default: false
+        }
+    },
     createdAt: {
         type: Date,
         default: Date.now

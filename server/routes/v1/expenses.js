@@ -151,8 +151,6 @@ router.post('/settle/friend/:friendId', auth, async (req, res) => {
 
     for (const exp of expenses) {
       for (const split of exp.splits) {
-        console.log(exp.splits);
-        
         if (split.friendId.toString() === userId && split.oweAmount) {
           balance -= split.oweAmount;
         }
@@ -167,8 +165,6 @@ router.post('/settle/friend/:friendId', auth, async (req, res) => {
         }
       }
     }
-    console.log(balance);
-    
     if (balance === 0) {
       return res.status(400).json({ error: "No dues to settle." });
     }

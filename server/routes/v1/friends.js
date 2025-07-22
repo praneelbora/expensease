@@ -235,9 +235,7 @@ router.post('/request-link', auth, async (req, res) => {
 router.get('/:friendId', auth, async (req, res) => {
   try {
     const { friendId } = req.params;
-    console.log(friendId);
     const user = await User.findById(friendId).select('_id name email'); // Add more fields if needed
-    console.log(user);
     
     if (!user) {
       return res.status(404).json({ message: 'Friend not found' });

@@ -131,6 +131,15 @@ const Account = () => {
                                     Coming soon: Charts, categories, trends, etc.
                                 </p>
                             </div>
+                            {/* Support the Developer */}
+                            <div onClick={() => window.location.href = '/supportdeveloper'} className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-between">
+                                <div>
+                                    <h2 className="text-xl font-semibold mb-2">Support the Developer ☕</h2>
+                                    <p className="text-[#BBBBBB] text-sm">
+                                        If you find this platform helpful, consider supporting its development! ❤️
+                                    </p>
+                                </div>
+                            </div>
 
                             {/* Logout */}
                             <div className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-end">

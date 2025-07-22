@@ -5,7 +5,7 @@ import { getGroupDetails, updateGroupName, leaveGroup, deleteGroup, removeMember
 import MainLayout from "../layouts/MainLayout";
 import { ChevronLeft, Loader } from "lucide-react";
 import { getFriends, sendFriendRequest } from "../services/FriendService";
-import { getGroupExpenses } from "../services/GroupService";
+import { getGroupExpenses, updateGroupPrivacySetting } from "../services/GroupService";
 
 export default function GroupSettings() {
     const { id } = useParams();
@@ -16,6 +16,9 @@ export default function GroupSettings() {
     const [loading, setLoading] = useState(false);
     const [friends, setFriends] = useState([]);
     const [groupExpenses, setGroupExpenses] = useState([]);
+    const [adminEnforcedPrivacy, setAdminEnforcedPrivacy] = useState(false);
+
+
     const fetchFriends = async () => {
         try {
             const data = await getFriends(userToken)
@@ -26,42 +29,41 @@ export default function GroupSettings() {
     };
     const [totals, setTotals] = useState(null);
     const fetchGroupExpenses = async () => {
-            try {
-                const data = await getGroupExpenses(id, userToken)
-                setGroupExpenses(data.expenses);
-            } catch (error) {
-                // console.error("Group Details Page - Error loading group expenses:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-useEffect(() => {
-    if (!group, !user._id) return;
+        try {
+            const data = await getGroupExpenses(id, userToken)
+            setGroupExpenses(data.expenses);
+        } catch (error) {
+            // console.error("Group Details Page - Error loading group expenses:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+    useEffect(() => {
+        if (!group, !user._id) return;
 
-    let totalExpense = 0;
-    let totalPaid = 0;
-    let yourExpense = 0;
-    let groupExpense = 0
-    groupExpenses?.forEach(exp => {
-        exp.splits.forEach(split => {
-            console.log(split);
-            if(exp.typeOf=='expense') groupExpense += split.oweAmount;
-            if (split.friendId?._id === user._id) {
-                totalPaid += split.payAmount || 0;
-                totalExpense += split.oweAmount || 0;
-                if(exp.typeOf=='expense')
-                    yourExpense +=split.oweAmount
-            }
+        let totalExpense = 0;
+        let totalPaid = 0;
+        let yourExpense = 0;
+        let groupExpense = 0
+        groupExpenses?.forEach(exp => {
+            exp.splits.forEach(split => {
+                if (exp.typeOf == 'expense') groupExpense += split.oweAmount;
+                if (split.friendId?._id === user._id) {
+                    totalPaid += split.payAmount || 0;
+                    totalExpense += split.oweAmount || 0;
+                    if (exp.typeOf == 'expense')
+                        yourExpense += split.oweAmount
+                }
+            });
         });
-    });
 
-    setTotals({
-        expense: totalExpense,
-        yourExpense: yourExpense,
-        balance: totalPaid - totalExpense,
-        groupExpense: groupExpense
-    });
-}, [groupExpenses]);
+        setTotals({
+            expense: totalExpense,
+            yourExpense: yourExpense,
+            balance: totalPaid - totalExpense,
+            groupExpense: groupExpense
+        });
+    }, [groupExpenses]);
 
     useEffect(() => {
         fetchGroup();
@@ -83,8 +85,11 @@ useEffect(() => {
     async function fetchGroup() {
         setLoading(true)
         const data = await getGroupDetails(id, userToken);
+        console.log(data);
+
         setGroup(data);
         setNewGroupName(data.name);
+        setAdminEnforcedPrivacy(data?.settings?.enforcePrivacy || false);
         setLoading(false)
     }
 
@@ -122,15 +127,14 @@ useEffect(() => {
         fetchGroup();
     }
 
-    const isAdmin = group?.admins?.includes(user?._id);
-    const isOwner = group?.createdBy === user?._id;
+    const isOwner = group?.createdBy?._id === user?._id;
 
     return (
         <MainLayout groupId={id}>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
-                        <button onClick={() => navigate(`/groups`)}>
+                        <button onClick={() => navigate(`/groups/${id}`)}>
                             <ChevronLeft />
                         </button>
                         <h1 className="text-3xl font-bold capitalize">Group Settings</h1>
@@ -199,25 +203,25 @@ useEffect(() => {
                                             <li key={member._id} className="flex items-center justify-between">
                                                 <div>
                                                     {member.name} {isMe && "(You)"}
-                                                    {group?.admins?.includes(member._id) && <span className="ml-2 text-xs bg-gray-200 px-1 rounded">Admin</span>}
+                                                    {/* {group?.admins?.includes(member._id) && <span className="ml-2 text-xs bg-gray-200 px-1 rounded">Admin</span>} */}
                                                 </div>
                                                 <div className="space-x-2">
                                                     {(!isMe && !isFriend) && (
                                                         <button
                                                             onClick={() => addFriend(member.email)}
-                                                            className="text-sm text-blue-500"
+                                                            className="text-sm text-teal-500"
                                                         >
                                                             Add Friend
                                                         </button>
                                                     )}
-                                                    {isAdmin && !isMe && (
+                                                    {isOwner && (
                                                         <>
-                                                            {group.admins.includes(member._id) ? (
+                                                            {/* {group.admins.includes(member._id) ? (
                                                                 <button onClick={() => handleDemote(member._id)} className="text-sm text-orange-600">Demote</button>
                                                             ) : (
                                                                 <button onClick={() => handlePromote(member._id)} className="text-sm text-teal-600">Promote</button>
-                                                            )}
-                                                            <button onClick={() => handleRemoveMember(member._id)} className="text-sm text-red-600">Remove</button>
+                                                            )} */}
+                                                            {/* <button onClick={() => handleRemoveMember(member._id)} className="text-sm text-red-600">Remove</button> */}
                                                         </>
                                                     )}
                                                 </div>
@@ -227,6 +231,39 @@ useEffect(() => {
 
                                 </ul>
                             </div>
+                            {/* Admin toggle: only visible to group creator */}
+                            {isOwner ? (
+                                <div className="bg-[#1A1A1A] border border-[#2C2C2C] rounded-lg p-4 mt-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={adminEnforcedPrivacy}
+                                                onChange={async () => {
+                                                    const newSetting = !adminEnforcedPrivacy;
+                                                    setAdminEnforcedPrivacy(newSetting);
+                                                    await updateGroupPrivacySetting(id, newSetting, userToken);
+                                                    fetchGroupExpenses();
+                                                }}
+                                                className="w-5 h-5 accent-teal-500 cursor-pointer"
+                                            />
+                                            <span className="text-base font-medium text-teal-400">
+                                                Enforce privacy mode
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-gray-400 mt-2">
+                                        When enabled, only expenses a member is involved in will be shown to them. They won't be able to view other transactions.
+                                    </p>
+                                </div>
+                            ) : adminEnforcedPrivacy ?
+                                (
+                                    <div className="mt-6 bg-[#222] border-l-4 border-teal-500 p-4 rounded-md text-teal-300 text-sm">
+                                        🔒 Privacy mode is enforced by the group admin. You will only see expenses that involve you.
+                                    </div>
+                                ) : <></>}
+
+
                         </div>)}
                 </div>
 

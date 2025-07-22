@@ -131,8 +131,6 @@ export const getGroupExpenses = async (groupId, userToken) => {
         },
     });
     const data = await response.json();
-    console.log(data);
-    
     if (!response.ok) throw new Error(data.message || "Failed to fetch group expenses");
     return data;
 };
@@ -166,3 +164,19 @@ export const createGroup = async (name, selectedFriends, userToken) => {
         throw error;
     }
 };
+
+export const updateGroupPrivacySetting = async (groupId, enforcePrivacy, userToken) => {
+    const response = await fetch(`${BASE_URL}/v1/groups/${groupId}/privacy`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "x-auth-token": userToken,
+        },
+        body: JSON.stringify({ enforcePrivacy }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || "Failed to update privacy setting");
+    return data;
+};
+

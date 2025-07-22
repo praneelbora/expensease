@@ -49,8 +49,11 @@ const FriendDetails = () => {
             exp.splits.forEach(split => {
                 const { friendId, oweAmount, payAmount } = split;
                 const memberId = friendId._id;
-                if (totalDebt[memberId] == NaN)
-                    totalDebt[memberId] = 0
+                if (Number.isNaN(totalDebt[memberId])) {
+                    totalDebt[memberId] = 0;
+                }
+
+                totalDebt[memberId] = 0
                 if (payAmount > 0) {
                     // This person paid, so they are owed money
                     totalDebt[memberId] += payAmount;

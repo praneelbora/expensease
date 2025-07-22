@@ -119,4 +119,28 @@ router.post("/join", auth, async (req, res) => {
     res.json(group);
 });
 
+// ✅ UPDATE GROUP PRIVACY SETTING (Admin-only)
+router.put('/:groupId/privacy', auth, async (req, res) => {
+    const { enforcePrivacy } = req.body;
+
+    try {
+        const group = await Group.findById(req.params.groupId);
+
+        if (!group) return res.status(404).json({ message: 'Group not found' });
+
+        // Only allow if requester is group creator
+        if (group.createdBy.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'Only group admin can change privacy settings' });
+        }
+
+        group.settings.enforcePrivacy = enforcePrivacy;
+        await group.save();
+
+        res.json({ message: 'Privacy setting updated', enforcePrivacy });
+    } catch (err) {
+        console.error("Error updating privacy setting:", err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 module.exports = router;

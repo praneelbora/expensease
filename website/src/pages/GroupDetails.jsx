@@ -38,7 +38,7 @@ const GroupDetails = () => {
     const [settleTo, setSettleTo] = useState('');
     const [settleAmount, setSettleAmount] = useState('');
     const [copied, setCopied] = useState(false);
-
+    const [adminEnforcedPrivacy, setAdminEnforcedPrivacy] = useState(false);
 
     const handleSettle = async ({ payerId, receiverId, amount, description }) => {
         try {
@@ -114,6 +114,7 @@ const GroupDetails = () => {
         try {
             const data = await getGroupDetails(id, userToken)
             setGroup(data);
+            setAdminEnforcedPrivacy(data?.settings?.enforcePrivacy || false);
         } catch (error) {
             // console.error("Group Details Page - Error loading group:", error);
         } finally {
@@ -122,16 +123,32 @@ const GroupDetails = () => {
     };
 
     const fetchGroupExpenses = async () => {
-        try {
-            const data = await getGroupExpenses(id, userToken)
-            setGroupExpenses(data.expenses);
-            setUserId(data.id);
-        } catch (error) {
-            // console.error("Group Details Page - Error loading group expenses:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    try {
+        const data = await getGroupExpenses(id, userToken);
+        console.log("Group Expense Data:", data);
+
+        const allExpenses = data.expenses || [];
+        const adminPrivacy = data.group?.settings?.enforcePrivacy ?? false;
+        const currentUserId = data.id;
+
+        console.log("Admin Privacy Enforced:", adminPrivacy);
+        console.log("User ID:", currentUserId);
+
+        // Filter based on privacy setting
+        const filteredExpenses = allExpenses.filter(exp =>
+            !adminPrivacy || exp.splits.some(split => (split.friendId?._id === currentUserId && (split.paying || split.owing)))
+        );
+
+        console.log("Filtered Expenses:", filteredExpenses);
+
+        setGroupExpenses(filteredExpenses);
+        setUserId(currentUserId); // assuming this is declared in useState
+
+    } catch (error) {
+        console.error("Error fetching group expenses:", error);
+    }
+};
+
 
     const calculateDebt = (groupExpenses, members) => {
         const totalDebt = {};
@@ -184,8 +201,6 @@ const GroupDetails = () => {
 
             // Determine how much is transferred between them
             const transactionAmount = Math.min(oweAmount, owedAmount);
-            console.log(transactionAmount);
-
             if (transactionAmount > 0.1) {
                 transactions.push({
                     from: owe[i].memberId,

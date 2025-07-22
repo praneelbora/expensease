@@ -11,8 +11,6 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 router.post('/login', async (req, res) => {
   const { email, name } = req.body;
-    console.log('login');
-    
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
   }
