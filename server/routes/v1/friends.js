@@ -170,6 +170,7 @@ router.get('/', auth, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 router.post('/request-link', auth, async (req, res) => {
   try {
     const { toId } = req.body; // could be JWT or senderId encoded
@@ -226,6 +227,25 @@ router.post('/request-link', auth, async (req, res) => {
     res.status(201).json({ message: 'Friend request sent via link' });
   } catch (error) {
     console.error('from-link error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /v1/friends/:friendId
+router.get('/:friendId', auth, async (req, res) => {
+  try {
+    const { friendId } = req.params;
+    console.log(friendId);
+    const user = await User.findById(friendId).select('_id name email'); // Add more fields if needed
+    console.log(user);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'Friend not found' });
+    }
+
+    res.status(200).json({friend: user, id: req.user.id});
+  } catch (error) {
+    console.error('getFriendDetails error:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -6,6 +6,7 @@ import Friends from "./pages/Friends";
 import AddExpense from "./pages/AddExpense";
 import Expenses from "./pages/Expenses";
 import GroupDetails from "./pages/GroupDetails";
+import FriendDetails from "./pages/FriendDetails";
 import Account from "./pages/Account";
 import Logout from "./pages/Logout";
 import LinkLogin from "./pages/LinkLogin";
@@ -61,6 +62,10 @@ function App() {
             <Route
                 path="/friends"
                 element={<PrivateRoute><Friends /></PrivateRoute>}
+            />
+            <Route
+                path="/friends/:id"
+                element={<PrivateRoute><FriendDetails /></PrivateRoute>}
             />
             <Route
                 path="/add-expense"

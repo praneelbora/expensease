@@ -7,7 +7,7 @@ export const getFriends = async (userToken) => {
             'x-auth-token': userToken
         },
     });
-    if (!response.ok) throw new Error(data.message || "Failed to get group details");
+    if (!response.ok) throw new Error(data.message || "Failed to get friends");
     const data = await response.json();
     return data;
 };
@@ -115,3 +115,15 @@ export const fetchReceivedRequests = async (userToken) => {
     return await res.json();
 };
 
+export const getFriendDetails = async (friendId, userToken) => {
+    const response = await fetch(`${BASE_URL}/v1/friends/${friendId}`, {
+        headers: {
+            "Content-Type": "application/json",
+            "x-auth-token": userToken,
+        },
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || "Failed to get friend details");
+    return data;
+};

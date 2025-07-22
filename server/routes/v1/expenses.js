@@ -133,4 +133,98 @@ router.delete("/:id", async (req, res) => {
     }
 });
 
+router.post('/settle/friend/:friendId', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const friendId = req.params.friendId;
+
+    // Step 1: Fetch all expenses involving current user and the friend
+    const expenses = await Expense.find({
+      $or: [
+        { createdBy: userId, 'splits.friendId': friendId },
+        { createdBy: friendId, 'splits.friendId': userId }
+      ]
+    });
+
+    // Step 2: Calculate net balance
+    let balance = 0;
+
+    for (const exp of expenses) {
+      for (const split of exp.splits) {
+        console.log(exp.splits);
+        
+        if (split.friendId.toString() === userId && split.oweAmount) {
+          balance -= split.oweAmount;
+        }
+        if (split.friendId.toString() === userId && split.payAmount) {
+          balance += split.payAmount;
+        }
+        if (split.friendId.toString() === friendId && split.oweAmount) {
+          balance += split.oweAmount;
+        }
+        if (split.friendId.toString() === friendId && split.payAmount) {
+          balance -= split.payAmount;
+        }
+      }
+    }
+    console.log(balance);
+    
+    if (balance === 0) {
+      return res.status(400).json({ error: "No dues to settle." });
+    }
+
+    const fromUserId = balance > 0 ? friendId : userId;
+    const toUserId = balance > 0 ? userId : friendId;
+    const settleAmount = Math.abs(balance);
+
+    const settleExpense = new Expense({
+      createdBy: fromUserId,
+      description: `Settled ₹${settleAmount}`,
+      amount: settleAmount,
+      typeOf: 'settle',
+      splitMode: 'value',
+      splits: [
+        {
+          friendId: toUserId,
+          owing: true,
+          paying: false,
+          oweAmount: settleAmount
+        },
+        {
+          friendId: fromUserId,
+          owing: false,
+          paying: true,
+          payAmount: settleAmount
+        }
+      ]
+    });
+
+    await settleExpense.save();
+
+    return res.status(201).json({ message: "Friend expenses settled", expense: settleExpense });
+  } catch (error) {
+    console.error("Settle friend expense error:", error);
+    return res.status(500).json({ error: "Server error settling friend expenses." });
+  }
+});
+
+
+router.get('/friend/:friendId', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const friendId = req.params.friendId;
+
+    // ✅ Step 1: Fetch all expenses where both you and the friend are in the splits
+    const expenses = await Expense.find({
+      'splits.friendId': { $all: [userId, friendId] },
+      groupId: { $exists: false }, // ⛔️ Optional: only NON-group expenses
+    }).populate('splits.friendId', '_id name'); // Populate friend info if needed
+    return res.status(200).json(expenses);
+  } catch (error) {
+    console.error("Error fetching friend expenses:", error);
+    return res.status(500).json({ error: "Server error fetching expenses" });
+  }
+});
+
+
 module.exports = router;

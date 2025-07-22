@@ -3,7 +3,7 @@ import MainLayout from '../layouts/MainLayout';
 import Modal from '../components/FriendsModal';
 import FriendExpenseModal from '../components/FriendExpenseModal';
 import { useAuth } from "../context/AuthContext";
-import { useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { getFriends, acceptLinkFriendRequest } from "../services/FriendService";
 import { fetchReceivedRequests, acceptFriendRequest, rejectFriendRequest } from "../services/FriendService";
 import { getAllExpenses } from "../services/ExpenseService";
@@ -17,7 +17,16 @@ import {
 } from "lucide-react";
 const Friends = () => {
     const location = useLocation();
-
+    const navigate = useNavigate();
+    const handleAccept = async (id) => {
+        try {
+            await acceptFriendRequest(id, userToken);
+            fetchFriends();
+            setShowModal(false);
+        } catch (err) {
+            alert(err.message || "Error accepting request");
+        }
+    };
     const { userToken } = useAuth() || {}
     const [friends, setFriends] = useState([]);
     const [showModal, setShowModal] = useState(false);
@@ -26,7 +35,7 @@ const Friends = () => {
     const [userId, setUserId] = useState(null);
     const [selectedFriend, setSelectedFriend] = useState(null);
     const [showFriendExpenseModal, setShowFriendExpenseModal] = useState(false);
-            const round = (val) => Math.round(val * 100) / 100;
+    const round = (val) => Math.round(val * 100) / 100;
 
     const [receivedRequests, setReceivedRequests] = useState([]);
     const fetchReceived = async () => {
@@ -169,8 +178,7 @@ const Friends = () => {
 
                                 return (
                                     <div onClick={() => {
-                                        setSelectedFriend(friend); // new state
-                                        setShowFriendExpenseModal(true); // new state
+                                        navigate(`/friends/${friend._id}`)
                                     }} key={friend._id} className="flex flex-col gap-2 h-[45px]">
                                         <div className="flex flex-1 flex-row justify-between items-center align-middle">
                                             <h2 className="text-xl font-semibold capitalize">{friend.name}</h2>

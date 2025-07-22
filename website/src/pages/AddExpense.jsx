@@ -115,15 +115,18 @@ const AddExpense = () => {
             description: desc,
             amount,
             splitMode: mode,
-            splits: selectedFriends.map(f => ({
-                friendId: f._id,
-                owing: f.owing,
-                paying: f.paying,
-                oweAmount: f.oweAmount,
-                owePercent: f.owePercent,
-                payAmount: f.payAmount
-            }))
+            splits: selectedFriends
+                .filter(f => f.owing || f.paying)
+                .map(f => ({
+                    friendId: f._id,
+                    owing: f.owing,
+                    paying: f.paying,
+                    oweAmount: f.oweAmount,
+                    owePercent: f.owePercent,
+                    payAmount: f.payAmount
+                }))
         };
+
 
         if (groupSelect) {
             expenseData.groupId = groupSelect._id; // Assuming groupSelect is an object with `_id`
@@ -655,141 +658,141 @@ const AddExpense = () => {
                                                     <p className="text-[#a0a0a0]">₹{getPaidAmountInfoBottom()} left</p>
                                                 </div>}
                                                 {isPaidAmountValid() && <>
-                                                <p className="text-lg font-medium">Owed by  <span className="text-[14px] text-[#81827C] mb-1">(Select the people who owe.)</span></p>
+                                                    <p className="text-lg font-medium">Owed by  <span className="text-[14px] text-[#81827C] mb-1">(Select the people who owe.)</span></p>
 
 
-                                                {/* 0. Selection view */}
-                                                <div className="w-full flex flex-wrap gap-2">
-                                                    {[
-                                                        ...selectedFriends
-                                                    ].map((friend) => {
-                                                        const owing = friend.owing || false;
+                                                    {/* 0. Selection view */}
+                                                    <div className="w-full flex flex-wrap gap-2">
+                                                        {[
+                                                            ...selectedFriends
+                                                        ].map((friend) => {
+                                                            const owing = friend.owing || false;
 
-                                                        return (
-                                                            <div
-                                                                key={`select-${friend._id}`}
-                                                                onClick={() => {
-                                                                    const existingIndex = selectedFriends.findIndex(f => f._id === friend._id);
-                                                                    let updated = [...selectedFriends];
+                                                            return (
+                                                                <div
+                                                                    key={`select-${friend._id}`}
+                                                                    onClick={() => {
+                                                                        const existingIndex = selectedFriends.findIndex(f => f._id === friend._id);
+                                                                        let updated = [...selectedFriends];
 
-                                                                    if (existingIndex !== -1) {
-                                                                        // Toggle owing
-                                                                        updated[existingIndex] = {
-                                                                            ...updated[existingIndex],
-                                                                            owing: !updated[existingIndex].owing
-                                                                        };
-                                                                    }
-
-                                                                    // Update selected friends and distribute amounts if needed
-                                                                    const payers = updated.filter(f => f.owing);
-                                                                    if (mode === "equal") {
-                                                                        const owingFriends = updated.filter(f => f.owing);
-                                                                        const numOwing = owingFriends.length;
-
-                                                                        const equalAmount = numOwing > 0 ? Math.floor((amount / numOwing) * 100) / 100 : 0; // floor to 2 decimals
-                                                                        const totalSoFar = equalAmount * numOwing;
-                                                                        const leftover = parseFloat((amount - totalSoFar).toFixed(2)); // amount left due to rounding
-
-                                                                        let count = 0;
-
-                                                                        updated = updated.map((f) => {
-                                                                            if (!f.owing) return { ...f, oweAmount: 0, owePercent: undefined };
-
-                                                                            count++;
-                                                                            let owe = equalAmount;
-                                                                            if (count === numOwing) {
-                                                                                owe = parseFloat((equalAmount + leftover).toFixed(2)); // last gets the leftover
-                                                                            }
-
-                                                                            return {
-                                                                                ...f,
-                                                                                oweAmount: owe,
-                                                                                owePercent: undefined
+                                                                        if (existingIndex !== -1) {
+                                                                            // Toggle owing
+                                                                            updated[existingIndex] = {
+                                                                                ...updated[existingIndex],
+                                                                                owing: !updated[existingIndex].owing
                                                                             };
-                                                                        });
-                                                                    }
+                                                                        }
+
+                                                                        // Update selected friends and distribute amounts if needed
+                                                                        const payers = updated.filter(f => f.owing);
+                                                                        if (mode === "equal") {
+                                                                            const owingFriends = updated.filter(f => f.owing);
+                                                                            const numOwing = owingFriends.length;
+
+                                                                            const equalAmount = numOwing > 0 ? Math.floor((amount / numOwing) * 100) / 100 : 0; // floor to 2 decimals
+                                                                            const totalSoFar = equalAmount * numOwing;
+                                                                            const leftover = parseFloat((amount - totalSoFar).toFixed(2)); // amount left due to rounding
+
+                                                                            let count = 0;
+
+                                                                            updated = updated.map((f) => {
+                                                                                if (!f.owing) return { ...f, oweAmount: 0, owePercent: undefined };
+
+                                                                                count++;
+                                                                                let owe = equalAmount;
+                                                                                if (count === numOwing) {
+                                                                                    owe = parseFloat((equalAmount + leftover).toFixed(2)); // last gets the leftover
+                                                                                }
+
+                                                                                return {
+                                                                                    ...f,
+                                                                                    oweAmount: owe,
+                                                                                    owePercent: undefined
+                                                                                };
+                                                                            });
+                                                                        }
 
 
-                                                                    setSelectedFriends(updated);
-                                                                }}
-                                                                className={`px-3 py-1 rounded-xl border-2 cursor-pointer transition-all text-sm ${owing ? 'bg-teal-300 text-black border-teal-300' : 'bg-transparent text-[#EBF1D5] border-[#81827C]'
-                                                                    }`}
-                                                            >
-                                                                <p className="capitalize">{friend.name}</p>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                                {selectedFriends.filter(f => f.owing).length > 1 && <div className="flex flex-col gap-4">
-                                                    {mode === "" ? (
-                                                        <p>Select how to split</p>
-                                                    ) : (
-                                                        <p>
-                                                            Split{" "}
-                                                            {mode === "equal"
-                                                                ? "Equally"
-                                                                : mode === "amount"
-                                                                    ? "By Amounts"
-                                                                    : "By Percentages"}
-                                                        </p>
-                                                    )}
-
-                                                    {/* 1. Mode Selection */}
-                                                    <div className="flex gap-4">
-                                                        <button
-                                                            onClick={() => toggleMode("equal")}
-                                                            className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "equal" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
-                                                        >
-                                                            =
-                                                        </button>
-                                                        <button
-                                                            onClick={() => toggleMode("value")}
-                                                            className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "value" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
-                                                        >
-                                                            1.23
-                                                        </button>
-                                                        <button
-                                                            onClick={() => toggleMode("percent")}
-                                                            className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "percent" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
-                                                        >
-                                                            %
-                                                        </button>
-                                                    </div>
-                                                </div>}
-
-                                                {/* 2. Amount input view for multiple owe-ers */}
-                                                {selectedFriends.filter(f => f.owing).length > 1 && (
-                                                    <div className="w-full flex flex-col gap-2">
-                                                        {selectedFriends
-                                                            .filter(f => f.owing)
-                                                            .map((friend) => (
-                                                                <div key={`payAmount-${friend._id}`} className="flex justify-between items-center w-full">
-                                                                    <p className="capitalize text-[#EBF1D5]">{friend.name}</p>
-
-                                                                    {/* Conditionally render input based on mode */}
-                                                                    {mode === "percent" ? (
-                                                                        <input
-                                                                            className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
-                                                                            type="number"
-                                                                            value={friend.owePercent || ''}
-                                                                            onChange={(e) => handleOwePercentChange(friend._id, e.target.value)}
-                                                                            placeholder="Percent"
-                                                                        />
-                                                                    ) : mode === "value" ? (
-                                                                        <input
-                                                                            className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
-                                                                            type="number"
-                                                                            value={friend.oweAmount || ''}
-                                                                            onChange={(e) => handleOweChange(friend._id, e.target.value)}
-                                                                            placeholder="Amount"
-                                                                        />
-                                                                    ) : (
-                                                                        <p className="text-[#EBF1D5]">{friend.oweAmount || 0}</p>
-                                                                    )}
+                                                                        setSelectedFriends(updated);
+                                                                    }}
+                                                                    className={`px-3 py-1 rounded-xl border-2 cursor-pointer transition-all text-sm ${owing ? 'bg-teal-300 text-black border-teal-300' : 'bg-transparent text-[#EBF1D5] border-[#81827C]'
+                                                                        }`}
+                                                                >
+                                                                    <p className="capitalize">{friend.name}</p>
                                                                 </div>
-                                                            ))}
+                                                            );
+                                                        })}
                                                     </div>
-                                                )}
+                                                    {selectedFriends.filter(f => f.owing).length > 1 && <div className="flex flex-col gap-4">
+                                                        {mode === "" ? (
+                                                            <p>Select how to split</p>
+                                                        ) : (
+                                                            <p>
+                                                                Split{" "}
+                                                                {mode === "equal"
+                                                                    ? "Equally"
+                                                                    : mode === "amount"
+                                                                        ? "By Amounts"
+                                                                        : "By Percentages"}
+                                                            </p>
+                                                        )}
+
+                                                        {/* 1. Mode Selection */}
+                                                        <div className="flex gap-4">
+                                                            <button
+                                                                onClick={() => toggleMode("equal")}
+                                                                className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "equal" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
+                                                            >
+                                                                =
+                                                            </button>
+                                                            <button
+                                                                onClick={() => toggleMode("value")}
+                                                                className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "value" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
+                                                            >
+                                                                1.23
+                                                            </button>
+                                                            <button
+                                                                onClick={() => toggleMode("percent")}
+                                                                className={`px-4 py-1 text-[12px] rounded-md border border-1 ${mode === "percent" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5]"}`}
+                                                            >
+                                                                %
+                                                            </button>
+                                                        </div>
+                                                    </div>}
+
+                                                    {/* 2. Amount input view for multiple owe-ers */}
+                                                    {selectedFriends.filter(f => f.owing).length > 1 && (
+                                                        <div className="w-full flex flex-col gap-2">
+                                                            {selectedFriends
+                                                                .filter(f => f.owing)
+                                                                .map((friend) => (
+                                                                    <div key={`payAmount-${friend._id}`} className="flex justify-between items-center w-full">
+                                                                        <p className="capitalize text-[#EBF1D5]">{friend.name}</p>
+
+                                                                        {/* Conditionally render input based on mode */}
+                                                                        {mode === "percent" ? (
+                                                                            <input
+                                                                                className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
+                                                                                type="number"
+                                                                                value={friend.owePercent || ''}
+                                                                                onChange={(e) => handleOwePercentChange(friend._id, e.target.value)}
+                                                                                placeholder="Percent"
+                                                                            />
+                                                                        ) : mode === "value" ? (
+                                                                            <input
+                                                                                className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
+                                                                                type="number"
+                                                                                value={friend.oweAmount || ''}
+                                                                                onChange={(e) => handleOweChange(friend._id, e.target.value)}
+                                                                                placeholder="Amount"
+                                                                            />
+                                                                        ) : (
+                                                                            <p className="text-[#EBF1D5]">{friend.oweAmount || 0}</p>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                        </div>
+                                                    )}
                                                 </>}
                                             </div>
                                         )}

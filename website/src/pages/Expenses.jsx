@@ -49,15 +49,15 @@ const Expenses = () => {
     };
 
     const fetchExpenses = async () => {
-            try {
-                const data = await getAllExpenses(userToken);
-                setUserId(data.id);
-                setExpenses(data.expenses)
-                setLoading(false)
-            } catch (error) {
-                console.error("Error loading expenses:", error);
-            }
-        };
+        try {
+            const data = await getAllExpenses(userToken);
+            setUserId(data.id);
+            setExpenses(data.expenses)
+            setLoading(false)
+        } catch (error) {
+            console.error("Error loading expenses:", error);
+        }
+    };
 
     useEffect(() => {
         fetchExpenses();
@@ -76,49 +76,49 @@ const Expenses = () => {
                     </button>
                 </div>
                 <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
-                <ul className="h-full flex flex-col w-full gap-2">
-                    {loading ? (
-                        <div className="flex flex-col justify-center items-center flex-1 py-5">
-                            <Loader />
-                        </div>
-                    ) : expenses?.length === 0 ? (
-                        <div className="flex flex-col justify-center items-center flex-1 py-5">
-                            <p>No expenses found.</p>
-                        </div>
-                    ) : expenses?.filter(exp =>exp.typeOf=='expense')?.map((exp) => (
-                        <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[50px]">
-                                                        <div className="flex flex-col justify-center items-center">
-                                                            <p className="text-[14px] uppercase">
-                                                                {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
-                                                            </p>
-                                                            <p className="text-[22px] -mt-[6px]">
-                                                                {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
-                                                            </p>
-                                                        </div>
-                                                        <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
-                                                        <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
-                                                            {/* Left: Description and payer info */}
-                                                            <div className="flex flex-col justify-center min-w-0">
-                                                                <p className="text-[22px] capitalize truncate">{exp.description}</p>
-                                                                <p className="text-[14px] text-[#81827C] capitalize -mt-[6px]">
-                                                                    {getPayerInfo(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
-                                                                </p>
-                                                            </div>
+                    <ul className="h-full flex flex-col w-full gap-2">
+                        {loading ? (
+                            <div className="flex flex-col justify-center items-center flex-1 py-5">
+                                <Loader />
+                            </div>
+                        ) : expenses?.length === 0 ? (
+                            <div className="flex flex-col justify-center items-center flex-1 py-5">
+                                <p>No expenses found.</p>
+                            </div>
+                        ) : expenses?.filter(exp => exp.typeOf == 'expense')?.map((exp) => (
+                            <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[50px]">
+                                <div className="flex flex-col justify-center items-center">
+                                    <p className="text-[14px] uppercase">
+                                        {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
+                                    </p>
+                                    <p className="text-[22px] -mt-[6px]">
+                                        {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
+                                    </p>
+                                </div>
+                                <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
+                                <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
+                                    {/* Left: Description and payer info */}
+                                    <div className="flex flex-col justify-center min-w-0">
+                                        <p className="text-[22px] capitalize truncate">{exp.description}</p>
+                                        <p className="text-[14px] text-[#81827C] capitalize -mt-[6px]">
+                                            {getPayerInfo(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
+                                        </p>
+                                    </div>
 
-                                                            {/* Right: Owe info */}
-                                                            <div className="flex flex-col justify-center items-end text-right shrink-0">
-                                                                <p className="text-[13px] whitespace-nowrap">{getOweInfo(exp.splits)?.text}</p>
-                                                                <p className="text-[22px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(exp.splits)?.amount}</p>
-                                                            </div>
-                                                        </div>
+                                    {/* Right: Owe info */}
+                                    <div className="flex flex-col justify-center items-end text-right shrink-0">
+                                        <p className="text-[13px] whitespace-nowrap">{getOweInfo(exp.splits)?.text}</p>
+                                        <p className="text-[22px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(exp.splits)?.amount}</p>
+                                    </div>
+                                </div>
 
-                                                    </div> 
-                    ))}
-                </ul>
-            </div>
+                            </div>
+                        ))}
+                    </ul>
+                </div>
             </div>
             {showModal && (
-                <ExpenseModal showModal={showModal} setShowModal={setShowModal} fetchExpenses={fetchExpenses} userToken={userToken}/>
+                <ExpenseModal showModal={showModal} setShowModal={setShowModal} fetchExpenses={fetchExpenses} userToken={userToken} />
             )}
         </MainLayout>
     );
