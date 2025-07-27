@@ -24,7 +24,7 @@ const ExpenseItem = ({
         <div
             key={expense._id}
             onClick={() => onClick(expense)}
-            className={`flex flex-row w-full items-center gap-2 min-h-[${isSettle ? 20 : 50}px]`}
+            className={`flex flex-row w-full items-center gap-2 min-h-[${isSettle ? 40 : 50}px]`}
         >
             {/* Date */}
             <div className="flex flex-col justify-center items-center">

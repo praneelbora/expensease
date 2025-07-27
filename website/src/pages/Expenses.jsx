@@ -14,6 +14,8 @@ const Expenses = () => {
     const [userId, setUserId] = useState();
     const [showModal, setShowModal] = useState(false);
     const navigate = useNavigate();
+    const [filter, setFilter] = useState("all"); // 'all', 'personal', 'settle', 'group', 'friend'
+
     const getSettleDirectionText = (splits) => {
         const payer = splits.find(s => s.paying && s.payAmount > 0);
         const receiver = splits.find(s => s.owing && s.oweAmount > 0);
@@ -87,7 +89,27 @@ const Expenses = () => {
                         <Plus strokeWidth={3} size={20} />
                     </button>
                 </div>
-                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
+                    <div className="flex gap-2 flex-row my-3 overflow-x-auto no-scrollbar">
+                        {[
+                            { key: "all", label: "All" },
+                            { key: "personal", label: "Personal Expenses" },
+                            { key: "settle", label: "Settlements" },
+                            { key: "group", label: "Group Expenses" },
+                            { key: "friend", label: "Friend Expenses" },
+                        ].map(({ key, label }) => (
+                            <button
+                                key={key}
+                                onClick={() => setFilter(key)}
+                                className={`px-3 py-1 rounded-full text-sm transition whitespace-nowrap flex-shrink-0 ${filter === key
+                                        ? "bg-teal-400 text-black font-semibold"
+                                        : "bg-[#1f1f1f] text-[#EBF1D5] hover:bg-[#2a2a2a]"
+                                    }`}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                <div className="flex flex-col flex-1 w-full overflow-y-auto no-scrollbar">
                     <ul className="h-full flex flex-col w-full gap-2">
                         {loading ? (
                             <div className="flex flex-col justify-center items-center flex-1 py-5">
@@ -97,16 +119,25 @@ const Expenses = () => {
                             <div className="flex flex-col justify-center items-center flex-1 py-5">
                                 <p>No expenses found.</p>
                             </div>
-                        ) : expenses?.map((exp) => (
-                            <ExpenseItem
-        key={exp._id}
-        expense={exp}
-        onClick={setShowModal}
-        getPayerInfo={getPayerInfo}
-        getOweInfo={getOweInfo}
-        getSettleDirectionText={getSettleDirectionText}
-    />
-                        ))}
+                        ) : expenses
+                            ?.filter((exp) => {
+                                if (filter === "all") return true;
+                                if (filter === "settle") return exp.typeOf === "settle";
+                                if (filter === "personal") return !exp.groupId && exp.typeOf !== "settle" && exp.splits.length==0;
+                                if (filter === "group") return exp.groupId && exp.typeOf !== "settle";
+                                if (filter === "friend") return !exp.groupId && exp.typeOf !== "settle" && exp.splits.length>0;
+                                return true;
+                            })
+                            .map((exp) => (
+                                <ExpenseItem
+                                    key={exp._id}
+                                    expense={exp}
+                                    onClick={setShowModal}
+                                    getPayerInfo={getPayerInfo}
+                                    getOweInfo={getOweInfo}
+                                    getSettleDirectionText={getSettleDirectionText}
+                                />
+                            ))}
                     </ul>
                 </div>
             </div>
