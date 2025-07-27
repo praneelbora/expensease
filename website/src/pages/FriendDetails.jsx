@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
+import React, { Fragment } from 'react';
 import { useParams, useNavigate } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import { getFriendDetails } from "../services/FriendService";
-import { settleFriendExpense, getFriendExpense } from "../services/ExpenseService";
+import { settleExpense, getFriendExpense } from "../services/ExpenseService";
 import SettleModal from "../components/SettleModal";
 import { ChevronLeft, Loader, Wallet } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
+import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
 
 const FriendDetails = () => {
     const { userToken } = useAuth();
@@ -14,13 +16,34 @@ const FriendDetails = () => {
     const navigate = useNavigate();
     const [userId, setUserId] = useState();
     const [loading, setLoading] = useState(true);
-
+    const round = (val) => Math.round(val * 100) / 100;
     const [friend, setFriend] = useState(null);
     const [expenses, setExpenses] = useState([]);
     const [netBalance, setNetBalance] = useState(0);
     const [showModal, setShowModal] = useState(false);
+    const [showSettleModal, setShowSettleModal] = useState(false);
     const [settleType, setSettleType] = useState('partial');
+    const generateSimplifiedTransaction = (netBalance, userId, friendId) => {
+        if (netBalance === 0) return [];
 
+        const from = netBalance < 0 ? userId : friendId;
+        const to = netBalance < 0 ? friendId : userId;
+        const amount = Math.abs(netBalance);
+
+        return [{ from, to, amount }];
+    };
+
+    const getSettleDirectionText = (splits) => {
+        const payer = splits.find(s => s.paying && s.payAmount > 0);
+        const receiver = splits.find(s => s.owing && s.oweAmount > 0);
+
+        if (!payer || !receiver) return "Invalid settlement";
+
+        const payerName = payer.friendId._id === userId ? "You" : payer.friendId.name;
+        const receiverName = receiver.friendId._id === userId ? "you" : receiver.friendId.name;
+
+        return `${payerName} paid ${receiverName}`;
+    };
     const fetchData = async () => {
         const data = await getFriendDetails(id, userToken);
         setFriend(data.friend);
@@ -67,8 +90,8 @@ const FriendDetails = () => {
         });
         return totalDebt;
     };
-    const handleSettle = async ({ amount, description }) => {
-        await settleFriendExpense({ id, amount, description }, userToken);
+    const handleSettle = async ({ payerId, receiverId, amount, description }) => {
+        await settleExpense({ payerId, receiverId, amount, description }, userToken);
         await fetchData();
     };
 
@@ -83,7 +106,6 @@ const FriendDetails = () => {
 
             exp.splits.forEach(split => {
                 const id = split.friendId?._id?.toString();
-
                 if (id === userId) {
                     if (split.paying) userIsPaying = true;
                     if (split.owing) userIsOwing = true;
@@ -98,20 +120,30 @@ const FriendDetails = () => {
 
             return oneIsPaying && otherIsOwing;
         });
-
         filteredExpenses.forEach(exp => {
             exp.splits.forEach(split => {
-                const id = split.friendId?._id?.toString();
-
-                if (id === userId) {
-                    if (split.owing) balance -= split.oweAmount || 0;
-                    if (split.paying) balance += split.payAmount || 0;
-                } else if (id === friendId) {
-                    if (split.owing) balance += split.oweAmount || 0;
-                    if (split.paying) balance -= split.payAmount || 0;
+                if (split?.friendId?._id?.toString() === friendId) {
+                    if (split.owing) {
+                        balance += round(split.oweAmount) || 0;
+                    }
+                    if (split.paying) {
+                        balance -= round(split.payAmount) || 0;
+                    }
                 }
             });
         });
+        // filteredExpenses.forEach(exp => {
+        //     exp.splits.forEach(split => {
+        //         const id = split.friendId?._id?.toString();
+        //         if (id === userId) {
+        //             if (split.owing) balance -= split.oweAmount || 0;
+        //             if (split.paying) balance += split.payAmount || 0;
+        //         } else if (id === friendId) {
+        //             if (split.owing) balance += split.oweAmount || 0;
+        //             if (split.paying) balance -= split.payAmount || 0;
+        //         }
+        //     });
+        // });
 
 
 
@@ -137,17 +169,15 @@ const FriendDetails = () => {
         }
     };
     const getOweInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
-
+        const userSplit = splits.find(s => s.friendId && s.friendId._id === friend._id);
         if (!userSplit) return null;
-
         const { oweAmount = 0, payAmount = 0 } = userSplit;
         const net = payAmount - oweAmount;
 
         if (net > 0) {
-            return { text: 'you lent', amount: ` ₹${net.toFixed(2)}` };
+            return { text: 'lent', amount: ` ₹${net.toFixed(2)}` };
         } else if (net < 0) {
-            return { text: 'you borrowed', amount: ` ₹${Math.abs(net).toFixed(2)}` };
+            return { text: 'borrowed', amount: ` ₹${Math.abs(net).toFixed(2)}` };
         } else {
             return null;
         }
@@ -164,12 +194,12 @@ const FriendDetails = () => {
                     </div>
                 </div>
                 <div className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar gap-3">
-                    {/* <div className="px-4 pb-2">
+                    <div className="px-4 pb-2">
                         <div>
                             <p className="text-sm text-gray-400">Net Balance</p>
-                            <p className={`text-2xl font-semibold ${netBalance > 0 ? "text-green-400" : netBalance < 0 ? "text-red-400" : "text-white"}`}>
-                                ₹{Math.abs(netBalance).toFixed(2)}{" "}
-                                {netBalance > 0 ? "They owe you" : netBalance < 0 ? "You owe them" : "All Settled"}
+                            <p className={`text-2xl font-semibold ${netBalance > 0 ? "text-teal-500" : netBalance < 0 ? "text-red-400" : "text-white"}`}>
+                                {netBalance > 0 ? "you are owed" : netBalance < 0 ? "you owe" : "All Settled"}{" "}
+                                ₹{Math.abs(netBalance).toFixed(2)}
                             </p>
                         </div>
 
@@ -178,24 +208,15 @@ const FriendDetails = () => {
                                 <button
                                     onClick={() => {
                                         setSettleType("full");
-                                        setShowModal(true);
+                                        setShowSettleModal(true);
                                     }}
-                                    className="bg-green-600 text-white px-4 py-2 rounded-md text-sm"
+                                    className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
                                 >
-                                    Settle All
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setSettleType("partial");
-                                        setShowModal(true);
-                                    }}
-                                    className="border border-green-500 text-green-500 px-4 py-2 rounded-md text-sm"
-                                >
-                                    Partial Settle
+                                    Settle
                                 </button>
                             </div>
                         )}
-                    </div> */}
+                    </div>
 
 
 
@@ -209,34 +230,15 @@ const FriendDetails = () => {
                         <div className="flex flex-col gap-y-3 gap-x-4">
                             <h3 className="text-lg font-semibold mb-2">Shared Expenses</h3>
                             {expenses?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                                ?.filter(exp => exp.typeOf === 'expense')
                                 ?.map((exp) => (
-                                    <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[50px]">
-                                        <div className="flex flex-col justify-center items-center">
-                                            <p className="text-[13px] uppercase">
-                                                {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
-                                            </p>
-                                            <p className="text-[18px] -mt-[6px]">
-                                                {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
-                                            </p>
-                                        </div>
-                                        <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
-                                        <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
-                                            {/* Left: Description and payer info */}
-                                            <div className="flex flex-col justify-center min-w-0">
-                                                <p className="text-[18px] capitalize truncate">{exp.description}</p>
-                                                <p className="text-[13px] text-[#81827C] capitalize -mt-[6px]">
-                                                    {getPayerInfo(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
-                                                </p>
-                                            </div>
-
-                                            {/* Right: Owe/Paid display */}
-                                            <div className="flex flex-col justify-center items-end text-right shrink-0">
-                                                <p className="text-[12px] whitespace-nowrap">{getOweInfo(exp.splits)?.text}</p>
-                                                <p className="text-[18px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(exp.splits)?.amount}</p>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <ExpenseItem
+        key={exp._id}
+        expense={exp}
+        onClick={setShowModal}
+        getPayerInfo={getPayerInfo}
+        getOweInfo={getOweInfo}
+        getSettleDirectionText={getSettleDirectionText}
+    />
                                 ))}
 
                         </div>)}
@@ -244,7 +246,16 @@ const FriendDetails = () => {
             </div>
 
             {showModal && (
-                <ExpenseModal showModal={showModal} fetchExpenses={getFriendExpense(id, userToken)} setShowModal={setShowModal} userToken={userToken} />
+                <ExpenseModal showModal={showModal} fetchExpenses={() => getFriendExpense(id, userToken)} setShowModal={setShowModal} userToken={userToken} />
+            )}
+            {showSettleModal && (
+                <SettleModal
+                    setShowModal={setShowSettleModal}
+                    simplifiedTransactions={generateSimplifiedTransaction(netBalance, userId, friend._id)}
+                    friends={[{ id: userId, name: 'You' }, { id: friend._id, name: friend.name }]}
+                    onSubmit={handleSettle}
+                    userId={userId}
+                />
             )}
         </MainLayout>
     );

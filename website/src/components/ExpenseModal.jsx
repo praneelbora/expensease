@@ -1,6 +1,6 @@
 import { deleteExpense } from "../services/ExpenseService";
 
-export default function ExpenseModal({ showModal, setShowModal, fetchExpenses, userToken }) {
+export default function ExpenseModal({ showModal, setShowModal, fetchExpenses, userToken }) {    
     const { description, amount, createdAt, createdBy, splits, groupId } = showModal;
     const getPayerInfo = (splits) => {
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
@@ -60,14 +60,14 @@ const handleDelete = async () => {
                             <div className="w-full flex flex-row justify-between">
                                 <div className="w-full flex flex-col">
                                     <div className="w-full flex flex-row justify-between">
-                                        <p className="text-[#EBF1D5] text-[24px]">₹{amount.toFixed(2)}</p>
+                                        <p className="text-[#EBF1D5] text-[24px]">₹{amount?.toFixed(2)}</p>
                                         <p className="text-[#EBF1D5] text-[14px]">{formatDate(createdAt)}</p>
                                     </div>
                                     <p className="text-[#EBF1D5] text-[18px] capitalize">{description}</p>
                                 </div>
                             </div>
                             <hr />
-                            <p className="text-[#EBF1D5] text-lg">{getPayerInfo(splits)} ₹{amount.toFixed(2)}</p>
+                            <p className="text-[#EBF1D5] text-lg">{getPayerInfo(splits)} ₹{amount?.toFixed(2)}</p>
 
 
                             {/* Splits */}
@@ -75,7 +75,7 @@ const handleDelete = async () => {
                                 <div className="text-[#EBF1D5] flex flex-col gap-1">
                                     {splits.map((split, index) => (split.payAmount > 0 || split.oweAmount > 0) && (
                                         <div key={index} className="flex">
-                                            <p>{split.friendId.name} {split.payAmount > 0 ? `paid  ₹${split.payAmount.toFixed(2)} ${split.oweAmount > 0 ? 'and' : ''}` : ''} owes  ₹{split.oweAmount.toFixed(2)}</p>
+                                            <p>{split.friendId.name} {split.payAmount > 0 ? `paid  ₹${split.payAmount?.toFixed(2)} ${split.oweAmount > 0 ? 'and' : ''}` : ''} owes  ₹{split?.oweAmount?.toFixed(2)}</p>
                                         </div>
                                     ))}
                                 </div>

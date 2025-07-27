@@ -76,7 +76,7 @@ export const settleExpense = async ({ payerId, receiverId, amount, description, 
                 toUserId: receiverId,
                 amount: parseFloat(amount),
                 description,
-                groupId
+                ...(groupId ? { groupId } : {}),
             })
         });
 

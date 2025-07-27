@@ -1,5 +1,5 @@
 import { useState } from 'react';
-export default function SettleModal({ setShowModal, group, simplifiedTransactions, onSubmit, userId }) {
+export default function SettleModal({ setShowModal, group, simplifiedTransactions, onSubmit, userId, friends }) {
     const [payerId, setPayerId] = useState('');
     const [receiverId, setReceiverId] = useState('');
     const [amount, setAmount] = useState('');
@@ -35,9 +35,15 @@ export default function SettleModal({ setShowModal, group, simplifiedTransaction
     };
 
     const getMemberName = (id) => {
-        const member = group?.members.find(m => m._id === id);
-        if (member._id == userId) return "You"
-        return member?.name || 'Unknown';
+        if(group){
+            const member = group?.members.find(m => m._id === id);
+            if (member._id == userId) return "You"
+            return member?.name || 'Unknown';
+        }
+        else {
+            const member = friends.find(f=> f.id===id)
+            return member?.name || 'Unknown'
+        }
     };
 
     const handleConfirm = () => {
@@ -48,6 +54,7 @@ export default function SettleModal({ setShowModal, group, simplifiedTransaction
         setConfirmationVisible(true); // show confirm step first
     };
     const handleFinalSubmit = () => {
+        
         onSubmit({
             payerId,
             receiverId,

@@ -85,8 +85,6 @@ export default function GroupSettings() {
     async function fetchGroup() {
         setLoading(true)
         const data = await getGroupDetails(id, userToken);
-        console.log(data);
-
         setGroup(data);
         setNewGroupName(data.name);
         setAdminEnforcedPrivacy(data?.settings?.enforcePrivacy || false);

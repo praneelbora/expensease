@@ -5,21 +5,29 @@ import { useNavigate } from "react-router-dom"; // ✅ Correct import
 import { useAuth } from "../context/AuthContext";
 import { Loader, Plus } from "lucide-react";
 import { getAllExpenses } from '../services/ExpenseService';
-import expenseCategories from "../assets/categories"
+import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
+
 const Expenses = () => {
     const { userToken } = useAuth() || {}
     const [loading, setLoading] = useState(true);
     const [expenses, setExpenses] = useState([]);
-    const [userID, setUserId] = useState();
+    const [userId, setUserId] = useState();
     const [showModal, setShowModal] = useState(false);
     const navigate = useNavigate();
-    const getEmojiForCategory = (categoryName) => {
-        const match = expenseCategories.find(c => c.name === categoryName);
-        return match ? match.emoji : '';
+    const getSettleDirectionText = (splits) => {
+        const payer = splits.find(s => s.paying && s.payAmount > 0);
+        const receiver = splits.find(s => s.owing && s.oweAmount > 0);
+
+        if (!payer || !receiver) return "Invalid settlement";
+
+        const payerName = payer.friendId._id === userId ? "You" : payer.friendId.name;
+        const receiverName = receiver.friendId._id === userId ? "you" : receiver.friendId.name;
+
+        return `${payerName} paid ${receiverName}`;
     };
 
     const getPayerInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userID);
+        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
 
         if (!userSplit || (!userSplit.payAmount && !userSplit.oweAmount)) {
             return "You were not involved";
@@ -27,7 +35,7 @@ const Expenses = () => {
 
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
-            return `${payers[0].friendId._id == userID ? 'You' : payers[0].friendId.name} paid`;
+            return `${payers[0].friendId._id == userId ? 'You' : payers[0].friendId.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         } else {
@@ -36,7 +44,7 @@ const Expenses = () => {
     };
 
     const getOweInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userID);
+        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
 
         if (!userSplit) return null;
 
@@ -89,44 +97,15 @@ const Expenses = () => {
                             <div className="flex flex-col justify-center items-center flex-1 py-5">
                                 <p>No expenses found.</p>
                             </div>
-                        ) : expenses?.filter(exp => exp.typeOf == 'expense')?.map((exp) => (
-                            <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-2 min-h-[50px]">
-                                <div className="flex flex-col justify-center items-center">
-                                    <p className="text-[13px] uppercase">
-                                        {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
-                                    </p>
-                                    <p className="text-[18px] -mt-[6px]">
-                                        {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
-                                    </p>
-                                </div>
-                                <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
-                                <div className="flex flex-col justify-center items-center">
-                                    <p className="text-[18px] -mt-[6px]">
-                                        {getEmojiForCategory(exp.category)}
-                                    </p>
-
-                                </div>
-                                <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
-                                    {/* Left: Description and payer info */}
-                                    <div className="flex flex-col justify-center min-w-0">
-                                        <p className="text-[18px] capitalize truncate">{exp.description}</p>
-                                        {exp.mode == 'split' ? <p className="text-[13px] text-[#81827C] capitalize -mt-[6px]">
-                                            {getPayerInfo(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
-                                        </p> : <p className="text-[13px] text-[#81827C] capitalize -mt-[6px]">
-                                            {exp.category}
-                                        </p>}
-                                    </div>
-
-                                    {/* Right: Owe info */}
-                                    <div className="flex flex-col justify-center items-end text-right shrink-0">
-                                        {exp.mode == 'split' ? <><p className="text-[12px] whitespace-nowrap">{getOweInfo(exp.splits)?.text}</p>
-                                            <p className="text-[18px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(exp.splits)?.amount}</p>
-                                        </> :
-                                            <p className="text-[18px] capitalize -mt-[6px] whitespace-nowrap">₹{Math.abs(exp?.amount).toFixed(2)}</p>}
-                                    </div>
-                                </div>
-
-                            </div>
+                        ) : expenses?.map((exp) => (
+                            <ExpenseItem
+        key={exp._id}
+        expense={exp}
+        onClick={setShowModal}
+        getPayerInfo={getPayerInfo}
+        getOweInfo={getOweInfo}
+        getSettleDirectionText={getSettleDirectionText}
+    />
                         ))}
                     </ul>
                 </div>

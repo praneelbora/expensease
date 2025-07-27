@@ -226,7 +226,7 @@ const AddExpense = () => {
         if (mode === "percent") {
             const totalPercent = selectedFriends
                 .filter(friend => friend.owing)
-                .reduce((sum, f) => sum + (parseInt(f.owePercent) || 0), 0);
+                .reduce((sum, f) => sum + (parseFloat(f.owePercent) || 0), 0);
 
             return totalPercent === 100 && isPaidAmountValid();
         }
@@ -431,7 +431,7 @@ const AddExpense = () => {
         const owingFriends = selectedFriends.filter(f => f.owing);
 
         if (mode === 'percent') {
-            const totalPercent = owingFriends.reduce((sum, f) => sum + parseFloat(f.owePercent || 0), 0);
+            const totalPercent = owingFriends.reduce((sum, f) => parseFloat(sum) + parseFloat(f.owePercent || 0), 0);
             return `${totalPercent.toFixed(2)} / 100%`;
         }
 
@@ -447,7 +447,7 @@ const AddExpense = () => {
         const owingFriends = selectedFriends.filter(f => f.owing);
 
         if (mode === 'percent') {
-            const totalPercent = owingFriends.reduce((sum, f) => sum + (parseInt(f.owePercent) || 0), 0);
+            const totalPercent = owingFriends.reduce((sum, f) => sum + (parseFloat(f.owePercent) || 0), 0);
             const remaining = 100 - totalPercent;
             return `${remaining.toFixed(2)}% left`;
         }
@@ -501,8 +501,6 @@ const AddExpense = () => {
     }, []);
 
     useEffect(() => {
-        console.log(initialMountComplete.current);
-
         if (!(initialMountComplete.current)) return;
 
         friendFilter('');
@@ -547,8 +545,11 @@ const AddExpense = () => {
 
 
 
-                    {(expenseMode == 'split' && !groupSelect && selectedFriends.length == 0) && <p className="text-[13px] text-[#81827C] mb-1">Select a group or friends you want to add an expense with.</p>}
-                    {expenseMode == 'split' && !groupSelect && <input
+                    {(expenseMode == 'split' && !groupSelect) && <>{selectedFriends.length == 0? 
+                    <p className="text-[13px] text-[#81827C] mb-1">Select a group or a friend you want to add an expense with.</p>:
+                    <p className="text-[13px] text-[#81827C] mb-1">To add an expense with multiple people please create a group </p>}</>
+                    }
+                    {expenseMode == 'split' && !groupSelect && selectedFriends.length == 0 && <input
                         className="w-full bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3"
                         placeholder="Search For Friends / Groups"
                         value={val}
@@ -563,7 +564,7 @@ const AddExpense = () => {
                         <div className="flex w-full flex-col">
 
 
-                            <div className="flex flex-wrap gap-2">
+                            {expenseMode == 'split' && (groupSelect || selectedFriends.length>0) && <div className="flex flex-wrap gap-2 mt-2">
                                 {expenseMode == 'split' && !groupSelect && selectedFriends.map((friend) => (
                                     friend._id == 'me' ? <div
                                         key={'selected' + friend._id}
@@ -601,7 +602,7 @@ const AddExpense = () => {
                                         </button>
                                     </div>
                                 </>)}
-                            </div>
+                            </div>}
                             {expenseMode == 'split' && (selectedFriends.length === 0 || val.length > 0) && (
                                 <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 px-2 mt-4`}>
                                     {(val.length === 0 || selectedFriends.length === 0) && (
@@ -786,7 +787,7 @@ const AddExpense = () => {
                                                 </div>
                                             )}
                                             {expenseMode == 'split' && selectedFriends.filter(f => f.paying).length > 1 && !isPaidAmountValid() && <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
-                                                <p>₹{getPaidAmountInfoTop()} / ₹{amount.toFixed(2)}</p>
+                                                <p>₹{getPaidAmountInfoTop()} / ₹{amount.fix(2)}</p>
                                                 <p className="text-[#a0a0a0]">₹{getPaidAmountInfoBottom()} left</p>
                                             </div>}
                                             {expenseMode == 'split' && isPaidAmountValid() && <>

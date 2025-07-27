@@ -6,6 +6,8 @@ import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
 import { useAuth } from "../context/AuthContext";
 import SettleModal from '../components/SettleModal';
 import { getGroupDetails, getGroupExpenses } from '../services/GroupService';
+import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
+
 import Cookies from 'js-cookie';
 import {
     Users,
@@ -125,22 +127,13 @@ const GroupDetails = () => {
     const fetchGroupExpenses = async () => {
     try {
         const data = await getGroupExpenses(id, userToken);
-        console.log("Group Expense Data:", data);
-
         const allExpenses = data.expenses || [];
         const adminPrivacy = data.group?.settings?.enforcePrivacy ?? false;
         const currentUserId = data.id;
-
-        console.log("Admin Privacy Enforced:", adminPrivacy);
-        console.log("User ID:", currentUserId);
-
         // Filter based on privacy setting
         const filteredExpenses = allExpenses.filter(exp =>
             !adminPrivacy || exp.splits.some(split => (split.friendId?._id === currentUserId && (split.paying || split.owing)))
         );
-
-        console.log("Filtered Expenses:", filteredExpenses);
-
         setGroupExpenses(filteredExpenses);
         setUserId(currentUserId); // assuming this is declared in useState
 
@@ -408,59 +401,14 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 <ul className="flex flex-col w-full gap-2">
                                     {filteredExpenses?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
                                         .map((exp) => (
-                                            <React.Fragment key={exp._id}>
-
-                                                {exp.typeOf != 'settle' ?
-                                                    <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[50px]">
-                                                        <div className="flex flex-col justify-center items-center">
-                                                            <p className="text-[13px] uppercase">
-                                                                {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
-                                                            </p>
-                                                            <p className="text-[18px] -mt-[6px]">
-                                                                {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
-                                                            </p>
-                                                        </div>
-                                                        <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
-                                                        <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
-                                                            {/* Left: Description and payer info */}
-                                                            <div className="flex flex-col justify-center min-w-0">
-                                                                <p className="text-[18px] capitalize truncate">{exp.description}</p>
-                                                                <p className="text-[13px] text-[#81827C] capitalize -mt-[6px]">
-                                                                    {getPayerInfo(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
-                                                                </p>
-                                                            </div>
-
-                                                            {/* Right: Owe info */}
-                                                            <div className="flex flex-col justify-center items-end text-right shrink-0">
-                                                                <p className="text-[12px] whitespace-nowrap">{getOweInfo(exp.splits)?.text}</p>
-                                                                <p className="text-[18px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(exp.splits)?.amount}</p>
-                                                            </div>
-                                                        </div>
-
-                                                    </div> :
-                                                    <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[20px]">
-                                                        <div className="flex flex-col justify-center items-center">
-                                                            <p className="text-[13px] uppercase">
-                                                                {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
-                                                            </p>
-                                                            <p className="text-[18px] -mt-[6px]">
-                                                                {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
-                                                            </p>
-                                                        </div>
-                                                        <div className="w-[2px] my-[2px] bg-[#EBF1D5] opacity-50 self-stretch"></div>
-                                                        <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
-                                                            {/* Left: Description and payer info */}
-                                                            <div className="flex flex-col justify-center min-w-0">
-                                                                <p className="text-[13px] text-[#81827C] capitalize">
-                                                                    {getSettleDirectionText(exp.splits)} {`₹${exp.amount.toFixed(2)}`}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-
-                                                    </div>
-                                                }
-                                            </React.Fragment>
-
+                                            <ExpenseItem
+        key={exp._id}
+        expense={exp}
+        onClick={setShowModal}
+        getPayerInfo={getPayerInfo}
+        getOweInfo={getOweInfo}
+        getSettleDirectionText={getSettleDirectionText}
+    />
                                         ))}
                                 </ul>
                             </div>

@@ -14,7 +14,7 @@ const expenseCategories = [
   { name: "Subscription", emoji: "🗓️" },
   { name: "Investment", emoji: "💰" },
   { name: "Family", emoji: "👨‍👩‍👧‍👦" },
-  { name: "Other", emoji: "📜" }
+  { name: "Other", emoji: "📜" },
 ];
 
 export default expenseCategories;

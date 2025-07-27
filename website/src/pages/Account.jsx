@@ -95,8 +95,7 @@ const Account = () => {
                                 <p className="text-base text-[#BBBBBB]">{user?.email}</p>
                             </div>
 
-                            <div className="bg-[#1E1E1E] p-4 rounded-xl shadow space-y-4">
-                                {/* Net Balance */}
+                            {/* <div className="bg-[#1E1E1E] p-4 rounded-xl shadow space-y-4">
                                 <div>
                                     <h2 className="text-xl font-semibold mb-2">Net Balance</h2>
                                     <p className={`text-lg ${totals?.balance < 0 ? 'text-red-500' : 'text-teal-500'}`}>
@@ -106,8 +105,6 @@ const Account = () => {
                                         ₹ {Math.abs(totals?.balance).toFixed(2)}
                                     </p>
                                 </div>
-
-                                {/* Totals */}
                                 <div className="grid grid-cols-2 gap-4 text-sm text-gray-400">
                                     <div className="flex flex-col bg-[#2A2A2A] p-3 rounded-lg">
                                         <span className="text-xs text-gray-400">Expenses</span>
@@ -120,7 +117,7 @@ const Account = () => {
                                         </span>
                                     </div>
                                 </div>
-                            </div>
+                            </div> */}
 
 
 

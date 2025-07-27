@@ -222,7 +222,6 @@ router.get('/friend/:friendId', auth, async (req, res) => {
     try {
         const userId = req.user.id;
         const friendId = req.params.friendId;
-
         // ✅ Step 1: Fetch all expenses where both you and the friend are in the splits
         const expenses = await Expense.find({
             'splits.friendId': { $all: [userId, friendId] },
