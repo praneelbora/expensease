@@ -140,8 +140,8 @@ const Friends = () => {
                                             <div className="flex flex-col gap-2 mt-2">
                                                 <div className="flex flex-row w-full h-[50px] justify-between items-center">
                                                     <div className="flex flex-col h-full justify-around">
-                                                        <p className="text-[20px] text-[#EBF1D5] capitalize">{req.sender.name}</p>
-                                                        <p className="text-[12px] text-[#EBF1D5] lowercase">{req.sender.email}</p>
+                                                        <p className="text-[18px] text-[#EBF1D5] capitalize">{req.sender.name}</p>
+                                                        <p className="text-[11px] text-[#EBF1D5] lowercase">{req.sender.email}</p>
                                                     </div>
                                                     <div className="flex flex-row w-min gap-2">
                                                         <button className="border-[#34C759] text-[#34C759] border-[1px] h-[40px] px-2 rounded-md" onClick={() => handleAccept(req._id)}>Accept</button>
@@ -184,10 +184,10 @@ const Friends = () => {
                                             <h2 className="text-xl font-semibold capitalize">{friend.name}</h2>
                                             {round(balance) !== 0 && !isNaN(balance) && (
                                                 <div className="flex flex-col">
-                                                    <p className={`${balance < 0 ? 'text-red-500' : 'text-teal-500'} text-[12px] text-right`}>
+                                                    <p className={`${balance < 0 ? 'text-red-500' : 'text-teal-500'} text-[11px] text-right`}>
                                                         {round(balance) < 0 ? 'you owe' : 'you are owed'}
                                                     </p>
-                                                    <p className={`${balance < 0 ? 'text-red-500' : 'text-teal-500'} text-[16px] -mt-[4px] text-right`}>
+                                                    <p className={`${balance < 0 ? 'text-red-500' : 'text-teal-500'} text-[14px] -mt-[4px] text-right`}>
                                                         ₹ {Math.abs(balance.toFixed(2))}
                                                     </p>
                                                 </div>

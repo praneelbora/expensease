@@ -166,8 +166,8 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                                                     <div className="flex flex-col gap-2 pt-2">
                                                         <div className="flex flex-row w-full h-[50px] justify-between items-center">
                                                             <div className="flex flex-col h-full justify-around">
-                                                                <p className="text-[20px] text-[#EBF1D5] capitalize">{req.sender.name}</p>
-                                                                <p className="text-[12px] text-[#EBF1D5] lowercase">{req.sender.email}</p>
+                                                                <p className="text-[18px] text-[#EBF1D5] capitalize">{req.sender.name}</p>
+                                                                <p className="text-[11px] text-[#EBF1D5] lowercase">{req.sender.email}</p>
                                                             </div>
                                                             <div className="flex flex-row w-min gap-2">
                                                                 <button className="border-[#34C759] text-[#34C759] border-[1px] h-[40px] px-2 rounded-md" onClick={() => handleAccept(req._id)}>Accept</button>
@@ -190,8 +190,8 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                                                     <div className="flex flex-col gap-2 pt-2">
                                                         <div className="flex flex-row w-full h-[50px] justify-between items-center">
                                                             <div className="flex flex-col h-full justify-around">
-                                                                <p className="text-[20px] text-[#EBF1D5] capitalize">{req.receiver.name}</p>
-                                                                <p className="text-[12px] text-[#EBF1D5] lowercase">{req.receiver.email}</p>
+                                                                <p className="text-[18px] text-[#EBF1D5] capitalize">{req.receiver.name}</p>
+                                                                <p className="text-[11px] text-[#EBF1D5] lowercase">{req.receiver.email}</p>
                                                             </div>
                                                             <div className="flex flex-row w-min">
                                                                 <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-2 rounded-md" onClick={() => handleCancel(req._id)}>Cancel</button>

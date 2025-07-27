@@ -151,7 +151,7 @@ export default function GroupSettings() {
                         <div className="flex flex-col gap-y-3 gap-x-4">
 
                             <div className="flex flex-col gap-2 ">
-                                <label className="block text-[16px] uppercase text-teal-500">Group Name</label>
+                                <label className="block text-[14px] uppercase text-teal-500">Group Name</label>
                                 <input
                                     value={newGroupName}
                                     onChange={(e) => setNewGroupName(e.target.value)}
@@ -193,7 +193,7 @@ export default function GroupSettings() {
                             </div>
 
                             <div>
-                                <h3 className="font-medium mb-2 text-[16px] uppercase text-teal-500">Members</h3>
+                                <h3 className="font-medium mb-2 text-[14px] uppercase text-teal-500">Members</h3>
                                 <ul className="space-y-3">
                                     {group?.members.map((member) => {
                                         const isMe = member?._id === user?._id;

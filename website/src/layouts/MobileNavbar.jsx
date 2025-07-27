@@ -34,7 +34,7 @@ const MobileNavbar = ({ groupId }) => {
                         >
                             {item.icon}
                             {!item.isCenter && (
-                                <span className="text-[12px] mt-1">{item.label}</span>
+                                <span className="text-[11px] mt-1">{item.label}</span>
                             )}
                         </Link>
                     );

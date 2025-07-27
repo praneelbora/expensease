@@ -102,9 +102,9 @@ const GroupDetails = () => {
         const net = payAmount - oweAmount;
 
         if (net > 0) {
-            return { text: 'You lent', amount: ` ₹${net.toFixed(2)}` };
+            return { text: 'you lent', amount: ` ₹${net.toFixed(2)}` };
         } else if (net < 0) {
-            return { text: 'You borrowed', amount: ` ₹${Math.abs(net).toFixed(2)}` };
+            return { text: 'you borrowed', amount: ` ₹${Math.abs(net).toFixed(2)}` };
         } else {
             return null;
         }
@@ -323,7 +323,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                             <div className="flex flex-col gap-2">
                                 {/* Header Row */}
                                 <div className="flex justify-between items-center">
-                                    <p className="text-[14px] text-teal-500 uppercase">Members</p>
+                                    <p className="text-[13px] text-teal-500 uppercase">Members</p>
                                     <button
                                         onClick={() => setShowMembers((prev) => !prev)}
                                         className="text-sm rounded-full uppercase text-teal-500"
@@ -360,7 +360,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                             {/* Debt Summary */}
                             {groupExpenses && groupExpenses.length > 0 && <> <div className="flex flex-col">
                                 <div className="flex justify-between items-center">
-                                    <p className="text-[14px] text-teal-500 uppercase">Debt Summary</p>
+                                    <p className="text-[13px] text-teal-500 uppercase">Debt Summary</p>
                                     <button
                                         onClick={() => setShowSettleModal(true)}
                                         className="text-sm border border-teal-500 rounded-md px-2 py-0.5 uppercase text-teal-500"
@@ -397,7 +397,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                             {/* Expenses */}
                             <div className="flex flex-col">
                                 <div className="flex flex-row justify-between">
-                                    <p className="text-[14px]
+                                    <p className="text-[13px]
                                           text-teal-500 uppercase">Expenses</p>
                                     <button
                                         className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
@@ -413,10 +413,10 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                 {exp.typeOf != 'settle' ?
                                                     <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[50px]">
                                                         <div className="flex flex-col justify-center items-center">
-                                                            <p className="text-[14px] uppercase">
+                                                            <p className="text-[13px] uppercase">
                                                                 {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
                                                             </p>
-                                                            <p className="text-[22px] -mt-[6px]">
+                                                            <p className="text-[18px] -mt-[6px]">
                                                                 {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
                                                             </p>
                                                         </div>
@@ -424,26 +424,26 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                         <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
                                                             {/* Left: Description and payer info */}
                                                             <div className="flex flex-col justify-center min-w-0">
-                                                                <p className="text-[22px] capitalize truncate">{exp.description}</p>
-                                                                <p className="text-[14px] text-[#81827C] capitalize -mt-[6px]">
+                                                                <p className="text-[18px] capitalize truncate">{exp.description}</p>
+                                                                <p className="text-[13px] text-[#81827C] capitalize -mt-[6px]">
                                                                     {getPayerInfo(exp.splits)} {getPayerInfo(exp.splits) !== "You were not involved" && `₹${exp.amount.toFixed(2)}`}
                                                                 </p>
                                                             </div>
 
                                                             {/* Right: Owe info */}
                                                             <div className="flex flex-col justify-center items-end text-right shrink-0">
-                                                                <p className="text-[13px] whitespace-nowrap">{getOweInfo(exp.splits)?.text}</p>
-                                                                <p className="text-[22px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(exp.splits)?.amount}</p>
+                                                                <p className="text-[12px] whitespace-nowrap">{getOweInfo(exp.splits)?.text}</p>
+                                                                <p className="text-[18px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(exp.splits)?.amount}</p>
                                                             </div>
                                                         </div>
 
                                                     </div> :
                                                     <div key={exp._id} onClick={() => setShowModal(exp)} className="flex flex-row w-full items-center gap-3 min-h-[20px]">
                                                         <div className="flex flex-col justify-center items-center">
-                                                            <p className="text-[14px] uppercase">
+                                                            <p className="text-[13px] uppercase">
                                                                 {(new Date(exp.createdAt)).toLocaleString('default', { month: 'short' })}
                                                             </p>
-                                                            <p className="text-[22px] -mt-[6px]">
+                                                            <p className="text-[18px] -mt-[6px]">
                                                                 {(new Date(exp.createdAt)).getDate().toString().padStart(2, '0')}
                                                             </p>
                                                         </div>
@@ -451,7 +451,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                         <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
                                                             {/* Left: Description and payer info */}
                                                             <div className="flex flex-col justify-center min-w-0">
-                                                                <p className="text-[14px] text-[#81827C] capitalize">
+                                                                <p className="text-[13px] text-[#81827C] capitalize">
                                                                     {getSettleDirectionText(exp.splits)} {`₹${exp.amount.toFixed(2)}`}
                                                                 </p>
                                                             </div>

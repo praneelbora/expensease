@@ -73,7 +73,7 @@ export default function SettleModal({ setShowModal, group, simplifiedTransaction
                         </div>
                         {confirmationVisible ? (
                             <div className='flex flex-col h-[200px] justify-center items-center'>
-                                <p className="text-[22px] text-center text-[#EBF1D5] text-lg font-medium">
+                                <p className="text-[18px] text-center text-[#EBF1D5] text-lg font-medium">
                                     {getConfirmationText()}
                                 </p>
                                 <p className="text-center text-teal-400 text-2xl">₹{parseFloat(amount).toFixed(2)}</p>

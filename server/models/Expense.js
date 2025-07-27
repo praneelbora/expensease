@@ -15,12 +15,15 @@ const expenseSchema = new mongoose.Schema(
   {
     description: { type: String, required: true }, // Description of the expense
     amount: { type: Number, required: true }, // Total amount of the expense
+    mode: { type: String,  enum: ['split', 'personal'], required: true, default: 'personal'}, // Description of the expense
     splitMode: { type: String, enum: ['equal', 'value', 'percent'], required: true }, // Mode of splitting
     splits: [splitSchema], // Array of splits (details for each friend)
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // User who created the expense
     groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group' }, // User who created the expense
     date: { type: Date, default: Date.now }, // Timestamp of when the expense was created,
-    typeOf: {type: String, enum: ['expense','settle','income'], default: 'expense'}
+    typeOf: {type: String, enum: ['expense','settle','income'], default: 'expense'},
+    category: { type: String }, // New field to store expense category
+
   },
   { timestamps: true }
 );

@@ -60,10 +60,10 @@ const handleDelete = async () => {
                             <div className="w-full flex flex-row justify-between">
                                 <div className="w-full flex flex-col">
                                     <div className="w-full flex flex-row justify-between">
-                                        <p className="text-[#EBF1D5] text-[26px]">₹{amount.toFixed(2)}</p>
-                                        <p className="text-[#EBF1D5] text-[16px]">{formatDate(createdAt)}</p>
+                                        <p className="text-[#EBF1D5] text-[24px]">₹{amount.toFixed(2)}</p>
+                                        <p className="text-[#EBF1D5] text-[14px]">{formatDate(createdAt)}</p>
                                     </div>
-                                    <p className="text-[#EBF1D5] text-[20px] capitalize">{description}</p>
+                                    <p className="text-[#EBF1D5] text-[18px] capitalize">{description}</p>
                                 </div>
                             </div>
                             <hr />
@@ -82,7 +82,7 @@ const handleDelete = async () => {
                             </div>
                             <hr />
                             <div className="flex flex-col">
-                                <p className="text-[#EBF1D5] capitalize text-[14px]">Created By: {createdBy.name} </p>
+                                <p className="text-[#EBF1D5] capitalize text-[13px]">Created By: {createdBy.name} </p>
                             </div>
                         </div>
 

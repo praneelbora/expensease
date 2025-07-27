@@ -124,8 +124,8 @@ const Groups = () => {
                                     <div className="flex flex-1 flex-row justify-between items-center align-middle">
                                         <h2 className="text-xl font-semibold capitalize">{group.name}</h2>
                                         {group?.totalOwe && group?.totalOwe != 0 && <div className="flex flex-col">
-                                            <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-teal-500'} text-[12px] text-right`}>{group.totalOwe > 0 ? 'you owe' : 'you are owed'}</p>
-                                            <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-teal-500'} text-[16px] -mt-[4px] text-right`}>
+                                            <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-teal-500'} text-[11px] text-right`}>{group.totalOwe > 0 ? 'you owe' : 'you are owed'}</p>
+                                            <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-teal-500'} text-[14px] -mt-[4px] text-right`}>
                                                 ₹ {Math.abs(group.totalOwe.toFixed(2))}
                                             </p>
 
