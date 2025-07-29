@@ -111,40 +111,9 @@ npm install
 # Set your MongoDB URI and JWT and other secrets in .env
 node bin/www
 ```
-### 📁 `website/.env.example`
 
-```env
-# Backend API URL (switch between local/dev/prod)
-VITE_BACKEND_URL=http://localhost:3000/api
 
-# Frontend URL (used for redirects, links, CORS)
-VITE_FRONTEND_URL=http://localhost:5173
-
-# Default UPI ID for developer support (optional)
-VITE_UPI_ID=yourupiid@bank
-
-# Support/Donation Link
-VITE_BUYMEACOFFEE_URL=https://www.buymeacoffee.com/praneelbora
-```
-
-### 📁 `server/.env.example`
-
-```env
-# MongoDB Connection String
-MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/splitfree?retryWrites=true&w=majority
-
-# JWT Secret Key
-JWT_SECRET=your_jwt_secret_key
-
-# Nodemailer Email Configuration
-NODEMAILER_USER=your_email@example.com
-NODEMAILER_PASS=your_email_app_password
-NODEMAILER_NAME=SplitFree App
-
-# Frontend URL for CORS and email links
-# Use production URL when deployed
-FRONTEND_URL=http://localhost:5173
-```
+🔐 Add your environment variables in website/.env and server/.env by copying from the provided .env.example files in each directory.
 
 ---
 
