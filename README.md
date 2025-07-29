@@ -100,8 +100,23 @@ npm install
 # Set your MongoDB URI and JWT and other secrets in .env
 node bin/www
 ```
+### 📁 `website/.env.example`
 
-### 📁 `.env.example`
+```env
+# Backend API URL (switch between local/dev/prod)
+# VITE_BACKEND_URL=http://localhost:3000/api
+
+# Frontend URL (used for redirects, links, CORS)
+VITE_FRONTEND_URL=http://localhost:5173
+
+# Default UPI ID for developer support (optional)
+VITE_UPI_ID=yourupiid@bank
+
+# Support/Donation Link
+VITE_BUYMEACOFFEE_URL=https://www.buymeacoffee.com/praneelbora
+```
+
+### 📁 `server/.env.example`
 
 ```env
 # MongoDB Connection String

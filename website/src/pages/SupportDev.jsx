@@ -3,6 +3,7 @@ import MainLayout from "../layouts/MainLayout";
 import { ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 const upiId = import.meta.env.VITE_UPI_ID;
+const buymeacoffee = import.meta.env.VITE_BUYMEACOFFEE_URL;
 export default function Support() {
     const navigate = useNavigate();
     return (
@@ -43,7 +44,7 @@ export default function Support() {
                                     Prefer international platforms?
                                 </p>
                                 <a
-                                    href="https://www.buymeacoffee.com/praneelbora"
+                                    href={buymeacoffee}
                                     target="_blank"
                                     rel="noreferrer"
                                 >
