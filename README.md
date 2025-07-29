@@ -104,7 +104,7 @@ node bin/www
 
 ```env
 # Backend API URL (switch between local/dev/prod)
-# VITE_BACKEND_URL=http://localhost:3000/api
+VITE_BACKEND_URL=http://localhost:3000/api
 
 # Frontend URL (used for redirects, links, CORS)
 VITE_FRONTEND_URL=http://localhost:5173
