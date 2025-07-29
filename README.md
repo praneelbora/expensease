@@ -13,6 +13,17 @@
 
 ---
 
+## 📚 Table of Contents
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Screenshots](#-screenshots)
+- [Installation](#-installation)
+- [Contributing](#-contributing)
+- [Community & Support](#-community--support)
+- [License](#-license)
+
+---
+
 ## 🚀 Features
 
 - ✅ Create personal and group expenses
@@ -87,7 +98,7 @@ Have questions, feedback, or ideas?
 
 ```bash
 git clone https://github.com/praneebora/splitfree.git
-cd splitfree/website
+cd splitfree/website # for frontend
 npm install
 npm run dev
 ```
@@ -95,7 +106,7 @@ npm run dev
 ### Backend
 
 ```bash
-cd ../backend
+cd ../server # for backend server
 npm install
 # Set your MongoDB URI and JWT and other secrets in .env
 node bin/www
