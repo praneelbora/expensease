@@ -126,7 +126,7 @@ export default function LoginRegister() {
 
                         <button
                             type="submit"
-                            className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-[#EBF1D5] font-medium flex justify-center items-center"
+                            className="w-full py-2 bg-teal-500 hover:bg-teal-500 rounded-md text-[#EBF1D5] font-medium flex justify-center items-center"
                             disabled={loading}
                         >
                             {loading ? (

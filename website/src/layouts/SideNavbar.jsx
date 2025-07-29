@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { User, Users, Plus, Wallet, List } from "lucide-react";
+import { User, Users, Plus, Wallet, List, LayoutDashboard, HeartPlus } from "lucide-react";
 
 const SideNavbar = ({groupId}) => {
   const location = useLocation();
@@ -7,8 +7,10 @@ const SideNavbar = ({groupId}) => {
   const navItems = [
     { to: "/friends", label: "Friends", icon: <Users size={20} /> },
     { to: "/groups", label: "Groups", icon: <Wallet size={20} /> },
-    { to: "/add-expense", label: "Add", icon: <Plus size={20} />, state: groupId ? { groupId } : null,special: true },
     { to: "/expenses", label: "Expenses", icon: <List size={20} /> },
+    { to: "/new-expense", label: "New Expense", icon: <Plus size={30} />, state: groupId ? { groupId } : null,special: true },
+    { to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
+    { to: "/supportdeveloper", label: "Support", icon: <HeartPlus size={20} /> },
     { to: "/account", label: "Account", icon: <User size={20} /> },
   ];
 
@@ -27,7 +29,7 @@ const SideNavbar = ({groupId}) => {
                 ${isActive ? "bg-[#2a2a2a] text-teal-300" : "hover:text-teal-300"}`}
             >
               {item.icon}
-              <span className="text-[11px] mt-1">{item.label}</span>
+              <span className="text-[11px] mt-1 flex w-full justify-center items-center align-middle text-center">{item.label}</span>
             </Link>
           );
         })}

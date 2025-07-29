@@ -12,6 +12,7 @@ import Logout from "./pages/Logout";
 import LinkLogin from "./pages/LinkLogin";
 import GroupJoin from "./pages/GroupJoin";
 import GroupSettings from "./pages/GroupSettings";
+import Dashboard from "./pages/Dashboard";
 import SupportDev from "./pages/SupportDev";
 import Cookies from "js-cookie";
 import { Loader } from "lucide-react";
@@ -49,6 +50,10 @@ function App() {
                 element={user ? <Navigate to="/groups" /> : <Login />}
             />
             <Route
+                path="/dashboard"
+                element={<PrivateRoute><Dashboard /></PrivateRoute>}
+            />
+            <Route
                 path="/groups"
                 element={<PrivateRoute><Groups /></PrivateRoute>}
             />
@@ -68,7 +73,7 @@ function App() {
                 element={<PrivateRoute><FriendDetails /></PrivateRoute>}
             />
             <Route
-                path="/add-expense"
+                path="/new-expense"
                 element={<PrivateRoute><AddExpense /></PrivateRoute>}
             />
             <Route

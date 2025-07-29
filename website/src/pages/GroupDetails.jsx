@@ -246,7 +246,7 @@ const GroupDetails = () => {
 
     return (
         <MainLayout groupId={id}>
-            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col">
+            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
                         <button onClick={() => navigate(`/groups`)}>
@@ -394,7 +394,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                           text-teal-500 uppercase">Expenses</p>
                                     <button
                                         className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
-                                        onClick={() => navigate('/add-expense', { state: { groupId: id } })}>
+                                        onClick={() => navigate('/new-expense', { state: { groupId: id } })}>
                                         <Plus className="text-teal-500" size={20} />
                                     </button>
                                 </div>
@@ -408,6 +408,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
         getPayerInfo={getPayerInfo}
         getOweInfo={getOweInfo}
         getSettleDirectionText={getSettleDirectionText}
+        userId={userId}
     />
                                         ))}
                                 </ul>

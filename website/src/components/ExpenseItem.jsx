@@ -1,25 +1,59 @@
 import React from 'react';
-import expenseCategories from "../assets/categories"
-
+import { useAuth } from "../context/AuthContext";
 const ExpenseItem = ({
     expense,
     onClick,
-    getPayerInfo,
-    getOweInfo,
-    getSettleDirectionText
+    userId
 }) => {
+    const { userToken, categories } = useAuth() || {}
     const isSettle = expense.typeOf === 'settle';
     const isSplit = expense.mode === 'split';
     const getEmojiForCategory = (categoryName) => {
         if(categoryName=='settle') return '🤝'
-            const match = expenseCategories.find(c => c.name === categoryName);
+            const match = categories.find(c => c.name === categoryName);
             return match ? match.emoji : '';
 
         };
     const date = new Date(expense.createdAt);
     const month = date.toLocaleString('default', { month: 'short' });
     const day = date.getDate().toString().padStart(2, '0');
+    const getPayerInfo = (splits) => {
+        const payers = splits.filter(s => s.paying && s.payAmount > 0);
+        if (payers.length === 1) {
+            return `${payers[0].friendId.name} paid`;
+        } else if (payers.length > 1) {
+            return `${payers.length} people paid`;
+        } else {
+            return `No one paid`;
+        }
+    };
+        const getSettleDirectionText = (splits) => {
+        const payer = splits.find(s => s.paying && s.payAmount > 0);
+        const receiver = splits.find(s => s.owing && s.oweAmount > 0);
 
+        if (!payer || !receiver) return "Invalid settlement";
+
+        const payerName = payer.friendId._id === userId ? "You" : payer.friendId.name;
+        const receiverName = receiver.friendId._id === userId ? "you" : receiver.friendId.name;
+
+        return `${payerName} paid ${receiverName}`;
+    };
+    const getOweInfo = (splits) => {
+        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
+
+        if (!userSplit) return null;
+
+        const { oweAmount = 0, payAmount = 0 } = userSplit;
+        const net = payAmount - oweAmount;
+
+        if (net > 0) {
+            return { text: 'you lent', amount: ` ₹${net.toFixed(2)}` };
+        } else if (net < 0) {
+            return { text: 'you borrowed', amount: ` ₹${Math.abs(net).toFixed(2)}` };
+        } else {
+            return null;
+        }
+    };
     return (
         <div
             key={expense._id}

@@ -30,11 +30,9 @@ const Expenses = () => {
 
     const getPayerInfo = (splits) => {
         const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
-
         if (!userSplit || (!userSplit.payAmount && !userSplit.oweAmount)) {
             return "You were not involved";
         }
-
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
             return `${payers[0].friendId._id == userId ? 'You' : payers[0].friendId.name} paid`;
@@ -79,12 +77,12 @@ const Expenses = () => {
 
     return (
         <MainLayout>
-            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col">
+            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">All Expenses</h1>
                     <button
                         className={`flex flex-col items-center justify-center z-10 bg-lime-200 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
-                        onClick={() => navigate('/add-expense')}
+                        onClick={() => navigate('/new-expense')}
                     >
                         <Plus strokeWidth={3} size={20} />
                     </button>
@@ -136,6 +134,7 @@ const Expenses = () => {
                                     getPayerInfo={getPayerInfo}
                                     getOweInfo={getOweInfo}
                                     getSettleDirectionText={getSettleDirectionText}
+                                    userId={userId}
                                 />
                             ))}
                     </ul>

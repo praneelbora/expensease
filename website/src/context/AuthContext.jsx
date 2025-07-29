@@ -2,13 +2,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom"; // ✅ Correct import
 import Cookies from "js-cookie";
-import { fetchUserData, linkLogin } from "../services/UserService";
+import { fetchUserData, linkLogin, getUserCategories } from "../services/UserService";
 export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [userToken, setUserToken] = useState(null);
     const [authLoading, setAuthLoading] = useState(true);
-
+    const [categories, setCategories] = useState([]);
     const navigate = useNavigate();
 
     const handleLinkLogin = async (token) => {
@@ -28,20 +28,26 @@ export const AuthProvider = ({ children }) => {
         setAuthLoading(false);
     };
 
-
-
     const logout = () => {
         setUser(null);
         Cookies.remove("userToken");
         navigate("/login");
-    };
+    };    
     useEffect(() => {
         const token = Cookies.get("userToken");
-        if (token) setUserToken(token);
+        if (token) {
+            setUserToken(token);
+            getCategories(token)
+        }
         loadUserData()
     }, []);
+    const getCategories = async (userToken) => {
+        const categories = await getUserCategories(userToken);
+        setCategories(categories)
+    };
+    
     return (
-        <AuthContext.Provider value={{ user, logout, userToken, authLoading, handleLinkLogin }}>
+        <AuthContext.Provider value={{ user, logout, userToken, authLoading, handleLinkLogin, categories,setCategories }}>
             {children}
         </AuthContext.Provider>
     );

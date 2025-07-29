@@ -93,7 +93,7 @@ const Groups = () => {
 
     return (
         <MainLayout>
-            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col">
+            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">All Groups</h1>
                     <button

@@ -2,6 +2,7 @@ import { useAuth } from '../context/AuthContext';
 import MainLayout from '../layouts/MainLayout';
 import { useEffect, useState } from 'react';
 import { getAllExpenses } from '../services/ExpenseService';
+import CategoriesManage from '../components/SettingsCategoryManager';
 
 const Account = () => {
     const { logout, user, userToken } = useAuth() || {};
@@ -48,7 +49,7 @@ const Account = () => {
 
     return (
         <MainLayout>
-            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col">
+            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">My Account</h1>
                 </div>
@@ -63,15 +64,15 @@ const Account = () => {
                     ) : (user || userToken) ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {/* Edit Profile */}
-                            <div className="bg-[#1E1E1E] p-4 rounded-xl shadow">
-                                {/* <div className="flex justify-between items-center mb-2">
-                                <h2 className="text-xl font-semibold">Edit Profile Info</h2>
-                                {!editing ? (
-                                    <button onClick={() => setEditing(true)} className="text-sm text-blue-400">Edit</button>
-                                ) : (
-                                    <button onClick={handleSave} className="text-sm text-teal-400">Save</button>
-                                )}
-                            </div> */}
+                            {/* <div className="bg-[#1E1E1E] p-4 rounded-xl shadow">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h2 className="text-xl font-semibold">Edit Profile Info</h2>
+                                    {!editing ? (
+                                        <button onClick={() => setEditing(true)} className="text-sm text-teal-500">Edit</button>
+                                    ) : (
+                                        <button onClick={handleSave} className="text-sm text-teal-400">Save</button>
+                                    )}
+                                </div>
                                 <div className="flex flex-col gap-3">
                                     <div>
                                         <label className="text-sm font-medium">Name</label>
@@ -87,12 +88,14 @@ const Account = () => {
                                         )}
                                     </div>
                                 </div>
-                            </div>
+                            </div> */}
 
                             {/* Email */}
                             <div className="bg-[#1E1E1E] p-4 rounded-xl shadow">
-                                <h2 className="text-xl font-semibold mb-2">Email</h2>
-                                <p className="text-base text-[#BBBBBB]">{user?.email}</p>
+                                <p className="text-base text-[#BBBBBB]">Name</p>
+                                <h2 className="text-xl font-semibold mb-2">{user?.name}</h2>
+                                <p className="text-base text-[#BBBBBB]">Email</p>
+                                <h2 className="text-xl font-semibold">{user?.email}</h2>
                             </div>
 
                             {/* <div className="bg-[#1E1E1E] p-4 rounded-xl shadow space-y-4">
@@ -128,12 +131,13 @@ const Account = () => {
                                     Coming soon: Charts, categories, trends, etc.
                                 </p>
                             </div>
+                            <CategoriesManage userToken={userToken} />
                             {/* Support the Developer */}
                             <div onClick={() => window.location.href = '/supportdeveloper'} className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-between">
                                 <div>
                                     <h2 className="text-xl font-semibold mb-2">Support the Developer ☕</h2>
                                     <p className="text-[#BBBBBB] text-sm">
-                                        If you find this platform helpful, consider supporting its development! ❤️
+                                        If you find this platform helpful, consider supporting its development!
                                     </p>
                                 </div>
                             </div>

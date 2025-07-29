@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import MainLayout from '../layouts/MainLayout';
 import { useLocation } from 'react-router-dom';
 import { useRef } from 'react';
@@ -7,12 +7,9 @@ import { Loader } from "lucide-react";
 import { getFriends } from "../services/FriendService";
 import { getAllGroups, joinGroup } from "../services/GroupService";
 import { createExpense } from "../services/ExpenseService";
-import expenseCategories from "../assets/categories"
-
-
 const AddExpense = () => {
     const [friends, setFriends] = useState([]);
-    const { userToken } = useAuth() || {}
+    const { userToken, categories } = useAuth() || {}
     const location = useLocation();
     const [filteredFriends, setFilteredFriends] = useState([]);
     const [filteredGroups, setFilteredGroups] = useState([]);
@@ -469,7 +466,7 @@ const AddExpense = () => {
             }
 
         } catch (error) {
-            console.error("Add Expense Page - Error loading groups:", error);
+            // console.error("New Expense Page - Error loading groups:", error);
         } finally {
             setLoading(false);
         }
@@ -515,9 +512,9 @@ const AddExpense = () => {
 
     return (
         <MainLayout>
-            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col">
+            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
-                    <h1 className="text-3xl font-bold capitalize">Add Expense</h1>
+                    <h1 className="text-3xl font-bold capitalize">New Expense</h1>
                 </div>
                 <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
 
@@ -625,7 +622,7 @@ const AddExpense = () => {
                                             {filteredGroups.length > groupDisplayLimit && (
                                                 <button
                                                     onClick={() => setShowAllGroups(!showAllGroups)}
-                                                    className="text-sm text-blue-400 mt-2 hover:underline"
+                                                    className="text-sm text-teal-500 mt-2 hover:underline"
                                                 >
                                                     {showAllGroups ? 'Show Less' : 'Show More'}
                                                 </button>
@@ -658,7 +655,7 @@ const AddExpense = () => {
                                         {filteredFriends.length > friendDisplayLimit && (
                                             <button
                                                 onClick={() => setShowAllFriends(!showAllFriends)}
-                                                className="text-sm text-blue-400 mt-2 hover:underline"
+                                                className="text-sm text-teal-500 mt-2 hover:underline"
                                             >
                                                 {showAllFriends ? 'Show Less' : 'Show More'}
                                             </button>
@@ -691,7 +688,7 @@ const AddExpense = () => {
                                         onChange={(e) => setCategory(e.target.value)}
                                     >
                                         <option value="">Select Category</option>
-                                        {expenseCategories.map((cat) => (
+                                        {categories.map((cat) => (
                                             <option key={cat.name} value={cat.name}>
                                                 {cat.emoji} {cat.name}
                                             </option>

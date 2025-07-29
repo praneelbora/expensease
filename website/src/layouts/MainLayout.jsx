@@ -15,7 +15,7 @@ const MainLayout = ({ children, groupId }) => {
                         display: 'flex',
                         flexDirection: 'column',
                         paddingTop: isMobile ? '20px' : '1.5rem',
-                        paddingInline: isMobile ? '20px' : '1rem',
+                        // paddingInline: isMobile ? '20px' : '1rem',
                         paddingBottom: isMobile ? '80px' : '1rem',
                         overflow: 'hidden', // Prevent main from scrolling
                     }}

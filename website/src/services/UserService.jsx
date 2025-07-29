@@ -68,3 +68,28 @@ export const linkLogin = async (token) => {
         throw err;
     }
 };
+
+// services/UserService.js
+export const getUserCategories = async (userToken) => {
+    const res = await fetch(`${BASE_URL}/v1/users/categories`, {
+        headers: {
+            "Content-Type": "application/json",
+            "x-auth-token": userToken,
+        },
+    });
+    const responseJson = await res.json()
+    return responseJson
+};
+
+export const saveUserCategories = async (categories,userToken) => {
+    const res = await fetch(`${BASE_URL}/v1/users/categories`, {
+        method: 'POST',
+        headers: {
+            "Content-Type": "application/json",
+            "x-auth-token": userToken,
+        },
+        body: JSON.stringify({ categories }),
+    });
+    const responseJson = await res.json()
+    return responseJson
+};

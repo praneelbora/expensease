@@ -5,6 +5,7 @@ import {
     Plus,
     List,
     User,
+    LayoutDashboard
 } from "lucide-react";
 
 const MobileNavbar = ({ groupId }) => {
@@ -13,8 +14,8 @@ const MobileNavbar = ({ groupId }) => {
     const navItems = [
         { to: "/friends", label: "Friends", icon: <Users size={22} /> },
         { to: "/groups", label: "Groups", icon: <Wallet size={22} /> },
-        { to: "/add-expense", label: "Add", icon: <Plus strokeWidth={3}  size={28} />, isCenter: true, state: groupId ? { groupId } : null, special: true },
-        { to: "/expenses", label: "Expenses", icon: <List size={22} /> },
+        { to: "/new-expense", label: "Add", icon: <Plus strokeWidth={3}  size={28} />, isCenter: true, state: groupId ? { groupId } : null, special: true },
+        { to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={22} /> },
         { to: "/account", label: "Account", icon: <User size={22} /> },
     ];
 

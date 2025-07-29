@@ -129,7 +129,7 @@ export default function GroupSettings() {
 
     return (
         <MainLayout groupId={id}>
-            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col">
+            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
                         <button onClick={() => navigate(`/groups/${id}`)}>

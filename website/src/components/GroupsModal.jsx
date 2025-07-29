@@ -315,7 +315,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
                                     disabled={joinCode.length !== 4}
                                     className={`w-full py-2 border rounded-[8px] text-[#000] transition 
             ${joinCode.length === 4
-                                            ? 'bg-blue-300 border-blue-300 cursor-pointer'
+                                            ? 'bg-teal-300 border-teal-300 cursor-pointer'
                                             : 'bg-gray-500 border-gray-500 cursor-not-allowed'}
         `}
                                 >
