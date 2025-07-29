@@ -1,7 +1,7 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
-![Issues](https://img.shields.io/github/issues/praneebora/splitfree)
-![Forks](https://img.shields.io/github/forks/praneebora/splitfree)
-![Stars](https://img.shields.io/github/stars/praneebora/splitfree)
+![Issues](https://img.shields.io/github/issues/praneelbora/splitfree)
+![Forks](https://img.shields.io/github/forks/praneelbora/splitfree)
+![Stars](https://img.shields.io/github/stars/praneelbora/splitfree)
 
 # 🧾 SplitFree – Simplified Group Expense Tracker
 
@@ -124,3 +124,9 @@ FRONTEND_URL=http://localhost:5173
 
 Built with ❤️ by [Praneel Bora](https://github.com/praneebora)  
 If you find this useful, please consider giving it a ⭐️!
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](./LICENSE). You are free to use, modify, and distribute this project as per the terms of the license.
