@@ -712,7 +712,7 @@ const AddExpense = () => {
                                                 value={expenseDate}
                                                 onChange={(e) => setExpenseDate(e.target.value)}
                                                 max={new Date().toISOString().split("T")[0]}
-                                                className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
+                                                className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1"
                                             />
                                             {/* <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
     <CalendarDays className="h-5 w-5 text-white" />

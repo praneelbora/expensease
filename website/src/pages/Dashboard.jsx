@@ -191,14 +191,28 @@ const Dashboard = () => {
                         <div className="flex flex-col justify-center items-center flex-1 py-5">
                             <Loader />
                         </div>
+                    ) : expenses.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center flex-1 py-10 text-center space-y-4">
+                            <h2 className="text-2xl font-semibold">No Expenses Yet</h2>
+                            <p className="text-sm text-gray-400 max-w-sm">
+                                You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
+                            </p>
+                            <button
+                                onClick={() => navigate("/new-expense")}
+                                className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition"
+                            >
+                                Add Expense
+                            </button>
+                        </div>
                     ) : (
+
                         <>
                             {/* Stats */}
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-                                {stats.total > 0 && <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
+                                <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
                                     <p className="text-sm">Total Expenses</p>
                                     <p className="text-xl font-bold">₹{stats.total.toFixed(2)}</p>
-                                </div>}
+                                </div>
                                 {stats.personal > 0 && <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
                                     <p className="text-sm">Personal Expenses</p>
                                     <p className="text-xl">{stats.personal}</p>
@@ -218,7 +232,7 @@ const Dashboard = () => {
                             </div>
 
                             {/* Last 3 Expenses */}
-                            <div className="space-y-2">
+                            {expenses.length > 0 && <div className="space-y-2">
                                 <div className="flex flex-row items-center justify-between mt-4">
                                     <h2 className="text-2xl font-semibold">Recent Expenses</h2>
                                     <button
@@ -239,10 +253,10 @@ const Dashboard = () => {
                                         />
                                     ))}
                                 </ul>
-                            </div>
+                            </div>}
 
                             {/* Charts */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                            {expenses.length > 0 && <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                                 <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md overflow-hidden">
                                     <h3 className="text-lg font-semibold mb-2">Category Distribution</h3>
                                     <ResponsiveContainer width="100%" height={250}>
@@ -277,7 +291,7 @@ const Dashboard = () => {
                                     </ResponsiveContainer>
 
                                 </div>
-                            </div>
+                            </div>}
                         </>
                     )}
                 </div>
