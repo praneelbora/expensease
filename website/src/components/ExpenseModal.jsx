@@ -1,8 +1,9 @@
 import { deleteExpense } from "../services/ExpenseService";
 
-export default function ExpenseModal({ showModal, setShowModal, fetchExpenses, userToken }) {    
-    const { description, amount, createdAt, createdBy, splits, groupId } = showModal;
+export default function ExpenseModal({ showModal, setShowModal, fetchExpenses, userToken }) {
+    const { description, amount, createdBy, splits, groupId } = showModal;
     const getPayerInfo = (splits) => {
+        if (showModal?.mode == 'personal') return 'You paid'
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
             return `${payers[0].friendId.name} paid`;
@@ -13,19 +14,19 @@ export default function ExpenseModal({ showModal, setShowModal, fetchExpenses, u
         }
     };
 
-const handleDelete = async () => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this expense?");
-    if (!confirmDelete || !showModal._id) return;
+    const handleDelete = async () => {
+        const confirmDelete = window.confirm("Are you sure you want to delete this expense?");
+        if (!confirmDelete || !showModal._id) return;
 
-    try {
-        await deleteExpense(showModal._id, userToken); // pass the expense ID and token
-        alert("Expense deleted successfully!");
-        fetchExpenses(); 
-        setShowModal(false); // close modal
-    } catch (err) {
-        alert(err.message || "Something went wrong while deleting.");
-    }
-};
+        try {
+            await deleteExpense(showModal._id, userToken); // pass the expense ID and token
+            alert("Expense deleted successfully!");
+            fetchExpenses();
+            setShowModal(false); // close modal
+        } catch (err) {
+            alert(err.message || "Something went wrong while deleting.");
+        }
+    };
 
     const formatDate = (date) => {
         const d = new Date(date);
@@ -46,7 +47,7 @@ const handleDelete = async () => {
                     <div className="rounded-[24px] shadow-lg relative flex flex-col w-full bg-[#212121]">
                         {/* Header */}
                         <div className="flex items-start justify-between px-5 py-3 border-b border-solid border-[rgba(255,255,255,0.1)]">
-                            <h3 className="text-2xl font-semibold text-[#EBF1D5]">Expense Details</h3>
+                            <h3 className="text-2xl font-semibold text-[#EBF1D5] capitalize">{showModal?.mode} Expense</h3>
                             <button
                                 className="absolute top-[13px] right-[12px] p-1 ml-auto bg-transparent border-0 text-[#EBF1D5] float-right text-2xl leading-none font-semibold outline-none focus:outline-none"
                                 onClick={() => setShowModal(false)}
@@ -61,28 +62,31 @@ const handleDelete = async () => {
                                 <div className="w-full flex flex-col">
                                     <div className="w-full flex flex-row justify-between">
                                         <p className="text-[#EBF1D5] text-[24px]">₹{amount?.toFixed(2)}</p>
-                                        <p className="text-[#EBF1D5] text-[14px]">{formatDate(createdAt)}</p>
+                                        <p className="text-[#EBF1D5] text-[14px]">{formatDate(showModal?.date)}</p>
                                     </div>
                                     <p className="text-[#EBF1D5] text-[18px] capitalize">{description}</p>
                                 </div>
                             </div>
                             <hr />
-                            <p className="text-[#EBF1D5] text-lg">{getPayerInfo(splits)} ₹{amount?.toFixed(2)}</p>
+                            {showModal?.mode == 'split' && <>
+                                <p className="text-[#EBF1D5] text-lg">{getPayerInfo(splits)} ₹{amount?.toFixed(2)}</p>
 
 
-                            {/* Splits */}
-                            <div className="ms-4">
-                                <div className="text-[#EBF1D5] flex flex-col gap-1">
-                                    {splits.map((split, index) => (split.payAmount > 0 || split.oweAmount > 0) && (
-                                        <div key={index} className="flex">
-                                            <p>{split.friendId.name} {split.payAmount > 0 ? `paid  ₹${split.payAmount?.toFixed(2)} ${split.oweAmount > 0 ? 'and' : ''}` : ''} owes  ₹{split?.oweAmount?.toFixed(2)}</p>
-                                        </div>
-                                    ))}
+                                {/* Splits */}
+                                <div className="ms-4">
+                                    <div className="text-[#EBF1D5] flex flex-col gap-1">
+                                        {splits.map((split, index) => (split.payAmount > 0 || split.oweAmount > 0) && (
+                                            <div key={index} className="flex">
+                                                <p>{split.friendId.name} {split.payAmount > 0 ? `paid  ₹${split.payAmount?.toFixed(2)} ${split.oweAmount > 0 ? 'and' : ''}` : ''} owes  ₹{split?.oweAmount?.toFixed(2)}</p>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                            <hr />
+                                <hr />
+                            </>}
                             <div className="flex flex-col">
-                                <p className="text-[#EBF1D5] capitalize text-[13px]">Created By: {createdBy.name} </p>
+                                {showModal?.mode == 'split' && <p className="text-[#EBF1D5] capitalize text-[13px]">Created By: {createdBy.name} </p>}
+                                <p className="text-[#EBF1D5] capitalize text-[13px]">Created On: {formatDate(showModal?.createdAt)} </p>
                             </div>
                         </div>
 

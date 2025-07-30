@@ -16,7 +16,8 @@ router.post('/', auth, async (req, res) => {
             typeOf,
             splitMode,
             splits,
-            groupId
+            groupId,
+            date
         } = req.body;
 
         const updatedSplits = splits?.map(f => ({
@@ -32,6 +33,7 @@ router.post('/', auth, async (req, res) => {
             mode,
             typeOf,
             splitMode,
+            date,
             splits: updatedSplits,
             ...(groupId && { groupId })
         });

@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { Loader } from "lucide-react";
 
 
-const COLORS = ["#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d", "#ffc658"];
+
 
 const Dashboard = () => {
     // Inside your component:
@@ -71,7 +71,10 @@ const Dashboard = () => {
                 // Count type
                 if (exp.groupId) group++;
                 else if (!exp.groupId && exp.splits?.length > 0) friend++;
-                else personal++;
+                else {
+                    personal++;
+                    total += exp?.amount
+                }
             } else if (exp.typeOf === "settle") {
                 settle++;
             }
@@ -79,6 +82,7 @@ const Dashboard = () => {
 
         return { total, personal, group, friend, settle };
     }, [expenses, userId]);
+
     const RADIAN = Math.PI / 180;
     const renderCustomizedLabel = ({ cx, cy, midAngle, outerRadius, percent, name }) => {
         const radius = outerRadius + 10;
@@ -106,17 +110,24 @@ const Dashboard = () => {
         expenses.forEach(exp => {
             if (exp.typeOf !== "expense") return;
 
-            const userSplit = exp.splits?.find(split => split.friendId?._id === userId);
-            if (!userSplit?.owing) return;
-
             const category = exp.category || "Uncategorized";
-            const owe = userSplit.oweAmount || 0;
 
-            catTotals[category] = (catTotals[category] || 0) + owe;
+            // Case 1: Split expense (shared with others)
+            const userSplit = exp.splits?.find(split => split.friendId?._id === userId);
+            if (userSplit?.owing) {
+                const owe = userSplit.oweAmount || 0;
+                catTotals[category] = (catTotals[category] || 0) + owe;
+            }
+
+            // Case 2: Personal expense (no splits)
+            if (!exp.groupId && (!exp.splits || exp.splits.length === 0)) {
+                catTotals[category] = (catTotals[category] || 0) + exp.amount;
+            }
         });
 
         return Object.entries(catTotals).map(([name, value]) => ({ name, value }));
     }, [expenses, userId]);
+
 
     const trendChart = useMemo(() => {
         const monthly = {};
@@ -124,17 +135,36 @@ const Dashboard = () => {
         expenses.forEach(exp => {
             if (exp.typeOf !== "expense") return;
 
-            const userSplit = exp.splits?.find(split => split.friendId?._id === userId);
-            if (!userSplit?.owing) return;
-
             const month = new Date(exp.createdAt).toLocaleString("default", { month: "short", year: "2-digit" });
-            const owe = userSplit.oweAmount || 0;
 
-            monthly[month] = (monthly[month] || 0) + owe;
+            // Case 1: Split expense
+            const userSplit = exp.splits?.find(split => split.friendId?._id === userId);
+            if (userSplit?.owing) {
+                const owe = userSplit.oweAmount || 0;
+                monthly[month] = (monthly[month] || 0) + owe;
+            }
+
+            // Case 2: Personal expense
+            if (!exp.groupId && (!exp.splits || exp.splits.length === 0)) {
+                monthly[month] = (monthly[month] || 0) + exp.amount;
+            }
         });
 
         return Object.entries(monthly).map(([name, value]) => ({ name, value }));
     }, [expenses, userId]);
+    const generateColors = (count) => {
+        const colors = [];
+        for (let i = 0; i < count; i++) {
+            const hue = Math.floor((360 / count) * i); // evenly spaced hue
+            colors.push(`hsl(${hue}, 70%, 60%)`);
+        }
+        return colors;
+    };
+
+    // Example usage:
+    const COLORS = useMemo(() => generateColors(categoryChart.length), [categoryChart.length]);
+
+
     const renderBarLabel = ({ x, y, width, value }) => {
         return (
             <text
@@ -165,26 +195,26 @@ const Dashboard = () => {
                         <>
                             {/* Stats */}
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-                                <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
+                                {stats.total > 0 && <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
                                     <p className="text-sm">Total Expenses</p>
                                     <p className="text-xl font-bold">₹{stats.total.toFixed(2)}</p>
-                                </div>
-                                <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
+                                </div>}
+                                {stats.personal > 0 && <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
                                     <p className="text-sm">Personal Expenses</p>
                                     <p className="text-xl">{stats.personal}</p>
-                                </div>
-                                <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
+                                </div>}
+                                {stats.group > 0 && <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
                                     <p className="text-sm">Group Expenses</p>
                                     <p className="text-xl">{stats.group}</p>
-                                </div>
-                                <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
+                                </div>}
+                                {stats.friend > 0 && <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
                                     <p className="text-sm">Friend Expenses</p>
                                     <p className="text-xl">{stats.friend}</p>
-                                </div>
-                                <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
+                                </div>}
+                                {stats.settle > 0 && <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
                                     <p className="text-sm">Settlements</p>
                                     <p className="text-xl">{stats.settle}</p>
-                                </div>
+                                </div>}
                             </div>
 
                             {/* Last 3 Expenses */}
@@ -200,7 +230,7 @@ const Dashboard = () => {
                                 </div>
 
                                 <ul className="flex flex-col gap-2">
-                                    {expenses.filter(f => f.typeOf == 'expense').slice(0, 3).map(exp => (
+                                    {expenses?.sort((a, b) => new Date(b.date) - new Date(a.date)).filter(f => f.typeOf == 'expense').slice(0, 3).map(exp => (
                                         <ExpenseItem
                                             key={exp._id}
                                             expense={exp}
@@ -213,7 +243,7 @@ const Dashboard = () => {
 
                             {/* Charts */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                                <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
+                                <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md overflow-hidden">
                                     <h3 className="text-lg font-semibold mb-2">Category Distribution</h3>
                                     <ResponsiveContainer width="100%" height={250}>
                                         <PieChart>
@@ -222,13 +252,14 @@ const Dashboard = () => {
                                                 dataKey="value"
                                                 nameKey="name"
                                                 outerRadius={90}
-                                                label={renderCustomizedLabel}
+                                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                                labelLine={false}
                                             >
-
                                                 {categoryChart.map((_, index) => (
-                                                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                                 ))}
                                             </Pie>
+
                                             <Tooltip content={<CustomTooltip />} />
                                         </PieChart>
                                     </ResponsiveContainer>

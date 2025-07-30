@@ -7,6 +7,7 @@ import { Loader } from "lucide-react";
 import { getFriends } from "../services/FriendService";
 import { getAllGroups, joinGroup } from "../services/GroupService";
 import { createExpense } from "../services/ExpenseService";
+import { CalendarDays } from "lucide-react"; // or use any other icon
 const AddExpense = () => {
     const [friends, setFriends] = useState([]);
     const { userToken, categories } = useAuth() || {}
@@ -24,6 +25,11 @@ const AddExpense = () => {
     const [expenseMode, setExpenseMode] = useState('personal');
     const [showAllGroups, setShowAllGroups] = useState(false);
     const groupDisplayLimit = 4;
+    const [expenseDate, setExpenseDate] = useState(() => {
+        const today = new Date();
+        return today.toISOString().split("T")[0]; // format: YYYY-MM-DD
+    });
+
     const visibleGroups = showAllGroups ? filteredGroups : filteredGroups.slice(0, groupDisplayLimit);
     const [showAllFriends, setShowAllFriends] = useState(false);
 
@@ -138,6 +144,7 @@ const AddExpense = () => {
             mode: expenseMode, // 'personal' or 'split'
             splitMode: expenseMode === 'split' ? mode : 'equal', // 'equal' for personal by default
             typeOf: 'expense',
+            date: expenseDate,
         };
 
         if (expenseMode === 'split') {
@@ -166,6 +173,7 @@ const AddExpense = () => {
             setCategory('');
             setSelectedFriends([]);
             setGroupSelect(null);
+            setExpenseDate(new Date().toISOString().split("T")[0]);
         } catch (error) {
             console.error(error);
             alert('Error creating expense');
@@ -542,9 +550,9 @@ const AddExpense = () => {
 
 
 
-                    {(expenseMode == 'split' && !groupSelect) && <>{selectedFriends.length == 0? 
-                    <p className="text-[13px] text-[#81827C] mb-1">Select a group or a friend you want to add an expense with.</p>:
-                    <p className="text-[13px] text-[#81827C] mb-1">To add an expense with multiple people please create a group </p>}</>
+                    {(expenseMode == 'split' && !groupSelect) && <>{selectedFriends.length == 0 ?
+                        <p className="text-[13px] text-[#81827C] mb-1">Select a group or a friend you want to add an expense with.</p> :
+                        <p className="text-[13px] text-[#81827C] mb-1">To add an expense with multiple people please create a group </p>}</>
                     }
                     {expenseMode == 'split' && !groupSelect && selectedFriends.length == 0 && <input
                         className="w-full bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3"
@@ -561,7 +569,7 @@ const AddExpense = () => {
                         <div className="flex w-full flex-col">
 
 
-                            {expenseMode == 'split' && (groupSelect || selectedFriends.length>0) && <div className="flex flex-wrap gap-2 mt-2">
+                            {expenseMode == 'split' && (groupSelect || selectedFriends.length > 0) && <div className="flex flex-wrap gap-2 mt-2">
                                 {expenseMode == 'split' && !groupSelect && selectedFriends.map((friend) => (
                                     friend._id == 'me' ? <div
                                         key={'selected' + friend._id}
@@ -667,14 +675,13 @@ const AddExpense = () => {
 
                             {(expenseMode == 'personal' || (selectedFriends.length > 0 && val === '')) && (
                                 <div className="flex flex-col mt-1 gap-2 w-full">
-                                    <div className="flex flex-row w-full">
-                                        <input
-                                            className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
-                                            placeholder="Enter Description"
-                                            value={desc}
-                                            onChange={(e) => setDesc(e.target.value)}
-                                        />
-                                    </div>
+
+                                    <input
+                                        className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
+                                        placeholder="Enter Description"
+                                        value={desc}
+                                        onChange={(e) => setDesc(e.target.value)}
+                                    />
                                     <input
                                         className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
                                         type="number"
@@ -682,20 +689,37 @@ const AddExpense = () => {
                                         value={amount}
                                         onChange={(e) => setAmount(parseInt(e.target.value))}
                                     />
-                                    <select
-                                        className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
-                                        value={category}
-                                        onChange={(e) => setCategory(e.target.value)}
-                                    >
-                                        <option value="">Select Category</option>
-                                        {categories.map((cat) => (
-                                            <option key={cat.name} value={cat.name}>
-                                                {cat.emoji} {cat.name}
-                                            </option>
-                                        ))}
+                                    <div className="flex flex-row w-full gap-4">
+                                        <div className="flex-1 relative">
+                                            <select
+                                                className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1"
+                                                value={category}
+                                                onChange={(e) => setCategory(e.target.value)}
+                                            >
+                                                <option value="">Select Category</option>
+                                                {categories.map((cat) => (
+                                                    <option key={cat.name} value={cat.name}>
+                                                        {cat.emoji} {cat.name}
+                                                    </option>
+                                                ))}
 
-                                    </select>
+                                            </select>
+                                        </div>
 
+                                        <div className="flex-1 relative">
+                                            <input
+                                                type="date"
+                                                value={expenseDate}
+                                                onChange={(e) => setExpenseDate(e.target.value)}
+                                                max={new Date().toISOString().split("T")[0]}
+                                                className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
+                                            />
+                                            {/* <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+    <CalendarDays className="h-5 w-5 text-white" />
+  </div> */}
+                                        </div>
+
+                                    </div>
                                     {expenseMode == 'split' && desc.length > 0 && amount > 0 && category.length > 0 && (
                                         <div className="flex flex-col gap-4">
                                             <p className="text-lg font-medium">Paid by <span className="text-[13px] text-[#81827C] mb-1">(Select the people who paid.)</span></p>

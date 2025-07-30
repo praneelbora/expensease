@@ -9,12 +9,12 @@ const ExpenseItem = ({
     const isSettle = expense.typeOf === 'settle';
     const isSplit = expense.mode === 'split';
     const getEmojiForCategory = (categoryName) => {
-        if(categoryName=='settle') return '🤝'
-            const match = categories.find(c => c.name === categoryName);
-            return match ? match.emoji : '';
+        if (categoryName == 'settle') return '🤝'
+        const match = categories.find(c => c.name === categoryName);
+        return match ? match.emoji : '';
 
-        };
-    const date = new Date(expense.createdAt);
+    };
+    const date = new Date(expense.date);
     const month = date.toLocaleString('default', { month: 'short' });
     const day = date.getDate().toString().padStart(2, '0');
     const getPayerInfo = (splits) => {
@@ -27,7 +27,7 @@ const ExpenseItem = ({
             return `No one paid`;
         }
     };
-        const getSettleDirectionText = (splits) => {
+    const getSettleDirectionText = (splits) => {
         const payer = splits.find(s => s.paying && s.payAmount > 0);
         const receiver = splits.find(s => s.owing && s.oweAmount > 0);
 
@@ -71,11 +71,11 @@ const ExpenseItem = ({
 
             {/* Optional emoji */}
 
-                <div className="flex flex-col justify-center items-center">
-                    <p className="text-[18px] -mt-[6px]">
-                        {getEmojiForCategory?.(expense.typeOf=='expense'?expense.category:'settle')}
-                    </p>
-                </div>
+            <div className="flex flex-col justify-center items-center">
+                <p className="text-[18px] -mt-[6px]">
+                    {getEmojiForCategory?.(expense.typeOf == 'expense' ? expense.category : 'settle')}
+                </p>
+            </div>
 
             {/* Main content */}
             <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">

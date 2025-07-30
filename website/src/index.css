@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
 body {
-    background-color: #121212;
+  background-color: #121212;
 }
 
 input::placeholder {
-    color: #81827C;
+  color: #81827C;
 }
 
 input:focus {
-    outline: none;
+  outline: none;
 }
 
 hr {
-    color: #81827C;
+  color: #81827C;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
@@ -23,6 +23,14 @@ hr {
 
 /* Hide scrollbar for IE, Edge and Firefox */
 .no-scrollbar {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none;    /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  /* Inverts the default icon color (makes black → white) */
+  cursor: pointer;
 }
