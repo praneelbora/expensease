@@ -16,7 +16,6 @@ export const AuthProvider = ({ children }) => {
             const { user, token: authToken } = await linkLogin(token);
             setUser(user);
             setUserToken(authToken);
-            // handle pending redirects here...
         } catch (err) {
             alert(err.message);
         }
@@ -47,7 +46,7 @@ export const AuthProvider = ({ children }) => {
     };
     
     return (
-        <AuthContext.Provider value={{ user, logout, userToken, authLoading, handleLinkLogin, categories,setCategories }}>
+        <AuthContext.Provider value={{ user, setUser, logout, userToken, authLoading, handleLinkLogin, categories,setCategories }}>
             {children}
         </AuthContext.Provider>
     );

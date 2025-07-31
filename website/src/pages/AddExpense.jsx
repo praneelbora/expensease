@@ -549,7 +549,8 @@ const AddExpense = () => {
                     </div>
 
 
-
+                    {(groups.length>0 || friends.length>0 )&& <>
+                    
                     {(expenseMode == 'split' && !groupSelect) && <>{selectedFriends.length == 0 ?
                         <p className="text-[13px] text-[#81827C] mb-1">Select a group or a friend you want to add an expense with.</p> :
                         <p className="text-[13px] text-[#81827C] mb-1">To add an expense with multiple people please create a group </p>}</>
@@ -560,6 +561,30 @@ const AddExpense = () => {
                         value={val}
                         onChange={(e) => setVal(e.target.value)}
                     />}
+                    </>}
+                    {expenseMode === 'split' && friends.length === 0 && groups.length === 0 && (
+                        <div className="flex flex-col flex-1 justify-center">
+                        <div className="bg-[#1f1f1f] text-center text-[#EBF1D5] border border-[#333] p-4 rounded-lg mt-4">
+                            <p className="text-lg font-semibold mb-2">No friends or groups yet!</p>
+                            <p className="text-sm text-[#bbb] mb-4">To split expenses, add a friend or create a group.</p>
+                            <div className="flex justify-center gap-4">
+                                <button
+                                    onClick={() => window.location.href = '/friends'}
+                                    className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
+                                >
+                                    Add Friend
+                                </button>
+                                <button
+                                    onClick={() => window.location.href = '/groups'}
+                                    className="bg-[#EBF1D5] text-black px-4 py-2 rounded hover:bg-[#d0d5a9] transition"
+                                >
+                                    Create Group
+                                </button>
+                            </div>
+                        </div>
+                        </div>
+                    )}
+
                     {loading ? (
                         <div className="flex flex-col justify-center items-center flex-1 py-5">
 

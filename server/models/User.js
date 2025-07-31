@@ -10,6 +10,8 @@ const userSchema = new mongoose.Schema({
       emoji: String,
     }
   ],
+  picture: { type: String },
+  googleId: { type: String },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

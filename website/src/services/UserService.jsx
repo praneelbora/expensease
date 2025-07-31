@@ -2,26 +2,6 @@ import Cookies from "js-cookie";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
-export const loginOrRegister = async (email, name = null) => {
-    try {
-        const response = await fetch(`${BASE_URL}/v1/users/login`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(name ? { email, name } : { email }),
-        });
-
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Login/Register failed");
-
-        return data;
-    } catch (err) {
-        console.error("Error logging in/registering:", err);
-        return { error: "Something went wrong. Please try again." };
-    }
-};
-
 export const fetchUserData = async () => {
     const token = Cookies.get("userToken");
     if (!token) return null;
@@ -92,4 +72,35 @@ export const saveUserCategories = async (categories,userToken) => {
     });
     const responseJson = await res.json()
     return responseJson
+};
+
+// services/UserService.js
+export const googleLogin = async (credential) => {
+    try {
+        const response = await fetch(`${BASE_URL}/v1/users/google-login`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ credential }),
+        });
+
+        const data = await response.json();
+        console.log(data);
+
+        if (!response.ok) {
+            throw new Error(data.error || "Google login failed.");
+        }
+
+        const authToken = data.responseBody["x-auth-token"];
+        Cookies.set("userToken", authToken, { expires: 100 });
+
+        return {
+            token: authToken,
+            user: data.user,
+        };
+    } catch (err) {
+        console.error("Google login error:", err);
+        return { error: "Something went wrong. Please try again." };
+    }
 };

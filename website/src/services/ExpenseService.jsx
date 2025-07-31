@@ -39,6 +39,7 @@ export const deleteExpense = async (expenseId, userToken) => {
 
 export const getAllExpenses = async (userToken) => {
     try {
+      if(!userToken) return;
         const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses`, {
             method: "GET",
             headers: {

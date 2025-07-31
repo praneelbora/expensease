@@ -47,7 +47,7 @@ function App() {
         <Routes>
             <Route
                 path="/login"
-                element={user ? <Navigate to="/groups" /> : <Login />}
+                element={user ? <Navigate to="/dashboard" /> : <Login />}
             />
             <Route
                 path="/dashboard"
@@ -96,7 +96,7 @@ function App() {
 
             <Route
                 path="/"
-                element={<Navigate to={user ? "/groups" : "/login"} />}
+                element={<Navigate to={user ? "/dashboard" : "/login"} />}
             />
             <Route path="/groups/join/:code" element={<GroupJoin />} />
             <Route path="/friends/add/:senderId" element={<FriendRequest />} />

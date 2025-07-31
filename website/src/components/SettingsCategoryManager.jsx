@@ -100,7 +100,7 @@ const SettingsCategoryManager = ({ userToken }) => {
             <DndProvider backend={HTML5Backend}>
                 {newCategories.map((cat, index) => (
                     <DraggableCategory
-                        key={cat._id}
+                        key={`category${index}`}
                         index={index}
                         category={cat}
                         moveCategory={moveCategory}

@@ -110,8 +110,19 @@ const Groups = () => {
                             <Loader />
                         </div>
                     ) : groups?.length === 0 ? (
-                        <div className="flex flex-col justify-center items-center flex-1 py-5">
-                            <p>No groups found.</p>
+                         <div className="flex flex-col flex-1 justify-center">
+                        <div className="bg-[#1f1f1f] text-center text-[#EBF1D5] border border-[#333] p-4 rounded-lg mt-4">
+                            <p className="text-lg font-semibold mb-2">No groups yet!</p>
+                            <p className="text-sm text-[#bbb] mb-4">To split expenses, create a group.</p>
+                            <div className="flex justify-center gap-4">
+                                <button
+                                    onClick={() => setShowModal(true)}
+                                    className="bg-[#EBF1D5] text-black px-4 py-2 rounded hover:bg-[#d0d5a9] transition"
+                                >
+                                    Create Group
+                                </button>
+                            </div>
+                        </div>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-4">

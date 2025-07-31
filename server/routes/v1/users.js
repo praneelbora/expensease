@@ -7,7 +7,8 @@ const nodemailer = require('nodemailer');
 const auth = require('../../middleware/auth');
 const DefaultCategories = require('../../assets/Categories').default;
 const { sendLoginLinkEmail } = require('./email');
-
+const { OAuth2Client } = require("google-auth-library");
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET;
 
 router.post('/login', async (req, res) => {
@@ -111,6 +112,52 @@ router.post('/categories', auth, async (req, res) => {
     } catch (err) {
         console.error('Error saving categories:', err);
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+
+router.post("/google-login", async (req, res) => {
+    const { credential } = req.body;
+
+    if (!credential) {
+        return res.status(400).json({ error: "Missing Google ID token" });
+    }
+
+    try {
+        // 1. Verify Google Token
+        const ticket = await client.verifyIdToken({
+            idToken: credential,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+
+        const payload = ticket.getPayload();
+        const { email, name, picture, sub: googleId } = payload;
+        console.log(payload);
+        
+        // 2. Find or Create User
+        let user = await User.findOne({ email });
+        if (!user) {
+            user = await User.create({ email, name, picture, googleId });
+        }
+
+        // 3. Issue your JWT
+        const authToken = jwt.sign({ id: user._id }, JWT_SECRET, {
+            expiresIn: "7d",
+        });
+
+        // 4. Respond with token and user info
+        res.status(200).json({
+            responseBody: { "x-auth-token": authToken },
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                picture: user.picture,
+            },
+        });
+    } catch (err) {
+        console.error("Google login failed:", err);
+        res.status(401).json({ error: "Invalid or expired Google token" });
     }
 });
 
