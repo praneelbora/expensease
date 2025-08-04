@@ -125,12 +125,12 @@ const Account = () => {
 
 
                             {/* Monthly Summary */}
-                            <div className="bg-[#1E1E1E] p-4 rounded-xl shadow">
+                            {/* <div className="bg-[#1E1E1E] p-4 rounded-xl shadow">
                                 <h2 className="text-xl font-semibold mb-2">Monthly Expense Summary</h2>
                                 <p className="text-[#BBBBBB] text-sm">
                                     Coming soon: Charts, categories, trends, etc.
                                 </p>
-                            </div>
+                            </div> */}
                             <CategoriesManage userToken={userToken} />
                             {/* Support the Developer */}
                             <div onClick={() => window.location.href = '/supportdeveloper'} className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-between">

@@ -20,11 +20,10 @@ export default function ExpenseModal({ showModal, setShowModal, fetchExpenses, u
 
         try {
             await deleteExpense(showModal._id, userToken); // pass the expense ID and token
-            alert("Expense deleted successfully!");
             fetchExpenses();
             setShowModal(false); // close modal
         } catch (err) {
-            alert(err.message || "Something went wrong while deleting.");
+            console.log(err.message || "Something went wrong while deleting.");
         }
     };
 

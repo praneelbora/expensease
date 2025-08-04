@@ -5,7 +5,7 @@ import { googleLogin } from "../services/UserService";
 import { useNavigate } from "react-router-dom";
 export default function LoginRegister() {
     const navigate = useNavigate()
-    const { setUser } = useAuth(); // Assuming your context has a `setUser`
+    const { setUser, setUserToken } = useAuth(); // Assuming your context has a `setUser`
     const [error, setError] = useState("");
 
     return (
@@ -22,6 +22,7 @@ export default function LoginRegister() {
                                 return;
                             }
                             setUser(result.user);
+                            setUserToken(result.userToken)
                             navigate("/dashboard");
                         }}
                         onError={() => {

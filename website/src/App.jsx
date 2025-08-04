@@ -9,7 +9,6 @@ import GroupDetails from "./pages/GroupDetails";
 import FriendDetails from "./pages/FriendDetails";
 import Account from "./pages/Account";
 import Logout from "./pages/Logout";
-import LinkLogin from "./pages/LinkLogin";
 import GroupJoin from "./pages/GroupJoin";
 import GroupSettings from "./pages/GroupSettings";
 import Dashboard from "./pages/Dashboard";
@@ -31,18 +30,6 @@ function PrivateRoute({ children }) {
 function App() {
     const { user, logout } = useAuth() || {}; // use user info for redirects
     const location = useLocation();
-    const { handleLinkLogin } = useAuth() || {};
-    useEffect(() => {
-        const urlParams = new URLSearchParams(location.search);
-        const token = urlParams.get("token");
-
-        if (token) {
-            handleLinkLogin(token);
-            // Optionally: clean URL so token isn't visible after login
-            window.history.replaceState({}, document.title, "/"); // 👈 removes token from URL
-        }
-    }, []); // 👈 Remove `location` from dependency to run only once on mount
-
     return (
         <Routes>
             <Route
@@ -92,8 +79,6 @@ function App() {
                 path="/logout"
                 element={<Logout />}
             />
-            <Route path="/link-login" element={<LinkLogin />} />
-
             <Route
                 path="/"
                 element={<Navigate to={user ? "/dashboard" : "/login"} />}

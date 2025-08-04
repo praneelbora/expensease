@@ -86,8 +86,6 @@ export const googleLogin = async (credential) => {
         });
 
         const data = await response.json();
-        console.log(data);
-
         if (!response.ok) {
             throw new Error(data.error || "Google login failed.");
         }
@@ -96,7 +94,7 @@ export const googleLogin = async (credential) => {
         Cookies.set("userToken", authToken, { expires: 100 });
 
         return {
-            token: authToken,
+            userToken: authToken,
             user: data.user,
         };
     } catch (err) {

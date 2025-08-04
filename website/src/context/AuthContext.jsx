@@ -11,16 +11,6 @@ export const AuthProvider = ({ children }) => {
     const [categories, setCategories] = useState([]);
     const navigate = useNavigate();
 
-    const handleLinkLogin = async (token) => {
-        try {
-            const { user, token: authToken } = await linkLogin(token);
-            setUser(user);
-            setUserToken(authToken);
-        } catch (err) {
-            alert(err.message);
-        }
-    };
-
     const loadUserData = async () => {
         const user = await fetchUserData();
         setUser(user);
@@ -46,7 +36,7 @@ export const AuthProvider = ({ children }) => {
     };
     
     return (
-        <AuthContext.Provider value={{ user, setUser, logout, userToken, authLoading, handleLinkLogin, categories,setCategories }}>
+        <AuthContext.Provider value={{ user, setUser, logout, userToken, setUserToken, authLoading, categories,setCategories }}>
             {children}
         </AuthContext.Provider>
     );

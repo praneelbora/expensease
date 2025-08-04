@@ -16,11 +16,11 @@ export default function FriendExpenseModal({
         try {
             setSettleLoading(true);
             await settleFriendExpense(friend._id, userToken);
-            alert("Expenses settled successfully.");
+            console.log("Expenses settled successfully.");
             onSettle();
             onClose();
         } catch (err) {
-            alert("Failed to settle expenses.");
+            console.log("Failed to settle expenses.");
         } finally {
             setSettleLoading(false);
         }

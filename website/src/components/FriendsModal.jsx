@@ -20,13 +20,13 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
     const handleAddFriend = async () => {
         try {
             const data = await sendFriendRequest(val, userToken);
-            alert(data.message || "Friend request sent!");
+            console.log(data.message || "Friend request sent!");
             fetchFriends();
             handleSentRequests();
             handleReceivedRequests();
             setShowModal(false);
         } catch (err) {
-            alert(err.message || "Something went wrong.");
+            console.log(err.message || "Something went wrong.");
         }
     };
 
@@ -38,7 +38,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
             handleReceivedRequests();
             setShowModal(false);
         } catch (err) {
-            alert(err.message || "Error accepting request");
+            console.log(err.message || "Error accepting request");
         }
     };
 
@@ -50,7 +50,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
             handleReceivedRequests();
             setShowModal(false);
         } catch (err) {
-            alert(err.message || "Error rejecting request");
+            console.log(err.message || "Error rejecting request");
         }
     };
 
@@ -62,7 +62,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
             handleReceivedRequests();
             setShowModal(false);
         } catch (err) {
-            alert(err.message || "Error cancelling request");
+            console.log(err.message || "Error cancelling request");
         }
     };
 
@@ -72,7 +72,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
             const sent = await fetchSentRequests(userToken);
             setSent(sent);
         } catch (err) {
-            alert(err.message || "Failed to load sent requests");
+            // console.log(err.message || "Failed to load sent requests");
         }
     };
 
@@ -81,7 +81,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
             const received = await fetchReceivedRequests(userToken);
             setReceived(received);
         } catch (err) {
-            alert(err.message || "Failed to load received requests");
+            // console.log(err.message || "Failed to load received requests");
         }
     };
 

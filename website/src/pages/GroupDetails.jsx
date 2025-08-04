@@ -46,9 +46,9 @@ const GroupDetails = () => {
         try {
             await settleExpense({ payerId, receiverId, amount, description, groupId: id }, userToken);
             await getGroupExpenses(id, userToken);
-            alert("Settlement recorded successfully!");
+            console.log("Settlement recorded successfully!");
         } catch (err) {
-            alert(err.message || "Could not settle the amount.");
+            console.log(err.message || "Could not settle the amount.");
         }
     };
 

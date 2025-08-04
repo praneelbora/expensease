@@ -48,7 +48,6 @@ export default function SettleModal({ setShowModal, group, simplifiedTransaction
 
     const handleConfirm = () => {
         if (!payerId || !receiverId || !amount || payerId === receiverId) {
-            alert('Please fill all fields correctly.');
             return;
         }
         setConfirmationVisible(true); // show confirm step first

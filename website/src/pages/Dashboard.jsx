@@ -192,7 +192,8 @@ const Dashboard = () => {
                             <Loader />
                         </div>
                     ) : expenses.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center flex-1 py-10 text-center space-y-4">
+                        <div className="flex flex-col flex-1 justify-center">
+                        <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-4 bg-[#1f1f1f]">
                             <h2 className="text-2xl font-semibold">No Expenses Yet</h2>
                             <p className="text-sm text-gray-400 max-w-sm">
                                 You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
@@ -203,6 +204,7 @@ const Dashboard = () => {
                             >
                                 Add Expense
                             </button>
+                        </div>
                         </div>
                     ) : (
 

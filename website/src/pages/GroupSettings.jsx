@@ -73,11 +73,11 @@ export default function GroupSettings() {
     const addFriend = async (email) => {
         try {
             const data = await sendFriendRequest(email, userToken)
-            alert(data.message || "Friend request sent!");
+            console.log(data.message || "Friend request sent!");
             fetchFriends();
         } catch (err) {
             console.error("Error adding friend:", err);
-            alert("Something went wrong.");
+            console.log("Something went wrong.");
         }
     };
 

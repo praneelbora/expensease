@@ -133,7 +133,7 @@ const AddExpense = () => {
 
     const handleSubmitExpense = async () => {
         if (!desc || !amount || !category) {
-            alert('Please fill all required fields');
+            console.log('Please fill all required fields');
             return;
         }
 
@@ -166,7 +166,7 @@ const AddExpense = () => {
 
         try {
             const data = await createExpense(expenseData, userToken);
-            alert('Expense created successfully!');
+            console.log('Expense created successfully!');
             setDesc('');
             setAmount('');
             setMode('');
@@ -176,7 +176,7 @@ const AddExpense = () => {
             setExpenseDate(new Date().toISOString().split("T")[0]);
         } catch (error) {
             console.error(error);
-            alert('Error creating expense');
+            console.log('Error creating expense');
         }
     };
 

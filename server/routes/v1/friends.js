@@ -85,22 +85,28 @@ router.post('/accept', auth, async (req, res) => {
     request.status = 'accepted';
     await request.save();
 
-    // Add each other as friends
     let sender = await User.findById(request.sender._id);
     let receiver = await User.findById(request.receiver._id);
 
-    sender.friends.push(receiver._id);
-    receiver.friends.push(sender._id);
+    // ✅ Only add if not already friends
+    if (!sender.friends.includes(receiver._id)) {
+      sender.friends.push(receiver._id);
+    }
+
+    if (!receiver.friends.includes(sender._id)) {
+      receiver.friends.push(sender._id);
+    }
 
     await sender.save();
     await receiver.save();
 
     res.json({ msg: 'Friend request accepted' });
   } catch (error) {
-    console.log('friends/accept error: ',error);
+    console.log('friends/accept error: ', error);
     res.status(500).json({ error: error.message });
   }
 });
+
 
 router.post('/reject', auth, async (req, res) => {
   try {

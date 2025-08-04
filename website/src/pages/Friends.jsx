@@ -24,7 +24,7 @@ const Friends = () => {
             fetchFriends();
             setShowModal(false);
         } catch (err) {
-            alert(err.message || "Error accepting request");
+            console.log(err.message || "Error accepting request");
         }
     };
     const { userToken } = useAuth() || {}
@@ -36,7 +36,6 @@ const Friends = () => {
     const [selectedFriend, setSelectedFriend] = useState(null);
     const [showFriendExpenseModal, setShowFriendExpenseModal] = useState(false);
     const round = (val) => Math.round(val * 100) / 100;
-
     const [receivedRequests, setReceivedRequests] = useState([]);
     const fetchReceived = async () => {
         try {
@@ -62,13 +61,13 @@ const Friends = () => {
     useEffect(() => {
         fetchReceived()
         fetchFriends();
+        fetchExpenses();
     }, []);
     const fetchExpenses = async () => {
         try {
             const data = await getAllExpenses(userToken);
             setExpenses(data.expenses.filter(exp => exp.groupId == undefined));
             setUserId(data.id);
-
         } catch (error) {
             console.error("Error loading expenses:", error);
         }
@@ -84,6 +83,7 @@ const Friends = () => {
             handleLinkRequest(toId);
         }
     }, [location]);
+    
     const handleLinkRequest = async (toId) => {
         try {
             const data = await acceptLinkFriendRequest(toId, userToken);
@@ -91,20 +91,16 @@ const Friends = () => {
             if (data.error || data.message?.toLowerCase().includes("error")) {
                 // Show error from backend if present
                 const errorMsg = data.message || data.error || "Failed to send friend request.";
-                alert(errorMsg); // You can replace with toast(errorMsg)
+                console.log(errorMsg); // You can replace with toast(errorMsg)
                 return;
             }
 
-            alert(data.message || "Friend request sent successfully."); // Success feedback
+            console.log(data.message || "Friend request sent successfully."); // Success feedback
         } catch (error) {
             console.error("Error sending link request:", error);
-            alert("Something went wrong. Please try again.");
+            console.log("Something went wrong. Please try again.");
         }
     };
-
-    useEffect(() => {
-        fetchExpenses();
-    }, []);
 
     return (
         <MainLayout>
