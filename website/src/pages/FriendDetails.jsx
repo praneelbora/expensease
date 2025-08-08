@@ -577,7 +577,7 @@ const FriendDetails = () => {
             </div>
 
             {showModal && (
-                <ExpenseModal showModal={showModal} fetchExpenses={() => getFriendExpense(id, userToken)} setShowModal={setShowModal} userToken={userToken} />
+                <ExpenseModal showModal={showModal} fetchExpenses={() => fetchData()} setShowModal={setShowModal} userToken={userToken} />
             )}
             {showSettleModal && (
                 <SettleModal
