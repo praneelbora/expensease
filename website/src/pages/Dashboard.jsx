@@ -47,8 +47,6 @@ const Dashboard = () => {
     const CustomTooltip = ({ active, payload }) => {
         if (active && payload && payload.length) {
             const { name, value } = payload[0];
-            console.log(name, value);
-
             return (
                 <div className="bg-black text-[#EBF1D5] text-sm px-2 py-1 rounded shadow-md">
                     <strong>{name}</strong>: ₹{value.toFixed(2)}

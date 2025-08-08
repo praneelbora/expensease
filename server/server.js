@@ -7,6 +7,7 @@ const users = require('./routes/v1/users');
 const groups = require('./routes/v1/groups');
 const friends = require('./routes/v1/friends');
 const expenses = require('./routes/v1/expenses');
+const loans = require('./routes/v1/loans');
 
 const app = express();
 app.use(cors());
@@ -28,6 +29,7 @@ app.use('/api/v1/users', users);
 app.use('/api/v1/groups', groups);
 app.use('/api/v1/friends', friends);
 app.use('/api/v1/expenses', expenses);
+app.use('/api/v1/loans', loans);
 
 module.exports = app;
 // const PORT = process.env.PORT || 3000;

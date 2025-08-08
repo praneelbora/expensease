@@ -1,14 +1,17 @@
 import { useContext, useEffect, useState } from "react";
 import MainLayout from '../layouts/MainLayout';
 import { useLocation } from 'react-router-dom';
+import { useNavigate, useParams } from "react-router-dom";
+
 import { useRef } from 'react';
 import { useAuth } from "../context/AuthContext";
-import { Loader } from "lucide-react";
+import { ChevronLeft, Loader } from "lucide-react";
 import { getFriends } from "../services/FriendService";
 import { getAllGroups, joinGroup } from "../services/GroupService";
 import { createExpense } from "../services/ExpenseService";
 import { CalendarDays } from "lucide-react"; // or use any other icon
 const AddExpense = () => {
+    const navigate = useNavigate()
     const [friends, setFriends] = useState([]);
     const { userToken, categories } = useAuth() || {}
     const location = useLocation();
@@ -39,6 +42,8 @@ const AddExpense = () => {
     const [deleteConfirmMap, setDeleteConfirmMap] = useState({});
     const [groupSelect, setGroupSelect] = useState();
     const hasPreselectedGroup = useRef(false);
+    const hasPreselectedFriend = useRef(false);
+    const preselectedFriendId = useRef(false);
     // Checks if "Me" is present
     const isMePresent = selectedFriends.some(f => f._id === 'me');
 
@@ -58,29 +63,36 @@ const AddExpense = () => {
                 toggleGroupSelection(preselectedGroup);
             }
         }
-    }, [groups, location.state]);
+        if (
+            !hasPreselectedFriend.current &&
+            friends.length > 0 &&
+            location.state?.friendId
+        ) {
+            const preselectedFriend = friends.find(
+                f => f._id === location.state.friendId
+            );
+
+            if (preselectedFriend) {
+                setExpenseMode('split')
+                hasPreselectedFriend.current = true; // mark as initialized
+                preselectedFriendId.current = preselectedFriend._id;
+                toggleFriendSelection(preselectedFriend);
+            }
+        }
+    }, [groups, friends, location.state]);
 
 
     // Remove a friend after confirmation
     const handleRemoveFriend = (friend) => {
-        if (deleteConfirmMap[friend._id]) {
-            let updatedFriends = selectedFriends.filter(f => f._id !== friend._id);
-            const onlyMeLeft = updatedFriends.length === 1 && updatedFriends[0]._id === 'me';
-            if (onlyMeLeft || updatedFriends.length === 0) {
-                updatedFriends = updatedFriends.filter(f => f._id !== 'me');
-            }
 
-            setSelectedFriends(updatedFriends);
-
-            // Reset delete state
-            setDeleteConfirmMap(prev => {
-                const copy = { ...prev };
-                delete copy[friend._id];
-                return copy;
-            });
-        } else {
-            setDeleteConfirmMap(prev => ({ ...prev, [friend._id]: true }));
+        let updatedFriends = selectedFriends.filter(f => f._id !== friend._id);
+        const onlyMeLeft = updatedFriends.length === 1 && updatedFriends[0]._id === 'me';
+        if (onlyMeLeft || updatedFriends.length === 0) {
+            updatedFriends = updatedFriends.filter(f => f._id !== 'me');
         }
+
+        setSelectedFriends(updatedFriends);
+
     };
 
     // Remove a friend after confirmation
@@ -174,6 +186,8 @@ const AddExpense = () => {
             setSelectedFriends([]);
             setGroupSelect(null);
             setExpenseDate(new Date().toISOString().split("T")[0]);
+            if(hasPreselectedGroup.current) navigate(`/groups/${groupSelect._id}`)
+            if(hasPreselectedFriend.current) navigate(`/friends/${preselectedFriendId.current}`)
         } catch (error) {
             console.error(error);
             console.log('Error creating expense');
@@ -521,8 +535,17 @@ const AddExpense = () => {
     return (
         <MainLayout>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
+                
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
-                    <h1 className="text-3xl font-bold capitalize">New Expense</h1>
+                    <div className="flex flex-row gap-2">
+                        {hasPreselectedFriend.current && <button onClick={() => navigate(`/friends/${preselectedFriendId?.current}`)}>
+                            <ChevronLeft />
+                        </button>}
+                        {hasPreselectedGroup.current && <button onClick={() => navigate(`/groups/${groupSelect?._id}`)}>
+                            <ChevronLeft />
+                        </button>}
+                        <h1 className="text-3xl font-bold capitalize">New Expense</h1>
+                        </div>
                 </div>
                 <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
 
@@ -549,39 +572,39 @@ const AddExpense = () => {
                     </div>
 
 
-                    {(groups.length>0 || friends.length>0 )&& <>
-                    
-                    {(expenseMode == 'split' && !groupSelect) && <>{selectedFriends.length == 0 ?
-                        <p className="text-[13px] text-[#81827C] mb-1">Select a group or a friend you want to add an expense with.</p> :
-                        <p className="text-[13px] text-[#81827C] mb-1">To add an expense with multiple people please create a group </p>}</>
-                    }
-                    {expenseMode == 'split' && !groupSelect && selectedFriends.length == 0 && <input
-                        className="w-full bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3"
-                        placeholder="Search For Friends / Groups"
-                        value={val}
-                        onChange={(e) => setVal(e.target.value)}
-                    />}
+                    {(groups.length > 0 || friends.length > 0) && <>
+
+                        {(expenseMode == 'split' && !groupSelect) && <>{selectedFriends.length == 0 ?
+                            <p className="text-[13px] text-[#81827C] mb-1">Select a group or a friend you want to add an expense with.</p> :
+                            <p className="text-[13px] text-[#81827C] mb-1">To add an expense with multiple people please create a group </p>}</>
+                        }
+                        {expenseMode == 'split' && !groupSelect && selectedFriends.length == 0 && <input
+                            className="w-full bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3"
+                            placeholder="Search For Friends / Groups"
+                            value={val}
+                            onChange={(e) => setVal(e.target.value)}
+                        />}
                     </>}
                     {expenseMode === 'split' && friends.length === 0 && groups.length === 0 && (
                         <div className="flex flex-col flex-1 justify-center">
-                        <div className="bg-[#1f1f1f] text-center text-[#EBF1D5] border border-[#333] p-4 rounded-lg mt-4">
-                            <p className="text-lg font-semibold mb-2">No friends or groups yet!</p>
-                            <p className="text-sm text-[#bbb] mb-4">To split expenses, add a friend or create a group.</p>
-                            <div className="flex justify-center gap-4">
-                                <button
-                                    onClick={() => window.location.href = '/friends'}
-                                    className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
-                                >
-                                    Add Friend
-                                </button>
-                                <button
-                                    onClick={() => window.location.href = '/groups'}
-                                    className="bg-[#EBF1D5] text-black px-4 py-2 rounded hover:bg-[#d0d5a9] transition"
-                                >
-                                    Create Group
-                                </button>
+                            <div className="bg-[#1f1f1f] text-center text-[#EBF1D5] border border-[#333] p-4 rounded-lg mt-4">
+                                <p className="text-lg font-semibold mb-2">No friends or groups yet!</p>
+                                <p className="text-sm text-[#bbb] mb-4">To split expenses, add a friend or create a group.</p>
+                                <div className="flex justify-center gap-4">
+                                    <button
+                                        onClick={() => window.location.href = '/friends'}
+                                        className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
+                                    >
+                                        Add Friend
+                                    </button>
+                                    <button
+                                        onClick={() => window.location.href = '/groups'}
+                                        className="bg-[#EBF1D5] text-black px-4 py-2 rounded hover:bg-[#d0d5a9] transition"
+                                    >
+                                        Create Group
+                                    </button>
+                                </div>
                             </div>
-                        </div>
                         </div>
                     )}
 
@@ -595,63 +618,73 @@ const AddExpense = () => {
 
 
                             {expenseMode == 'split' && (groupSelect || selectedFriends.length > 0) && <div className="flex flex-wrap gap-2 mt-2">
-                                {expenseMode == 'split' && !groupSelect && selectedFriends.map((friend) => (
-                                    friend._id == 'me' ? <div
-                                        key={'selected' + friend._id}
-                                        className="flex items-center h-[30px] gap-2 px-3 overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]"
-                                    >
-                                        <p className="capitalize">Me</p>
+                                {expenseMode === 'split' && !groupSelect && (
+                                    <div key={'selected'}
+                                        className="flex w-full flex-col gap-2 mt-2">
+                                        <span className="text-[13px] text-teal-500 uppercase">
+                                            Friend Selected
+                                        </span>
+                                        {selectedFriends
+                                            .filter(friend => friend._id !== 'me') // remove "me"
+                                            .map(friend => (
+                                                <div
+                                                    key={'selected' + friend._id}
+                                                    className="flex justify-between items-center h-[30px] gap-2 text-xl text-[#EBF1D5]"
+                                                >
+                                                    <p className="capitalize">{friend.name}</p>
+                                                    <button
+                                                        onClick={() => handleRemoveFriend(friend)}
+                                                        className="px-2 text-sm text-red-500"
+                                                        title="Change friend"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            ))}
+                                    </div>)
+                                }
 
-                                    </div> : <div
-                                        key={'selected' + friend._id}
-                                        className="flex items-center h-[30px] gap-2 ps-3 overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]"
-                                    >
-                                        <p className="capitalize">{friend.name}</p>
-                                        <button
-                                            onClick={() => handleRemoveFriend(friend)}
-                                            className={`px-2 h-full -mt-[2px] ${deleteConfirmMap[friend._id] ? 'bg-red-500' : 'bg-transparent'
-                                                }`}
-                                        >
-                                            ×
-                                        </button>
-                                    </div>
-                                ))}
                                 {expenseMode == 'split' && groupSelect && (<>
-                                    <p className="uppercae text-[13px] text-teal-500 w-full mb-1">GROUP SELECTED</p>
-                                    <div
-                                        key={'selected' + groupSelect._id}
-                                        className="flex items-center h-[30px] gap-1 ps-3 overflow-hidden rounded-xl border border-[#81827C] text-sm text-[#EBF1D5]"
-                                    >
-                                        <p className="capitalize">{groupSelect.name}</p>
-                                        <button
-                                            onClick={() => handleRemoveGroup(groupSelect)}
-                                            className={`px-2 h-full pb-[2px] ${deleteConfirmMap[groupSelect._id] ? 'bg-red-500' : 'bg-transparent'
-                                                }`}
-                                        >
-                                            ×
-                                        </button>
+                                    <div key={'selected' + groupSelect._id}
+                                        className="flex w-full flex-col gap-2 mt-2">
+                                        <span className="text-[13px] text-teal-500 uppercase">
+                                            Group Selected
+                                        </span>
+                                        <div className="flex justify-between items-center h-[30px] gap-2 text-xl text-[#EBF1D5]">
+                                            <p className="capitalize">{groupSelect.name}</p>
+
+                                            <button
+                                                onClick={() => {
+                                                    toggleGroupSelection(groupSelect)
+                                                }}
+                                                className="px-2 text-sm text-red-500"
+                                                title="Change friend"
+                                            >
+                                                Remove
+                                            </button>
+
+                                        </div>
+
                                     </div>
                                 </>)}
                             </div>}
                             {expenseMode == 'split' && (selectedFriends.length === 0 || val.length > 0) && (
-                                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 px-2 mt-4`}>
+                                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 mt-4`}>
                                     {(val.length === 0 || selectedFriends.length === 0) && (
                                         <div>
                                             {groups.length > 0 && (
                                                 <p className="text-[13px] text-teal-500 uppercase w-full mb-1">GROUPS</p>
                                             )}
-
-                                            {visibleGroups.map((group) => (
-                                                <div
-                                                    key={group._id}
-                                                    onClick={() => toggleGroupSelection(group)}
-                                                    className="flex flex-col gap-1 cursor-pointer hover:bg-[#1f1f1f] py-1 rounded-md transition"
-                                                >
-                                                    <h2 className="text-xl font-semibold capitalize">{group.name}</h2>
-                                                    <hr />
-                                                </div>
-                                            ))}
-
+                                            <div className="flex flex-wrap gap-2">
+                                                {visibleGroups.map((group) => (
+                                                    <button
+                                                        key={group._id}
+                                                        onClick={() => toggleGroupSelection(group)}
+                                                        className={`px-3 py-2 rounded-lg border border-[#333] text-[#EBF1D5]`}
+                                                    >
+                                                        {group.name}
+                                                    </button>))}
+                                            </div>
                                             {filteredGroups.length > groupDisplayLimit && (
                                                 <button
                                                     onClick={() => setShowAllGroups(!showAllGroups)}
@@ -668,22 +701,19 @@ const AddExpense = () => {
                                                 FRIENDS
                                             </p>
                                         )}
+                                        <div className="flex flex-wrap gap-2">
 
-                                        {visibleFriends.map((friend) => (
-                                            <div
-                                                className="flex flex-col gap-1 mt-1"
-                                                onClick={() => toggleFriendSelection(friend)}
-                                                key={friend._id}
-                                            >
-                                                <div className="flex flex-row w-full justify-between items-center">
-                                                    <div className="flex flex-col">
-                                                        <h2 className="text-xl capitalize text-[#EBF1D5]">{friend.name}</h2>
-                                                        <p className="lowercase text-[#81827C]">{friend.email}</p>
-                                                    </div>
-                                                </div>
-                                                <hr />
-                                            </div>
-                                        ))}
+                                            {visibleFriends.map(fr => (
+                                                <button
+                                                    key={fr._id}
+                                                    onClick={() => toggleFriendSelection(fr)}
+                                                    className={`px-3 py-2 rounded-lg border ${selectedFriends.some(s => s._id === fr._id)
+                                                        ? 'bg-teal-600 text-white' : 'border-[#333] text-[#EBF1D5]'}`}
+                                                >
+                                                    {fr.name}
+                                                </button>
+                                            ))}
+                                        </div>
 
                                         {filteredFriends.length > friendDisplayLimit && (
                                             <button
@@ -700,7 +730,9 @@ const AddExpense = () => {
 
                             {(expenseMode == 'personal' || (selectedFriends.length > 0 && val === '')) && (
                                 <div className="flex flex-col mt-1 gap-2 w-full">
-
+                                    <p className="text-[13px] text-teal-500 uppercase mt-2">
+                                        Create Expense
+                                    </p>
                                     <input
                                         className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
                                         placeholder="Enter Description"

@@ -5,10 +5,18 @@ import MainLayout from "../layouts/MainLayout";
 import { getFriendDetails } from "../services/FriendService";
 import { settleExpense, getFriendExpense } from "../services/ExpenseService";
 import SettleModal from "../components/SettleModal";
-import { ChevronLeft, Loader, Wallet } from "lucide-react";
+import { ChevronLeft, Loader, Wallet, Plus } from "lucide-react";
+
 import { useAuth } from "../context/AuthContext";
 import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
+
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
+import {
+    getLoans,
+    addRepayment as addLoanRepayment,
+    closeLoan as closeLoanApi,
+} from "../services/LoanService";
+import LoanRepayModal from "../components/LoanRepayModal";
 
 const FriendDetails = () => {
     const { userToken } = useAuth();
@@ -23,6 +31,23 @@ const FriendDetails = () => {
     const [showModal, setShowModal] = useState(false);
     const [showSettleModal, setShowSettleModal] = useState(false);
     const [settleType, setSettleType] = useState('partial');
+    const [loanLoading, setLoanLoading] = useState(true);
+    const [activeSection, setActiveSection] = useState("expenses"); // 'loans' | 'expenses'
+
+    const [loans, setLoans] = useState([]);
+    const [netLoanBalance, setNetLoanBalance] = useState(0);
+    // repayment modal
+    const [showLoanModal, setShowLoanModal] = useState(false);
+    const [activeLoan, setActiveLoan] = useState(null);
+    const [repayAmount, setRepayAmount] = useState("");
+    const [repayNote, setRepayNote] = useState("");
+
+    // state you already have (or add)
+    const [showRepayModal, setShowRepayModal] = useState(false);
+
+    // open from a button on a loan card
+
+
     const generateSimplifiedTransaction = (netBalance, userId, friendId) => {
         if (netBalance === 0) return [];
 
@@ -31,6 +56,67 @@ const FriendDetails = () => {
         const amount = Math.abs(netBalance);
 
         return [{ from, to, amount }];
+    };
+
+    const getOutstanding = (loan) => {
+        const paid = (loan.repayments || []).reduce((s, r) => s + (r.amount || 0), 0);
+        return Math.max(0, (loan.principal || 0) - paid);
+    };
+
+    // +ve => friend owes you (you lent)
+    // -ve => you owe friend (you borrowed)
+    const computeNetLoanBalance = (friendId, userId, friendLoans) => {
+        let net = 0;
+        for (const loan of friendLoans) {
+            const outstanding = getOutstanding(loan);
+            if (outstanding === 0) continue;
+            const youAreLender = loan.lenderId?._id?.toString?.() === userId;
+            const friendIsBorrower = loan.borrowerId?._id?.toString?.() === friendId;
+            const youAreBorrower = loan.borrowerId?._id?.toString?.() === userId;
+            const friendIsLender = loan.lenderId?._id?.toString?.() === friendId;
+
+            if (youAreLender && friendIsBorrower) net += outstanding;   // friend owes you
+            if (youAreBorrower && friendIsLender) net -= outstanding;   // you owe friend
+        }
+        return Math.round(net * 100) / 100;
+    };
+
+    const fetchLoansForFriend = async (meId, frId) => {
+        setLoanLoading(true);
+        try {
+            // fetch all your loans and filter by this friend
+            const res = await getLoans(userToken, { role: "all" });
+            const all = res?.loans || res || [];
+            const friendLoans = all.filter(l =>
+                (l.lenderId?._id === meId && l.borrowerId?._id === frId) ||
+                (l.lenderId?._id === frId && l.borrowerId?._id === meId)
+            );
+            setLoans(friendLoans.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+
+            const nl = computeNetLoanBalance(frId, meId, friendLoans);
+            setNetLoanBalance(nl);
+        } catch (e) {
+            console.error("Failed to fetch loans", e);
+        } finally {
+            setLoanLoading(false);
+        }
+    };
+
+    const fetchData = async () => {
+        const data = await getFriendDetails(id, userToken);
+        setFriend(data.friend);
+        setUserId(data.id);
+
+        const expenseData = await getFriendExpense(id, userToken);
+        setExpenses(expenseData);
+
+        const net = calculateFriendBalance(expenseData, data.id, data.friend._id);
+        setNetBalance(net);
+
+        // 🔹 fetch loans tied to this friend
+        await fetchLoansForFriend(data.id, data.friend._id);
+
+        setLoading(false);
     };
 
     const getSettleDirectionText = (splits) => {
@@ -44,18 +130,33 @@ const FriendDetails = () => {
 
         return `${payerName} paid ${receiverName}`;
     };
-    const fetchData = async () => {
-        const data = await getFriendDetails(id, userToken);
-        setFriend(data.friend);
-        setUserId(data.id);
+    const openRepay = (loan) => {
+        setActiveLoan(loan);
+        setRepayAmount("");
+        setRepayNote("");
+        setShowRepayModal(true);
+    };
 
-        const expenseData = await getFriendExpense(id, userToken);
-        setExpenses(expenseData);
+    const submitRepayment = async () => {
+        if (!activeLoan || !(Number(repayAmount) > 0)) return;
+        try {
+            await addLoanRepayment(activeLoan._id, { amount: Number(repayAmount), note: repayNote }, userToken);
+            setShowLoanModal(false);
+            await fetchLoansForFriend(userId, friend._id);
+        } catch (e) {
+            console.error(e);
+            alert(e.message || "Failed to add repayment");
+        }
+    };
 
-        const net = calculateFriendBalance(expenseData, data.id, data.friend._id);
-        setNetBalance(net);
-
-        setLoading(false);
+    const closeLoan = async (loan) => {
+        try {
+            await closeLoanApi(loan._id, {}, userToken);
+            await fetchLoansForFriend(userId, friend._id);
+        } catch (e) {
+            console.error(e);
+            alert(e.message || "Failed to close loan");
+        }
     };
 
     const [simplifiedTransactions, setSimplifiedTransactions] = useState(null);
@@ -194,7 +295,230 @@ const FriendDetails = () => {
                     </div>
                 </div>
                 <div className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar gap-3">
-                    <div className="px-4 pb-2">
+                    <div className="w-full flex justify-center">
+                        <div className="inline-flex border border-[#EBF1D5] rounded-full p-1 bg-[#1f1f1f]">
+                            <button
+                                onClick={() => setActiveSection("expenses")}
+                                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${activeSection === "expenses"
+                                    ? "bg-[#EBF1D5] text-[#121212]"
+                                    : "text-[#EBF1D5] hover:bg-[#2a2a2a]"
+                                    }`}
+                            >
+                                Expenses
+                            </button>
+                            <button
+                                onClick={() => setActiveSection("loans")}
+                                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${activeSection === "loans"
+                                    ? "bg-[#EBF1D5] text-[#121212]"
+                                    : "text-[#EBF1D5] hover:bg-[#2a2a2a]"
+                                    }`}
+                            >
+                                Loans
+                            </button>
+
+                        </div>
+                    </div>
+                    <div className="flex flex-col flex-1 w-full overflow-y-auto pt-1 no-scrollbar gap-3">
+
+                        {/* ---- LOANS SECTION ---- */}
+                        {activeSection === "loans" && (<>
+
+                            {loans.length !== 0 && <div className="pt-2">
+                                {/* Net Loan Balance */}
+                                <div className="mb-3">
+                                    <p className="text-sm text-gray-400">Net Loan Balance</p>
+                                    <p
+                                        className={`text-2xl font-semibold ${netLoanBalance > 0
+                                            ? "text-teal-500"
+                                            : netLoanBalance < 0
+                                                ? "text-red-400"
+                                                : "text-white"
+                                            }`}
+                                    >
+                                        {netLoanBalance > 0
+                                            ? "they owe you"
+                                            : netLoanBalance < 0
+                                                ? "you owe them"
+                                                : "All Settled"}{" "}
+                                        ₹{Math.abs(netLoanBalance).toFixed(2)}
+                                    </p>
+                                </div>
+                            </div>
+                            }
+
+
+
+
+                            {loanLoading ? (
+                                <div className="flex items-center gap-2 text-sm text-[#a0a0a0]">
+                                    <Loader className="animate-spin" size={16} /> Loading loans…
+                                </div>
+                            ) : loans.length === 0 ? (
+                                <div className="flex flex-1 flex-col justify-center">
+                                    <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-4 bg-[#1f1f1f]">
+                                        <h2 className="text-2xl font-semibold">No Loans Yet</h2>
+                                        <p className="text-sm text-gray-400 max-w-sm">
+                                            You haven’t added any loans yet. Start by adding your first one to see stats and insights.
+                                        </p>
+                                        <button
+                                            onClick={() => navigate(`/new-loan`, { state: { friendId: friend._id } })}
+                                            className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition"
+                                        >
+                                            Create Loan
+                                        </button>
+                                    </div></div>
+
+                            ) : (
+                                <div className="flex flex-col gap-2">
+                                    {loans.map((loan) => {
+                                        const outstanding = getOutstanding(loan);
+                                        const youAreLender = loan.lenderId?._id === userId;
+                                        const dirText = youAreLender ? "You lent" : "You borrowed";
+                                        return (
+                                            <div
+                                                key={loan._id}
+                                                className="border border-[#333] rounded-lg p-3 bg-[#171717] flex flex-col gap-1"
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <div className="text-sm">
+                                                        <div className="font-semibold">
+                                                            {dirText} ₹{loan.principal?.toFixed(2)}{" "}
+                                                            {youAreLender ? "to" : "from"} {friend?.name}
+                                                        </div>
+                                                        <div className="text-[#a0a0a0]">
+                                                            Outstanding: ₹{outstanding.toFixed(2)} • Status: {loan.status}
+                                                        </div>
+                                                        {loan.description && (
+                                                            <div className="text-[#a0a0a0] italic">{loan.description}</div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        {outstanding != 0 ? <button
+                                                            onClick={() => openRepay(loan)}
+                                                            className="px-3 py-1 rounded-md border border-[#55554f] text-sm hover:bg-[#222]"
+                                                        >
+                                                            Add Repayment
+                                                        </button> :
+                                                            <button
+                                                                onClick={() => closeLoan(loan)}
+                                                                disabled={outstanding > 0}
+                                                                className={`px-3 py-1 rounded-md text-sm ${outstanding > 0
+                                                                    ? "border border-[#333] text-[#666] cursor-not-allowed"
+                                                                    : "border border-[#55554f] hover:bg-[#222]"
+                                                                    }`}
+                                                                title={
+                                                                    outstanding > 0
+                                                                        ? "Repay fully before closing"
+                                                                        : "Close loan"
+                                                                }
+                                                            >
+                                                                Close
+                                                            </button>}
+                                                    </div>
+                                                </div>
+                                                {loan.repayments?.length > 0 && (
+                                                    <div className="mt-2 text-xs text-[#a0a0a0]">
+                                                        <p>
+                                                            Repayments:{" "}
+                                                        </p>
+                                                        {loan.repayments
+                                                            .slice()
+                                                            .reverse()
+                                                            .map((r, idx) => (
+                                                                <p key={idx} className="mr-2">
+                                                                    ₹{r.amount} on {new Date(r.at).toLocaleDateString()}
+                                                                </p>
+                                                            ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </>
+                        )}
+
+                        {/* ---- EXPENSES SECTION ---- */}
+                        {activeSection === "expenses" && (
+                            <>
+                                {expenses.length !== 0 && <div className="pb-2 pt-2">
+                                    <div>
+                                        <p className="text-sm text-gray-400">Net Expenses Balance</p>
+                                        <p
+                                            className={`text-2xl font-semibold ${netBalance > 0
+                                                ? "text-teal-500"
+                                                : netBalance < 0
+                                                    ? "text-red-400"
+                                                    : "text-white"
+                                                }`}
+                                        >
+                                            {netBalance > 0 ? "you are owed" : netBalance < 0 ? "you owe" : "All Settled"}{" "}
+                                            ₹{Math.abs(netBalance).toFixed(2)}
+                                        </p>
+                                    </div>
+
+                                    {netBalance !== 0 && (
+                                        <div className="flex flex-col gap-2 mt-2">
+                                            <button
+                                                onClick={() => {
+                                                    setSettleType("full");
+                                                    setShowSettleModal(true);
+                                                }}
+                                                className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
+                                            >
+                                                Settle
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>}
+
+                                {loading ? (
+                                    <div className="flex flex-col justify-center items-center flex-1 py-5">
+                                        <Loader />
+                                    </div>
+                                ) : !expenses ? (
+                                    <p>Group not found</p>
+                                ) : expenses.length === 0 ? (
+                                    <div className="flex flex-1 flex-col justify-center">
+                                        <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-4 bg-[#1f1f1f]">
+                                            <h2 className="text-2xl font-semibold">No Expenses Yet</h2>
+                                            <p className="text-sm text-gray-400 max-w-sm">
+                                                You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
+                                            </p>
+                                            <button
+                                                onClick={() => navigate('/new-expense', { state: { friendId: id } })}
+                                                className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition"
+                                            >
+                                                Add Expense
+                                            </button>
+                                        </div></div>
+
+                                ) : (
+                                    <div className="flex flex-col gap-y-3 gap-x-4 ">
+                                        <h3 className="text-lg font-semibold mb-2">Shared Expenses</h3>
+                                        {expenses
+                                            ?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                            ?.map((exp) => (
+                                                <ExpenseItem
+                                                    key={exp._id}
+                                                    expense={exp}
+                                                    onClick={setShowModal}
+                                                    getPayerInfo={getPayerInfo}
+                                                    getOweInfo={getOweInfo}
+                                                    getSettleDirectionText={getSettleDirectionText}
+                                                    userId={userId}
+                                                />
+                                            ))}
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                    </div>
+
+
+                    {/* <div className="px-4 pb-2">
                         <div>
                             <p className="text-sm text-gray-400">Net Balance</p>
                             <p className={`text-2xl font-semibold ${netBalance > 0 ? "text-teal-500" : netBalance < 0 ? "text-red-400" : "text-white"}`}>
@@ -216,33 +540,11 @@ const FriendDetails = () => {
                                 </button>
                             </div>
                         )}
-                    </div>
+                    </div> */}
 
 
 
-                    {loading ? (
-                        <div className="flex flex-col justify-center items-center flex-1 py-5">
-                            <Loader />
-                        </div>
-                    ) : !expenses ? (
-                        <p>Group not found</p>
-                    ) : (
-                        <div className="flex flex-col gap-y-3 gap-x-4">
-                            <h3 className="text-lg font-semibold mb-2">Shared Expenses</h3>
-                            {expenses?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                                ?.map((exp) => (
-                                    <ExpenseItem
-        key={exp._id}
-        expense={exp}
-        onClick={setShowModal}
-        getPayerInfo={getPayerInfo}
-        getOweInfo={getOweInfo}
-        getSettleDirectionText={getSettleDirectionText}
-        userId={userId}
-    />
-                                ))}
 
-                        </div>)}
                 </div>
             </div>
 
@@ -257,7 +559,57 @@ const FriendDetails = () => {
                     onSubmit={handleSettle}
                     userId={userId}
                 />
+            )}{showRepayModal && activeLoan && (
+                <LoanRepayModal
+                    setShowModal={setShowRepayModal}
+                    loan={activeLoan}
+                    userId={userId}
+                    onSubmitRepayment={async ({ amount, note, closeAfter }) => {
+                        await addLoanRepayment(activeLoan._id, { amount, note }, userToken);
+                        // optionally auto-close when fully repaid
+                        if (closeAfter) {
+                            await closeLoanApi(activeLoan._id, {}, userToken);
+                        }
+                        await fetchLoansForFriend(userId, friend._id); // refresh the list + balances
+                    }}
+                    onCloseLoan={async () => {
+                        await closeLoanApi(activeLoan._id, {}, userToken);
+                        await fetchLoansForFriend(userId, friend._id);
+                    }}
+                />
+
             )}
+            {/* Floating Add Button – shows only when list isn't empty */}
+            {!loading && (
+                <>
+                    {/* Expenses FAB */}
+                    {activeSection === "expenses" && expenses?.length > 0 && (
+                        <button
+                            onClick={() => navigate('/new-expense', { state: { friendId: id } })}
+                            aria-label="Add Expense"
+                            className="fixed right-4 bottom-24 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
+                   text-white px-5 py-4 flex items-center gap-2"
+                        >
+                            <Plus size={18} />
+                            <span className="text-sm font-semibold">Add Expense</span>
+                        </button>
+                    )}
+
+                    {/* Loans FAB */}
+                    {activeSection === "loans" && loans?.length > 0 && (
+                        <button
+                            onClick={() => navigate(`/new-loan`, { state: { friendId: friend._id } })}
+                            aria-label="Create Loan"
+                            className="fixed right-4 bottom-24 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
+                   text-white px-5 py-4 flex items-center gap-2"
+                        >
+                            <Plus size={18} />
+                            <span className="text-sm font-semibold">New Loan</span>
+                        </button>
+                    )}
+                </>
+            )}
+
         </MainLayout>
     );
 };

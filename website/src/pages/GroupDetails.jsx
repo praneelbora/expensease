@@ -32,6 +32,7 @@ const GroupDetails = () => {
     const [groupExpenses, setGroupExpenses] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [loadingExpenses, setLoadingExpenses] = useState(true);
     const [userId, setUserId] = useState();
     const [selectedMember, setSelectedMember] = useState(null);
     const [showMembers, setShowMembers] = useState(false);
@@ -125,22 +126,25 @@ const GroupDetails = () => {
     };
 
     const fetchGroupExpenses = async () => {
-    try {
-        const data = await getGroupExpenses(id, userToken);
-        const allExpenses = data.expenses || [];
-        const adminPrivacy = data.group?.settings?.enforcePrivacy ?? false;
-        const currentUserId = data.id;
-        // Filter based on privacy setting
-        const filteredExpenses = allExpenses.filter(exp =>
-            !adminPrivacy || exp.splits.some(split => (split.friendId?._id === currentUserId && (split.paying || split.owing)))
-        );
-        setGroupExpenses(filteredExpenses);
-        setUserId(currentUserId); // assuming this is declared in useState
+        try {
+            setLoadingExpenses(true)
+            const data = await getGroupExpenses(id, userToken);
+            const allExpenses = data.expenses || [];
+            const adminPrivacy = data.group?.settings?.enforcePrivacy ?? false;
+            const currentUserId = data.id;
+            // Filter based on privacy setting
+            const filteredExpenses = allExpenses.filter(exp =>
+                !adminPrivacy || exp.splits.some(split => (split.friendId?._id === currentUserId && (split.paying || split.owing)))
+            );
+            setGroupExpenses(filteredExpenses);
+            setUserId(currentUserId); // assuming this is declared in useState
 
-    } catch (error) {
-        console.error("Error fetching group expenses:", error);
-    }
-};
+        } catch (error) {
+            console.error("Error fetching group expenses:", error);
+        } finally {
+            setLoadingExpenses(false)
+        }
+    };
 
 
     const calculateDebt = (groupExpenses, members) => {
@@ -259,16 +263,13 @@ const GroupDetails = () => {
                             <button
                                 className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
                                 onClick={() => {
-                                    const message = `You're invited to join my group on SplitFree! 🎉
-Use this code to join: ${group.code}
-
-Or simply tap the link below to log in and join instantly:
-${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     const message1 = `Use this code: ${group.code}
 
 Or just click the link below to join directly:
 ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
-
+                                    navigator.clipboard.writeText(message1);
+                                    setCopied(true);
+                                    setTimeout(() => setCopied(false), 2000); // hide after 2 seconds
                                     if (navigator.share) {
                                         navigator
                                             .share({
@@ -277,11 +278,9 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                 url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`,
                                             })
                                             .catch((err) => console.error("Sharing failed", err));
-                                    } else {
-                                        navigator.clipboard.writeText(message);
-                                        setCopied(true);
-                                        setTimeout(() => setCopied(false), 2000); // hide after 2 seconds
                                     }
+
+
                                 }}
                             >
                                 <Share2 strokeWidth={2} size={20} />
@@ -309,6 +308,60 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                         </div>
                     ) : !group ? (
                         <p>Group not found</p>
+                    ) : (group.members.length == 1 || groupExpenses.length == 0) ? (
+                        <div className="flex flex-1 flex-col justify-center gap-2">
+                            {group.members.length === 1 && (
+                                <div className="flex flex-col items-center justify-center p-4 rounded-lg text-center space-y-4 bg-[#1f1f1f]">
+                                    <h2 className="text-2xl font-semibold">No Members Yet</h2>
+                                    <p className="text-sm text-gray-400 max-w-sm">
+                                        Invite friends to get started.
+                                    </p>
+
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => {
+                                                const message1 = `Use this code: ${group.code}
+
+Or just click the link below to join directly:
+${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
+                                                navigator.clipboard.writeText(message1);
+                                                setCopied(true);
+                                                setTimeout(() => setCopied(false), 2000); // hide a
+                                                if (navigator.share) {
+                                                    navigator
+                                                        .share({
+                                                            title: "Join my group on SplitFree",
+                                                            text: message1,
+                                                            url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`,
+                                                        })
+                                                        .catch((err) => console.error("Sharing failed", err));
+                                                }
+                                            }}
+                                            className="border border-teal-500 text-teal-500 px-6 py-2 rounded-lg hover:bg-teal-900/30 transition flex items-center gap-2"
+                                        >
+                                            <Share2 size={18} /> Share Invite
+                                        </button>
+                                    </div>
+
+                                    {copied && (
+                                        <p className="text-[11px] text-teal-300">Invite copied to clipboard!</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {groupExpenses.length == 0 && !loadingExpenses && <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-4 bg-[#1f1f1f]">
+                                <h2 className="text-2xl font-semibold">No Expenses Yet</h2>
+                                <p className="text-sm text-gray-400 max-w-sm">
+                                    You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
+                                </p>
+                                <button
+                                    onClick={() => navigate('/new-expense', { state: { groupId: id } })}
+                                    className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition"
+                                >
+                                    Add Expense
+                                </button>
+                            </div>}
+                        </div>
                     ) : (
                         <div className="flex flex-col gap-y-3 gap-x-4">
 
@@ -402,14 +455,14 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     {filteredExpenses?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
                                         .map((exp) => (
                                             <ExpenseItem
-        key={exp._id}
-        expense={exp}
-        onClick={setShowModal}
-        getPayerInfo={getPayerInfo}
-        getOweInfo={getOweInfo}
-        getSettleDirectionText={getSettleDirectionText}
-        userId={userId}
-    />
+                                                key={exp._id}
+                                                expense={exp}
+                                                onClick={setShowModal}
+                                                getPayerInfo={getPayerInfo}
+                                                getOweInfo={getOweInfo}
+                                                getSettleDirectionText={getSettleDirectionText}
+                                                userId={userId}
+                                            />
                                         ))}
                                 </ul>
                             </div>
@@ -433,7 +486,24 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                 />
 
             )}
+            {!loading && (
+                <>
+                    {/* Expenses FAB */}
+                    {groupExpenses?.length > 0 && (
+                        <button
+                            onClick={() => navigate('/new-expense', { state: { groupId: id } })}
+                            aria-label="Add Expense"
+                            className="fixed right-4 bottom-24 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
+                           text-white px-5 py-4 flex items-center gap-2"
+                        >
+                            <Plus size={18} />
+                            <span className="text-sm font-semibold">Add Expense</span>
+                        </button>
+                    )}
 
+
+                </>
+            )}
 
         </MainLayout>
     );

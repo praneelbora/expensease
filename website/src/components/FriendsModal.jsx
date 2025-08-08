@@ -14,6 +14,7 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
     const [val, setVal] = useState('')
     const [sent, setSent] = useState([])
     const [received, setReceived] = useState([])
+    const [copied, setCopied] = useState(false);
 
 
     // Add friend
@@ -135,7 +136,9 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                                     onClick={() => {
                                         const friendLink = `${import.meta.env.VITE_FRONTEND_URL}/friends/add/${user._id}`;
                                         const message = `Let's connect on SplitFree! 🤝\n\nTap this link to login and send me a friend request:\n${friendLink}`;
-
+                                        navigator.clipboard.writeText(message);
+                                        setCopied(true);
+                                        setTimeout(() => setCopied(false), 2000);
                                         if (navigator.share) {
                                             navigator
                                                 .share({
@@ -144,14 +147,18 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
                                                     url: friendLink,
                                                 })
                                                 .catch((err) => console.error("Sharing failed", err));
-                                        } else {
-                                            navigator.clipboard.writeText(message);
-                                            setCopied(true);
-                                            setTimeout(() => setCopied(false), 2000);
                                         }
                                     }}
                                 >
                                     <Share2 strokeWidth={2} size={20} />
+                                    {copied && (
+                                        <span
+                                            className="absolute -top-7 right-0 text-xs px-2 py-1 rounded bg-teal-600 text-black shadow"
+                                            aria-live="polite"
+                                        >
+                                            Copied!
+                                        </span>
+                                    )}
                                 </button>
                             </div>
 

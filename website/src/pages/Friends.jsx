@@ -22,6 +22,7 @@ const Friends = () => {
         try {
             await acceptFriendRequest(id, userToken);
             fetchFriends();
+            fetchReceived()
             setShowModal(false);
         } catch (err) {
             console.log(err.message || "Error accepting request");
@@ -37,6 +38,10 @@ const Friends = () => {
     const [showFriendExpenseModal, setShowFriendExpenseModal] = useState(false);
     const round = (val) => Math.round(val * 100) / 100;
     const [receivedRequests, setReceivedRequests] = useState([]);
+    // top of Friends component state
+const [banner, setBanner] = useState(null); 
+// banner shape: { type: 'success' | 'error' | 'info', text: string }
+
     const fetchReceived = async () => {
         try {
             const data = await fetchReceivedRequests(userToken);
@@ -85,22 +90,31 @@ const Friends = () => {
     }, [location]);
     
     const handleLinkRequest = async (toId) => {
-        try {
-            const data = await acceptLinkFriendRequest(toId, userToken);
+  try {
+    const data = await acceptLinkFriendRequest(toId, userToken);
 
-            if (data.error || data.message?.toLowerCase().includes("error")) {
-                // Show error from backend if present
-                const errorMsg = data.message || data.error || "Failed to send friend request.";
-                console.log(errorMsg); // You can replace with toast(errorMsg)
-                return;
-            }
+    if (data?.error || data?.message?.toLowerCase?.().includes("error")) {
+      const errorMsg = data.message || data.error || "Failed to send friend request.";
+      setBanner({ type: 'error', text: errorMsg });
+      return;
+    }
 
-            console.log(data.message || "Friend request sent successfully."); // Success feedback
-        } catch (error) {
-            console.error("Error sending link request:", error);
-            console.log("Something went wrong. Please try again.");
-        }
-    };
+    // refresh incoming requests (typo fixed)
+    await fetchReceived(); 
+
+    setBanner({
+      type: 'success',
+      text: "Friend request sent. Ask them to accept it before you can add shared expenses."
+    });
+
+    // auto-dismiss after 5s (optional)
+    setTimeout(() => setBanner(null), 5000);
+  } catch (error) {
+    console.error("Error sending link request:", error);
+    setBanner({ type: 'error', text: "Something went wrong. Please try again." });
+  }
+};
+
 
     return (
         <MainLayout>
@@ -114,13 +128,31 @@ const Friends = () => {
                         <Plus strokeWidth={3} size={20} />
                     </button>
                 </div>
+                {banner && (
+  <div className={`mt-2 mb-2 rounded-md px-3 py-2 text-sm border 
+    ${banner.type === 'success' ? 'bg-teal-900/30 border-teal-500 text-teal-200' :
+      banner.type === 'error' ? 'bg-red-900/30 border-red-500 text-red-200' :
+      'bg-zinc-800 border-zinc-600 text-zinc-200'}`}>
+    <div className="flex items-start justify-between gap-4">
+      <p className="leading-5">{banner.text}</p>
+      <button
+        className="opacity-70 hover:opacity-100"
+        onClick={() => setBanner(null)}
+        aria-label="Dismiss"
+      >
+        ✕
+      </button>
+    </div>
+  </div>
+)}
+
                 <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
 
                     {loading ? (
                         <div className="flex flex-col justify-center items-center flex-1 py-5">
                             <Loader />
                         </div>
-                    ) : friends.length === 0 ? (
+                    ) : friends.length === 0 && receivedRequests.length === 0 ? (
                         <div className="flex flex-col flex-1 justify-center">
                         <div className="bg-[#1f1f1f] text-center text-[#EBF1D5] border border-[#333] p-4 rounded-lg mt-4">
                             <p className="text-lg font-semibold mb-2">No friends yet!</p>
@@ -138,8 +170,8 @@ const Friends = () => {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-4">
                             {receivedRequests.length > 0 && (
-                                <div className="bg-[#212121] p-3 rounded-lg">
-                                    <h2 className="text-xl font-bold pb-2">Friend Requests</h2>
+                                <div className="rounded-lg">
+                                    <h2 className="text-teal-500 pb-2 uppercase">Friend Requests</h2>
                                     <hr />
                                     {receivedRequests.map((req) => {
                                         return (
