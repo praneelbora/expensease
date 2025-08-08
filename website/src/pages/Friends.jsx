@@ -15,19 +15,11 @@ import {
     User,
     Loader,
 } from "lucide-react";
+import PullToRefresh from "pulltorefreshjs";
 const Friends = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const handleAccept = async (id) => {
-        try {
-            await acceptFriendRequest(id, userToken);
-            fetchFriends();
-            fetchReceived()
-            setShowModal(false);
-        } catch (err) {
-            console.log(err.message || "Error accepting request");
-        }
-    };
+
     const { userToken } = useAuth() || {}
     const [friends, setFriends] = useState([]);
     const [showModal, setShowModal] = useState(false);
@@ -38,9 +30,64 @@ const Friends = () => {
     const [showFriendExpenseModal, setShowFriendExpenseModal] = useState(false);
     const round = (val) => Math.round(val * 100) / 100;
     const [receivedRequests, setReceivedRequests] = useState([]);
+    const scrollRef = useRef(null);
+
+    const [refreshing, setRefreshing] = useState(false);
+
+    const doRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await Promise.all([fetchReceived(), fetchFriends(), fetchExpenses()]);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+    useEffect(() => {
+        if (!scrollRef.current) return;
+
+        PullToRefresh.init({
+            mainElement: scrollRef.current,
+            onRefresh: doRefresh,
+            distThreshold: 60,
+            distMax: 120,
+            resistance: 2.5,
+            shouldPullToRefresh: () =>
+                scrollRef.current && scrollRef.current.scrollTop === 0,
+        });
+
+        return () => {
+            PullToRefresh.destroyAll(); // correct cleanup
+        };
+    }, []);
+
+    const handleAccept = async (id) => {
+        try {
+            setLoading(true)
+            await acceptFriendRequest(id, userToken);
+            fetchFriends();
+            fetchReceived()
+            setShowModal(false);
+            setLoading(false)
+        } catch (err) {
+            console.log(err.message || "Error accepting request");
+        }
+    }; const handleReject = async (id) => {
+        try {
+            setLoading(true)
+            await rejectFriendRequest(id, userToken);
+            fetchFriends();
+            fetchReceived()
+            setShowModal(false);
+            setLoading(false)
+        } catch (err) {
+            console.log(err.message || "Error accepting request");
+        }
+    };
+
+
     // top of Friends component state
-const [banner, setBanner] = useState(null); 
-// banner shape: { type: 'success' | 'error' | 'info', text: string }
+    const [banner, setBanner] = useState(null);
+    // banner shape: { type: 'success' | 'error' | 'info', text: string }
 
     const fetchReceived = async () => {
         try {
@@ -88,32 +135,32 @@ const [banner, setBanner] = useState(null);
             handleLinkRequest(toId);
         }
     }, [location]);
-    
+
     const handleLinkRequest = async (toId) => {
-  try {
-    const data = await acceptLinkFriendRequest(toId, userToken);
+        try {
+            const data = await acceptLinkFriendRequest(toId, userToken);
 
-    if (data?.error || data?.message?.toLowerCase?.().includes("error")) {
-      const errorMsg = data.message || data.error || "Failed to send friend request.";
-      setBanner({ type: 'error', text: errorMsg });
-      return;
-    }
+            if (data?.error || data?.message?.toLowerCase?.().includes("error")) {
+                const errorMsg = data.message || data.error || "Failed to send friend request.";
+                setBanner({ type: 'error', text: errorMsg });
+                return;
+            }
 
-    // refresh incoming requests (typo fixed)
-    await fetchReceived(); 
+            // refresh incoming requests (typo fixed)
+            await fetchReceived();
 
-    setBanner({
-      type: 'success',
-      text: "Friend request sent. Ask them to accept it before you can add shared expenses."
-    });
+            setBanner({
+                type: 'success',
+                text: "Friend request sent. Ask them to accept it before you can add shared expenses."
+            });
 
-    // auto-dismiss after 5s (optional)
-    setTimeout(() => setBanner(null), 5000);
-  } catch (error) {
-    console.error("Error sending link request:", error);
-    setBanner({ type: 'error', text: "Something went wrong. Please try again." });
-  }
-};
+            // auto-dismiss after 5s (optional)
+            setTimeout(() => setBanner(null), 5000);
+        } catch (error) {
+            console.error("Error sending link request:", error);
+            setBanner({ type: 'error', text: "Something went wrong. Please try again." });
+        }
+    };
 
 
     return (
@@ -129,24 +176,30 @@ const [banner, setBanner] = useState(null);
                     </button>
                 </div>
                 {banner && (
-  <div className={`mt-2 mb-2 rounded-md px-3 py-2 text-sm border 
+                    <div className={`mt-2 mb-2 rounded-md px-3 py-2 text-sm border 
     ${banner.type === 'success' ? 'bg-teal-900/30 border-teal-500 text-teal-200' :
-      banner.type === 'error' ? 'bg-red-900/30 border-red-500 text-red-200' :
-      'bg-zinc-800 border-zinc-600 text-zinc-200'}`}>
-    <div className="flex items-start justify-between gap-4">
-      <p className="leading-5">{banner.text}</p>
-      <button
-        className="opacity-70 hover:opacity-100"
-        onClick={() => setBanner(null)}
-        aria-label="Dismiss"
-      >
-        ✕
-      </button>
-    </div>
-  </div>
-)}
+                            banner.type === 'error' ? 'bg-red-900/30 border-red-500 text-red-200' :
+                                'bg-zinc-800 border-zinc-600 text-zinc-200'}`}>
+                        <div className="flex items-start justify-between gap-4">
+                            <p className="leading-5">{banner.text}</p>
+                            <button
+                                className="opacity-70 hover:opacity-100"
+                                onClick={() => setBanner(null)}
+                                aria-label="Dismiss"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                )}
+                {refreshing && (
+                    <div className="text-center text-xs text-lime-200 py-1">Refreshing…</div>
+                )}
 
-                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
+                <div
+                    ref={scrollRef}
+                    className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar scroll-touch"
+                >
 
                     {loading ? (
                         <div className="flex flex-col justify-center items-center flex-1 py-5">
@@ -154,18 +207,18 @@ const [banner, setBanner] = useState(null);
                         </div>
                     ) : friends.length === 0 && receivedRequests.length === 0 ? (
                         <div className="flex flex-col flex-1 justify-center">
-                        <div className="bg-[#1f1f1f] text-center text-[#EBF1D5] border border-[#333] p-4 rounded-lg mt-4">
-                            <p className="text-lg font-semibold mb-2">No friends yet!</p>
-                            <p className="text-sm text-[#bbb] mb-4">To split expenses, add friends.</p>
-                            <div className="flex justify-center gap-4">
-                                <button
-                                    onClick={() => setShowModal(true)}
-                                    className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
-                                >
-                                    Add Friend
-                                </button>
+                            <div className="bg-[#1f1f1f] text-center text-[#EBF1D5] border border-[#333] p-4 rounded-lg mt-4">
+                                <p className="text-lg font-semibold mb-2">No friends yet!</p>
+                                <p className="text-sm text-[#bbb] mb-4">To split expenses, add friends.</p>
+                                <div className="flex justify-center gap-4">
+                                    <button
+                                        onClick={() => setShowModal(true)}
+                                        className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
+                                    >
+                                        Add Friend
+                                    </button>
+                                </div>
                             </div>
-                        </div>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-4">

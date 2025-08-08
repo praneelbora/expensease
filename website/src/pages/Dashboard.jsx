@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import MainLayout from "../layouts/MainLayout";
 import { getAllExpenses } from "../services/ExpenseService";
 import { useAuth } from "../context/AuthContext";
@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { Loader } from "lucide-react";
 
 
+import PullToRefresh from "pulltorefreshjs";
 
 
 const Dashboard = () => {
@@ -55,6 +56,34 @@ const Dashboard = () => {
         }
         return null;
     };
+        const scrollRef = useRef(null);
+        const [refreshing, setRefreshing] = useState(false);
+    
+        const doRefresh = async () => {
+            setRefreshing(true);
+            try {
+                await Promise.all([fetchExpenses()]);
+            } finally {
+                setRefreshing(false);
+            }
+        };
+        useEffect(() => {
+            if (!scrollRef.current) return;
+    
+            PullToRefresh.init({
+                mainElement: scrollRef.current,
+                onRefresh: doRefresh,
+                distThreshold: 60,
+                distMax: 120,
+                resistance: 2.5,
+                shouldPullToRefresh: () =>
+                    scrollRef.current && scrollRef.current.scrollTop === 0,
+            });
+    
+            return () => {
+                PullToRefresh.destroyAll(); // correct cleanup
+            };
+        }, []);
 
     const stats = useMemo(() => {
         let total = 0, personal = 0, group = 0, settle = 0, friend = 0;
@@ -184,8 +213,10 @@ const Dashboard = () => {
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">Dashboard</h1>
                 </div>
-                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
-                    {loading ? (
+<div
+                    ref={scrollRef}
+                    className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar scroll-touch"
+                >                    {loading ? (
                         <div className="flex flex-col justify-center items-center flex-1 py-5">
                             <Loader />
                         </div>

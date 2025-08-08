@@ -16,6 +16,7 @@
     "js-cookie": "^3.0.5",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.525.0",
+    "pulltorefreshjs": "^0.1.22",
     "react": "^19.1.0",
     "react-device-detect": "^2.2.3",
     "react-dnd": "^16.0.1",

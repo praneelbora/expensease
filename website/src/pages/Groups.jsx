@@ -7,6 +7,7 @@ import Cookies from "js-cookie";
 import { useLocation } from "react-router-dom";
 import { Users, Wallet, Plus, List, User, Loader } from "lucide-react";
 import { getAllGroups, getGroupExpenses } from "../services/GroupService";
+import PullToRefresh from "pulltorefreshjs";
 
 const Groups = () => {
 
@@ -90,7 +91,34 @@ const Groups = () => {
         if (!userToken) return;
         fetchGroups();
     }, [userToken]);
+    const scrollRef = useRef(null);
+    const [refreshing, setRefreshing] = useState(false);
 
+    const doRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await Promise.all([fetchGroups()]);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+    useEffect(() => {
+        if (!scrollRef.current) return;
+
+        PullToRefresh.init({
+            mainElement: scrollRef.current,
+            onRefresh: doRefresh,
+            distThreshold: 60,
+            distMax: 120,
+            resistance: 2.5,
+            shouldPullToRefresh: () =>
+                scrollRef.current && scrollRef.current.scrollTop === 0,
+        });
+
+        return () => {
+            PullToRefresh.destroyAll(); // correct cleanup
+        };
+    }, []);
     return (
         <MainLayout>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
@@ -103,8 +131,12 @@ const Groups = () => {
                         <Plus strokeWidth={3} size={20} />
                     </button>
                 </div>
-                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
 
+
+                <div
+                    ref={scrollRef}
+                    className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar scroll-touch"
+                >
                     {loading ? (
                         <div className="flex flex-col justify-center items-center flex-1 py-5">
                             <Loader />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useDebugValue, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Share2 } from "lucide-react";
 import {
@@ -10,7 +10,7 @@ import {
     fetchReceivedRequests,
 } from "../services/FriendService";
 export default function Navbar({ setShowModal, showModal, fetchFriends }) {
-    const { userToken, user } = useAuth()
+    const { userToken, loadUserData, user } = useAuth()
     const [val, setVal] = useState('')
     const [sent, setSent] = useState([])
     const [received, setReceived] = useState([])
@@ -66,7 +66,9 @@ export default function Navbar({ setShowModal, showModal, fetchFriends }) {
             console.log(err.message || "Error cancelling request");
         }
     };
-
+    useEffect(()=>{
+        loadUserData()
+    },[])
     // Update sent/received
     const handleSentRequests = async () => {
         try {

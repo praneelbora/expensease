@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import React, { Fragment } from 'react';
 import { useParams, useNavigate } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
@@ -17,6 +17,7 @@ import {
     closeLoan as closeLoanApi,
 } from "../services/LoanService";
 import LoanRepayModal from "../components/LoanRepayModal";
+import PullToRefresh from "pulltorefreshjs";
 
 const FriendDetails = () => {
     const { userToken } = useAuth();
@@ -46,7 +47,34 @@ const FriendDetails = () => {
     const [showRepayModal, setShowRepayModal] = useState(false);
 
     // open from a button on a loan card
+    const scrollRef = useRef(null);
+    const [refreshing, setRefreshing] = useState(false);
 
+    const doRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await Promise.all([fetchData()]);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+    useEffect(() => {
+        if (!scrollRef.current) return;
+
+        PullToRefresh.init({
+            mainElement: scrollRef.current,
+            onRefresh: doRefresh,
+            distThreshold: 60,
+            distMax: 120,
+            resistance: 2.5,
+            shouldPullToRefresh: () =>
+                scrollRef.current && scrollRef.current.scrollTop === 0,
+        });
+
+        return () => {
+            PullToRefresh.destroyAll(); // correct cleanup
+        };
+    }, []);
 
     const generateSimplifiedTransaction = (netBalance, userId, friendId) => {
         if (netBalance === 0) return [];
@@ -294,7 +322,7 @@ const FriendDetails = () => {
                         <h1 className={`${friend?.name ? 'text-[#EBF1D5]' : 'text-[#121212]'} text-3xl font-bold capitalize`}>{friend?.name ? friend?.name : "Loading"}</h1>
                     </div>
                 </div>
-                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar gap-3">
+                <div ref={scrollRef} className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar scroll-touch gap-3">
                     <div className="w-full flex justify-center">
                         <div className="inline-flex border border-[#EBF1D5] rounded-full p-1 bg-[#1f1f1f]">
                             <button

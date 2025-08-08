@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import React, { Fragment } from 'react';
 import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
@@ -7,6 +7,7 @@ import { useAuth } from "../context/AuthContext";
 import SettleModal from '../components/SettleModal';
 import { getGroupDetails, getGroupExpenses } from '../services/GroupService';
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
+import PullToRefresh from "pulltorefreshjs";
 
 import Cookies from 'js-cookie';
 import {
@@ -173,6 +174,34 @@ const GroupDetails = () => {
         });
         return totalDebt;
     };
+    const scrollRef = useRef(null);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const doRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await Promise.all([fetchGroup(), fetchGroupExpenses()]);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+    useEffect(() => {
+        if (!scrollRef.current) return;
+
+        PullToRefresh.init({
+            mainElement: scrollRef.current,
+            onRefresh: doRefresh,
+            distThreshold: 60,
+            distMax: 120,
+            resistance: 2.5,
+            shouldPullToRefresh: () =>
+                scrollRef.current && scrollRef.current.scrollTop === 0,
+        });
+
+        return () => {
+            PullToRefresh.destroyAll(); // correct cleanup
+        };
+    }, []);
 
     // Simplify debts
     const simplifyDebts = (totalDebt, members) => {
@@ -300,8 +329,10 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                         )}
                     </div>}
                 </div>
-                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar gap-3">
-
+<div
+                    ref={scrollRef}
+                    className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar scroll-touch"
+                >
                     {loading ? (
                         <div className="flex flex-col justify-center items-center flex-1 py-5">
                             <Loader />

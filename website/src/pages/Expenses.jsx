@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal";
 import { useNavigate } from "react-router-dom"; // ✅ Correct import
@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { Loader, Plus } from "lucide-react";
 import { getAllExpenses } from '../services/ExpenseService';
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
+import PullToRefresh from "pulltorefreshjs";
 
 const Expenses = () => {
     const { userToken } = useAuth() || {}
@@ -74,7 +75,35 @@ const Expenses = () => {
     useEffect(() => {
         fetchExpenses();
     }, []);
+        const scrollRef = useRef(null);
+        const [refreshing, setRefreshing] = useState(false);
+    
+        const doRefresh = async () => {
+            setRefreshing(true);
+            try {
+                await Promise.all([fetchExpenses()]);
+            } finally {
+                setRefreshing(false);
+            }
+        };
 
+        useEffect(() => {
+            if (!scrollRef.current) return;
+    
+            PullToRefresh.init({
+                mainElement: scrollRef.current,
+                onRefresh: doRefresh,
+                distThreshold: 60,
+                distMax: 120,
+                resistance: 2.5,
+                shouldPullToRefresh: () =>
+                    scrollRef.current && scrollRef.current.scrollTop === 0,
+            });
+    
+            return () => {
+                PullToRefresh.destroyAll(); // correct cleanup
+            };
+        }, []);
     return (
         <MainLayout>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
@@ -107,8 +136,10 @@ const Expenses = () => {
                         </button>
                     ))}
                 </div>
-                <div className="flex flex-col flex-1 w-full overflow-y-auto no-scrollbar">
-                    <ul className="h-full flex flex-col w-full gap-2">
+<div
+                    ref={scrollRef}
+                    className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar scroll-touch"
+                >                    <ul className="h-full flex flex-col w-full gap-2">
                         {loading ? (
                             <div className="flex flex-col justify-center items-center flex-1 py-5">
                                 <Loader />
