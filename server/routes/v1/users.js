@@ -83,11 +83,12 @@ router.get('/ping', (req, res) => {
 // GET Categories
 router.get('/categories', auth, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id); // assume middleware added `req.user`
+        let user = await User.findById(req.user.id); // assume middleware added `req.user`
         if (!user) return res.status(401).json({ error: 'Unauthorized' });
-
         if (!user.customCategories || user.customCategories.length === 0) {
-            return res.json(DefaultCategories);
+            user.customCategories = DefaultCategories
+            await user.save();
+            return res.json(user.customCategories);
         }
 
         res.json(user.customCategories);
@@ -96,6 +97,7 @@ router.get('/categories', auth, async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 });
+
 // POST Categories
 router.post('/categories', auth, async (req, res) => {
     try {
@@ -133,7 +135,7 @@ router.post("/google-login", async (req, res) => {
         const payload = ticket.getPayload();
         const { email, name, picture, sub: googleId } = payload;
         console.log(payload);
-        
+
         // 2. Find or Create User
         let user = await User.findOne({ email });
         if (!user) {
@@ -160,5 +162,70 @@ router.post("/google-login", async (req, res) => {
         res.status(401).json({ error: "Invalid or expired Google token" });
     }
 });
+
+router.patch('/profile', auth, async (req, res) => {
+  try {
+    const {
+      name,
+      profilePic,
+      upiId: rawUpiId,
+      vpa: rawVpa,
+    } = req.body || {};
+
+    const update = {};
+
+    // Basic fields
+    if (typeof name === 'string') update.name = name.trim();
+    if (typeof profilePic === 'string') update.profilePic = profilePic.trim();
+
+    // Resolve primary UPI from multiple possible keys
+    const resolvedUpi = [rawUpiId, rawVpa].find(
+      (v) => typeof v === 'string' && v.trim().length
+    );
+
+    const upiRegex = /^[a-zA-Z0-9.\-_]{2,}@[a-zA-Z0-9.\-]{2,}$/;
+
+    if (resolvedUpi !== undefined) {
+      const v = String(resolvedUpi).trim();
+      if (!upiRegex.test(v)) {
+        return res.status(400).json({ error: 'Invalid UPI ID format (e.g., name@bank).' });
+      }
+      update.upiId = v;
+    }
+
+
+    if (!Object.keys(update).length) {
+      console.log('[PATCH /profile] nothing to update');
+      return res.status(200).json({ message: 'No changes', user: await User.findById(req.user.id).lean() });
+    }
+
+    // Use $set + runValidators for safety. Remove .lean() to ensure getters/virtuals if needed.
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: update },
+      { new: true, runValidators: true, context: 'query' }
+    ).lean();
+
+    if (!user) {
+      console.warn('[PATCH /profile] user not found for id', req.user.id);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    return res.json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        profilePic: user.profilePic,
+        upiId: user.upiId || null,
+        upiids: user.upiids || [],
+        customCategories: user.customCategories || [],
+      },
+    });
+  } catch (err) {
+    console.error('/profile PATCH error:', err);
+    return res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
 
 module.exports = router;

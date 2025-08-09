@@ -10,8 +10,9 @@ import LoanModal from "../components/LoanModal";
 import { deleteLoan as deleteLoanApi } from "../services/LoanService";
 import { useAuth } from "../context/AuthContext";
 import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
-
+import PaymentModal from "../components/PaymentModal"; // Adjust import path
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
+
 import {
     getLoans,
     addRepayment as addLoanRepayment,
@@ -21,10 +22,13 @@ import {
 import PullToRefresh from "pulltorefreshjs";
 
 const FriendDetails = () => {
-    const { userToken } = useAuth();
+    const { userToken, user } = useAuth();
     const { id } = useParams();
-        const [searchParams] = useSearchParams();
+    const [searchParams] = useSearchParams();
     const tab = searchParams.get("tab"); // "loan" or null
+    // inside SettleModal (after confirm step), when YOU are payer:
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+
 
     const navigate = useNavigate();
     const [userId, setUserId] = useState();
@@ -38,7 +42,7 @@ const FriendDetails = () => {
     const [settleType, setSettleType] = useState('partial');
     const [loanLoading, setLoanLoading] = useState(true);
     const [activeSection, setActiveSection] = useState(tab === "loan" ? "loans" : "expenses"); // 'loans' | 'expenses'
-
+    const [prefillSettle, setPrefillSettle] = useState(null);
     const [loans, setLoans] = useState([]);
     const [netLoanBalance, setNetLoanBalance] = useState(0);
     // repayment modal
@@ -139,7 +143,9 @@ const FriendDetails = () => {
     };
 
     const fetchData = async () => {
+
         const data = await getFriendDetails(id, userToken);
+        console.log(data);
         setFriend(data.friend);
         setUserId(data.id);
 
@@ -166,7 +172,20 @@ const FriendDetails = () => {
 
         return `${payerName} paid ${receiverName}`;
     };
-
+    const handlePaymentClose = (amt) => {
+        setShowPaymentModal(false);
+        const finalAmt = Number(amt || 0);
+        if (finalAmt > 0 && friend?._id && userId) {
+            // You paid friend → record settlement: payer = you, receiver = friend
+            setPrefillSettle({
+                payerId: userId,
+                receiverId: friend._id,
+                amount: finalAmt,
+                description: "Settlement",
+            });
+            setShowSettleModal(true);
+        }
+    };
     const submitRepayment = async () => {
         if (!activeLoan || !(Number(repayAmount) > 0)) return;
         try {
@@ -407,7 +426,7 @@ const FriendDetails = () => {
                                         return (
                                             <div
                                                 key={loan._id}
-                                                className={`border ${outstanding>0?'border-teal-500':'border-[#333]'} rounded-lg p-3 bg-[#171717] flex flex-col gap-1 cursor-pointer`}
+                                                className={`border ${outstanding > 0 ? 'border-teal-500' : 'border-[#333]'} rounded-lg p-3 bg-[#171717] flex flex-col gap-1 cursor-pointer`}
                                                 onClick={() => openLoanView(loan)}
                                             >
                                                 <div className="flex justify-between items-center">
@@ -462,19 +481,53 @@ const FriendDetails = () => {
                                         </p>
                                     </div>
 
-                                    {netBalance !== 0 && (
-                                        <div className="flex flex-col gap-2 mt-2">
-                                            <button
-                                                onClick={() => {
-                                                    setSettleType("full");
-                                                    setShowSettleModal(true);
-                                                }}
-                                                className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
-                                            >
-                                                Settle
-                                            </button>
-                                        </div>
-                                    )}
+                                    <div>
+                                        {netBalance < 0 && (
+                                            <div className="flex flex-col gap-2 mt-2">
+                                                {!friend?.upiId ? <p className="text-xs text-gray-500 mt-2 italic">
+                                                    💡 Ask your friend to enter their UPI ID in their Account page.
+                                                </p> :
+                                                    <button
+                                                        onClick={() => {
+                                                            setShowPaymentModal(true);
+                                                        }}
+                                                        className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
+                                                    >
+                                                        Make Payment
+                                                    </button>}
+                                            </div>
+                                        )}
+                                        {netBalance > 0 && (
+                                            <div className="flex flex-col gap-2 mt-2">
+                                                {!user?.upiId && <p className="text-xs text-gray-500 mt-2 italic">
+                                                    💡 To make settlements faster, add your UPI ID here —{" "}
+                                                    <button
+                                                        onClick={() => navigate("/account?section=upi")}
+                                                        className="underline underline-offset-2 text-teal-400 hover:text-teal-300"
+                                                    >
+                                                        Account Page
+                                                    </button>
+                                                    . This way, friends can pay you instantly without needing to ask.
+                                                </p>
+                                                }
+                                            </div>
+                                        )}
+
+                                        {netBalance !== 0 && (
+                                            <div className="flex flex-col gap-2 mt-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setSettleType("full");
+                                                        setShowSettleModal(true);
+                                                    }}
+                                                    className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
+                                                >
+                                                    Settle
+                                                </button>
+                                            </div>
+                                        )}
+
+                                    </div>
                                 </div>}
 
                                 {loading ? (
@@ -519,6 +572,7 @@ const FriendDetails = () => {
                             </>
                         )}
 
+
                     </div>
 
 
@@ -549,8 +603,10 @@ const FriendDetails = () => {
 
 
 
+
                 </div>
             </div>
+
 
             {showModal && (
                 <ExpenseModal showModal={showModal} fetchExpenses={() => fetchData()} setShowModal={setShowModal} userToken={userToken} />
@@ -560,35 +616,45 @@ const FriendDetails = () => {
                     showModal={showSettleModal}
                     setShowModal={setShowSettleModal}
                     simplifiedTransactions={generateSimplifiedTransaction(netBalance, userId, friend._id)}
-                    friends={[{ id: userId, name: 'You' }, { id: friend._id, name: friend.name }]}
+                    friends={[{ id: userId, name: 'You' }, { id: friend._id, name: friend.name, upiId: friend?.upiId }]}
                     onSubmit={handleSettle}
+                    prefill={prefillSettle}
                     userId={userId}
                 />
             )}
-
+            {showPaymentModal && (
+                <PaymentModal
+                    show={showPaymentModal}
+                    onClose={handlePaymentClose}
+                    receiverName={friend?.name}
+                    receiverUpi={friend?.upiId}  // ensure your member has .upiid
+                    note={"Settlement"}
+                // bank={{ accountName: "Amit Sharma", accountNumber: "1234567890", ifsc: "HDFC0001234", bankName: "HDFC Bank" }}
+                />
+            )}
             {showLoanView && activeLoan && (
-  <LoanModal
-    showModal={showLoanView}            // ✅ add this
-    loan={activeLoan}
-    friend={friend}
-    userId={userId}
-    userToken={userToken}
-    onClose={() => setShowLoanView(false)}
-    onCloseLoan={async () => {
-      await closeLoanApi(activeLoan._id, {}, userToken);
-      await fetchLoansForFriend(userId, friend._id);
-      setShowLoanView(false);
-    }}
-    onDeleteLoan={async () => {
-      await deleteLoanApi(activeLoan._id, userToken);
-      await fetchLoansForFriend(userId, friend._id);
-      setShowLoanView(false);
-    }}
-    onAfterChange={async () => {
-      await fetchLoansForFriend(userId, friend._id);
-    }}
-  />
-)}
+                <LoanModal
+                    showModal={showLoanView}            // ✅ add this
+                    loan={activeLoan}
+                    friend={friend}
+                    userId={userId}
+                    userToken={userToken}
+                    onClose={() => setShowLoanView(false)}
+                    onCloseLoan={async () => {
+                        await closeLoanApi(activeLoan._id, {}, userToken);
+                        await fetchLoansForFriend(userId, friend._id);
+                        setShowLoanView(false);
+                    }}
+                    onDeleteLoan={async () => {
+                        await deleteLoanApi(activeLoan._id, userToken);
+                        await fetchLoansForFriend(userId, friend._id);
+                        setShowLoanView(false);
+                    }}
+                    onAfterChange={async () => {
+                        await fetchLoansForFriend(userId, friend._id);
+                    }}
+                />
+            )}
 
 
             {/* Floating Add Button – shows only when list isn't empty */}

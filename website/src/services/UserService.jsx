@@ -61,7 +61,7 @@ export const getUserCategories = async (userToken) => {
     return responseJson
 };
 
-export const saveUserCategories = async (categories,userToken) => {
+export const saveUserCategories = async (categories, userToken) => {
     const res = await fetch(`${BASE_URL}/v1/users/categories`, {
         method: 'POST',
         headers: {
@@ -101,4 +101,30 @@ export const googleLogin = async (credential) => {
         console.error("Google login error:", err);
         return { error: "Something went wrong. Please try again." };
     }
+};
+
+// services/UserService.js
+export const updateUserProfile = async (userToken, payload) => {
+    // payload can include fields like: { upiId, name, profilePic, upiids, ... }
+    const res = await fetch(`${BASE_URL}/v1/users/profile`, {
+        method: "PATCH", // change to "POST" if your backend expects POST
+        headers: {
+            "Content-Type": "application/json",
+            "x-auth-token": userToken,
+        },
+        body: JSON.stringify(payload),
+    });
+
+    let data = {};
+    try {
+        data = await res.json();
+
+    } catch (_) {
+        // ignore json parse error for empty bodies
+    }
+
+    if (!res.ok) {
+        throw new Error(data?.error || data?.message || "Failed to update profile");
+    }
+    return data; // typically returns updated user or { success: true }
 };

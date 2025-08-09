@@ -12,6 +12,8 @@ const userSchema = new mongoose.Schema({
   ],
   picture: { type: String },
   googleId: { type: String },
+  upiId: { type: String },
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
