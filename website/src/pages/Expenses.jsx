@@ -3,7 +3,7 @@ import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal";
 import { useNavigate } from "react-router-dom"; // ✅ Correct import
 import { useAuth } from "../context/AuthContext";
-import { Loader, Plus } from "lucide-react";
+import { ChevronLeft, Loader, Plus } from "lucide-react";
 import { getAllExpenses } from '../services/ExpenseService';
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
 import PullToRefresh from "pulltorefreshjs";
@@ -108,9 +108,15 @@ const Expenses = () => {
         <MainLayout>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
+                    <div className="flex flex-row gap-2">
+                        <button onClick={() => navigate(`/dashboard`)}>
+                            <ChevronLeft />
+                        </button>
                     <h1 className="text-3xl font-bold capitalize">All Expenses</h1>
+                    </div>
+
                     <button
-                        className={`flex flex-col items-center justify-center z-10 bg-lime-200 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
+                        className={`flex flex-col items-center justify-center z-10 bg-teal-500 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
                         onClick={() => navigate('/new-expense')}
                     >
                         <Plus strokeWidth={3} size={20} />

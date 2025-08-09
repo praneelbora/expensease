@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import MainLayout from '../layouts/MainLayout';
 import Modal from '../components/FriendsModal';
-import FriendExpenseModal from '../components/FriendExpenseModal';
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getFriends, acceptLinkFriendRequest } from "../services/FriendService";
@@ -26,8 +25,6 @@ const Friends = () => {
     const [loading, setLoading] = useState(true);
     const [expenses, setExpenses] = useState([]); // ✅ Array of expenses
     const [userId, setUserId] = useState(null);
-    const [selectedFriend, setSelectedFriend] = useState(null);
-    const [showFriendExpenseModal, setShowFriendExpenseModal] = useState(false);
     const round = (val) => Math.round(val * 100) / 100;
     const [receivedRequests, setReceivedRequests] = useState([]);
     const scrollRef = useRef(null);
@@ -169,7 +166,7 @@ const Friends = () => {
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">All Friends</h1>
                     <button
-                        className={`flex flex-col items-center justify-center z-10 bg-lime-200 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
+                        className={`flex flex-col items-center justify-center z-10 bg-teal-500 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
                         onClick={() => setShowModal(true)}
                     >
                         <Plus strokeWidth={3} size={20} />
@@ -270,9 +267,12 @@ const Friends = () => {
                                 return (
                                     <div onClick={() => {
                                         navigate(`/friends/${friend._id}`)
-                                    }} key={friend._id} className="flex flex-col gap-2 h-[45px]">
+                                    }} key={friend._id} className="flex flex-col gap-2 h-[48px]">
                                         <div className="flex flex-1 flex-row justify-between items-center align-middle">
-                                            <h2 className="text-xl font-semibold capitalize">{friend.name}</h2>
+                                            <div className="flex flex-col justify-center">
+                                                <h2 className="text-xl font-semibold capitalize">{friend.name}</h2>
+                                                <span className="text-sm text-[#c9c9c9]">{friend.email}</span>
+                                            </div>
                                             {round(balance) !== 0 && !isNaN(balance) && (
                                                 <div className="flex flex-col">
                                                     <p className={`${balance < 0 ? 'text-red-500' : 'text-teal-500'} text-[11px] text-right`}>
@@ -299,20 +299,6 @@ const Friends = () => {
                 </div>
             </div>
             <Modal setShowModal={setShowModal} showModal={showModal} fetchFriends={fetchFriends} userToken={userToken} />
-            {showFriendExpenseModal && selectedFriend && (
-                <FriendExpenseModal
-                    show={showFriendExpenseModal}
-                    onClose={() => setShowFriendExpenseModal(false)}
-                    friend={selectedFriend}
-                    expenses={expenses.filter(exp =>
-                        exp.splits.some(split => split.friendId?._id === selectedFriend._id)
-                    )}
-                    userId={userId}
-                    userToken={userToken}
-                    onSettle={fetchExpenses}
-                />
-            )}
-
         </MainLayout>
     );
 };

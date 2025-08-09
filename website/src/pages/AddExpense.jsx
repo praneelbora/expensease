@@ -186,8 +186,8 @@ const AddExpense = () => {
             setSelectedFriends([]);
             setGroupSelect(null);
             setExpenseDate(new Date().toISOString().split("T")[0]);
-            if(hasPreselectedGroup.current) navigate(`/groups/${groupSelect._id}`)
-            if(hasPreselectedFriend.current) navigate(`/friends/${preselectedFriendId.current}`)
+            if (hasPreselectedGroup.current) navigate(`/groups/${groupSelect._id}`)
+            if (hasPreselectedFriend.current) navigate(`/friends/${preselectedFriendId.current}`)
         } catch (error) {
             console.error(error);
             console.log('Error creating expense');
@@ -535,7 +535,7 @@ const AddExpense = () => {
     return (
         <MainLayout>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
-                
+
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
                         {hasPreselectedFriend.current && <button onClick={() => navigate(`/friends/${preselectedFriendId?.current}`)}>
@@ -545,7 +545,7 @@ const AddExpense = () => {
                             <ChevronLeft />
                         </button>}
                         <h1 className="text-3xl font-bold capitalize">New Expense</h1>
-                        </div>
+                    </div>
                 </div>
                 <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
 
@@ -1028,6 +1028,17 @@ const AddExpense = () => {
                             </div>
                         }
 
+                    </div>
+                    <div className="mt-6 mb-4 text-center text-sm text-[#a0a0a0]">
+                        Lent someone money?{" "}
+                        <button
+                            className="text-teal-400 underline"
+                            onClick={() => {
+                                navigate('/new-loan')
+                            }}
+                        >
+                            Create a Loan
+                        </button>
                     </div>
                 </div>
             </div>

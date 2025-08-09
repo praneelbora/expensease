@@ -3,6 +3,7 @@ import MainLayout from "../layouts/MainLayout";
 import { getAllExpenses } from "../services/ExpenseService";
 import { useAuth } from "../context/AuthContext";
 import ExpenseItem from "../components/ExpenseItem";
+import ExpenseModal from "../components/ExpenseModal";
 import {
     PieChart, Pie, Cell, Tooltip,
     BarChart, Bar, XAxis, YAxis, ResponsiveContainer
@@ -21,6 +22,7 @@ const Dashboard = () => {
     const [expenses, setExpenses] = useState([]);
     const [userId, setUserId] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [showExpenseModal, setShowExpenseModal] = useState(false);
     const getPayerInfo = (splits) => {
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
@@ -280,7 +282,7 @@ const Dashboard = () => {
                                             key={exp._id}
                                             expense={exp}
                                             userId={userId}
-                                            onClick={() => { }}
+                                            onClick={() => {setShowExpenseModal(exp) }}
                                         />
                                     ))}
                                 </ul>
@@ -327,6 +329,9 @@ const Dashboard = () => {
                     )}
                 </div>
             </div>
+            {showExpenseModal && (
+                            <ExpenseModal showModal={showExpenseModal} setShowModal={setShowExpenseModal} fetchExpenses={fetchExpenses} userToken={userToken} />
+                        )}
         </MainLayout>
     );
 };

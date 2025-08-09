@@ -108,7 +108,7 @@ const CreateLoan = () => {
             await createLoan(payload, userToken);
             resetAll();
             if (cameFromFriendDetailsRef) {
-                navigate(`/friends/${fromFriendIdRef.current}`); // go back to friend details
+                navigate(`/friends/${fromFriendIdRef.current}?tab=loan`); // go back to friend details
             } else {
                 alert("Loan created ✅");
             }
@@ -148,11 +148,11 @@ const CreateLoan = () => {
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
                         {cameFromFriendDetailsRef.current && !allowChangeFriend && (
-                            <button onClick={() => navigate(`/friends/${fromFriendIdRef.current}`)}>
+                            <button onClick={() => navigate(`/friends/${fromFriendIdRef.current}?tab=loan`)}>
                                 <ChevronLeft />
                             </button>
                         )}
-                        <h1 className="text-3xl font-bold capitalize">Create a Loan</h1>
+                        <h1 className="text-3xl font-bold capitalize">Create Loan</h1>
                     </div>
                 </div>
 

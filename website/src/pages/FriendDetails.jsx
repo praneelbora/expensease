@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import React, { Fragment } from 'react';
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import { getFriendDetails } from "../services/FriendService";
 import { settleExpense, getFriendExpense } from "../services/ExpenseService";
 import SettleModal from "../components/SettleModal";
 import { ChevronLeft, Loader, Wallet, Plus } from "lucide-react";
-
+import LoanModal from "../components/LoanModal";
+import { deleteLoan as deleteLoanApi } from "../services/LoanService";
 import { useAuth } from "../context/AuthContext";
 import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
 
@@ -16,12 +17,15 @@ import {
     addRepayment as addLoanRepayment,
     closeLoan as closeLoanApi,
 } from "../services/LoanService";
-import LoanRepayModal from "../components/LoanRepayModal";
+
 import PullToRefresh from "pulltorefreshjs";
 
 const FriendDetails = () => {
     const { userToken } = useAuth();
     const { id } = useParams();
+        const [searchParams] = useSearchParams();
+    const tab = searchParams.get("tab"); // "loan" or null
+
     const navigate = useNavigate();
     const [userId, setUserId] = useState();
     const [loading, setLoading] = useState(true);
@@ -33,7 +37,7 @@ const FriendDetails = () => {
     const [showSettleModal, setShowSettleModal] = useState(false);
     const [settleType, setSettleType] = useState('partial');
     const [loanLoading, setLoanLoading] = useState(true);
-    const [activeSection, setActiveSection] = useState("expenses"); // 'loans' | 'expenses'
+    const [activeSection, setActiveSection] = useState(tab === "loan" ? "loans" : "expenses"); // 'loans' | 'expenses'
 
     const [loans, setLoans] = useState([]);
     const [netLoanBalance, setNetLoanBalance] = useState(0);
@@ -42,9 +46,13 @@ const FriendDetails = () => {
     const [activeLoan, setActiveLoan] = useState(null);
     const [repayAmount, setRepayAmount] = useState("");
     const [repayNote, setRepayNote] = useState("");
+    const [showLoanView, setShowLoanView] = useState(false);
 
-    // state you already have (or add)
-    const [showRepayModal, setShowRepayModal] = useState(false);
+    // helpers:
+    const openLoanView = (loan) => {
+        setActiveLoan(loan);
+        setShowLoanView(true);
+    };
 
     // open from a button on a loan card
     const scrollRef = useRef(null);
@@ -157,12 +165,6 @@ const FriendDetails = () => {
         const receiverName = receiver.friendId._id === userId ? "you" : receiver.friendId.name;
 
         return `${payerName} paid ${receiverName}`;
-    };
-    const openRepay = (loan) => {
-        setActiveLoan(loan);
-        setRepayAmount("");
-        setRepayNote("");
-        setShowRepayModal(true);
     };
 
     const submitRepayment = async () => {
@@ -405,7 +407,8 @@ const FriendDetails = () => {
                                         return (
                                             <div
                                                 key={loan._id}
-                                                className="border border-[#333] rounded-lg p-3 bg-[#171717] flex flex-col gap-1"
+                                                className={`border ${outstanding>0?'border-teal-500':'border-[#333]'} rounded-lg p-3 bg-[#171717] flex flex-col gap-1 cursor-pointer`}
+                                                onClick={() => openLoanView(loan)}
                                             >
                                                 <div className="flex justify-between items-center">
                                                     <div className="text-sm">
@@ -420,43 +423,16 @@ const FriendDetails = () => {
                                                             <div className="text-[#a0a0a0] italic">{loan.description}</div>
                                                         )}
                                                     </div>
-                                                    <div className="flex gap-2">
-                                                        {outstanding != 0 ? <button
-                                                            onClick={() => openRepay(loan)}
-                                                            className="px-3 py-1 rounded-md border border-[#55554f] text-sm hover:bg-[#222]"
-                                                        >
-                                                            Add Repayment
-                                                        </button> :
-                                                            <button
-                                                                onClick={() => closeLoan(loan)}
-                                                                disabled={outstanding > 0}
-                                                                className={`px-3 py-1 rounded-md text-sm ${outstanding > 0
-                                                                    ? "border border-[#333] text-[#666] cursor-not-allowed"
-                                                                    : "border border-[#55554f] hover:bg-[#222]"
-                                                                    }`}
-                                                                title={
-                                                                    outstanding > 0
-                                                                        ? "Repay fully before closing"
-                                                                        : "Close loan"
-                                                                }
-                                                            >
-                                                                Close
-                                                            </button>}
-                                                    </div>
                                                 </div>
+
                                                 {loan.repayments?.length > 0 && (
                                                     <div className="mt-2 text-xs text-[#a0a0a0]">
-                                                        <p>
-                                                            Repayments:{" "}
-                                                        </p>
-                                                        {loan.repayments
-                                                            .slice()
-                                                            .reverse()
-                                                            .map((r, idx) => (
-                                                                <p key={idx} className="mr-2">
-                                                                    ₹{r.amount} on {new Date(r.at).toLocaleDateString()}
-                                                                </p>
-                                                            ))}
+                                                        <p>Repayments:</p>
+                                                        {loan.repayments.slice().reverse().map((r, idx) => (
+                                                            <p key={idx} className="mr-2">
+                                                                ₹{r.amount} on {new Date(r.at).toLocaleDateString()}
+                                                            </p>
+                                                        ))}
                                                     </div>
                                                 )}
                                             </div>
@@ -581,32 +557,40 @@ const FriendDetails = () => {
             )}
             {showSettleModal && (
                 <SettleModal
+                    showModal={showSettleModal}
                     setShowModal={setShowSettleModal}
                     simplifiedTransactions={generateSimplifiedTransaction(netBalance, userId, friend._id)}
                     friends={[{ id: userId, name: 'You' }, { id: friend._id, name: friend.name }]}
                     onSubmit={handleSettle}
                     userId={userId}
                 />
-            )}{showRepayModal && activeLoan && (
-                <LoanRepayModal
-                    setShowModal={setShowRepayModal}
-                    loan={activeLoan}
-                    userId={userId}
-                    onSubmitRepayment={async ({ amount, note, closeAfter }) => {
-                        await addLoanRepayment(activeLoan._id, { amount, note }, userToken);
-                        // optionally auto-close when fully repaid
-                        if (closeAfter) {
-                            await closeLoanApi(activeLoan._id, {}, userToken);
-                        }
-                        await fetchLoansForFriend(userId, friend._id); // refresh the list + balances
-                    }}
-                    onCloseLoan={async () => {
-                        await closeLoanApi(activeLoan._id, {}, userToken);
-                        await fetchLoansForFriend(userId, friend._id);
-                    }}
-                />
-
             )}
+
+            {showLoanView && activeLoan && (
+  <LoanModal
+    showModal={showLoanView}            // ✅ add this
+    loan={activeLoan}
+    friend={friend}
+    userId={userId}
+    userToken={userToken}
+    onClose={() => setShowLoanView(false)}
+    onCloseLoan={async () => {
+      await closeLoanApi(activeLoan._id, {}, userToken);
+      await fetchLoansForFriend(userId, friend._id);
+      setShowLoanView(false);
+    }}
+    onDeleteLoan={async () => {
+      await deleteLoanApi(activeLoan._id, userToken);
+      await fetchLoansForFriend(userId, friend._id);
+      setShowLoanView(false);
+    }}
+    onAfterChange={async () => {
+      await fetchLoansForFriend(userId, friend._id);
+    }}
+  />
+)}
+
+
             {/* Floating Add Button – shows only when list isn't empty */}
             {!loading && (
                 <>

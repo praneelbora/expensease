@@ -6,6 +6,9 @@ import MainLayout from "../layouts/MainLayout";
 import { ChevronLeft, Loader } from "lucide-react";
 import { getFriends, sendFriendRequest } from "../services/FriendService";
 import { getGroupExpenses, updateGroupPrivacySetting } from "../services/GroupService";
+import ModalWrapper from "../components/ModalWrapper";
+
+import { useMemo } from "react";
 
 export default function GroupSettings() {
     const { id } = useParams();
@@ -17,7 +20,18 @@ export default function GroupSettings() {
     const [friends, setFriends] = useState([]);
     const [groupExpenses, setGroupExpenses] = useState([]);
     const [adminEnforcedPrivacy, setAdminEnforcedPrivacy] = useState(false);
+    const [confirmAction, setConfirmAction] = useState(null);
+    // 'leave' | 'delete' | null
+    const [busyAction, setBusyAction] = useState(false);
 
+
+    // ...
+    const isOwner = useMemo(() => {
+        const gId = group?.createdBy?._id ?? group?.createdBy;  // supports populated or raw id
+        const uId = user?._id ?? user?.id;
+        if (!gId || !uId) return false;
+        return String(gId) === String(uId);
+    }, [group?.createdBy, user?._id, user?.id]);
 
     const fetchFriends = async () => {
         try {
@@ -39,7 +53,7 @@ export default function GroupSettings() {
         }
     };
     useEffect(() => {
-        if (!group, !user._id) return;
+        if (!group || !user._id) return;
 
         let totalExpense = 0;
         let totalPaid = 0;
@@ -85,6 +99,9 @@ export default function GroupSettings() {
     async function fetchGroup() {
         setLoading(true)
         const data = await getGroupDetails(id, userToken);
+        console.log(data);
+        console.log(user);
+
         setGroup(data);
         setNewGroupName(data.name);
         setAdminEnforcedPrivacy(data?.settings?.enforcePrivacy || false);
@@ -125,8 +142,9 @@ export default function GroupSettings() {
         fetchGroup();
     }
 
-    const isOwner = group?.createdBy?._id === user?._id;
-
+    useEffect(() => {
+        console.log(isOwner);
+    }, [isOwner])
     return (
         <MainLayout groupId={id}>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
@@ -163,7 +181,7 @@ export default function GroupSettings() {
                                 </button>}
                             </div>
                             {/* Net Balance Summary Box */}
-                            <div className="bg-[#1E1E1E] p-4 rounded-xl shadow space-y-4 mt-4">
+                            {totals && <div className="bg-[#1E1E1E] p-4 rounded-xl shadow space-y-4 mt-4">
                                 <div>
                                     <h2 className="text-xl font-semibold mb-2">Summary</h2>
                                     <p className={`text-lg ${totals?.balance < 0 ? 'text-red-500' : 'text-teal-500'}`}>
@@ -188,7 +206,7 @@ export default function GroupSettings() {
                                         </span>
                                     </div>
                                 </div>
-                            </div>
+                            </div>}
 
                             <div>
                                 <h3 className="font-medium mb-2 text-[14px] uppercase text-teal-500">Members</h3>
@@ -212,7 +230,7 @@ export default function GroupSettings() {
                                                             Add Friend
                                                         </button>
                                                     )}
-                                                    {isOwner && (
+                                                    {group?.createdBy?._id === user?._id && (
                                                         <>
                                                             {/* {group.admins.includes(member._id) ? (
                                                                 <button onClick={() => handleDemote(member._id)} className="text-sm text-orange-600">Demote</button>
@@ -263,6 +281,33 @@ export default function GroupSettings() {
 
 
                         </div>)}
+                    {/* Danger Zone */}
+                    {/* Danger Zone */}
+                    {isOwner && (<div className="mt-8 border border-[#2C2C2C] rounded-xl overflow-hidden">
+                        <div className="bg-[#201f1f] px-4 py-3 border-b border-[#2C2C2C]">
+                            <h3 className="text-sm tracking-wide uppercase text-red-400">Danger Zone</h3>
+                        </div>
+
+                        <hr className="border-[#2C2C2C]" />
+                        <div className="p-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-base font-medium">Delete Group</p>
+                                <p className="text-sm text-[#9aa08e]">
+                                    Permanently removes the group and its expenses for all members. This action cannot be undone.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setConfirmAction('delete')}
+                                className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm"
+                                disabled={busyAction}
+                            >
+                                Delete Group
+                            </button>
+                        </div>
+
+                    </div>)}
+
+
                 </div>
 
                 {/* <div className="border-t pt-4">
@@ -272,6 +317,81 @@ export default function GroupSettings() {
                     )}
                 </div> */}
             </div>
+            {confirmAction && (
+                <ModalWrapper
+                    show
+                    onClose={() => !busyAction && setConfirmAction(null)}
+                    title={confirmAction === 'delete' ? 'Delete Group' : 'Leave Group'}
+                    size="md"
+                    footer={
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                onClick={() => setConfirmAction(null)}
+                                disabled={busyAction}
+                                className="px-4 py-2 rounded-md border border-[#55554f] hover:bg-[#2a2a2a] text-sm"
+                            >
+                                Cancel
+                            </button>
+                            {confirmAction === 'leave' ? (
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            setBusyAction(true);
+                                            await leaveGroup(id, userToken);
+                                            navigate("/groups");
+                                        } finally {
+                                            setBusyAction(false);
+                                        }
+                                    }}
+                                    disabled={busyAction}
+                                    className="px-4 py-2 rounded-md border border-red-500 text-red-400 hover:bg-red-500/10 text-sm"
+                                >
+                                    {busyAction ? "Leaving..." : "Leave Group"}
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            setBusyAction(true);
+                                            await deleteGroup(id, userToken);
+                                            navigate("/groups");
+                                        } finally {
+                                            setBusyAction(false);
+                                        }
+                                    }}
+                                    disabled={busyAction}
+                                    className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm"
+                                >
+                                    {busyAction ? "Deleting..." : "Delete Group"}
+                                </button>
+                            )}
+                        </div>
+                    }
+                >
+                    <div className="space-y-2">
+                        {confirmAction === 'leave' ? (
+                            <>
+                                <p className="text-[#EBF1D5]">
+                                    Are you sure you want to leave <span className="font-semibold">{group?.name}</span>?
+                                </p>
+                                <p className="text-sm text-[#9aa08e]">
+                                    You’ll lose access to its expenses. This won’t delete the group for others.
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-[#EBF1D5]">
+                                    This will permanently delete <span className="font-semibold">{group?.name}</span> for all members.
+                                </p>
+                                <p className="text-sm text-[#9aa08e]">
+                                    This action cannot be undone.
+                                </p>
+                            </>
+                        )}
+                    </div>
+                </ModalWrapper>
+            )}
+
         </MainLayout>
     );
 }
