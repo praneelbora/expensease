@@ -1,7 +1,7 @@
 // RouteTracker.jsx
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
-import { logScreenView } from "../analytics";
+import { logScreenView } from "../utils/analytics";
 import { useAuth } from "./AuthContext";
 
 export default function RouteTracker() {

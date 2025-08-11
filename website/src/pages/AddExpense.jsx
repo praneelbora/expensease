@@ -10,7 +10,7 @@ import { getFriends } from "../services/FriendService";
 import { getAllGroups, joinGroup } from "../services/GroupService";
 import { createExpense } from "../services/ExpenseService";
 import { CalendarDays } from "lucide-react"; // or use any other icon
-import { logEvent } from '../analytics';
+import { logEvent } from '../utils/analytics';
 
 const AddExpense = () => {
     const navigate = useNavigate()

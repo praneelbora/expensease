@@ -6,7 +6,7 @@ import { ChevronLeft, Loader, Plus } from "lucide-react";
 import { getAllExpenses } from '../services/ExpenseService';
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
 import PullToRefresh from "pulltorefreshjs";
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const Expenses = () => {

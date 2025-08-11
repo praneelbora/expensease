@@ -5,7 +5,7 @@ import { useLocation } from 'react-router-dom';
 import { getAllExpenses } from '../services/ExpenseService';
 import { updateUserProfile } from '../services/UserService'; // make sure this exists
 import CategoriesManage from '../components/SettingsCategoryManager';
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 
 const Account = () => {
     const { logout, user, userToken } = useAuth() || {};

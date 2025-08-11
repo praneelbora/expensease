@@ -9,7 +9,7 @@ import { getGroupExpenses, updateGroupPrivacySetting } from "../services/GroupSe
 import ModalWrapper from "../components/ModalWrapper";
 
 import { useMemo } from "react";
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 
 export default function GroupSettings() {
     const { id } = useParams();

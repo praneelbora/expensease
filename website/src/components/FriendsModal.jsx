@@ -11,7 +11,7 @@ import {
     fetchSentRequests,
     fetchReceivedRequests,
 } from "../services/FriendService";
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 
 // Small copy helper with auto-hide flag
 function useCopy(timeoutMs = 1800) {

@@ -7,7 +7,7 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import RouteTracker from "./context/RouteTracker.jsx";
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { registerSW } from 'virtual:pwa-register';
-import { initAnalytics } from './analytics';
+import { initAnalytics } from './utils/analytics.js';
 
 initAnalytics();
 const root = document.getElementById("root");

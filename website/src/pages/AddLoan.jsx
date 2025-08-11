@@ -6,7 +6,7 @@ import { ChevronLeft, Loader } from "lucide-react";
 import { getFriends } from "../services/FriendService";
 import { createLoan } from "../services/LoanService";
 import { useLocation, useNavigate } from "react-router-dom";
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 
 const AddLoan = () => {
     const { userToken } = useAuth() || {};

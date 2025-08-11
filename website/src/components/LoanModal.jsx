@@ -6,7 +6,7 @@ import {
     addRepayment as addLoanRepayment,
     closeLoan as closeLoanApi,
 } from "../services/LoanService";
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 
 const fmt = (n) => `₹${Number(n || 0).toFixed(2)}`;
 

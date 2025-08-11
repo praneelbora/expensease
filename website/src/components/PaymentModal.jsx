@@ -5,7 +5,7 @@ import gpayPng from "../assets/payments/gpay.png";
 import phonepePng from "../assets/payments/phonepe.png";
 import paytmPng from "../assets/payments/paytm.png";
 import { IndianRupee } from "lucide-react"; // or any rupee icon you prefer
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 
 
 export default function PaymentModal({

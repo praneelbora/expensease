@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom"; // ✅ Correct import
 import Cookies from "js-cookie";
 import { fetchUserData, linkLogin, getUserCategories } from "../services/UserService";
-import { setGAUserId } from '../analytics';
+import { setGAUserId } from '../utils/analytics';
 
 export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {

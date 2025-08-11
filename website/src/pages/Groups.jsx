@@ -8,7 +8,7 @@ import { useLocation } from "react-router-dom";
 import { Users, Wallet, Plus, List, User, Loader } from "lucide-react";
 import { getAllGroups, getGroupExpenses, joinGroup } from "../services/GroupService";
 import PullToRefresh from "pulltorefreshjs";
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 
 const Groups = () => {
 

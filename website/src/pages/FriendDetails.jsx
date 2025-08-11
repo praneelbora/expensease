@@ -20,7 +20,7 @@ import {
 } from "../services/LoanService";
 
 import PullToRefresh from "pulltorefreshjs";
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 
 const FriendDetails = () => {
     const { userToken, user } = useAuth();

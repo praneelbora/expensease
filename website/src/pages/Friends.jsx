@@ -15,7 +15,7 @@ import {
     Loader,
 } from "lucide-react";
 import PullToRefresh from "pulltorefreshjs";
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 const Friends = () => {
     const location = useLocation();
     const navigate = useNavigate();

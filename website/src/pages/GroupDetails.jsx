@@ -24,7 +24,7 @@ import {
     Loader
 } from "lucide-react";
 import { settleExpense } from '../services/ExpenseService';
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 
 const GroupDetails = () => {
     const { userToken } = useAuth() || {}
