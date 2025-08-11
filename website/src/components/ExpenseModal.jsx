@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import ModalWrapper from "./ModalWrapper";
 import { deleteExpense } from "../services/ExpenseService";
+import { logEvent } from "../analytics";
 
 const fmtMoney = (n) => `₹${Number(n || 0).toFixed(2)}`;
 const fmtDate = (d) =>
@@ -72,7 +73,9 @@ export default function ExpenseModal({
             {!confirmDelete ? (
                 <>
                     <button
-                        onClick={() => setConfirmDelete(true)}
+                        onClick={() => {
+                            setConfirmDelete(true)
+                        }}
                         disabled={busy}
                         className="text-red-400 border border-red-500 px-4 py-2 rounded-md hover:bg-red-500/10 transition text-sm inline-flex items-center gap-1"
                     >
@@ -97,7 +100,12 @@ export default function ExpenseModal({
                         Cancel
                     </button>
                     <button
-                        onClick={handleDelete}
+                        onClick={() => {
+                            logEvent('expense_deleted', {
+                                surface: 'modal'
+                            })
+                            handleDelete()
+                        }}
                         disabled={busy}
                         className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm inline-flex items-center gap-1"
                     >

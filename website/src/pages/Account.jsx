@@ -5,6 +5,7 @@ import { useLocation } from 'react-router-dom';
 import { getAllExpenses } from '../services/ExpenseService';
 import { updateUserProfile } from '../services/UserService'; // make sure this exists
 import CategoriesManage from '../components/SettingsCategoryManager';
+import { logEvent } from "../analytics";
 
 const Account = () => {
     const { logout, user, userToken } = useAuth() || {};
@@ -132,7 +133,12 @@ const Account = () => {
                                         className="flex-1 bg-[#2A2A2A] text-white px-3 py-2 rounded border border-transparent focus:outline-none focus:border-teal-600"
                                     />
                                     <button
-                                        onClick={saveUpi}
+                                        onClick={() => {
+                                            logEvent('update_upi', {
+                                                screen: 'account'
+                                            });
+                                            saveUpi()
+                                        }}
                                         className="px-4 py-2 rounded bg-teal-600 hover:bg-teal-700 font-semibold"
                                     >
                                         Save

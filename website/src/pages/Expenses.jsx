@@ -7,6 +7,7 @@ import { ChevronLeft, Loader, Plus } from "lucide-react";
 import { getAllExpenses } from '../services/ExpenseService';
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
 import PullToRefresh from "pulltorefreshjs";
+import { logEvent } from "../analytics";
 
 const Expenses = () => {
     const { userToken } = useAuth() || {}
@@ -16,7 +17,6 @@ const Expenses = () => {
     const [showModal, setShowModal] = useState(false);
     const navigate = useNavigate();
     const [filter, setFilter] = useState("all"); // 'all', 'personal', 'settle', 'group', 'friend'
-
     const getSettleDirectionText = (splits) => {
         const payer = splits.find(s => s.paying && s.payAmount > 0);
         const receiver = splits.find(s => s.owing && s.oweAmount > 0);
@@ -75,35 +75,35 @@ const Expenses = () => {
     useEffect(() => {
         fetchExpenses();
     }, []);
-        const scrollRef = useRef(null);
-        const [refreshing, setRefreshing] = useState(false);
-    
-        const doRefresh = async () => {
-            setRefreshing(true);
-            try {
-                await Promise.all([fetchExpenses()]);
-            } finally {
-                setRefreshing(false);
-            }
-        };
+    const scrollRef = useRef(null);
+    const [refreshing, setRefreshing] = useState(false);
 
-        useEffect(() => {
-            if (!scrollRef.current) return;
-    
-            PullToRefresh.init({
-                mainElement: scrollRef.current,
-                onRefresh: doRefresh,
-                distThreshold: 60,
-                distMax: 120,
-                resistance: 2.5,
-                shouldPullToRefresh: () =>
-                    scrollRef.current && scrollRef.current.scrollTop === 0,
-            });
-    
-            return () => {
-                PullToRefresh.destroyAll(); // correct cleanup
-            };
-        }, []);
+    const doRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await Promise.all([fetchExpenses()]);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!scrollRef.current) return;
+
+        PullToRefresh.init({
+            mainElement: scrollRef.current,
+            onRefresh: doRefresh,
+            distThreshold: 60,
+            distMax: 120,
+            resistance: 2.5,
+            shouldPullToRefresh: () =>
+                scrollRef.current && scrollRef.current.scrollTop === 0,
+        });
+
+        return () => {
+            PullToRefresh.destroyAll(); // correct cleanup
+        };
+    }, []);
     return (
         <MainLayout>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
@@ -112,12 +112,17 @@ const Expenses = () => {
                         <button onClick={() => navigate(`/dashboard`)}>
                             <ChevronLeft />
                         </button>
-                    <h1 className="text-3xl font-bold capitalize">All Expenses</h1>
+                        <h1 className="text-3xl font-bold capitalize">All Expenses</h1>
                     </div>
 
                     <button
                         className={`flex flex-col items-center justify-center z-10 bg-teal-500 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
-                        onClick={() => navigate('/new-expense')}
+                        onClick={() => {
+                            logEvent('navigate', {
+                                screen: 'expenses', to: 'add_expense', source: 'plus'
+                            });
+                            navigate('/new-expense')
+                        }}
                     >
                         <Plus strokeWidth={3} size={20} />
                     </button>
@@ -142,7 +147,7 @@ const Expenses = () => {
                         </button>
                     ))}
                 </div>
-<div
+                <div
                     ref={scrollRef}
                     className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar scroll-touch"
                 >                    <ul className="h-full flex flex-col w-full gap-2">

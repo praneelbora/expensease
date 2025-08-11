@@ -1,4 +1,4 @@
-// src/pages/CreateLoan.jsx
+// src/pages/AddLoan.jsx
 import { useEffect, useRef, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
 import { useAuth } from "../context/AuthContext";
@@ -6,8 +6,9 @@ import { ChevronLeft, Loader } from "lucide-react";
 import { getFriends } from "../services/FriendService";
 import { createLoan } from "../services/LoanService";
 import { useLocation, useNavigate } from "react-router-dom";
+import { logEvent } from "../analytics";
 
-const CreateLoan = () => {
+const AddLoan = () => {
     const { userToken } = useAuth() || {};
     const [loading, setLoading] = useState(true);
     const location = useLocation();
@@ -104,7 +105,11 @@ const CreateLoan = () => {
 
             // If your backend resolves "me" from auth, you're done.
             // Otherwise map "me" to current user id here before submit.
-
+            logEvent('loan_added', {
+                screen: 'add_loan',
+                currency: currency,
+                amount: principal
+            })
             await createLoan(payload, userToken);
             resetAll();
             if (cameFromFriendDetailsRef) {
@@ -395,4 +400,4 @@ const CreateLoan = () => {
     );
 };
 
-export default CreateLoan;
+export default AddLoan;

@@ -167,8 +167,8 @@ export default function GroupsModal({ setShowModal, showModal, fetchGroups }) {
                     mode === "create" ? groupName.trim().length === 0 : joinCode.trim().length !== 4
                 }
                 className={`w-full py-2 border rounded-[8px] text-[#000] transition ${(mode === "create" ? groupName.trim().length > 0 : joinCode.trim().length === 4)
-                        ? "bg-teal-300 border-teal-300 cursor-pointer"
-                        : "bg-gray-500 border-gray-500 cursor-not-allowed"
+                    ? "bg-teal-300 border-teal-300 cursor-pointer"
+                    : "bg-gray-500 border-gray-500 cursor-not-allowed"
                     }`}
             >
                 {mode === "create" ? "Create Group" : "Join Group"}
@@ -206,8 +206,8 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
                                     )
                                 }
                                 className={`px-4 py-2 rounded-lg text-sm font-medium ${copied
-                                        ? "bg-teal-500 text-[#121212]"
-                                        : "bg-teal-400 hover:bg-teal-300 text-[#121212]"
+                                    ? "bg-teal-500 text-[#121212]"
+                                    : "bg-teal-400 hover:bg-teal-300 text-[#121212]"
                                     }`}
                             >
                                 {copied ? "✓ Copied" : "Copy Invite"}
@@ -244,8 +244,8 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
                                         setErrorMessage("");
                                     }}
                                     className={`px-6 py-1.5 rounded-full text-sm transition-all duration-200 font-medium ${mode === "create"
-                                            ? "bg-[#EBF1D5] text-[#121212]"
-                                            : "text-[#EBF1D5] hover:bg-[#2a2a2a]"
+                                        ? "bg-[#EBF1D5] text-[#121212]"
+                                        : "text-[#EBF1D5] hover:bg-[#2a2a2a]"
                                         }`}
                                 >
                                     Create Group
@@ -256,8 +256,8 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
                                         setErrorMessage("");
                                     }}
                                     className={`px-6 py-1.5 rounded-full text-sm transition-all duration-200 font-medium ${mode === "join"
-                                            ? "bg-[#EBF1D5] text-[#121212]"
-                                            : "text-[#EBF1D5] hover:bg-[#2a2a2a]"
+                                        ? "bg-[#EBF1D5] text-[#121212]"
+                                        : "text-[#EBF1D5] hover:bg-[#2a2a2a]"
                                         }`}
                                 >
                                     Join Group
@@ -308,36 +308,6 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
                                 {filteredFriends.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 px-2 max-h-[40dvh] overflow-y-auto border border-[#333]">
                                         {filteredFriends.map((f) => (
-                                            <button
-                                                key={f._id}
-                                                type="button"
-                                                onClick={() => toggleFriendSelection(f)}
-                                                className="text-left"
-                                            >
-                                                <div className="flex flex-row w-full justify-between items-center">
-                                                    <div className="flex flex-col">
-                                                        <h2 className="text-xl capitalize text-[#EBF1D5]">{f.name}</h2>
-                                                        <p className="lowercase text-[#81827C]">{f.email}</p>
-                                                    </div>
-                                                </div>
-                                                <hr className="border-[#2a2a2a] mt-2" />
-                                            </button>
-                                        ))}{filteredFriends.map((f) => (
-                                            <button
-                                                key={f._id}
-                                                type="button"
-                                                onClick={() => toggleFriendSelection(f)}
-                                                className="text-left"
-                                            >
-                                                <div className="flex flex-row w-full justify-between items-center">
-                                                    <div className="flex flex-col">
-                                                        <h2 className="text-xl capitalize text-[#EBF1D5]">{f.name}</h2>
-                                                        <p className="lowercase text-[#81827C]">{f.email}</p>
-                                                    </div>
-                                                </div>
-                                                <hr className="border-[#2a2a2a] mt-2" />
-                                            </button>
-                                        ))}{filteredFriends.map((f) => (
                                             <button
                                                 key={f._id}
                                                 type="button"

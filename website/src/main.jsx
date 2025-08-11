@@ -4,8 +4,12 @@ import { BrowserRouter } from "react-router-dom";
 import './index.css';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
+import RouteTracker from "./context/RouteTracker.jsx";
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { registerSW } from 'virtual:pwa-register';
+import { initAnalytics } from './analytics';
+
+initAnalytics();
 const root = document.getElementById("root");
 
 const updateSW = registerSW({
@@ -14,16 +18,16 @@ const updateSW = registerSW({
       updateSW(true);
     }
   },
-  onOfflineReady() {
-    console.log("App ready for offline use.");
-  },
+  // onOfflineReady() {
+    // console.log("App ready for offline use.");
+  // },
 });
-
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
       <BrowserRouter>
         <AuthProvider>
+        <RouteTracker />
           <App />
         </AuthProvider>
       </BrowserRouter>

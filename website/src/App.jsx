@@ -12,7 +12,7 @@ import Logout from "./pages/Logout";
 import GroupJoin from "./pages/GroupJoin";
 import GroupSettings from "./pages/GroupSettings";
 import Dashboard from "./pages/Dashboard";
-import CreateLoan from "./pages/CreateLoan";
+import AddLoan from "./pages/AddLoan";
 import SupportDev from "./pages/SupportDev";
 import Cookies from "js-cookie";
 import { Loader } from "lucide-react";
@@ -70,7 +70,7 @@ function App() {
             />
             <Route
                 path="/new-loan"
-                element={<PrivateRoute><CreateLoan /></PrivateRoute>}
+                element={<PrivateRoute><AddLoan /></PrivateRoute>}
             />
             <Route
                 path="/account"

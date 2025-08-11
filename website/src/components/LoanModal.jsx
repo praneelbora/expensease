@@ -6,6 +6,7 @@ import {
     addRepayment as addLoanRepayment,
     closeLoan as closeLoanApi,
 } from "../services/LoanService";
+import { logEvent } from "../analytics";
 
 const fmt = (n) => `₹${Number(n || 0).toFixed(2)}`;
 
@@ -147,7 +148,12 @@ export default function LoanViewModal({
                                 Cancel
                             </button>
                             <button
-                                onClick={doDelete}
+                                onClick={() => {
+                                    logEvent('loan_deleted', {
+                                        surface: 'modal'
+                                    })
+                                    doDelete()
+                                }}
                                 className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm inline-flex items-center gap-1 disabled:opacity-60"
                                 disabled={busy}
                             >
@@ -162,10 +168,12 @@ export default function LoanViewModal({
             {outstanding > 0 && !confirmDelete && (
                 <>
                     <button
-                        onClick={() => setShowRepayForm((s) => !s)}
+                        onClick={() => {
+                            setShowRepayForm((s) => !s)
+                        }}
                         className={`px-4 py-2 rounded-md border ${showRepayForm
-                                ? "border-red-500 text-red-500"
-                                : "border-teal-500 text-teal-500"
+                            ? "border-red-500 text-red-500"
+                            : "border-teal-500 text-teal-500"
                             } text-sm`}
                     >
                         {showRepayForm ? "Cancel" : "Add Repayment"}
@@ -173,7 +181,12 @@ export default function LoanViewModal({
 
                     {showRepayForm && (
                         <button
-                            onClick={submitRepayment}
+                            onClick={() => {
+                                logEvent('loan_repayment', {
+                                    surface: 'modal'
+                                })
+                                submitRepayment()
+                            }}
                             disabled={savingRepay}
                             className="px-4 py-2 rounded-md border border-teal-500 text-teal-500 text-sm disabled:opacity-60"
                         >
@@ -188,7 +201,12 @@ export default function LoanViewModal({
                 outstanding === 0 &&
                 localLoan?.status !== "closed" && (
                     <button
-                        onClick={doCloseLoan}
+                        onClick={() => {
+                            logEvent('loan_closed', {
+                                surface: 'modal'
+                            })
+                            doCloseLoan()
+                        }}
                         className="px-4 py-2 rounded-md border border-[#55554f] hover:bg-[#222] text-sm inline-flex items-center gap-1 disabled:opacity-60"
                         disabled={busy}
                     >

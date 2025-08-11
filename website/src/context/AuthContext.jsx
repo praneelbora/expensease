@@ -3,6 +3,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom"; // ✅ Correct import
 import Cookies from "js-cookie";
 import { fetchUserData, linkLogin, getUserCategories } from "../services/UserService";
+import { setGAUserId } from '../analytics';
+
 export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -11,7 +13,7 @@ export const AuthProvider = ({ children }) => {
     const [categories, setCategories] = useState([]);
     const navigate = useNavigate();
 
-    const loadUserData = async () => {
+    const loadUserData = async (setGA) => {
         const user = await fetchUserData();
         setUser(user);
         setAuthLoading(false);
@@ -21,22 +23,37 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         Cookies.remove("userToken");
         navigate("/login");
-    };    
+    };
     useEffect(() => {
         const token = Cookies.get("userToken");
         if (token) {
             setUserToken(token);
-            getCategories(token)
+            getCategories(token);
         }
-        loadUserData()
-    }, []);
+
+        const fetchData = async () => {
+            const fetchedUser = await fetchUserData();
+            setUser(fetchedUser);
+
+            if (fetchedUser?._id) {
+                setGAUserId(fetchedUser._id);
+            } else {
+                console.warn("User ID missing, GA will wait.");
+            }
+
+            setAuthLoading(false);
+        };
+
+        fetchData();
+    }, [, userToken]);
+
     const getCategories = async (userToken) => {
         const categories = await getUserCategories(userToken);
         setCategories(categories)
     };
-    
+
     return (
-        <AuthContext.Provider value={{ user, loadUserData, setUser, logout, userToken, setUserToken, authLoading, categories,setCategories }}>
+        <AuthContext.Provider value={{ user, loadUserData, setUser, logout, userToken, setUserToken, authLoading, categories, setCategories }}>
             {children}
         </AuthContext.Provider>
     );

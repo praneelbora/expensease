@@ -11,6 +11,7 @@ import {
     fetchSentRequests,
     fetchReceivedRequests,
 } from "../services/FriendService";
+import { logEvent } from "../analytics";
 
 // Small copy helper with auto-hide flag
 function useCopy(timeoutMs = 1800) {
@@ -46,6 +47,9 @@ ${friendLink}`;
 
     // Share handler with copy fallback
     const handleShare = async () => {
+        logEvent('invite_friend_share',
+            { screen: 'friends', surface: 'modal' }
+        );
         if (navigator.share) {
             try {
                 await navigator.share({
@@ -65,6 +69,9 @@ ${friendLink}`;
     // Actions
     const handleAddFriend = async () => {
         if (!val?.trim()) return;
+        logEvent('friend_request_send', {
+            screen: 'friends', surface: 'modal', source: 'email'
+        });
         try {
             const data = await sendFriendRequest(val.trim(), userToken);
             console.log(data.message || "Friend request sent!");
@@ -79,6 +86,9 @@ ${friendLink}`;
 
     const handleAccept = async (id) => {
         try {
+            logEvent('friend_request_accept', {
+                screen: 'friends', surface: 'modal'
+            });
             await acceptFriendRequest(id, userToken);
             fetchFriends?.();
             handleSentRequests();
@@ -90,6 +100,9 @@ ${friendLink}`;
 
     const handleReject = async (id) => {
         try {
+            logEvent('friend_request_reject', {
+                screen: 'friends', surface: 'modal'
+            });
             await rejectFriendRequest(id, userToken);
             fetchFriends?.();
             handleSentRequests();
@@ -101,6 +114,9 @@ ${friendLink}`;
 
     const handleCancel = async (id) => {
         try {
+            logEvent('friend_request_cancel', {
+                screen: 'friends', surface: 'modal'
+            });
             await cancelFriendRequest(id, userToken);
             fetchFriends?.();
             handleSentRequests();
@@ -149,7 +165,7 @@ ${friendLink}`;
                 <div className="rounded-xl border border-[#2a2a2a] bg-[#151515] p-3">
                     <p className="text-sm text-[#a0a0a0] mb-2">Invite a friend</p>
 
-                    <div className="flex items-stretch gap-2">
+                    <div className="flex flex-col gap-2">
                         <input
                             className="flex-1 bg-[#1f1f1f] text-[#EBF1D5] border border-[#333] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4b8]"
                             value={friendLink}
@@ -157,23 +173,31 @@ ${friendLink}`;
                             onFocus={(e) => e.target.select()}
                             aria-label="Invite link"
                         />
-                        <button
-                            onClick={() => copy(message)}
-                            className={`px-3 py-2 rounded-lg border text-sm transition ${copied
+                        <div className="flex items-stretch gap-2">
+                            <button
+                                onClick={() => {
+                                    logEvent('invite_friend_copy',
+                                        { screen: 'friends', surface: 'modal' }
+                                    );
+                                    copy(message)
+                                }
+                                }
+                                className={`px-3 py-2 rounded-lg border text-sm transition ${copied
                                     ? "border-teal-500 text-black bg-teal-500"
                                     : "border-[#55554f] text-[#EBF1D5] hover:bg-[#222]"
-                                }`}
-                            aria-live="polite"
-                        >
-                            {copied ? "Copied" : "Copy"}
-                        </button>
-                        <button
-                            onClick={handleShare}
-                            className="px-3 py-2 rounded-lg border border-[#55554f] text-[#EBF1D5] text-sm hover:bg-[#222] inline-flex items-center gap-2"
-                        >
-                            <Share2 strokeWidth={2} size={16} />
-                            Share
-                        </button>
+                                    }`}
+                                aria-live="polite"
+                            >
+                                {copied ? "Copied" : "Copy"}
+                            </button>
+                            <button
+                                onClick={handleShare}
+                                className="px-3 py-2 rounded-lg border border-[#55554f] text-[#EBF1D5] text-sm hover:bg-[#222] inline-flex items-center gap-2"
+                            >
+                                <Share2 strokeWidth={2} size={16} />
+                                Share
+                            </button>
+                        </div>
                     </div>
 
                     <p className="text-xs text-[#8f8f8f] mt-2">

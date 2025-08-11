@@ -9,6 +9,7 @@ import { getGroupExpenses, updateGroupPrivacySetting } from "../services/GroupSe
 import ModalWrapper from "../components/ModalWrapper";
 
 import { useMemo } from "react";
+import { logEvent } from "../analytics";
 
 export default function GroupSettings() {
     const { id } = useParams();
@@ -99,9 +100,6 @@ export default function GroupSettings() {
     async function fetchGroup() {
         setLoading(true)
         const data = await getGroupDetails(id, userToken);
-        console.log(data);
-        console.log(user);
-
         setGroup(data);
         setNewGroupName(data.name);
         setAdminEnforcedPrivacy(data?.settings?.enforcePrivacy || false);
@@ -109,6 +107,7 @@ export default function GroupSettings() {
     }
 
     async function handleGroupRename() {
+        logEvent('group_rename')
         await updateGroupName(id, newGroupName, userToken);
         fetchGroup();
     }
@@ -141,10 +140,6 @@ export default function GroupSettings() {
         await demoteMember(id, memberId, userToken);
         fetchGroup();
     }
-
-    useEffect(() => {
-        console.log(isOwner);
-    }, [isOwner])
     return (
         <MainLayout groupId={id}>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
@@ -297,7 +292,10 @@ export default function GroupSettings() {
                                 </p>
                             </div>
                             <button
-                                onClick={() => setConfirmAction('delete')}
+                                onClick={() => {
+                                    logEvent('group_delete')
+                                    setConfirmAction('delete')
+                                }}
                                 className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm"
                                 disabled={busyAction}
                             >

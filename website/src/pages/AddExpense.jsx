@@ -10,6 +10,8 @@ import { getFriends } from "../services/FriendService";
 import { getAllGroups, joinGroup } from "../services/GroupService";
 import { createExpense } from "../services/ExpenseService";
 import { CalendarDays } from "lucide-react"; // or use any other icon
+import { logEvent } from '../analytics';
+
 const AddExpense = () => {
     const navigate = useNavigate()
     const [friends, setFriends] = useState([]);
@@ -178,6 +180,11 @@ const AddExpense = () => {
 
         try {
             const data = await createExpense(expenseData, userToken);
+            logEvent('expense_added', {
+                currency: 'INR',
+                amount: expenseData.amount,
+                category: expenseData.category,
+            });
             console.log('Expense created successfully!');
             setDesc('');
             setAmount('');
@@ -1034,6 +1041,9 @@ const AddExpense = () => {
                         <button
                             className="text-teal-400 underline"
                             onClick={() => {
+                                logEvent('navigate', {
+                                    screen: 'add_expense', source: 'cta'
+                                });
                                 navigate('/new-loan')
                             }}
                         >

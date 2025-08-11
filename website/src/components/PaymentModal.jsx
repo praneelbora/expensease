@@ -5,6 +5,7 @@ import gpayPng from "../assets/payments/gpay.png";
 import phonepePng from "../assets/payments/phonepe.png";
 import paytmPng from "../assets/payments/paytm.png";
 import { IndianRupee } from "lucide-react"; // or any rupee icon you prefer
+import { logEvent } from "../analytics";
 
 
 export default function PaymentModal({
@@ -20,7 +21,7 @@ export default function PaymentModal({
 }) {
 
     const [copied, setCopied] = useState("");
-    const [editableAmount, setEditableAmount] = useState(amount != 0 ? amount : null);
+    const [editableAmount, setEditableAmount] = useState(amount != 0 ? amount : 0);
 
     useEffect(() => {
         setEditableAmount(amount || 0);
@@ -118,7 +119,12 @@ export default function PaymentModal({
                         >
                             Cancel
                         </button><button
-                            onClick={() => onClose(editableAmount)}
+                            onClick={() => {
+                                logEvent('navigate', {
+                                    screen: 'payment_modal', to: 'settle_modal', source: 'payment_modal'
+                                })
+                                onClose(editableAmount)
+                            }}
                             className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded font-semibold"
                         >
                             Settle
@@ -158,7 +164,12 @@ export default function PaymentModal({
                         <span className="text-gray-400">UPI</span>
                         <code className="bg-[#1e1e1e] px-2 py-0.5 rounded">{receiverUpi}</code>
                         <button
-                            onClick={() => copy(receiverUpi, "upi")}
+                            onClick={() => {
+                                logEvent('upi_copied', {
+                                    screen: 'payment_modal',
+                                })
+                                copy(receiverUpi, "upi")
+                            }}
                             className="text-xs px-2 py-0.5 rounded border border-[#2a2a2a] hover:border-[#666]"
                         >
                             {copied === "upi" ? "Copied" : "Copy"}
@@ -171,23 +182,31 @@ export default function PaymentModal({
 
             {/* Content */}
             <div className="mt-4">
-                {tab === "apps" && (
-                    <div className="grid grid-cols-2 gap-2">
-                        {defaultApps.map((opt) => (
-                            <a
-                                key={opt.label}
-                                href={receiverUpi ? deepLink(opt.base) : "#"}
-                                onClick={(e) => { if (!receiverUpi) e.preventDefault(); }}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`flex items-center gap-3 bg-white text-black py-2 px-3 rounded-md hover:opacity-90 ${receiverUpi ? "" : "opacity-50 cursor-not-allowed"}`}
-                            >
-                                <img src={opt.icon} alt={opt.label} className="w-8 h-8 object-contain" />
-                                <span className="font-semibold">Pay with {opt.label}</span>
-                            </a>
-                        ))}
-                    </div>
-                )}
+                {/* {tab === "apps" && ( */}
+                <div className="grid grid-cols-2 gap-2">
+                    {defaultApps.map((opt) => (
+                        <a
+                            key={opt.label}
+                            href={receiverUpi ? deepLink(opt.base) : "#"}
+                            onClick={(e) => {
+                                logEvent('upi_payment_button_pressed', {
+                                    screen: 'payment_modal',
+                                    method: opt.label
+                                });
+
+                                if (!receiverUpi) e.preventDefault();
+                            }}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex items-center gap-3 bg-white text-black py-2 px-3 rounded-md hover:opacity-90 ${receiverUpi ? "" : "opacity-50 cursor-not-allowed"}`}
+                        >
+                            <img src={opt.icon} alt={opt.label} className="w-8 h-8 object-contain" />
+                            <span className="font-semibold">Pay with {opt.label}</span>
+                        </a>
+
+                    ))}
+                </div>
+                {/* )} */}
                 <p className="text-[11px] text-gray-500 mt-2">
                     Note: Once Payment is completed click on <span className="underline underline-offset-2">Settle</span>
                 </p>
@@ -196,22 +215,3 @@ export default function PaymentModal({
     );
 }
 
-function Row({ label, value, onCopy, copied }) {
-    if (!value) return null;
-    return (
-        <div className="flex items-center justify-between bg-[#1e1e1e] p-2 rounded">
-            <div>
-                <p className="text-xs text-gray-400">{label}</p>
-                <p className="text-sm">{value}</p>
-            </div>
-            {onCopy && (
-                <button
-                    onClick={onCopy}
-                    className="text-xs px-2 py-1 rounded border border-[#2a2a2a] hover:border-[#666]"
-                >
-                    {copied ? "Copied" : "Copy"}
-                </button>
-            )}
-        </div>
-    );
-}

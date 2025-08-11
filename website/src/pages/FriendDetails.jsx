@@ -20,6 +20,7 @@ import {
 } from "../services/LoanService";
 
 import PullToRefresh from "pulltorefreshjs";
+import { logEvent } from "../analytics";
 
 const FriendDetails = () => {
     const { userToken, user } = useAuth();
@@ -145,7 +146,6 @@ const FriendDetails = () => {
     const fetchData = async () => {
 
         const data = await getFriendDetails(id, userToken);
-        console.log(data);
         setFriend(data.friend);
         setUserId(data.id);
 
@@ -184,6 +184,9 @@ const FriendDetails = () => {
                 description: "Settlement",
             });
             setShowSettleModal(true);
+            logEvent('open_modal_settle', {
+                screen: 'friend_detail'
+            })
         }
     };
     const submitRepayment = async () => {
@@ -337,7 +340,13 @@ const FriendDetails = () => {
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
-                        <button onClick={() => navigate(`/friends`)}>
+                        <button onClick={() => {
+                            logEvent('back', {
+                                screen: 'friend_detail', to: 'friends'
+                            })
+                            navigate(`/friends`)
+                        }
+                        }>
                             <ChevronLeft />
                         </button>
                         <h1 className={`${friend?.name ? 'text-[#EBF1D5]' : 'text-[#121212]'} text-3xl font-bold capitalize`}>{friend?.name ? friend?.name : "Loading"}</h1>
@@ -347,7 +356,12 @@ const FriendDetails = () => {
                     <div className="w-full flex justify-center">
                         <div className="inline-flex border border-[#EBF1D5] rounded-full p-1 bg-[#1f1f1f]">
                             <button
-                                onClick={() => setActiveSection("expenses")}
+                                onClick={() => {
+                                    logEvent('tab_select', {
+                                        screen: 'friend_detail', tab: 'expenses'
+                                    });
+                                    setActiveSection("expenses")
+                                }}
                                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${activeSection === "expenses"
                                     ? "bg-[#EBF1D5] text-[#121212]"
                                     : "text-[#EBF1D5] hover:bg-[#2a2a2a]"
@@ -356,7 +370,12 @@ const FriendDetails = () => {
                                 Expenses
                             </button>
                             <button
-                                onClick={() => setActiveSection("loans")}
+                                onClick={() => {
+                                    logEvent('tab_select', {
+                                        screen: 'friend_detail', tab: 'loans'
+                                    });
+                                    setActiveSection("loans")
+                                }}
                                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${activeSection === "loans"
                                     ? "bg-[#EBF1D5] text-[#121212]"
                                     : "text-[#EBF1D5] hover:bg-[#2a2a2a]"
@@ -410,7 +429,12 @@ const FriendDetails = () => {
                                             You haven’t added any loans yet. Start by adding your first one to see stats and insights.
                                         </p>
                                         <button
-                                            onClick={() => navigate(`/new-loan`, { state: { friendId: friend._id } })}
+                                            onClick={() => {
+                                                logEvent('navigate', {
+                                                    screen: 'friend_detail', to: 'add_loan', source: 'cta'
+                                                });
+                                                navigate(`/new-loan`, { state: { friendId: friend._id } })
+                                            }}
                                             className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition"
                                         >
                                             Create Loan
@@ -427,7 +451,12 @@ const FriendDetails = () => {
                                             <div
                                                 key={loan._id}
                                                 className={`border ${outstanding > 0 ? 'border-teal-500' : 'border-[#333]'} rounded-lg p-3 bg-[#171717] flex flex-col gap-1 cursor-pointer`}
-                                                onClick={() => openLoanView(loan)}
+                                                onClick={() => {
+                                                    logEvent('open_modal_loan', {
+                                                        screen: 'friend_detail'
+                                                    })
+                                                    openLoanView(loan)
+                                                }}
                                             >
                                                 <div className="flex justify-between items-center">
                                                     <div className="text-sm">
@@ -489,6 +518,9 @@ const FriendDetails = () => {
                                                 </p> :
                                                     <button
                                                         onClick={() => {
+                                                            logEvent('open_modal_payment', {
+                                                                screen: 'friend_detail'
+                                                            })
                                                             setShowPaymentModal(true);
                                                         }}
                                                         className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
@@ -502,7 +534,12 @@ const FriendDetails = () => {
                                                 {!user?.upiId && <p className="text-xs text-gray-500 mt-2 italic">
                                                     💡 To make settlements faster, add your UPI ID here —{" "}
                                                     <button
-                                                        onClick={() => navigate("/account?section=upi")}
+                                                        onClick={() => {
+                                                            logEvent('navigate', {
+                                                                screen: 'friend_detail', to: 'account_upi'
+                                                            });
+                                                            navigate("/account?section=upi")
+                                                        }}
                                                         className="underline underline-offset-2 text-teal-400 hover:text-teal-300"
                                                     >
                                                         Account Page
@@ -517,6 +554,9 @@ const FriendDetails = () => {
                                             <div className="flex flex-col gap-2 mt-2">
                                                 <button
                                                     onClick={() => {
+                                                        logEvent('open_modal_settle', {
+                                                            screen: 'friend_detail'
+                                                        })
                                                         setSettleType("full");
                                                         setShowSettleModal(true);
                                                     }}
@@ -544,7 +584,12 @@ const FriendDetails = () => {
                                                 You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
                                             </p>
                                             <button
-                                                onClick={() => navigate('/new-expense', { state: { friendId: id } })}
+                                                onClick={() => {
+                                                    logEvent('navigate', {
+                                                        screen: 'friend_detail', to: 'add_expense', source: 'cta'
+                                                    });
+                                                    navigate('/new-expense', { state: { friendId: id } })
+                                                }}
                                                 className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition"
                                             >
                                                 Add Expense
@@ -663,7 +708,13 @@ const FriendDetails = () => {
                     {/* Expenses FAB */}
                     {activeSection === "expenses" && expenses?.length > 0 && (
                         <button
-                            onClick={() => navigate('/new-expense', { state: { friendId: id } })}
+                            onClick={() => {
+                                logEvent('navigate', {
+                                    screen: 'friend_detail', to: 'add_expense', source: 'fab'
+                                });
+                                navigate('/new-expense', { state: { friendId: id } })
+                            }
+                            }
                             aria-label="Add Expense"
                             className="fixed right-4 bottom-24 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
                    text-white px-5 py-4 flex items-center gap-2"
@@ -676,7 +727,13 @@ const FriendDetails = () => {
                     {/* Loans FAB */}
                     {activeSection === "loans" && loans?.length > 0 && (
                         <button
-                            onClick={() => navigate(`/new-loan`, { state: { friendId: friend._id } })}
+                            onClick={() => {
+                                logEvent('navigate', {
+                                    screen: 'friend_detail', to: 'add_loan', source: 'fab'
+                                });
+                                navigate(`/new-loan`, { state: { friendId: friend._id } })
+                            }
+                            }
                             aria-label="Create Loan"
                             className="fixed right-4 bottom-24 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
                    text-white px-5 py-4 flex items-center gap-2"

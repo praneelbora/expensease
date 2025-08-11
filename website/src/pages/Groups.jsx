@@ -6,8 +6,9 @@ import { useAuth } from "../context/AuthContext";
 import Cookies from "js-cookie";
 import { useLocation } from "react-router-dom";
 import { Users, Wallet, Plus, List, User, Loader } from "lucide-react";
-import { getAllGroups, getGroupExpenses } from "../services/GroupService";
+import { getAllGroups, getGroupExpenses, joinGroup } from "../services/GroupService";
 import PullToRefresh from "pulltorefreshjs";
+import { logEvent } from "../analytics";
 
 const Groups = () => {
 
@@ -18,7 +19,7 @@ const Groups = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const hasJoinedRef = useRef(false);
-        const round = (val) => Math.round(val * 100) / 100;
+    const round = (val) => Math.round(val * 100) / 100;
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -79,6 +80,9 @@ const Groups = () => {
             if (!response.ok) {
                 throw new Error(data.message || "Failed to join group");
             }
+            logEvent('group_join', {
+                screen: 'groups', source: 'link'
+            });
             const newUrl = new URL(window.location.href);
             newUrl.searchParams.delete("join");
             window.history.replaceState({}, "", newUrl);
@@ -126,7 +130,12 @@ const Groups = () => {
                     <h1 className="text-3xl font-bold capitalize">All Groups</h1>
                     <button
                         className={`flex flex-col items-center justify-center z-10 bg-teal-500 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
-                        onClick={() => setShowModal(true)}
+                        onClick={() => {
+                            logEvent('open_modal_group_new', {
+                                screen: 'groups', source: 'plus'
+                            })
+                            setShowModal(true)
+                        }}
                     >
                         <Plus strokeWidth={3} size={20} />
                     </button>
@@ -142,26 +151,34 @@ const Groups = () => {
                             <Loader />
                         </div>
                     ) : groups?.length === 0 ? (
-                         <div className="flex flex-col flex-1 justify-center">
-                        <div className="bg-[#1f1f1f] text-center text-[#EBF1D5] border border-[#333] p-4 rounded-lg mt-4">
-                            <p className="text-lg font-semibold mb-2">No groups yet!</p>
-                            <p className="text-sm text-[#bbb] mb-4">To split expenses, create a group.</p>
-                            <div className="flex justify-center gap-4">
-                                <button
-                                    onClick={() => setShowModal(true)}
-                                    className="bg-[#EBF1D5] text-black px-4 py-2 rounded hover:bg-[#d0d5a9] transition"
-                                >
-                                    Create Group
-                                </button>
+                        <div className="flex flex-col flex-1 justify-center">
+                            <div className="bg-[#1f1f1f] text-center text-[#EBF1D5] border border-[#333] p-4 rounded-lg mt-4">
+                                <p className="text-lg font-semibold mb-2">No groups yet!</p>
+                                <p className="text-sm text-[#bbb] mb-4">To split expenses, create a group.</p>
+                                <div className="flex justify-center gap-4">
+                                    <button
+                                        onClick={() => {
+                                            logEvent('open_modal_group_new', {
+                                                screen: 'groups',
+                                                source: 'cta'
+                                            })
+                                            setShowModal(true)
+                                        }}
+                                        className="bg-[#EBF1D5] text-black px-4 py-2 rounded hover:bg-[#d0d5a9] transition"
+                                    >
+                                        Create Group
+                                    </button>
+                                </div>
                             </div>
-                        </div>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-4">
                             {groups?.map((group) => (
                                 <div
                                     key={group._id}
-                                    onClick={() => navigate(`/groups/${group._id}`)}
+                                    onClick={() => {
+                                        navigate(`/groups/${group._id}`)
+                                    }}
                                     className="flex flex-col gap-2 h-[45px]"
                                 >
                                     <div className="flex flex-1 flex-row justify-between items-center align-middle">

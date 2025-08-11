@@ -15,6 +15,7 @@ import {
     Loader,
 } from "lucide-react";
 import PullToRefresh from "pulltorefreshjs";
+import { logEvent } from "../analytics";
 const Friends = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -59,6 +60,9 @@ const Friends = () => {
 
     const handleAccept = async (id) => {
         try {
+            logEvent('friend_request_accept', {
+                screen: 'friends'
+            })
             setLoading(true)
             await acceptFriendRequest(id, userToken);
             fetchFriends();
@@ -70,6 +74,9 @@ const Friends = () => {
         }
     }; const handleReject = async (id) => {
         try {
+            logEvent('friend_request_reject', {
+                screen: 'friends'
+            })
             setLoading(true)
             await rejectFriendRequest(id, userToken);
             fetchFriends();
@@ -142,7 +149,9 @@ const Friends = () => {
                 setBanner({ type: 'error', text: errorMsg });
                 return;
             }
-
+            logEvent('friend_request_send', {
+                screen: 'friends', surface: 'modal', source: 'link'
+            });
             // refresh incoming requests (typo fixed)
             await fetchReceived();
 
@@ -167,7 +176,12 @@ const Friends = () => {
                     <h1 className="text-3xl font-bold capitalize">All Friends</h1>
                     <button
                         className={`flex flex-col items-center justify-center z-10 bg-teal-500 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
-                        onClick={() => setShowModal(true)}
+                        onClick={() => {
+                            logEvent('open_modal_friends_add', {
+                                screen: 'friends'
+                            })
+                            setShowModal(true)
+                        }}
                     >
                         <Plus strokeWidth={3} size={20} />
                     </button>
@@ -209,7 +223,12 @@ const Friends = () => {
                                 <p className="text-sm text-[#bbb] mb-4">To split expenses, add friends.</p>
                                 <div className="flex justify-center gap-4">
                                     <button
-                                        onClick={() => setShowModal(true)}
+                                        onClick={() => {
+                                            logEvent('open_modal_friends_add', {
+                                                screen: 'friends'
+                                            })
+                                            setShowModal(true)
+                                        }}
                                         className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
                                     >
                                         Add Friend
@@ -265,32 +284,48 @@ const Friends = () => {
                                 });
 
                                 return (
-                                    <div onClick={() => {
-                                        navigate(`/friends/${friend._id}`)
-                                    }} key={friend._id} className="flex flex-col gap-2 h-[48px]">
-                                        <div className="flex flex-1 flex-row justify-between items-center align-middle">
-                                            <div className="flex flex-col justify-center">
-                                                <h2 className="text-xl font-semibold capitalize">{friend.name}</h2>
-                                                <span className="text-sm text-[#c9c9c9]">{friend.email}</span>
+                                    <div
+                                        onClick={() => navigate(`/friends/${friend._id}`)}
+                                        key={friend._id}
+                                        className="flex flex-col gap-2 h-[48px]"
+                                    >
+                                        <div className="flex flex-1 flex-row justify-between items-center max-w-full">
+                                            {/* Left: Name + Email */}
+                                            <div className="flex flex-col justify-center flex-grow overflow-hidden">
+                                                <h2 className="text-xl font-semibold capitalize truncate">{friend.name}</h2>
+                                                <span
+                                                    className="text-sm text-[#c9c9c9] truncate overflow-hidden whitespace-nowrap"
+                                                    title={friend.email}
+                                                >
+                                                    {friend.email}
+                                                </span>
                                             </div>
+
+                                            {/* Right: Balance */}
                                             {round(balance) !== 0 && !isNaN(balance) && (
-                                                <div className="flex flex-col">
-                                                    <p className={`${balance < 0 ? 'text-red-500' : 'text-teal-500'} text-[11px] text-right`}>
-                                                        {round(balance) < 0 ? 'you owe' : 'you are owed'}
+                                                <div className="flex flex-col min-w-[70px] pl-2 flex-shrink-0">
+                                                    <p
+                                                        className={`${balance < 0 ? "text-red-500" : "text-teal-500"
+                                                            } text-[11px] text-right`}
+                                                    >
+                                                        {round(balance) < 0 ? "you owe" : "you are owed"}
                                                     </p>
-                                                    <p className={`${balance < 0 ? 'text-red-500' : 'text-teal-500'} text-[14px] -mt-[4px] text-right`}>
+                                                    <p
+                                                        className={`${balance < 0 ? "text-red-500" : "text-teal-500"
+                                                            } text-[14px] -mt-[4px] text-right`}
+                                                    >
                                                         ₹ {Math.abs(balance.toFixed(2))}
                                                     </p>
                                                 </div>
                                             )}
-
                                         </div>
                                         <hr />
                                     </div>
+
                                 );
                             })}
-                            <p className="text-center text-sm text-lime-100">
-                                {friends.length} Friends
+                            <p className="text-center text-sm text-teal-500">
+                                {friends.length} Friend{friends?.length > 1 ? "s" : ""}
                             </p>
 
 

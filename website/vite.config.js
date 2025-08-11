@@ -16,8 +16,8 @@ export default defineConfig({
         'favicon.ico',
         'apple-touch-icon.png',
         'robots.txt',
-        'icons/icon-192x192.png',
-        'icons/icon-512x512.png',
+        'icons/image192.png',
+        'icons/image512.png',
       ],
       manifest: {
         name: 'SplitFree',
@@ -29,17 +29,17 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/icons/icon-192x192.png',
+            src: '/icons/image192.png',
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: '/icons/icon-512x512.png',
+            src: '/icons/image512.png',
             sizes: '512x512',
             type: 'image/png',
           },
           {
-            src: '/icons/icon-512x512.png',
+            src: '/icons/image512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable',

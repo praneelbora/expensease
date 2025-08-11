@@ -24,6 +24,7 @@ import {
     Loader
 } from "lucide-react";
 import { settleExpense } from '../services/ExpenseService';
+import { logEvent } from "../analytics";
 
 const GroupDetails = () => {
     const { userToken } = useAuth() || {}
@@ -49,6 +50,7 @@ const GroupDetails = () => {
             await settleExpense({ payerId, receiverId, amount, description, groupId: id }, userToken);
             await getGroupExpenses(id, userToken);
             console.log("Settlement recorded successfully!");
+            await fetchGroupExpenses()
         } catch (err) {
             console.log(err.message || "Could not settle the amount.");
         }
@@ -282,7 +284,12 @@ const GroupDetails = () => {
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
-                        <button onClick={() => navigate(`/groups`)}>
+                        <button onClick={() => {
+                            logEvent('back', {
+                                screen: 'group_detail', to: 'groups'
+                            })
+                            navigate(`/groups`)
+                        }}>
                             <ChevronLeft />
                         </button>
                         <h1 className={`${group?.name ? 'text-[#EBF1D5]' : 'text-[#121212]'} text-3xl font-bold capitalize`}>{group?.name ? group?.name : "Loading"}</h1>
@@ -297,6 +304,9 @@ const GroupDetails = () => {
 Or just click the link below to join directly:
 ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     navigator.clipboard.writeText(message1);
+                                    logEvent('invite_group_copy',
+                                        { screen: 'group_detail', source: 'header' }
+                                    );
                                     setCopied(true);
                                     setTimeout(() => setCopied(false), 2000); // hide after 2 seconds
                                     if (navigator.share) {
@@ -316,7 +326,12 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                             </button>
                             <button
                                 className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
-                                onClick={() => { navigate(`/groups/settings/${group._id}`) }} >
+                                onClick={() => {
+                                    logEvent('navigate',
+                                        { screen: 'group_detail', to: 'group_setting', source: 'header' }
+                                    );
+                                    navigate(`/groups/settings/${group._id}`)
+                                }} >
                                 <Settings strokeWidth={2} size={20} />
                             </button>
 
@@ -329,7 +344,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                         )}
                     </div>}
                 </div>
-<div
+                <div
                     ref={scrollRef}
                     className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar scroll-touch"
                 >
@@ -357,6 +372,9 @@ Or just click the link below to join directly:
 ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                 navigator.clipboard.writeText(message1);
                                                 setCopied(true);
+                                                logEvent('invite_group_copy',
+                                                    { screen: 'group_detail', source: 'header' }
+                                                );
                                                 setTimeout(() => setCopied(false), 2000); // hide a
                                                 if (navigator.share) {
                                                     navigator
@@ -386,7 +404,12 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
                                 </p>
                                 <button
-                                    onClick={() => navigate('/new-expense', { state: { groupId: id } })}
+                                    onClick={() => {
+                                        logEvent('navigate',
+                                            { screen: 'group_detail', to: 'add_expense', source: 'cta' }
+                                        );
+                                        navigate('/new-expense', { state: { groupId: id } })
+                                    }}
                                     className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition"
                                 >
                                     Add Expense
@@ -439,7 +462,12 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 <div className="flex justify-between items-center">
                                     <p className="text-[13px] text-teal-500 uppercase">Debt Summary</p>
                                     <button
-                                        onClick={() => setShowSettleModal(true)}
+                                        onClick={() => {
+                                            logEvent('open_modal_settle', {
+                                                screen: 'group_detail'
+                                            })
+                                            setShowSettleModal(true)
+                                        }}
                                         className="text-sm border border-teal-500 rounded-md px-2 py-0.5 uppercase text-teal-500"
                                     >
                                         Settle
@@ -478,7 +506,12 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                           text-teal-500 uppercase">Expenses</p>
                                     <button
                                         className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
-                                        onClick={() => navigate('/new-expense', { state: { groupId: id } })}>
+                                        onClick={() => {
+                                            logEvent('navigate', {
+                                                screen: 'group_detail', to: 'add_expense', source: 'plus'
+                                            })
+                                            navigate('/new-expense', { state: { groupId: id } })
+                                        }}>
                                         <Plus className="text-teal-500" size={20} />
                                     </button>
                                 </div>
@@ -509,6 +542,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
             )}
             {showSettleModal && (
                 <SettleModal
+                    showModal={showSettleModal}
                     setShowModal={setShowSettleModal}
                     group={group}
                     simplifiedTransactions={simplifiedTransactions}
@@ -522,7 +556,13 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                     {/* Expenses FAB */}
                     {groupExpenses?.length > 0 && (
                         <button
-                            onClick={() => navigate('/new-expense', { state: { groupId: id } })}
+                            onClick={() => {
+                                logEvent('navigate', {
+                                    screen: 'group_detail', to: 'add_expense', source: 'fab'
+                                })
+                                navigate('/new-expense', { state: { groupId: id } })
+                            }}
+
                             aria-label="Add Expense"
                             className="fixed right-4 bottom-24 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
                            text-white px-5 py-4 flex items-center gap-2"
