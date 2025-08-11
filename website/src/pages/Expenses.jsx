@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal";
-import { useNavigate } from "react-router-dom"; // ✅ Correct import
 import { useAuth } from "../context/AuthContext";
 import { ChevronLeft, Loader, Plus } from "lucide-react";
 import { getAllExpenses } from '../services/ExpenseService';
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../analytics";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const Expenses = () => {
     const { userToken } = useAuth() || {}
@@ -16,7 +16,6 @@ const Expenses = () => {
     const [userId, setUserId] = useState();
     const [showModal, setShowModal] = useState(false);
     const navigate = useNavigate();
-    const [filter, setFilter] = useState("all"); // 'all', 'personal', 'settle', 'group', 'friend'
     const getSettleDirectionText = (splits) => {
         const payer = splits.find(s => s.paying && s.payAmount > 0);
         const receiver = splits.find(s => s.owing && s.oweAmount > 0);
@@ -28,6 +27,56 @@ const Expenses = () => {
 
         return `${payerName} paid ${receiverName}`;
     };
+    const [searchParams, setSearchParams] = useSearchParams();
+    const initialFilter = searchParams.get("filter") || "all";
+    const initialCategory = searchParams.get("category") || "all";
+
+    const [filter, setFilter] = useState(initialFilter);        // 'all','personal','settle','group','friend'
+    const [category, setCategory] = useState(initialCategory);  // category name or 'all'
+
+    // keep URL in sync when state changes
+    useEffect(() => {
+        const next = new URLSearchParams(searchParams);
+        next.set("filter", filter);
+        next.set("category", category);
+        setSearchParams(next, { replace: true });
+    }, [filter, category]);
+
+    // respond to URL changes (e.g., user navigates back)
+    useEffect(() => {
+        const qf = searchParams.get("filter") || "all";
+        const qc = searchParams.get("category") || "all";
+        if (qf !== filter) setFilter(qf);
+        if (qc !== category) setCategory(qc);
+    }, [searchParams]);
+    const FILTERS = [
+        { key: "all", label: "All Expenses" },
+        { key: "personal", label: "Personal Expenses" },
+        { key: "settle", label: "Settlements" },
+        { key: "group", label: "Group Expenses" },
+        { key: "friend", label: "Friend Expenses" },
+    ];
+
+    const orderedFilters = useMemo(() => {
+        const sel = FILTERS.find(f => f.key === filter) || FILTERS[0];
+        const rest = FILTERS.filter(f => f.key !== sel.key);
+        return [sel, ...rest];
+    }, [filter]);
+
+    const categoryOptions = useMemo(() => {
+        const s = new Set();
+        expenses?.forEach(e => {
+            if (e?.typeOf !== "settle" && e?.category) s.add(e.category);
+        });
+        const arr = Array.from(s).sort();
+        return ["all", ...arr];
+    }, [expenses]);
+
+    const orderedCategories = useMemo(() => {
+        if (!categoryOptions.length) return ["all"];
+        const sel = categoryOptions.includes(category) ? category : "all";
+        return [sel, ...categoryOptions.filter(c => c !== sel)];
+    }, [category, categoryOptions]);
 
     const getPayerInfo = (splits) => {
         const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
@@ -127,17 +176,12 @@ const Expenses = () => {
                         <Plus strokeWidth={3} size={20} />
                     </button>
                 </div>
+                {/* Type filter */}
                 <div className="flex gap-2 flex-row my-3 overflow-x-auto no-scrollbar">
-                    {[
-                        { key: "all", label: "All" },
-                        { key: "personal", label: "Personal Expenses" },
-                        { key: "settle", label: "Settlements" },
-                        { key: "group", label: "Group Expenses" },
-                        { key: "friend", label: "Friend Expenses" },
-                    ].map(({ key, label }) => (
+                    {FILTERS.map(({ key, label }) => (
                         <button
                             key={key}
-                            onClick={() => setFilter(key)}
+                            onClick={() => setFilter(filter === key ? "all" : key)}
                             className={`px-3 py-1 rounded-full text-sm transition whitespace-nowrap flex-shrink-0 ${filter === key
                                 ? "bg-teal-400 text-black font-semibold"
                                 : "bg-[#1f1f1f] text-[#EBF1D5] hover:bg-[#2a2a2a]"
@@ -147,6 +191,25 @@ const Expenses = () => {
                         </button>
                     ))}
                 </div>
+
+                {/* Category filter */}
+                <div className="flex gap-2 flex-row mb-3 overflow-x-auto no-scrollbar">
+                    {categoryOptions.map((cat) => (
+                        <button
+                            key={cat}
+                            onClick={() => setCategory(category === cat ? "all" : cat)}
+                            className={`px-3 py-1 rounded-full text-sm transition whitespace-nowrap flex-shrink-0 ${category === cat
+                                ? "bg-teal-400 text-black font-semibold"
+                                : "bg-[#1f1f1f] text-[#EBF1D5] hover:bg-[#2a2a2a]"
+                                }`}
+
+                            title={cat === "all" ? "All Categories" : cat}
+                        >
+                            {cat === "all" ? "All Categories" : cat}
+                        </button>
+                    ))}
+                </div>
+
                 <div
                     ref={scrollRef}
                     className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar scroll-touch"
@@ -162,13 +225,22 @@ const Expenses = () => {
                         ) : expenses
                             ?.sort((a, b) => new Date(b.date) - new Date(a.date))
                             ?.filter((exp) => {
-                                if (filter === "all") return true;
-                                if (filter === "settle") return exp.typeOf === "settle";
-                                if (filter === "personal") return !exp.groupId && exp.typeOf !== "settle" && exp.splits.length == 0;
-                                if (filter === "group") return exp.groupId && exp.typeOf !== "settle";
-                                if (filter === "friend") return !exp.groupId && exp.typeOf !== "settle" && exp.splits.length > 0;
-                                return true;
+                                // type filter
+                                const matchesType =
+                                    filter === "all" ? true :
+                                        filter === "settle" ? exp.typeOf === "settle" :
+                                            filter === "personal" ? (!exp.groupId && exp.typeOf !== "settle" && (exp.splits?.length ?? 0) === 0) :
+                                                filter === "group" ? (exp.groupId && exp.typeOf !== "settle") :
+                                                    filter === "friend" ? (!exp.groupId && exp.typeOf !== "settle" && (exp.splits?.length ?? 0) > 0) :
+                                                        true;
+
+                                if (!matchesType) return false;
+
+                                // category filter
+                                if (category === "all") return true;
+                                return (exp?.category || "").toString() === category;
                             })
+
                             .map((exp) => (
                                 <ExpenseItem
                                     key={exp._id}
