@@ -10,7 +10,7 @@ import { logEvent } from "../utils/analytics";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const Expenses = () => {
-    const { userToken } = useAuth() || {}
+    const { userToken, categories } = useAuth() || {}
     const [loading, setLoading] = useState(true);
     const [expenses, setExpenses] = useState([]);
     const [userId, setUserId] = useState();
@@ -256,7 +256,7 @@ const Expenses = () => {
                 </div>
             </div>
             {showModal && (
-                <ExpenseModal showModal={showModal} setShowModal={setShowModal} fetchExpenses={fetchExpenses} userToken={userToken} />
+                <ExpenseModal showModal={showModal} setShowModal={setShowModal} fetchExpenses={fetchExpenses} userToken={userToken} userId={userId} categories={categories} />
             )}
         </MainLayout>
     );

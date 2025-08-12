@@ -220,7 +220,7 @@ const Friends = () => {
                         <div className="flex flex-col flex-1 justify-center">
                             <div className="bg-[#1f1f1f] text-center text-[#EBF1D5] border border-[#333] p-4 rounded-lg mt-4">
                                 <p className="text-lg font-semibold mb-2">No friends yet!</p>
-                                <p className="text-sm text-[#bbb] mb-4">To split expenses, add friends.</p>
+                                <p className="text-sm text-[#888] mb-4">To split expenses, add friends.</p>
                                 <div className="flex justify-center gap-4">
                                     <button
                                         onClick={() => {

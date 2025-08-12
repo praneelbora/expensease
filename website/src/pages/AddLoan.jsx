@@ -157,7 +157,7 @@ const AddLoan = () => {
                                 <ChevronLeft />
                             </button>
                         )}
-                        <h1 className="text-3xl font-bold capitalize">Create Loan</h1>
+                        <h1 className="text-3xl font-bold capitalize">Add a Loan</h1>
                     </div>
                 </div>
 

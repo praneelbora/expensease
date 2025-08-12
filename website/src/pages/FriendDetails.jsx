@@ -23,7 +23,7 @@ import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
 
 const FriendDetails = () => {
-    const { userToken, user } = useAuth();
+    const { userToken, user, categories } = useAuth();
     const { id } = useParams();
     const [searchParams] = useSearchParams();
     const tab = searchParams.get("tab"); // "loan" or null
@@ -423,9 +423,9 @@ const FriendDetails = () => {
                                 </div>
                             ) : loans.length === 0 ? (
                                 <div className="flex flex-1 flex-col justify-center">
-                                    <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-4 bg-[#1f1f1f]">
+                                    <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-3 bg-[#1f1f1f]">
                                         <h2 className="text-2xl font-semibold">No Loans Yet</h2>
-                                        <p className="text-sm text-gray-400 max-w-sm">
+                                        <p className="text-sm text-[#888] max-w-sm">
                                             You haven’t added any loans yet. Start by adding your first one to see stats and insights.
                                         </p>
                                         <button
@@ -435,9 +435,9 @@ const FriendDetails = () => {
                                                 });
                                                 navigate(`/new-loan`, { state: { friendId: friend._id } })
                                             }}
-                                            className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition"
+                                            className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
                                         >
-                                            Create Loan
+                                            Add a Loan
                                         </button>
                                     </div></div>
 
@@ -578,9 +578,9 @@ const FriendDetails = () => {
                                     <p>Group not found</p>
                                 ) : expenses.length === 0 ? (
                                     <div className="flex flex-1 flex-col justify-center">
-                                        <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-4 bg-[#1f1f1f]">
+                                        <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-3 bg-[#1f1f1f]">
                                             <h2 className="text-2xl font-semibold">No Expenses Yet</h2>
-                                            <p className="text-sm text-gray-400 max-w-sm">
+                                            <p className="text-sm text-[#888] max-w-sm">
                                                 You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
                                             </p>
                                             <button
@@ -590,7 +590,7 @@ const FriendDetails = () => {
                                                     });
                                                     navigate('/new-expense', { state: { friendId: id } })
                                                 }}
-                                                className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition"
+                                                className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
                                             >
                                                 Add Expense
                                             </button>
@@ -654,7 +654,7 @@ const FriendDetails = () => {
 
 
             {showModal && (
-                <ExpenseModal showModal={showModal} fetchExpenses={() => fetchData()} setShowModal={setShowModal} userToken={userToken} />
+                <ExpenseModal showModal={showModal} fetchExpenses={() => fetchData()} setShowModal={setShowModal} userToken={userToken} userId={userId} categories={categories} />
             )}
             {showSettleModal && (
                 <SettleModal
@@ -734,7 +734,7 @@ const FriendDetails = () => {
                                 navigate(`/new-loan`, { state: { friendId: friend._id } })
                             }
                             }
-                            aria-label="Create Loan"
+                            aria-label="Add a Loan"
                             className="fixed right-4 bottom-24 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
                    text-white px-5 py-4 flex items-center gap-2"
                         >

@@ -13,27 +13,18 @@ import { Loader } from "lucide-react";
 
 
 import PullToRefresh from "pulltorefreshjs";
-import { logEvent } from "../analytics";
+import { logEvent } from "../utils/analytics";
 
 
 const Dashboard = () => {
     // Inside your component:
     const navigate = useNavigate();
-    const { userToken } = useAuth() || {};
+    const { userToken, categories } = useAuth() || {};
     const [expenses, setExpenses] = useState([]);
     const [userId, setUserId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showExpenseModal, setShowExpenseModal] = useState(false);
-    const getPayerInfo = (splits) => {
-        const payers = splits.filter(s => s.paying && s.payAmount > 0);
-        if (payers.length === 1) {
-            return `${payers[0].friendId.name} paid`;
-        } else if (payers.length > 1) {
-            return `${payers.length} people paid`;
-        } else {
-            return `No one paid`;
-        }
-    };
+
     const fetchExpenses = async () => {
         try {
             const data = await getAllExpenses(userToken);
@@ -89,29 +80,49 @@ const Dashboard = () => {
     }, []);
 
     const stats = useMemo(() => {
-        let total = 0, personal = 0, group = 0, settle = 0, friend = 0;
+        const acc = {
+            total: 0,
+            personal: { amount: 0, count: 0 },
+            group: { amount: 0, count: 0 },
+            friend: { amount: 0, count: 0 },
+            settle: { amount: 0, count: 0 },
+        };
 
-        expenses.forEach((exp, i) => {
+        for (const exp of expenses) {
             if (exp.typeOf === "expense") {
-                const userSplit = exp.splits?.find(split => split.friendId?._id === userId);
-                if (userSplit?.owing && typeof userSplit.oweAmount === "number") {
-                    total += userSplit.oweAmount;
-                }
+                const amt = Number(exp?.amount) || 0;
+                const userSplit = exp.splits?.find(s => s.friendId?._id === userId);
+                const share = Number(userSplit?.oweAmount);
 
-                // Count type
-                if (exp.groupId) group++;
-                else if (!exp.groupId && exp.splits?.length > 0) friend++;
-                else {
-                    personal++;
-                    total += exp?.amount
+                if (exp.groupId) {
+                    if (userSplit?.owing && Number.isFinite(share)) {
+                        acc.group.amount += share;
+                        acc.total += share;
+                    }
+                    acc.group.count += 1;
+                } else if (exp.splits?.length > 0) {
+                    // friend-to-friend split (not in a group)
+                    if (userSplit?.owing && Number.isFinite(share)) {
+                        acc.friend.amount += share;
+                        acc.total += share;
+                    }
+                    acc.friend.count += 1;
+                } else {
+                    // purely personal expense (no group, no splits)
+                    acc.personal.amount += amt;
+                    acc.total += amt;
+                    acc.personal.count += 1;
                 }
             } else if (exp.typeOf === "settle") {
-                settle++;
+                const sAmt = Number(exp?.amount) || 0; // keep sign as-is if you use +/- for direction
+                acc.settle.amount += sAmt;
+                acc.settle.count += 1;
             }
-        });
+        }
 
-        return { total, personal, group, friend, settle };
+        return acc;
     }, [expenses, userId]);
+
 
     const RADIAN = Math.PI / 180;
     const renderCustomizedLabel = ({ cx, cy, midAngle, outerRadius, percent, name }) => {
@@ -225,9 +236,9 @@ const Dashboard = () => {
                     </div>
                 ) : expenses.length === 0 ? (
                     <div className="flex flex-col flex-1 justify-center">
-                        <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-4 bg-[#1f1f1f]">
+                        <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-3 bg-[#1f1f1f]">
                             <h2 className="text-2xl font-semibold">No Expenses Yet</h2>
-                            <p className="text-sm text-gray-400 max-w-sm">
+                            <p className="text-sm text-[#888] max-w-sm">
                                 You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
                             </p>
                             <button
@@ -237,7 +248,7 @@ const Dashboard = () => {
                                     })
                                     navigate("/new-expense")
                                 }}
-                                className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition"
+                                className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
                             >
                                 Add Expense
                             </button>
@@ -248,27 +259,71 @@ const Dashboard = () => {
                     <>
                         {/* Stats */}
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-                            <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
-                                <p className="text-sm">Total Expenses</p>
-                                <p className="text-xl font-bold">₹{stats.total.toFixed(2)}</p>
+                            {/* Total */}
+                            <div
+                                className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                onClick={() => navigate('/expenses')}
+                            >
+                                <p className="text-[15px] text-[#888]">Total Expenses</p>
+                                <p className="text-xl font-bold break-words">
+                                    ₹{stats.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </p>
                             </div>
-                            {stats.personal > 0 && <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
-                                <p className="text-sm">Personal Expenses</p>
-                                <p className="text-xl">{stats.personal}</p>
-                            </div>}
-                            {stats.group > 0 && <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
-                                <p className="text-sm">Group Expenses</p>
-                                <p className="text-xl">{stats.group}</p>
-                            </div>}
-                            {stats.friend > 0 && <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
-                                <p className="text-sm">Friend Expenses</p>
-                                <p className="text-xl">{stats.friend}</p>
-                            </div>}
-                            {stats.settle > 0 && <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
-                                <p className="text-sm">Settlements</p>
-                                <p className="text-xl">{stats.settle}</p>
-                            </div>}
+
+                            {/* Personal */}
+                            {stats.personal.amount > 0 && (
+                                <div
+                                    className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                    onClick={() => navigate('/expenses?filter=personal')}
+                                >
+                                    <p className="text-[15px] text-[#888]">Personal Expenses</p>
+                                    <p className="text-xl break-words">
+                                        ₹{stats.personal.amount.toLocaleString()}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Group */}
+                            {stats.group.amount > 0 && (
+                                <div
+                                    className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                    onClick={() => navigate('/expenses?filter=group')}
+                                >
+                                    <p className="text-[15px] text-[#888]">Group Expenses</p>
+                                    <p className="text-xl break-words">
+                                        ₹{stats.group.amount.toLocaleString()}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Friend */}
+                            {stats.friend.amount > 0 && (
+                                <div
+                                    className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                    onClick={() => navigate('/expenses?filter=friend')}
+                                >
+                                    <p className="text-[15px] text-[#888]">Friend Expenses</p>
+                                    <p className="text-xl break-words">
+                                        ₹{stats.friend.amount.toLocaleString()}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Settlements */}
+                            {stats.settle.amount > 0 && (
+                                <div
+                                    className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                    onClick={() => navigate('/expenses?filter=settle')}
+                                >
+                                    <p className="text-[15px] text-[#888]">Settlements</p>
+                                    <p className="text-xl break-words">
+                                        ₹{stats.settle.amount.toLocaleString()}
+                                    </p>
+                                </div>
+                            )}
                         </div>
+
+
 
                         {/* Last 3 Expenses */}
                         {expenses.length > 0 && <div className="space-y-2">
@@ -336,7 +391,7 @@ const Dashboard = () => {
                 </div>
             </div>
             {showExpenseModal && (
-                <ExpenseModal showModal={showExpenseModal} setShowModal={setShowExpenseModal} fetchExpenses={fetchExpenses} userToken={userToken} />
+                <ExpenseModal showModal={showExpenseModal} setShowModal={setShowExpenseModal} fetchExpenses={fetchExpenses} userToken={userToken} userId={userId} categories={categories} />
             )}
         </MainLayout>
     );

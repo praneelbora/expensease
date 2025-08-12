@@ -1,14 +1,14 @@
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 export const createExpense = async (expenseData, userToken) => {
-   const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': userToken
-                },
-                body: JSON.stringify(expenseData)
-            });
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-auth-token': userToken
+        },
+        body: JSON.stringify(expenseData)
+    });
     if (!response.ok) throw new Error(data.message || "Failed to create new Expense");
     const data = await response.json();
     return data;
@@ -39,7 +39,7 @@ export const deleteExpense = async (expenseId, userToken) => {
 
 export const getAllExpenses = async (userToken) => {
     try {
-      if(!userToken) return;
+        if (!userToken) return;
         const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses`, {
             method: "GET",
             headers: {
@@ -52,7 +52,7 @@ export const getAllExpenses = async (userToken) => {
 
         if (!res.ok) {
             throw new Error(data.message || "Failed to fetch expenses");
-        }        
+        }
         return data;
     } catch (err) {
         console.error("Error in deleteExpense:", err);
@@ -94,43 +94,57 @@ export const settleExpense = async ({ payerId, receiverId, amount, description, 
     }
 };
 
-export const settleFriendExpense = async (friendId,userToken) => {
-  try {
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/settle/friend/${friendId}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-auth-token": userToken,
-      },
-    });
+export const settleFriendExpense = async (friendId, userToken) => {
+    try {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/settle/friend/${friendId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-auth-token": userToken,
+            },
+        });
 
-    if (!response.ok) {
-      throw new Error("Failed to settle friend expense");
+        if (!response.ok) {
+            throw new Error("Failed to settle friend expense");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Settle friend expense error:", error);
+        throw error;
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error("Settle friend expense error:", error);
-    throw error;
-  }
 };
 
-export const getFriendExpense = async (friendId,userToken) => {
-  try {
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/friend/${friendId}`, {
-      headers: {
-        "Content-Type": "application/json",
-        "x-auth-token": userToken,
-      },
-    });
+export const getFriendExpense = async (friendId, userToken) => {
+    try {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/friend/${friendId}`, {
+            headers: {
+                "Content-Type": "application/json",
+                "x-auth-token": userToken,
+            },
+        });
 
-    if (!response.ok) {
-      throw new Error("Failed to get friend expense");
+        if (!response.ok) {
+            throw new Error("Failed to get friend expense");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("get friend expense error:", error);
+        throw error;
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error("get friend expense error:", error);
-    throw error;
-  }
 };
+
+// services/ExpenseService.js
+export async function updateExpense(id, payload, userToken) {
+    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            "x-auth-token": userToken,
+        },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('Failed to update expense');
+    return res.json();
+}

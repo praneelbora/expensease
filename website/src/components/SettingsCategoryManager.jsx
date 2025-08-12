@@ -104,16 +104,16 @@ const SettingsCategoryManager = ({ userToken }) => {
     return (
         <div className="bg-[#1E1E1E] p-4 rounded-xl shadow">
             <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Customize Categories</h2>
+                <h2 className="text-[20px] font-semibold">Customize Categories</h2>
                 <button
-                    className="bg-teal-600 px-3 py-1 rounded text-white text-sm"
+                    className="w-[65px] py-1 rounded bg-teal-600 hover:bg-teal-700 font-semibold text-[15px]"
                     onClick={() => setShowEditor(!showEditor)}
                 >
                     {showEditor ? 'Close' : 'Edit'}
                 </button>
             </div>
             {showEditor && (
-                <p className="text-base text-[#BBBBBB] mt-2">
+                <p className="text-[15px] text-[#888] mt-2">
                     Changes you make here do not affect existing expenses. Long press and drag the icon to reorder categories. Don’t forget to click the ‘Save’ button to apply your changes.
                 </p>
             )}
@@ -133,7 +133,7 @@ const SettingsCategoryManager = ({ userToken }) => {
                         ))}
                     </DndProvider>
 
-                    <p className="text-base text-[#BBBBBB] mt-4">
+                    <p className="text-[15px] text-[#888] mt-4">
                         Add a custom category
                     </p>
 

@@ -121,10 +121,10 @@ router.post('/reject', auth, async (req, res) => {
     await request.save();
     res.json({ msg: 'Friend request rejected' });
   } catch (error) {
-    console.log('friends/reject error: ',error);
+    console.log('friends/reject error: ', error);
     res.status(500).json({ error: error.message });
   }
-  
+
 });
 
 router.post('/cancel', auth, async (req, res) => {
@@ -138,29 +138,29 @@ router.post('/cancel', auth, async (req, res) => {
     await FriendRequest.findByIdAndDelete(requestId);
     res.json({ msg: 'Friend request deleted' });
   } catch (error) {
-    console.log('friends/reject error: ',error);
+    console.log('friends/reject error: ', error);
     res.status(500).json({ error: error.message });
   }
-  
+
 });
 
 router.get('/sent', auth, async (req, res) => {
   try {
-    const sentRequests = await FriendRequest.find({sender: req.user.id, status: 'pending'}).populate('receiver');
+    const sentRequests = await FriendRequest.find({ sender: req.user.id, status: 'pending' }).populate('receiver');
 
     res.status(200).json(sentRequests);
   } catch (error) {
-    console.log('friends/sent error: ',error);
+    console.log('friends/sent error: ', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 router.get('/received', auth, async (req, res) => {
   try {
-    const receivedRequests = await FriendRequest.find({receiver: req.user.id, status: 'pending'}).populate('sender');
+    const receivedRequests = await FriendRequest.find({ receiver: req.user.id, status: 'pending' }).populate('sender');
     res.status(200).json(receivedRequests);
   } catch (error) {
-    console.log('friends/received error: ',error);
+    console.log('friends/received error: ', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -181,7 +181,7 @@ router.post('/request-link', auth, async (req, res) => {
   try {
     const { toId } = req.body; // could be JWT or senderId encoded
     const userId = req.user.id;
-    
+
     if (userId === toId) {
       return res.status(400).json({ message: "Cannot accept your own invite" });
     }
@@ -242,12 +242,12 @@ router.get('/:friendId', auth, async (req, res) => {
   try {
     const { friendId } = req.params;
     const user = await User.findById(friendId).select('_id name email upiId'); // Add more fields if needed
-    
+
     if (!user) {
       return res.status(404).json({ message: 'Friend not found' });
     }
 
-    res.status(200).json({friend: user, id: req.user.id});
+    res.status(200).json({ friend: user, id: req.user.id });
   } catch (error) {
     console.error('getFriendDetails error:', error);
     res.status(500).json({ error: error.message });

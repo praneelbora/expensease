@@ -263,7 +263,7 @@ export default function GroupSettings() {
                                             </span>
                                         </div>
                                     </div>
-                                    <p className="text-sm text-gray-400 mt-2">
+                                    <p className="text-sm text-gray-[#888] mt-2">
                                         When enabled, only expenses a member is involved in will be shown to them. They won't be able to view other transactions.
                                     </p>
                                 </div>
@@ -277,8 +277,7 @@ export default function GroupSettings() {
 
                         </div>)}
                     {/* Danger Zone */}
-                    {/* Danger Zone */}
-                    {isOwner && (<div className="mt-8 border border-[#2C2C2C] rounded-xl overflow-hidden">
+                    {isOwner && (<div className="mt-8 border border-[#2C2C2C] rounded-xl ">
                         <div className="bg-[#201f1f] px-4 py-3 border-b border-[#2C2C2C]">
                             <h3 className="text-sm tracking-wide uppercase text-red-400">Danger Zone</h3>
                         </div>

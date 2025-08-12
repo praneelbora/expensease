@@ -596,7 +596,7 @@ const AddExpense = () => {
                         <div className="flex flex-col flex-1 justify-center">
                             <div className="bg-[#1f1f1f] text-center text-[#EBF1D5] border border-[#333] p-4 rounded-lg mt-4">
                                 <p className="text-lg font-semibold mb-2">No friends or groups yet!</p>
-                                <p className="text-sm text-[#bbb] mb-4">To split expenses, add a friend or create a group.</p>
+                                <p className="text-sm text-[#888] mb-4">To split expenses, add a friend or create a group.</p>
                                 <div className="flex justify-center gap-4">
                                     <button
                                         onClick={() => window.location.href = '/friends'}
@@ -1047,7 +1047,7 @@ const AddExpense = () => {
                                 navigate('/new-loan')
                             }}
                         >
-                            Create a Loan
+                            Add a Loan
                         </button>
                     </div>
                 </div>

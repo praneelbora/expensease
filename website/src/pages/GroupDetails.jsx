@@ -27,7 +27,7 @@ import { settleExpense } from '../services/ExpenseService';
 import { logEvent } from "../utils/analytics";
 
 const GroupDetails = () => {
-    const { userToken } = useAuth() || {}
+    const { userToken, categories } = useAuth() || {}
     const navigate = useNavigate()
     const { id } = useParams();
     const [group, setGroup] = useState(null);
@@ -43,6 +43,7 @@ const GroupDetails = () => {
     const [settleTo, setSettleTo] = useState('');
     const [settleAmount, setSettleAmount] = useState('');
     const [copied, setCopied] = useState(false);
+    const [copiedTop, setCopiedTop] = useState(false);
     const [adminEnforcedPrivacy, setAdminEnforcedPrivacy] = useState(false);
 
     const handleSettle = async ({ payerId, receiverId, amount, description }) => {
@@ -307,8 +308,8 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     logEvent('invite_group_copy',
                                         { screen: 'group_detail', source: 'header' }
                                     );
-                                    setCopied(true);
-                                    setTimeout(() => setCopied(false), 2000); // hide after 2 seconds
+                                    setCopiedTop(true);
+                                    setTimeout(() => setCopiedTop(false), 2000); // hide after 2 seconds
                                     if (navigator.share) {
                                         navigator
                                             .share({
@@ -337,7 +338,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
 
 
                         </div>
-                        {copied && (
+                        {copiedTop && (
                             <p className="text-gray-500 text-[9px] font-semibold transition-opacity">
                                 Copied to clipboard!
                             </p>
@@ -359,7 +360,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                             {group.members.length === 1 && (
                                 <div className="flex flex-col items-center justify-center p-4 rounded-lg text-center space-y-4 bg-[#1f1f1f]">
                                     <h2 className="text-2xl font-semibold">No Members Yet</h2>
-                                    <p className="text-sm text-gray-400 max-w-sm">
+                                    <p className="text-sm text-gray-[#888] max-w-sm">
                                         Invite friends to get started.
                                     </p>
 
@@ -398,9 +399,9 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 </div>
                             )}
 
-                            {groupExpenses.length == 0 && !loadingExpenses && <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-4 bg-[#1f1f1f]">
+                            {groupExpenses.length == 0 && !loadingExpenses && <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-3 bg-[#1f1f1f]">
                                 <h2 className="text-2xl font-semibold">No Expenses Yet</h2>
-                                <p className="text-sm text-gray-400 max-w-sm">
+                                <p className="text-sm text-gray-[#888] max-w-sm">
                                     You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
                                 </p>
                                 <button
@@ -410,7 +411,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                         );
                                         navigate('/new-expense', { state: { groupId: id } })
                                     }}
-                                    className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition"
+                                    className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
                                 >
                                     Add Expense
                                 </button>
@@ -538,7 +539,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
 
 
             {showModal && (
-                <ExpenseModal showModal={showModal} fetchExpenses={fetchGroupExpenses} setShowModal={setShowModal} userToken={userToken} />
+                <ExpenseModal showModal={showModal} fetchExpenses={fetchGroupExpenses} setShowModal={setShowModal} userToken={userToken} userId={userId} categories={categories} />
             )}
             {showSettleModal && (
                 <SettleModal

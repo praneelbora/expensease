@@ -106,31 +106,31 @@ const Account = () => {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {/* Basic info */}
                             <div className="bg-[#1E1E1E] p-4 rounded-xl shadow">
-                                <p className="text-base text-[#BBBBBB]">Name</p>
-                                <h2 className="text-xl font-semibold mb-2">{user?.name}</h2>
-                                <p className="text-base text-[#BBBBBB]">Email</p>
-                                <h2 className="text-xl font-semibold">{user?.email}</h2>
+                                <p className="text-[18px] text-[#888]">Name</p>
+                                <h2 className="text-[20px] font-semibold mb-2">{user?.name}</h2>
+                                <p className="text-[18px] text-[#888]">Email</p>
+                                <h2 className="text-[20px] font-semibold">{user?.email}</h2>
                             </div>
 
                             {/* --- UPI Section --- */}
                             <div ref={upiRef} id="upi-section" className="bg-[#1E1E1E] p-4 rounded-xl shadow">
                                 <div className="flex items-center justify-between mb-2">
-                                    <h2 className="text-xl font-semibold">UPI for Quick Payments</h2>
+                                    <h2 className="text-[20px] font-semibold">UPI for Quick Payments</h2>
                                 </div>
 
-                                <p className="text-xs text-gray-500 mb-1 italic">
+                                <p className="text-xs text-[#888] mb-1 italic">
                                     💡 Add your UPI ID so friends can pay you instantly — no back-and-forth.
                                     If you’re the one paying, ask your friend to add their UPI ID so you can transfer in seconds.
                                 </p>
 
-                                <label className="text-xs text-gray-400">Your UPI ID</label>
+                                <label className="text-xs text-white">Your UPI ID</label>
                                 <div className="mt-1 flex gap-2">
                                     <input
                                         ref={upiInputRef}
                                         value={upiId}
                                         onChange={(e) => setUpiId(e.target.value)}
                                         placeholder="yourname@bank"
-                                        className="flex-1 bg-[#2A2A2A] text-white px-3 py-2 rounded border border-transparent focus:outline-none focus:border-teal-600"
+                                        className="flex-1 bg-[#2A2A2A] text-white px-3 py-1 text-[15px] rounded border border-transparent focus:outline-none focus:border-teal-600"
                                     />
                                     <button
                                         onClick={() => {
@@ -139,7 +139,7 @@ const Account = () => {
                                             });
                                             saveUpi()
                                         }}
-                                        className="px-4 py-2 rounded bg-teal-600 hover:bg-teal-700 font-semibold"
+                                        className="w-[65px] py-1 rounded bg-teal-600 hover:bg-teal-700 font-semibold text-[15px]"
                                     >
                                         Save
                                     </button>
@@ -161,8 +161,8 @@ const Account = () => {
                                 className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-between cursor-pointer"
                             >
                                 <div>
-                                    <h2 className="text-xl font-semibold mb-2">Support the Developer ☕</h2>
-                                    <p className="text-[#BBBBBB] text-sm">
+                                    <h2 className="text-[20px] font-semibold mb-2">Support the Developer ☕</h2>
+                                    <p className="text-[#888] text-sm">
                                         If you find this platform helpful, consider supporting its development!
                                     </p>
                                 </div>
