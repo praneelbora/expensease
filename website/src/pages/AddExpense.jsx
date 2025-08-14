@@ -872,7 +872,7 @@ const AddExpense = () => {
                                                 </div>
                                             )}
                                             {expenseMode == 'split' && selectedFriends.filter(f => f.paying).length > 1 && !isPaidAmountValid() && <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
-                                                <p>₹{getPaidAmountInfoTop()} / ₹{amount.fix(2)}</p>
+                                                <p>₹{getPaidAmountInfoTop()} / ₹{amount.toFixed(2)}</p>
                                                 <p className="text-[#a0a0a0]">₹{getPaidAmountInfoBottom()} left</p>
                                             </div>}
                                             {expenseMode == 'split' && isPaidAmountValid() && <>
