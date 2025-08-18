@@ -24,7 +24,26 @@ const Dashboard = () => {
     const [userId, setUserId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showExpenseModal, setShowExpenseModal] = useState(false);
+        const didRedirect = useRef(false);
 
+    useEffect(() => {
+        if (didRedirect.current) return;
+        if (!userToken) return; // treat as logged-in when token exists
+
+        const group = localStorage.getItem("pendingGroupJoin");
+        const friend = localStorage.getItem("pendingFriendAdd");
+
+        if (group) {
+            localStorage.removeItem("pendingGroupJoin");
+            didRedirect.current = true;
+            navigate(`/groups?join=${encodeURIComponent(group)}`, { replace: true });
+        } else if (friend) {
+            localStorage.removeItem("pendingFriendAdd");
+            didRedirect.current = true;
+            navigate(`/friends?add=${encodeURIComponent(friend)}`, { replace: true });
+        }
+    }, [userToken, navigate]);
+    
     const fetchExpenses = async () => {
         try {
             const data = await getAllExpenses(userToken);

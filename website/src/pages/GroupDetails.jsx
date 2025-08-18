@@ -271,7 +271,9 @@ const GroupDetails = () => {
 
     useEffect(() => {
         if (totalDebt) {
-            setSimplifiedTransactions(simplifyDebts(totalDebt, group.members));
+            const transactions = simplifyDebts(totalDebt, group.members)
+            if(group?.settings?.enforcePrivacy) setSimplifiedTransactions(transactions?.filter(t => (t.from === userId || t.to === userId)))
+            else setSimplifiedTransactions(transactions)
         }
     }, [totalDebt])
     useEffect(() => {
@@ -459,7 +461,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                             <hr />
 
                             {/* Debt Summary */}
-                            {groupExpenses && groupExpenses.length > 0 && <> <div className="flex flex-col">
+                            {groupExpenses && groupExpenses.length > 0 && simplifiedTransactions?.length > 0 && <> <div className="flex flex-col">
                                 <div className="flex justify-between items-center">
                                     <p className="text-[13px] text-teal-500 uppercase">Debt Summary</p>
                                     <button
@@ -516,7 +518,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                         <Plus className="text-teal-500" size={20} />
                                     </button>
                                 </div>
-                                <ul className="flex flex-col w-full gap-2">
+                                <ul className="flex flex-col w-full gap-2 pb-[75px]">
                                     {filteredExpenses?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
                                         .map((exp) => (
                                             <ExpenseItem
@@ -565,7 +567,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                             }}
 
                             aria-label="Add Expense"
-                            className="fixed right-4 bottom-24 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
+                            className="fixed right-4 bottom-22 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
                            text-white px-5 py-4 flex items-center gap-2"
                         >
                             <Plus size={18} />

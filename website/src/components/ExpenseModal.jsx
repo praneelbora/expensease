@@ -72,7 +72,6 @@ export default function ExpenseModal({
         category: category || "",
         amount: amount ?? 0,
         date: toInputDate(date) || "",
-        category: showModal?.category || "",
         typeOf: showModal?.typeOf || "expense",     // 'expense' | 'settle'
         mode: showModal?.mode || "personal",        // 'personal' | 'split'
         splitMode: showModal?.splitMode || "equal", // 'equal' | 'value' | 'percent'
