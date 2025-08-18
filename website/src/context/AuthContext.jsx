@@ -11,6 +11,8 @@ export const AuthProvider = ({ children }) => {
     const [userToken, setUserToken] = useState(null);
     const [authLoading, setAuthLoading] = useState(true);
     const [categories, setCategories] = useState([]);
+    const [defaultCurrency, setDefaultCurrency] = useState();
+    const [preferredCurrencies, setPreferredCurrencies] = useState([]);
     const navigate = useNavigate();
 
     const loadUserData = async (setGA) => {
@@ -24,6 +26,21 @@ export const AuthProvider = ({ children }) => {
         Cookies.remove("userToken");
         navigate("/login");
     };
+    useEffect(() => {
+        if (!user) return;
+        setDefaultCurrency(user?.defaultCurrency || localStorage.getItem('currency') || '');
+        const sorted = [...user?.preferredCurrencies].sort((a, b) => { const usage = user.preferredCurrencyUsage || {}; const countA = usage[a] || 0; const countB = usage[b] || 0; return countB - countA || a.localeCompare(b); }).slice(0, 3);
+        setPreferredCurrencies(
+            sorted
+        );
+    }, [user]);
+    const persistDefaultCurrency = async (newCur) => {
+        setDefaultCurrency(newCur);
+        localStorage.setItem('currency', newCur);
+        try { await updatePreferredCurrency(newCur, userToken); } catch { }
+    };
+
+
     useEffect(() => {
         const token = Cookies.get("userToken");
         if (token) {
@@ -53,7 +70,16 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loadUserData, setUser, logout, userToken, setUserToken, authLoading, categories, setCategories }}>
+        <AuthContext.Provider
+            value={{
+                user, loadUserData, setUser, logout,
+                userToken, setUserToken,
+                authLoading,
+                categories, setCategories,
+                defaultCurrency,
+                preferredCurrencies,
+                persistDefaultCurrency,
+            }}>
             {children}
         </AuthContext.Provider>
     );

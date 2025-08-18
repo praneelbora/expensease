@@ -128,3 +128,13 @@ export const updateUserProfile = async (userToken, payload) => {
     }
     return data; // typically returns updated user or { success: true }
 };
+
+// keep for convenience: updates ONLY the default currency
+export const updatePreferredCurrency = async (currencyCode, token) => {
+    return updateUserProfile(token, { defaultCurrency: currencyCode }); // maps to defaultCurrency
+};
+
+// optional helper to update both at once
+export const updateCurrencyPrefs = async ({ defaultCurrency, preferredCurrencies }, token) => {
+    return updateUserProfile(token, { defaultCurrency, preferredCurrencies });
+};

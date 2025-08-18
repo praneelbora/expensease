@@ -7,8 +7,10 @@ import {
     closeLoan as closeLoanApi,
 } from "../services/LoanService";
 import { logEvent } from "../utils/analytics";
+import { getSymbol } from "../utils/currencies";
+import CurrencyModal from "./CurrencyModal";
 
-const fmt = (n) => `₹${Number(n || 0).toFixed(2)}`;
+const fmt = (n) => `${Number(n || 0).toFixed(2)}`;
 
 export default function LoanViewModal({
     showModal,          // ✅ pass boolean to show/hide
@@ -24,6 +26,8 @@ export default function LoanViewModal({
     const [busy, setBusy] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
 
+    const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+
     // Local copy for optimistic updates
     const [localLoan, setLocalLoan] = useState(loan);
     useEffect(() => setLocalLoan(loan), [loan]);
@@ -34,6 +38,7 @@ export default function LoanViewModal({
     const [repayNote, setRepayNote] = useState("");
     const [autoCloseIfFull, setAutoCloseIfFull] = useState(true);
     const [savingRepay, setSavingRepay] = useState(false);
+    const [currency, setCurrency] = useState(loan.currency);
     const [error, setError] = useState("");
 
     const youAreLender = localLoan?.lenderId?._id === userId;
@@ -80,7 +85,7 @@ export default function LoanViewModal({
             return;
         }
         if (amt > outstanding) {
-            setError(`Amount exceeds outstanding (${fmt(outstanding)})`);
+            setError(`Amount exceeds outstanding (${getSymbol('en-IN', loan?.currency)} ${fmt(outstanding)})`);
             return;
         }
 
@@ -230,20 +235,30 @@ export default function LoanViewModal({
         >
             {/* Body */}
             <div className="p-0 space-y-4">
+
                 <div className="text-md">
-                    <div className="text-xl text-teal-500">
-                        {youAreLender ? "You lent" : "You borrowed"} {fmt(localLoan?.principal)}{" "}
+                    <div className="text-xl text-teal-500 mb-4">
+                        {youAreLender ? "You lent" : "You borrowed"} {getSymbol('en-IN', loan?.currency)} {fmt(localLoan?.principal)}{" "}
                         {youAreLender ? "to" : "from"} {counterpartyName}
                     </div>
-                    {localLoan?.description && (
+
+                    {!showRepayForm && localLoan?.description && (<>
+                        <p className="text-sm font-medium mb-1 text-teal-500 uppercase">
+                            Description
+                        </p>
                         <div className="text-[#a0a0a0] mt-1 italic">{localLoan.description}</div>
+                    </>
                     )}
-                    <div className="text-[#a0a0a0] mt-1">
-                        Status: <span className="text-[#EBF1D5]">{localLoan?.status}</span>
-                    </div>
-                    <div className="text-[#a0a0a0]">
-                        Outstanding: <span className="text-[#EBF1D5]">{fmt(outstanding)}</span>
-                    </div>
+
+                    {!showRepayForm && localLoan?.notes && (<>
+                        <p className="text-sm font-medium mb-1 text-teal-500 uppercase">
+                            Notes
+                        </p>
+                        <div className="text-[#a0a0a0] mt-1 italic">{localLoan.notes}</div>
+                    </>
+                    )}
+
+
                     {localLoan?.estimatedReturnDate && (
                         <div className="text-[#a0a0a0]">
                             Target date:{" "}
@@ -253,7 +268,20 @@ export default function LoanViewModal({
                         </div>
                     )}
                 </div>
-
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium mb-1 text-teal-500 uppercase">
+                            Status
+                        </span>
+                        <span className="text-[#EBF1D5] capitalize">
+                            {localLoan?.status}</span>
+                    </div><div className="flex flex-col">
+                        <span className="text-sm font-medium mb-1 text-teal-500 uppercase">
+                            Outstanding
+                        </span>
+                        <span className="text-[#EBF1D5]">{getSymbol('en-IN', loan?.currency)} {fmt(outstanding)}</span>
+                    </div>
+                </div>
                 {/* Repayments */}
                 <div>
                     <p className="text-sm font-medium mb-1 text-teal-500 uppercase">
@@ -292,27 +320,33 @@ export default function LoanViewModal({
                     <div className="rounded-lg border border-[#333] p-3 bg-[#212121] space-y-2">
                         <div className="space-y-2">
                             <label className="text-md">New Repayment</label>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <label className="text-xs text-[#a0a0a0]">Amount</label>
+                            <div className="flex flex-col gap-2">
+                                <div className="flex flex-row w-full gap-4">
+                                    <div className="flex-1">
+                                        <button
+                                            disabled={true}
+                                            className={`w-full ${currency ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                        >
+                                            {currency || "Currency"}
+                                        </button>
+
+                                    </div>
+
                                     <input
+                                        className="flex-1 text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3"
                                         type="number"
-                                        step="0.01"
-                                        inputMode="decimal"
+                                        placeholder="Enter Amount"
                                         value={repayAmount}
-                                        onChange={(e) => setRepayAmount(e.target.value)}
-                                        className="w-full bg-[#121212] border border-[#333] rounded-md px-3 py-2 text-sm outline-none focus:border-[#4b8]"
-                                        placeholder={`<= ${fmt(outstanding)}`}
+                                        onChange={(e) => setRepayAmount(parseFloat(e.target.value))}
                                     />
                                 </div>
                                 <div className="flex-1">
-                                    <label className="text-xs text-[#a0a0a0]">Note (optional)</label>
                                     <input
                                         type="text"
                                         value={repayNote}
                                         onChange={(e) => setRepayNote(e.target.value)}
-                                        className="w-full bg-[#121212] border border-[#333] rounded-md px-3 py-2 text-sm outline-none focus:border-[#4b8]"
-                                        placeholder="e.g., UPI"
+                                        className="w-full flex-1 text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3"
+                                        placeholder="Note (optional) e.g., UPI"
                                     />
                                 </div>
                             </div>

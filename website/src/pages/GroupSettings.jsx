@@ -7,6 +7,7 @@ import { ChevronLeft, Loader } from "lucide-react";
 import { getFriends, sendFriendRequest } from "../services/FriendService";
 import { getGroupExpenses, updateGroupPrivacySetting } from "../services/GroupService";
 import ModalWrapper from "../components/ModalWrapper";
+import { getSymbol } from "../utils/currencies"
 
 import { useMemo } from "react";
 import { logEvent } from "../utils/analytics";
@@ -53,32 +54,36 @@ export default function GroupSettings() {
             setLoading(false);
         }
     };
-    useEffect(() => {
-        if (!group || !user._id) return;
 
-        let totalExpense = 0;
-        let totalPaid = 0;
-        let yourExpense = 0;
-        let groupExpense = 0
+    useEffect(() => {
+        if (!group || !user?._id) return;
+
+        // init totals as maps: { [currency]: amount }
+        const totals = {
+            expense: {},       // what you owe
+            yourExpense: {},   // your share of group expenses
+            balance: {},       // paid - owed
+            groupExpense: {},  // total group expenses
+        };
+
         groupExpenses?.forEach(exp => {
+            const code = exp.currency || "INR";
             exp.splits.forEach(split => {
-                if (exp.typeOf == 'expense') groupExpense += split.oweAmount;
+                if (exp.typeOf === "expense") {
+                    totals.groupExpense[code] = (totals.groupExpense[code] || 0) + (split.oweAmount || 0);
+                }
                 if (split.friendId?._id === user._id) {
-                    totalPaid += split.payAmount || 0;
-                    totalExpense += split.oweAmount || 0;
-                    if (exp.typeOf == 'expense')
-                        yourExpense += split.oweAmount
+                    totals.expense[code] = (totals.expense[code] || 0) + (split.oweAmount || 0);
+                    totals.balance[code] = (totals.balance[code] || 0) + ((split.payAmount || 0) - (split.oweAmount || 0));
+                    if (exp.typeOf === "expense") {
+                        totals.yourExpense[code] = (totals.yourExpense[code] || 0) + (split.oweAmount || 0);
+                    }
                 }
             });
         });
 
-        setTotals({
-            expense: totalExpense,
-            yourExpense: yourExpense,
-            balance: totalPaid - totalExpense,
-            groupExpense: groupExpense
-        });
-    }, [groupExpenses]);
+        setTotals(totals);
+    }, [groupExpenses, group, user?._id]);
 
     useEffect(() => {
         fetchGroup();
@@ -176,32 +181,55 @@ export default function GroupSettings() {
                                 </button>}
                             </div>
                             {/* Net Balance Summary Box */}
-                            {totals && <div className="bg-[#1E1E1E] p-4 rounded-xl shadow space-y-4 mt-4">
-                                <div>
+                            {totals && (
+                                <div className="bg-[#1E1E1E] p-4 rounded-xl shadow space-y-6 mt-4">
                                     <h2 className="text-xl font-semibold mb-2">Summary</h2>
-                                    <p className={`text-lg ${totals?.balance < 0 ? 'text-red-500' : 'text-teal-500'}`}>
-                                        {totals?.balance < 0 ? 'You owe' : 'You are owed'}
-                                    </p>
-                                    <p className="text-2xl font-bold">
-                                        ₹ {Math.abs(totals?.balance).toFixed(2)}
-                                    </p>
-                                </div>
 
-                                <div className="grid grid-cols-2 gap-4 text-sm text-gray-400">
-                                    <div className="flex flex-col bg-[#2A2A2A] p-3 rounded-lg">
-                                        <span className="text-xs text-gray-400"> Your Expenses</span>
-                                        <span className="text-teal-500 text-lg font-semibold">
-                                            ₹ {totals?.yourExpense?.toFixed(2)}
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-col bg-[#2A2A2A] p-3 rounded-lg">
-                                        <span className="text-xs text-gray-400">Group Expenses</span>
-                                        <span className="text-teal-500 text-lg font-semibold">
-                                            ₹ {(totals?.groupExpense).toFixed(2)}
-                                        </span>
-                                    </div>
+                                    {Object.keys(totals.balance || {}).map(code => {
+                                        const bal = totals.balance[code] || 0;
+                                        const yourExp = totals.yourExpense[code] || 0;
+                                        const groupExp = totals.groupExpense[code] || 0;
+                                        const sym = getSymbol("en-IN", code);
+
+                                        return (
+                                            <div
+                                                key={code}
+                                                className="border-t border-[#2A2A2A] pt-4 space-y-4"
+                                            >
+                                                {/* Balance section */}
+                                                <div>
+                                                    <p
+                                                        className={`text-lg ${bal < 0 ? "text-red-500" : "text-teal-500"
+                                                            }`}
+                                                    >
+                                                        {bal < 0 ? "You owe" : "You are owed"}
+                                                    </p>
+                                                    <p className="text-2xl font-bold">
+                                                        {sym} {Math.abs(bal).toFixed(2)}
+                                                    </p>
+                                                </div>
+
+                                                {/* Expenses section */}
+                                                <div className="grid grid-cols-2 gap-4 text-sm text-gray-400">
+                                                    <div className="flex flex-col bg-[#2A2A2A] p-3 rounded-lg">
+                                                        <span className="text-xs text-gray-400">Your Expenses</span>
+                                                        <span className="text-teal-500 text-lg font-semibold">
+                                                            {sym} {yourExp.toFixed(2)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col bg-[#2A2A2A] p-3 rounded-lg">
+                                                        <span className="text-xs text-gray-400">Group Expenses</span>
+                                                        <span className="text-teal-500 text-lg font-semibold">
+                                                            {sym} {groupExp.toFixed(2)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            </div>}
+                            )}
+
 
                             <div>
                                 <h3 className="font-medium mb-2 text-[14px] uppercase text-teal-500">Members</h3>

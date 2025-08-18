@@ -5,11 +5,13 @@ import { createPortal } from "react-dom";
 export default function CustomSelect({
     value,
     onChange,
-    options = [],          // [{ value: string, label: string }]
+    options = [],
     placeholder = "Select...",
     className = "",
     disabled = false,
     maxMenuHeight = 240,
+    // NEW: optional renderer for the closed trigger label
+    renderTriggerLabel, // (selectedOption) => ReactNode
 }) {
     const btnRef = useRef(null);
     const menuRef = useRef(null);
@@ -17,9 +19,14 @@ export default function CustomSelect({
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
     const [highlight, setHighlight] = useState(-1);
 
-    const label = options.find(o => o.value === value)?.label ?? "";
+    const selected = options.find(o => o.value === value);
+    const label = selected?.label ?? "";
 
-    // Position menu under trigger (portal to body)
+    const triggerContent =
+        typeof renderTriggerLabel === "function"
+            ? renderTriggerLabel(selected)
+            : label;
+
     const updatePosition = () => {
         const el = btnRef.current;
         if (!el) return;
@@ -46,7 +53,6 @@ export default function CustomSelect({
         };
     }, [open]);
 
-    // Close on outside click
     useEffect(() => {
         if (!open) return;
         const onDocClick = (e) => {
@@ -58,7 +64,6 @@ export default function CustomSelect({
         return () => document.removeEventListener("mousedown", onDocClick);
     }, [open]);
 
-    // Keyboard on trigger
     const onTriggerKeyDown = (e) => {
         if (disabled) return;
         if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
@@ -68,7 +73,6 @@ export default function CustomSelect({
         }
     };
 
-    // Keyboard on menu
     useEffect(() => {
         if (!open) return;
         const onKey = (e) => {
@@ -110,10 +114,7 @@ export default function CustomSelect({
             }}
             className="rounded-lg border border-[#333] bg-[#1f1f1f] shadow-xl overflow-hidden"
         >
-            <div
-                style={{ maxHeight: maxMenuHeight }}
-                className="overflow-auto"
-            >
+            <div style={{ maxHeight: maxMenuHeight }} className="overflow-auto">
                 {options.map((opt, i) => {
                     const active = opt.value === value;
                     const hl = i === highlight;
@@ -150,11 +151,11 @@ export default function CustomSelect({
                 disabled={disabled}
                 onClick={() => !disabled && setOpen((s) => !s)}
                 onKeyDown={onTriggerKeyDown}
-                className={`w-full bg-[#121212] border border-[#333] rounded px-3 py-2 text-left text-[#EBF1D5] outline-none focus:border-[#4b8] ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"} ${className}`}
+                className={`w-full text-[#EBF1D5] text-[18px] text-left border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1 focus:border-[#4b8] ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"} ${className}`}
                 aria-haspopup="listbox"
                 aria-expanded={open}
             >
-                {label || <span className="text-[#8f8f8f]">{placeholder}</span>}
+                {triggerContent || <span className="text-[#8f8f8f]">{placeholder}</span>}
             </button>
 
             {open ? createPortal(menu, document.body) : null}

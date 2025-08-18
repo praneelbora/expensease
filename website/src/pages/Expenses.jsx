@@ -102,9 +102,9 @@ const Expenses = () => {
         const net = payAmount - oweAmount;
 
         if (net > 0) {
-            return { text: 'you lent', amount: ` ₹${net.toFixed(2)}` };
+            return { text: 'you lent', amount: ` ${net.toFixed(2)}` };
         } else if (net < 0) {
-            return { text: 'you borrowed', amount: ` ₹${Math.abs(net).toFixed(2)}` };
+            return { text: 'you borrowed', amount: ` ${Math.abs(net).toFixed(2)}` };
         } else {
             return null;
         }

@@ -60,7 +60,7 @@ export const getAllExpenses = async (userToken) => {
     }
 };
 
-export const settleExpense = async ({ payerId, receiverId, amount, description, groupId }, userToken) => {
+export const settleExpense = async ({ payerId, receiverId, amount, description, groupId, currency }, userToken) => {
     if (!payerId || !receiverId || !amount) {
         throw new Error("Please fill all required fields.");
     }
@@ -77,6 +77,7 @@ export const settleExpense = async ({ payerId, receiverId, amount, description, 
                 toUserId: receiverId,
                 amount: parseFloat(amount),
                 description,
+                currency,
                 ...(groupId ? { groupId } : {}),
             })
         });
@@ -94,26 +95,6 @@ export const settleExpense = async ({ payerId, receiverId, amount, description, 
     }
 };
 
-export const settleFriendExpense = async (friendId, userToken) => {
-    try {
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/settle/friend/${friendId}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "x-auth-token": userToken,
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error("Failed to settle friend expense");
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error("Settle friend expense error:", error);
-        throw error;
-    }
-};
 
 export const getFriendExpense = async (friendId, userToken) => {
     try {

@@ -7,8 +7,6 @@ const Expense = require('../../models/Expense');
 const auth = require("../../middleware/auth");
 const {
     normaliseSplits,
-    normaliseFunding,
-    validateFundingAgainstAmount,
 } = require('./normalise');
 
 router.post('/', auth, async (req, res) => {
@@ -23,7 +21,7 @@ router.post('/', auth, async (req, res) => {
             splits,
             groupId,
             date,
-            funding,   // NEW
+            currency, // ⬅️ NEW (optional)
         } = req.body;
 
         if (amount == null || Number.isNaN(Number(amount))) {
@@ -35,19 +33,19 @@ router.post('/', auth, async (req, res) => {
             if (!group) return res.status(400).json({ error: 'Invalid groupId' });
         }
 
-        const splitsN = normaliseSplits(req.body.splits, req.user.id) || [];
-        const fundingN = normaliseFunding(req.body.funding) || [];
+        // figure out which currency to count
+        const me = await User.findById(req.user.id).select('defaultCurrency preferredCurrencies');
+        if (!me) return res.status(401).json({ error: 'Unauthorized' });
 
-        if (fundingN.length) {
-            const v = validateFundingAgainstAmount(fundingN, req.body.amount);
-            if (!v.ok) return res.status(400).json({ error: v.message, total: v.total, amount: v.amount });
-            for (const f of fundingN) {
-                if (f.sourceType === 'group' && !f.groupId)
-                    return res.status(400).json({ error: 'groupId required when sourceType is group' });
-                if (f.sourceType === 'user' && !f.userId)
-                    return res.status(400).json({ error: 'userId required when sourceType is user' });
-            }
-        }
+        const pickCurrency = (v) => {
+            if (typeof v !== 'string') return null;
+            const up = v.toUpperCase().trim();
+            return /^[A-Z]{3}$/.test(up) ? up : null;
+        };
+
+        const usedCurrency = pickCurrency(currency) || me.defaultCurrency || 'INR';
+
+        const splitsN = normaliseSplits(req.body.splits, req.user.id) || [];
 
         const newExpense = new Expense({
             createdBy: req.user.id,
@@ -59,17 +57,25 @@ router.post('/', auth, async (req, res) => {
             splitMode,
             date: date ? new Date(date) : undefined,
             splits: splitsN,
-            funding: fundingN,
+            currency: usedCurrency, // ⬅️ store it on the expense (recommended)
             ...(groupId && { groupId }),
         });
 
         await newExpense.save();
+
+        // 🔽 Atomically bump usage count and keep the array in sync
+        const user = await User.updateOne(
+            { _id: req.user.id },
+            {
+                $inc: { [`preferredCurrencyUsage.${usedCurrency}`]: 1 },
+                $addToSet: { preferredCurrencies: usedCurrency },
+            }
+        );
+
         const populated = await Expense.findById(newExpense._id)
             .populate('createdBy', 'name email')
             .populate('splits.friendId', 'name email')
-            .populate('funding.userId', 'name email')
-            .populate('funding.groupId', 'name')
-            .populate('auditLog.updatedBy', 'name email')
+            .populate('auditLog.updatedBy', 'name email');
 
         res.status(201).json(populated);
     } catch (error) {
@@ -77,6 +83,7 @@ router.post('/', auth, async (req, res) => {
         res.status(500).json({ error: 'Failed to create expense' });
     }
 });
+
 
 
 router.get('/group/:id', auth, async (req, res) => {
@@ -126,7 +133,7 @@ router.get('/', auth, async (req, res) => {
 
 router.post('/settle', auth, async (req, res) => {
     try {
-        const { fromUserId, toUserId, amount, note, groupId } = req.body;
+        const { fromUserId, toUserId, amount, note, groupId, currency } = req.body;
 
         if (!fromUserId || !toUserId || !amount) {
             return res.status(400).json({ error: "Missing required fields." });
@@ -135,10 +142,11 @@ router.post('/settle', auth, async (req, res) => {
         const settleExpense = new Expense({
             createdBy: fromUserId,
             groupId,
-            description: note || `Settled ₹${amount}`,
+            description: note || `Settled ${currency} ${amount}`,
             amount,
             typeOf: 'settle',
             splitMode: 'value',
+            currency,
             ...(groupId && { groupId }),
             splits: [
                 {
@@ -181,77 +189,6 @@ router.delete("/:id", async (req, res) => {
     }
 });
 
-router.post('/settle/friend/:friendId', auth, async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const friendId = req.params.friendId;
-
-        // Step 1: Fetch all expenses involving current user and the friend
-        const expenses = await Expense.find({
-            $or: [
-                { createdBy: userId, 'splits.friendId': friendId },
-                { createdBy: friendId, 'splits.friendId': userId }
-            ]
-        });
-
-        // Step 2: Calculate net balance
-        let balance = 0;
-
-        for (const exp of expenses) {
-            for (const split of exp.splits) {
-                if (split.friendId.toString() === userId && split.oweAmount) {
-                    balance -= split.oweAmount;
-                }
-                if (split.friendId.toString() === userId && split.payAmount) {
-                    balance += split.payAmount;
-                }
-                if (split.friendId.toString() === friendId && split.oweAmount) {
-                    balance += split.oweAmount;
-                }
-                if (split.friendId.toString() === friendId && split.payAmount) {
-                    balance -= split.payAmount;
-                }
-            }
-        }
-        if (balance === 0) {
-            return res.status(400).json({ error: "No dues to settle." });
-        }
-
-        const fromUserId = balance > 0 ? friendId : userId;
-        const toUserId = balance > 0 ? userId : friendId;
-        const settleAmount = Math.abs(balance);
-
-        const settleExpense = new Expense({
-            createdBy: fromUserId,
-            description: `Settled ₹${settleAmount}`,
-            amount: settleAmount,
-            typeOf: 'settle',
-            splitMode: 'value',
-            splits: [
-                {
-                    friendId: toUserId,
-                    owing: true,
-                    paying: false,
-                    oweAmount: settleAmount
-                },
-                {
-                    friendId: fromUserId,
-                    owing: false,
-                    paying: true,
-                    payAmount: settleAmount
-                }
-            ]
-        });
-
-        await settleExpense.save();
-
-        return res.status(201).json({ message: "Friend expenses settled", expense: settleExpense });
-    } catch (error) {
-        console.error("Settle friend expense error:", error);
-        return res.status(500).json({ error: "Server error settling friend expenses." });
-    }
-});
-
 
 router.get('/friend/:friendId', auth, async (req, res) => {
     try {
@@ -287,7 +224,6 @@ router.put('/:id', auth, async (req, res) => {
             typeOf,     // 'expense' | 'settle' | 'income' | 'loan'
             splitMode,  // 'equal' | 'value' | 'percent'
             splits,
-            funding,    // NEW
             groupId,
             date,
             note,       // optional audit note
@@ -303,19 +239,10 @@ router.put('/:id', auth, async (req, res) => {
         }
 
         const splitsN = normaliseSplits(req.body.splits, req.user.id);   // may be undefined (not sent)
-        const fundingN = normaliseFunding(req.body.funding);              // may be undefined
+
 
         const amountNum = req.body.amount != null ? Number(req.body.amount) : expense.amount;
-        if (fundingN) {
-            const v = validateFundingAgainstAmount(fundingN, amountNum);
-            if (!v.ok) return res.status(400).json({ error: v.message, total: v.total, amount: v.amount });
-            for (const f of fundingN) {
-                if (f.sourceType === 'group' && !f.groupId)
-                    return res.status(400).json({ error: 'groupId required when sourceType is group' });
-                if (f.sourceType === 'user' && !f.userId)
-                    return res.status(400).json({ error: 'userId required when sourceType is user' });
-            }
-        }
+
 
         // Settlement rule (exactly 1 payer & 1 receiver)
         if (typeOf === 'settle' && splitsN) {
@@ -337,7 +264,7 @@ router.put('/:id', auth, async (req, res) => {
         if (typeOf != null) expense.typeOf = typeOf;
         if (splitMode != null) expense.splitMode = splitMode;
         if (splitsN) expense.splits = splitsN;
-        if (fundingN) expense.funding = fundingN;
+
         if (groupId != null) expense.groupId = groupId || undefined;
         if (date != null) expense.date = new Date(date);
 
@@ -358,8 +285,6 @@ router.put('/:id', auth, async (req, res) => {
         const updated = await Expense.findById(expense._id)
             .populate('createdBy', 'name email')
             .populate('splits.friendId', 'name email')
-            .populate('funding.userId', 'name email')
-            .populate('funding.groupId', 'name')
             .populate('auditLog.updatedBy', 'name email')
 
         res.json(updated);

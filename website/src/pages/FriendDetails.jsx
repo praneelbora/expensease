@@ -12,6 +12,7 @@ import { useAuth } from "../context/AuthContext";
 import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
 import PaymentModal from "../components/PaymentModal"; // Adjust import path
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
+import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies"
 
 import {
     getLoans,
@@ -23,12 +24,15 @@ import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
 
 const FriendDetails = () => {
-    const { userToken, user, categories } = useAuth();
+    const { user, userToken, defaultCurrency, preferredCurrencies, categories } = useAuth() || {};
     const { id } = useParams();
     const [searchParams] = useSearchParams();
     const tab = searchParams.get("tab"); // "loan" or null
     // inside SettleModal (after confirm step), when YOU are payer:
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [allCodes, setAllCodes] = useState([]);
+    useEffect(() => { setAllCodes(getAllCurrencyCodes()); }, []);
+    const currencyOptions = toCurrencyOptions(allCodes); // e.g., [{value:'INR', label:'₹ INR'}, ...]
 
 
     const navigate = useNavigate();
@@ -88,44 +92,80 @@ const FriendDetails = () => {
             PullToRefresh.destroyAll(); // correct cleanup
         };
     }, []);
-
-    const generateSimplifiedTransaction = (netBalance, userId, friendId) => {
-        if (netBalance === 0) return [];
-
-        const from = netBalance < 0 ? userId : friendId;
-        const to = netBalance < 0 ? friendId : userId;
-        const amount = Math.abs(netBalance);
-
-        return [{ from, to, amount }];
+    const currencyDigits = (code, locale = "en-IN") => {
+        try {
+            const fmt = new Intl.NumberFormat(locale, { style: "currency", currency: code });
+            return fmt.resolvedOptions().maximumFractionDigits ?? 2;
+        } catch {
+            return 2;
+        }
+    };
+    const roundCurrency = (amount, code) => {
+        const d = currencyDigits(code);
+        const f = 10 ** d;
+        return Math.round((Number(amount) + Number.EPSILON) * f) / f;
     };
 
-    const getOutstanding = (loan) => {
-        const paid = (loan.repayments || []).reduce((s, r) => s + (r.amount || 0), 0);
-        return Math.max(0, (loan.principal || 0) - paid);
+    const generateSimplifiedTransactionsByCurrency = (netByCode, userId, friendId) => {
+        const tx = [];
+        for (const [code, amt] of Object.entries(netByCode || {})) {
+            if (!amt) continue;
+            const from = amt < 0 ? userId : friendId;
+            const to = amt < 0 ? friendId : userId;
+            tx.push({ from, to, amount: Math.abs(amt), currency: code });
+        }
+        return tx;
+    };
+
+
+    const getOutstandingByCurrency = (loan) => {
+        // assume loan + repayments use same currency; fall back to INR
+        const code = loan?.currency || loan?.principalCurrency || "INR";
+        const principal = Number(loan?.principal) || 0;
+        let paid = 0;
+        for (const r of (loan?.repayments || [])) {
+            const rCode = r?.currency || code;
+            if (rCode !== code) continue; // skip mismatched currency lines
+            paid += Number(r?.amount) || 0;
+        }
+        const outstanding = Math.max(0, roundCurrency(principal - paid, code));
+        return { code, amount: outstanding };
     };
 
     // +ve => friend owes you (you lent)
     // -ve => you owe friend (you borrowed)
-    const computeNetLoanBalance = (friendId, userId, friendLoans) => {
-        let net = 0;
-        for (const loan of friendLoans) {
-            const outstanding = getOutstanding(loan);
-            if (outstanding === 0) continue;
-            const youAreLender = loan.lenderId?._id?.toString?.() === userId;
-            const friendIsBorrower = loan.borrowerId?._id?.toString?.() === friendId;
-            const youAreBorrower = loan.borrowerId?._id?.toString?.() === userId;
-            const friendIsLender = loan.lenderId?._id?.toString?.() === friendId;
+    const computeNetLoanBalanceByCurrency = (friendId, userId, friendLoans) => {
+        const totals = {}; // { [code]: number }
+        for (const loan of (friendLoans || [])) {
+            const { code, amount } = getOutstandingByCurrency(loan);
+            if (amount === 0) continue;
 
-            if (youAreLender && friendIsBorrower) net += outstanding;   // friend owes you
-            if (youAreBorrower && friendIsLender) net -= outstanding;   // you owe friend
+            const youAreLender = loan.lenderId?._id?.toString?.() === userId;
+            const friendBorrower = loan.borrowerId?._id?.toString?.() === friendId;
+            const youAreBorrower = loan.borrowerId?._id?.toString?.() === userId;
+            const friendLender = loan.lenderId?._id?.toString?.() === friendId;
+
+            if (youAreLender && friendBorrower) {
+                totals[code] = roundCurrency((totals[code] || 0) + amount, code);
+            }
+            if (youAreBorrower && friendLender) {
+                totals[code] = roundCurrency((totals[code] || 0) - amount, code);
+            }
         }
-        return Math.round(net * 100) / 100;
+        // drop near-zero dust
+        for (const code of Object.keys(totals)) {
+            const minUnit = 1 / (10 ** currencyDigits(code));
+            if (Math.abs(totals[code]) < minUnit) delete totals[code];
+        }
+        return totals; // e.g., { INR: 1200, USD: -50 }
     };
+    const [netLoanBalanceMap, setNetLoanBalanceMap] = useState({}); // new state
+    const [netExpenseBalanceMap, setNetExpenseBalanceMap] = useState({}); // new state
+
 
     const fetchLoansForFriend = async (meId, frId) => {
         setLoanLoading(true);
         try {
-            // fetch all your loans and filter by this friend
             const res = await getLoans(userToken, { role: "all" });
             const all = res?.loans || res || [];
             const friendLoans = all.filter(l =>
@@ -134,8 +174,8 @@ const FriendDetails = () => {
             );
             setLoans(friendLoans.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
 
-            const nl = computeNetLoanBalance(frId, meId, friendLoans);
-            setNetLoanBalance(nl);
+            const nlMap = computeNetLoanBalanceByCurrency(frId, meId, friendLoans);
+            setNetLoanBalanceMap(nlMap);
         } catch (e) {
             console.error("Failed to fetch loans", e);
         } finally {
@@ -152,8 +192,8 @@ const FriendDetails = () => {
         const expenseData = await getFriendExpense(id, userToken);
         setExpenses(expenseData);
 
-        const net = calculateFriendBalance(expenseData, data.id, data.friend._id);
-        setNetBalance(net);
+        const net = calculateFriendBalanceByCurrency(expenseData, data.id, data.friend._id);
+        setNetExpenseBalanceMap(net);
 
         // 🔹 fetch loans tied to this friend
         await fetchLoansForFriend(data.id, data.friend._id);
@@ -189,119 +229,47 @@ const FriendDetails = () => {
             })
         }
     };
-    const submitRepayment = async () => {
-        if (!activeLoan || !(Number(repayAmount) > 0)) return;
-        try {
-            await addLoanRepayment(activeLoan._id, { amount: Number(repayAmount), note: repayNote }, userToken);
-            setShowLoanModal(false);
-            await fetchLoansForFriend(userId, friend._id);
-        } catch (e) {
-            console.error(e);
-            alert(e.message || "Failed to add repayment");
-        }
-    };
 
-    const closeLoan = async (loan) => {
-        try {
-            await closeLoanApi(loan._id, {}, userToken);
-            await fetchLoansForFriend(userId, friend._id);
-        } catch (e) {
-            console.error(e);
-            alert(e.message || "Failed to close loan");
-        }
-    };
-
-    const [simplifiedTransactions, setSimplifiedTransactions] = useState(null);
-
-    const calculateDebt = (expenses, friend) => {
-        const totalDebt = {};
-
-        // Initialize all members' total debts to 0
-        // members.forEach(member => {
-        //     totalDebt[member._id] = 0;
-        // });
-        // Calculate the total amount each member owes or is owed
-        expenses.forEach(exp => {
-            exp.splits.forEach(split => {
-                const { friendId, oweAmount, payAmount } = split;
-                const memberId = friendId._id;
-                if (Number.isNaN(totalDebt[memberId])) {
-                    totalDebt[memberId] = 0;
-                }
-
-                totalDebt[memberId] = 0
-                if (payAmount > 0) {
-                    // This person paid, so they are owed money
-                    totalDebt[memberId] += payAmount;
-                }
-
-                if (oweAmount > 0) {
-                    // This person owes money, so they have a negative debt
-                    totalDebt[memberId] -= oweAmount;
-                }
-            });
-        });
-        return totalDebt;
-    };
     const handleSettle = async ({ payerId, receiverId, amount, description }) => {
         await settleExpense({ payerId, receiverId, amount, description }, userToken);
         await fetchData();
     };
 
-    const calculateFriendBalance = (expenses, userId, friendId) => {
-        let balance = 0;
+    const calculateFriendBalanceByCurrency = (expenses, userId, friendId) => {
+        const totals = {}; // { [code]: number }
 
-        const filteredExpenses = expenses.filter(exp => {
-            let userIsPaying = false;
-            let friendIsPaying = false;
-            let userIsOwing = false;
-            let friendIsOwing = false;
-
-            exp.splits.forEach(split => {
-                const id = split.friendId?._id?.toString();
-                if (id === userId) {
-                    if (split.paying) userIsPaying = true;
-                    if (split.owing) userIsOwing = true;
-                } else if (id === friendId) {
-                    if (split.paying) friendIsPaying = true;
-                    if (split.owing) friendIsOwing = true;
-                }
+        // consider only expenses where one is paying and the other is owing
+        const filtered = (expenses || []).filter(exp => {
+            let youPay = false, frPay = false, youOwe = false, frOwe = false;
+            (exp.splits || []).forEach(s => {
+                const id = s.friendId?._id?.toString();
+                if (id === userId) { if (s.paying) youPay = true; if (s.owing) youOwe = true; }
+                if (id === friendId) { if (s.paying) frPay = true; if (s.owing) frOwe = true; }
             });
-
-            const oneIsPaying = userIsPaying || friendIsPaying;
-            const otherIsOwing = (userIsPaying && friendIsOwing) || (friendIsPaying && userIsOwing);
-
+            const oneIsPaying = youPay || frPay;
+            const otherIsOwing = (youPay && frOwe) || (frPay && youOwe);
             return oneIsPaying && otherIsOwing;
         });
-        filteredExpenses.forEach(exp => {
-            exp.splits.forEach(split => {
-                if (split?.friendId?._id?.toString() === friendId) {
-                    if (split.owing) {
-                        balance += round(split.oweAmount) || 0;
-                    }
-                    if (split.paying) {
-                        balance -= round(split.payAmount) || 0;
-                    }
-                }
-            });
-        });
-        // filteredExpenses.forEach(exp => {
-        //     exp.splits.forEach(split => {
-        //         const id = split.friendId?._id?.toString();
-        //         if (id === userId) {
-        //             if (split.owing) balance -= split.oweAmount || 0;
-        //             if (split.paying) balance += split.payAmount || 0;
-        //         } else if (id === friendId) {
-        //             if (split.owing) balance += split.oweAmount || 0;
-        //             if (split.paying) balance -= split.payAmount || 0;
-        //         }
-        //     });
-        // });
 
+        for (const exp of filtered) {
+            const code = exp?.currency || "INR";
+            for (const s of exp.splits || []) {
+                const id = s?.friendId?._id?.toString();
+                if (id !== friendId) continue;
+                const add = (s.owing ? Number(s.oweAmount) || 0 : 0);
+                const sub = (s.paying ? Number(s.payAmount) || 0 : 0);
+                totals[code] = roundCurrency((totals[code] || 0) + add - sub, code);
+            }
+        }
 
-
-        return Math.round(balance * 100) / 100; // rounded to 2 decimals
+        // drop near-zero dust by currency step
+        for (const code of Object.keys(totals)) {
+            const minUnit = 1 / (10 ** currencyDigits(code));
+            if (Math.abs(totals[code]) < minUnit) delete totals[code];
+        }
+        return totals; // e.g., { INR: 250, USD: -10 }
     };
+
 
     useEffect(() => {
         fetchData();
@@ -328,9 +296,9 @@ const FriendDetails = () => {
         const net = payAmount - oweAmount;
 
         if (net > 0) {
-            return { text: 'lent', amount: ` ₹${net.toFixed(2)}` };
+            return { text: 'lent', amount: ` ${net.toFixed(2)}` };
         } else if (net < 0) {
-            return { text: 'borrowed', amount: ` ₹${Math.abs(net).toFixed(2)}` };
+            return { text: 'borrowed', amount: ` ${Math.abs(net).toFixed(2)}` };
         } else {
             return null;
         }
@@ -391,28 +359,32 @@ const FriendDetails = () => {
                         {/* ---- LOANS SECTION ---- */}
                         {activeSection === "loans" && (<>
 
-                            {loans.length !== 0 && <div className="pt-2">
-                                {/* Net Loan Balance */}
-                                <div className="mb-3">
-                                    <p className="text-sm text-gray-400">Net Loan Balance</p>
-                                    <p
-                                        className={`text-2xl font-semibold ${netLoanBalance > 0
-                                            ? "text-teal-500"
-                                            : netLoanBalance < 0
-                                                ? "text-red-400"
-                                                : "text-white"
-                                            }`}
-                                    >
-                                        {netLoanBalance > 0
-                                            ? "they owe you"
-                                            : netLoanBalance < 0
-                                                ? "you owe them"
-                                                : "All Settled"}{" "}
-                                        ₹{Math.abs(netLoanBalance).toFixed(2)}
-                                    </p>
+                            {loans.length !== 0 && (
+                                <div className="pt-2">
+                                    <div className="mb-3">
+                                        <p className="text-sm text-gray-400">Net Loan Balance</p>
+
+                                        {/* Per-currency lines */}
+                                        {Object.keys(netLoanBalanceMap || {}).length > 0 ? (
+                                            <div className="flex flex-col gap-1">
+                                                {Object.entries(netLoanBalanceMap).map(([code, amt]) => {
+                                                    const sym = getSymbol("en-IN", code);
+                                                    const d = currencyDigits(code);
+                                                    const cls = amt > 0 ? "text-teal-500" : amt < 0 ? "text-red-400" : "text-white";
+                                                    return (
+                                                        <p key={code} className={`text-2xl font-semibold ${cls}`}>
+                                                            {amt > 0 ? "they owe you" : amt < 0 ? "you owe them" : "All Settled"}{" "}
+                                                            {sym} {Math.abs(amt).toFixed(d)}
+                                                        </p>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <p className="text-2xl font-semibold text-white">All Settled</p>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                            }
+                            )}
 
 
 
@@ -444,28 +416,35 @@ const FriendDetails = () => {
                             ) : (
                                 <div className="flex flex-col gap-2">
                                     {loans.map((loan) => {
-                                        const outstanding = getOutstanding(loan);
+                                        // principal currency fallback
+                                        const loanCode = loan.currency || loan.principalCurrency || "INR";
+                                        const sym = getSymbol("en-IN", loanCode);
+                                        const d = currencyDigits(loanCode);
+
+                                        // outstanding for this loan
+                                        const { code: outCode, amount: outstanding } = getOutstandingByCurrency(loan); // <- use your currency-aware helper
+                                        const outSym = getSymbol("en-IN", outCode);
+                                        const outD = currencyDigits(outCode);
+
                                         const youAreLender = loan.lenderId?._id === userId;
                                         const dirText = youAreLender ? "You lent" : "You borrowed";
+
                                         return (
                                             <div
                                                 key={loan._id}
-                                                className={`border ${outstanding > 0 ? 'border-teal-500' : 'border-[#333]'} rounded-lg p-3 bg-[#171717] flex flex-col gap-1 cursor-pointer`}
+                                                className={`border ${outstanding > 0 ? "border-teal-500" : "border-[#333]"} rounded-lg p-3 bg-[#171717] flex flex-col gap-1 cursor-pointer`}
                                                 onClick={() => {
-                                                    logEvent('open_modal_loan', {
-                                                        screen: 'friend_detail'
-                                                    })
-                                                    openLoanView(loan)
+                                                    logEvent("open_modal_loan", { screen: "friend_detail" });
+                                                    openLoanView(loan);
                                                 }}
                                             >
                                                 <div className="flex justify-between items-center">
                                                     <div className="text-sm">
                                                         <div className="font-semibold">
-                                                            {dirText} ₹{loan.principal?.toFixed(2)}{" "}
-                                                            {youAreLender ? "to" : "from"} {friend?.name}
+                                                            {dirText} {sym} {Number(loan.principal || 0).toFixed(d)} {youAreLender ? "to" : "from"} {friend?.name}
                                                         </div>
                                                         <div className="text-[#a0a0a0]">
-                                                            Outstanding: ₹{outstanding.toFixed(2)} • Status: {loan.status}
+                                                            Outstanding: {outSym} {Number(outstanding || 0).toFixed(outD)} • Status: {loan.status}
                                                         </div>
                                                         {loan.description && (
                                                             <div className="text-[#a0a0a0] italic">{loan.description}</div>
@@ -476,11 +455,16 @@ const FriendDetails = () => {
                                                 {loan.repayments?.length > 0 && (
                                                     <div className="mt-2 text-xs text-[#a0a0a0]">
                                                         <p>Repayments:</p>
-                                                        {loan.repayments.slice().reverse().map((r, idx) => (
-                                                            <p key={idx} className="mr-2">
-                                                                ₹{r.amount} on {new Date(r.at).toLocaleDateString()}
-                                                            </p>
-                                                        ))}
+                                                        {loan.repayments.slice().reverse().map((r, idx) => {
+                                                            const rCode = r.currency || loanCode;
+                                                            const rSym = getSymbol("en-IN", rCode);
+                                                            const rD = currencyDigits(rCode);
+                                                            return (
+                                                                <p key={idx} className="mr-2">
+                                                                    {rSym} {Number(r.amount || 0).toFixed(rD)} on {new Date(r.at).toLocaleDateString()}
+                                                                </p>
+                                                            );
+                                                        })}
                                                     </div>
                                                 )}
                                             </div>
@@ -494,81 +478,93 @@ const FriendDetails = () => {
                         {/* ---- EXPENSES SECTION ---- */}
                         {activeSection === "expenses" && (
                             <>
-                                {expenses.length !== 0 && <div className="pb-2 pt-2">
-                                    <div>
-                                        <p className="text-sm text-gray-400">Net Expenses Balance</p>
-                                        <p
-                                            className={`text-2xl font-semibold ${netBalance > 0
-                                                ? "text-teal-500"
-                                                : netBalance < 0
-                                                    ? "text-red-400"
-                                                    : "text-white"
-                                                }`}
-                                        >
-                                            {netBalance > 0 ? "you are owed" : netBalance < 0 ? "you owe" : "All Settled"}{" "}
-                                            ₹{Math.abs(netBalance).toFixed(2)}
-                                        </p>
-                                    </div>
+                                {expenses.length !== 0 && (
+                                    <div className="pb-2 pt-2">
+                                        <div>
+                                            <p className="text-sm text-gray-400">Net Expenses Balance</p>
 
-                                    <div>
-                                        {netBalance < 0 && (
-                                            <div className="flex flex-col gap-2 mt-2">
-                                                {!friend?.upiId ? <p className="text-xs text-gray-500 mt-2 italic">
-                                                    💡 Ask your friend to enter their UPI ID in their Account page.
-                                                </p> :
+                                            {/* Per-currency lines */}
+                                            {Object.keys(netExpenseBalanceMap || {}).length > 0 ? (
+                                                <div className="flex flex-col gap-1">
+                                                    {Object.entries(netExpenseBalanceMap).map(([code, amt]) => {
+                                                        const sym = getSymbol("en-IN", code);
+                                                        const d = currencyDigits(code);
+                                                        const cls = amt > 0 ? "text-teal-500" : amt < 0 ? "text-red-400" : "text-white";
+                                                        return (
+                                                            <p key={code} className={`text-2xl font-semibold ${cls}`}>
+                                                                {amt > 0 ? "you are owed" : amt < 0 ? "you owe" : "All Settled"}{" "}
+                                                                {sym} {Math.abs(amt).toFixed(d)}
+                                                            </p>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <p className="text-2xl font-semibold text-white">All Settled</p>
+                                            )}
+                                        </div>
+
+                                        {/* Actions (gate UPI to INR only) */}
+                                        <div>
+                                            {/* If INR balance is negative, you owe in INR => show Pay CTA */}
+                                            {((netExpenseBalanceMap?.INR || 0) < 0) && (
+                                                <div className="flex flex-col gap-2 mt-2">
+                                                    {!friend?.upiId ? (
+                                                        <p className="text-xs text-gray-500 mt-2 italic">
+                                                            💡 Ask your friend to enter their UPI ID in their Account page.
+                                                        </p>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => {
+                                                                logEvent("open_modal_payment", { screen: "friend_detail" });
+                                                                setShowPaymentModal(true);
+                                                            }}
+                                                            className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
+                                                        >
+                                                            Make Payment
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* If INR balance is positive, suggest adding your UPI for faster settlements */}
+                                            {((netExpenseBalanceMap?.INR || 0) > 0) && (
+                                                <div className="flex flex-col gap-2 mt-2">
+                                                    {!user?.upiId && (
+                                                        <p className="text-xs text-gray-500 mt-2 italic">
+                                                            💡 To make settlements faster, add your UPI ID here —{" "}
+                                                            <button
+                                                                onClick={() => {
+                                                                    logEvent("navigate", { screen: "friend_detail", to: "account_upi" });
+                                                                    navigate("/account?section=upi");
+                                                                }}
+                                                                className="underline underline-offset-2 text-teal-400 hover:text-teal-300"
+                                                            >
+                                                                Account Page
+                                                            </button>
+                                                            . Friends can pay you instantly.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Show Settle button if ANY currency has a non-zero balance */}
+                                            {Object.values(netExpenseBalanceMap || {}).some(v => Math.abs(v) > 0) && (
+                                                <div className="flex flex-col gap-2 mt-2">
                                                     <button
                                                         onClick={() => {
-                                                            logEvent('open_modal_payment', {
-                                                                screen: 'friend_detail'
-                                                            })
-                                                            setShowPaymentModal(true);
+                                                            logEvent("open_modal_settle", { screen: "friend_detail" });
+                                                            setSettleType("full");
+                                                            setShowSettleModal(true);
                                                         }}
                                                         className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
                                                     >
-                                                        Make Payment
-                                                    </button>}
-                                            </div>
-                                        )}
-                                        {netBalance > 0 && (
-                                            <div className="flex flex-col gap-2 mt-2">
-                                                {!user?.upiId && <p className="text-xs text-gray-500 mt-2 italic">
-                                                    💡 To make settlements faster, add your UPI ID here —{" "}
-                                                    <button
-                                                        onClick={() => {
-                                                            logEvent('navigate', {
-                                                                screen: 'friend_detail', to: 'account_upi'
-                                                            });
-                                                            navigate("/account?section=upi")
-                                                        }}
-                                                        className="underline underline-offset-2 text-teal-400 hover:text-teal-300"
-                                                    >
-                                                        Account Page
+                                                        Settle
                                                     </button>
-                                                    . This way, friends can pay you instantly without needing to ask.
-                                                </p>
-                                                }
-                                            </div>
-                                        )}
-
-                                        {netBalance !== 0 && (
-                                            <div className="flex flex-col gap-2 mt-2">
-                                                <button
-                                                    onClick={() => {
-                                                        logEvent('open_modal_settle', {
-                                                            screen: 'friend_detail'
-                                                        })
-                                                        setSettleType("full");
-                                                        setShowSettleModal(true);
-                                                    }}
-                                                    className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
-                                                >
-                                                    Settle
-                                                </button>
-                                            </div>
-                                        )}
-
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>}
+                                )}
 
                                 {loading ? (
                                     <div className="flex flex-col justify-center items-center flex-1 py-5">
@@ -620,51 +616,35 @@ const FriendDetails = () => {
 
                     </div>
 
-
-                    {/* <div className="px-4 pb-2">
-                        <div>
-                            <p className="text-sm text-gray-400">Net Balance</p>
-                            <p className={`text-2xl font-semibold ${netBalance > 0 ? "text-teal-500" : netBalance < 0 ? "text-red-400" : "text-white"}`}>
-                                {netBalance > 0 ? "you are owed" : netBalance < 0 ? "you owe" : "All Settled"}{" "}
-                                ₹{Math.abs(netBalance).toFixed(2)}
-                            </p>
-                        </div>
-
-                        {netBalance !== 0 && (
-                            <div className="flex flex-col gap-2 mt-2">
-                                <button
-                                    onClick={() => {
-                                        setSettleType("full");
-                                        setShowSettleModal(true);
-                                    }}
-                                    className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
-                                >
-                                    Settle
-                                </button>
-                            </div>
-                        )}
-                    </div> */}
-
-
-
-
-
                 </div>
             </div>
 
 
             {showModal && (
-                <ExpenseModal showModal={showModal} fetchExpenses={() => fetchData()} setShowModal={setShowModal} userToken={userToken} userId={userId} categories={categories} />
+                <ExpenseModal
+                    showModal={showModal}
+                    fetchExpenses={() => fetchData()}
+                    setShowModal={setShowModal}
+                    userToken={userToken}
+                    userId={userId}
+                    categories={categories}
+                    currencyOptions={currencyOptions}
+                    defaultCurrency={defaultCurrency}
+                    preferredCurrencies={preferredCurrencies}
+                />
             )}
             {showSettleModal && (
                 <SettleModal
                     showModal={showSettleModal}
                     setShowModal={setShowSettleModal}
-                    simplifiedTransactions={generateSimplifiedTransaction(netBalance, userId, friend._id)}
+                    simplifiedTransactions={generateSimplifiedTransactionsByCurrency(netBalance, userId, friend._id)}
                     friends={[{ id: userId, name: 'You' }, { id: friend._id, name: friend.name, upiId: friend?.upiId }]}
                     onSubmit={handleSettle}
                     prefill={prefillSettle}
                     userId={userId}
+                    currencyOptions={currencyOptions}
+                    defaultCurrency={defaultCurrency}
+                    preferredCurrencies={preferredCurrencies}
                 />
             )}
             {showPaymentModal && (
@@ -674,6 +654,10 @@ const FriendDetails = () => {
                     receiverName={friend?.name}
                     receiverUpi={friend?.upiId}  // ensure your member has .upiid
                     note={"Settlement"}
+                    currencyOptions={currencyOptions}
+                    defaultCurrency={defaultCurrency}
+                    preferredCurrencies={preferredCurrencies}
+                // amount={}
                 // bank={{ accountName: "Amit Sharma", accountNumber: "1234567890", ifsc: "HDFC0001234", bankName: "HDFC Bank" }}
                 />
             )}
@@ -698,6 +682,9 @@ const FriendDetails = () => {
                     onAfterChange={async () => {
                         await fetchLoansForFriend(userId, friend._id);
                     }}
+                    currencyOptions={currencyOptions}
+                    defaultCurrency={defaultCurrency}
+                    preferredCurrencies={preferredCurrencies}
                 />
             )}
 
@@ -716,8 +703,7 @@ const FriendDetails = () => {
                             }
                             }
                             aria-label="Add Expense"
-                            className="fixed right-4 bottom-22 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
-                   text-white px-5 py-4 flex items-center gap-2"
+                            className="fixed right-4 bottom-22 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition text-white px-5 py-4 flex items-center gap-2"
                         >
                             <Plus size={18} />
                             <span className="text-sm font-semibold">Add Expense</span>
@@ -735,8 +721,7 @@ const FriendDetails = () => {
                             }
                             }
                             aria-label="Add a Loan"
-                            className="fixed right-4 bottom-22 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
-                   text-white px-5 py-4 flex items-center gap-2"
+                            className="fixed right-4 bottom-22 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition text-white px-5 py-4 flex items-center gap-2"
                         >
                             <Plus size={18} />
                             <span className="text-sm font-semibold">New Loan</span>

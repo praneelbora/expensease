@@ -9,6 +9,7 @@ import { Users, Wallet, Plus, List, User, Loader } from "lucide-react";
 import { getAllGroups, getGroupExpenses, joinGroup } from "../services/GroupService";
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
+import { getSymbol } from "../utils/currencies";
 
 const Groups = () => {
 
@@ -31,49 +32,75 @@ const Groups = () => {
         }
     }, [location]);
 
+    const currencyDigits = (code, locale = "en-IN") => {
+        try {
+            const fmt = new Intl.NumberFormat(locale, { style: "currency", currency: code });
+            return fmt.resolvedOptions().maximumFractionDigits ?? 2;
+        } catch {
+            return 2;
+        }
+    };
+    const roundCurrency = (amount, code, locale = "en-IN") => {
+        const d = currencyDigits(code, locale);
+        const f = 10 ** d;
+        return Math.round((Number(amount) + Number.EPSILON) * f) / f;
+    };
+
+    // ---- fetchGroups with per-currency totals ----
     const fetchGroups = async () => {
         try {
+            const data = await getAllGroups(userToken) || [];
+            if (data.length > 0) setGroups(data);
 
-            const data = await getAllGroups(userToken)
-            if (data.length > 0) {
-                setGroups(data);
-            }
-            const enhancedGroups = await Promise.all(data.map(async (group) => {
-                try {
-                    const result = await getGroupExpenses(group._id, userToken)
-                    const groupExpenses = result.expenses;
-                    const userId = result.id;
+            const enhancedGroups = await Promise.all(
+                data.map(async (group) => {
+                    try {
+                        const res = await getGroupExpenses(group._id, userToken);
+                        const expenses = res?.expenses || [];
+                        const userId = res?.id;
 
-                    let totalOwe = 0;
-
-                    groupExpenses.forEach(exp => {
-                        exp.splits.forEach(split => {
-                            if (split.friendId._id === userId) {
-                                totalOwe += round(split.oweAmount) || 0;
-                                totalOwe -= round(split.payAmount) || 0;
+                        // Build { [code]: amount } where amount > 0 means "you owe", < 0 means "you are owed"
+                        const totalsByCode = {};
+                        for (const exp of expenses) {
+                            const code = exp?.currency || "INR";
+                            for (const split of (exp?.splits || [])) {
+                                if (split?.friendId?._id !== userId) continue;
+                                const owe = Number(split?.oweAmount) || 0;
+                                const pay = Number(split?.payAmount) || 0;
+                                totalsByCode[code] = (totalsByCode[code] || 0) + owe - pay;
                             }
-                        });
-                    });
+                        }
 
-                    return {
-                        ...group,
-                        totalOwe: round(totalOwe) != 0 ? round(totalOwe) : null
-                    };
-                } catch (e) {
-                    console.error("Error fetching group expenses:", e);
-                    return group;
-                }
-            }));
+                        // Round & drop near-zero noise per currency
+                        const list = Object.entries(totalsByCode)
+                            .map(([code, amt]) => {
+                                const rounded = roundCurrency(amt, code);
+                                const minUnit = 1 / (10 ** currencyDigits(code));
+                                return Math.abs(rounded) >= minUnit ? { code, amount: rounded } : null;
+                            })
+                            .filter(Boolean)
+                            // sort by absolute magnitude desc (largest first)
+                            .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+
+                        return {
+                            ...group,
+                            totalOweList: list, // [{ code, amount }]
+                        };
+                    } catch (e) {
+                        console.error("Error fetching group expenses:", e);
+                        return { ...group, totalOweList: [] };
+                    }
+                })
+            );
+
             setGroups(enhancedGroups);
-
-
-
         } catch (error) {
             console.error("Groups Page - Error loading groups:", error);
         } finally {
             setLoading(false);
         }
     };
+
     const handleJoinGroup = async (joinCode) => {
         try {
             const data = await joinGroup(joinCode, userToken)
@@ -176,25 +203,35 @@ const Groups = () => {
                             {groups?.map((group) => (
                                 <div
                                     key={group._id}
-                                    onClick={() => {
-                                        navigate(`/groups/${group._id}`)
-                                    }}
-                                    className="flex flex-col gap-2 h-[45px]"
+                                    onClick={() => navigate(`/groups/${group._id}`)}
+                                    className="flex flex-col gap-2 "
                                 >
-                                    <div className="flex flex-1 flex-row justify-between items-center align-middle">
-                                        <h2 className="text-xl font-semibold capitalize">{group.name}</h2>
-                                        {group?.totalOwe && group?.totalOwe != 0 && <div className="flex flex-col">
-                                            <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-teal-500'} text-[11px] text-right`}>{group.totalOwe > 0 ? 'you owe' : 'you are owed'}</p>
-                                            <p className={`${group?.totalOwe > 0 ? 'text-red-500' : 'text-teal-500'} text-[14px] -mt-[4px] text-right`}>
-                                                ₹ {Math.abs(group.totalOwe.toFixed(2))}
-                                            </p>
+                                    <div className="flex flex-1 flex-row justify-between items-center">
+                                        <h2 className="text-xl font-semibold capitalize truncate">{group.name}</h2>
 
-                                        </div>
-                                        }
+                                        {group?.totalOweList?.length > 0 && (
+                                            <div className="flex flex-col items-end">
+                                                {group.totalOweList.map(({ code, amount }) => {
+                                                    const sym = getSymbol("en-IN", code);
+                                                    const owed = amount < 0; // negative => you are owed
+                                                    return (
+                                                        <div key={code} className="leading-tight">
+                                                            <p className={`${owed ? "text-teal-500" : "text-red-500"} text-[11px] text-right`}>
+                                                                {owed ? "you are owed" : "you owe"}
+                                                            </p>
+                                                            <p className={`${owed ? "text-teal-500" : "text-red-500"} text-[14px] -mt-[2px] text-right`}>
+                                                                {sym} {Math.abs(amount).toFixed(2)}
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                     <hr />
                                 </div>
                             ))}
+
                         </div>
                     )}
                 </div>

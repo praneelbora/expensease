@@ -5,8 +5,10 @@ import ModalWrapper from "./ModalWrapper";
 import { deleteExpense, updateExpense } from "../services/ExpenseService";
 import { logEvent } from "../utils/analytics";
 import { getGroupDetails } from "../services/GroupService";
+import { getSymbol } from "../utils/currencies";
+import CurrencyModal from "./CurrencyModal";
 
-const fmtMoney = (n) => `₹${Number(n || 0).toFixed(2)}`;
+const fmtMoney = (n) => `${Number(n || 0).toFixed(2)}`;
 const fmtDate = (d) =>
     new Date(d).toLocaleDateString(undefined, {
         day: "2-digit",
@@ -38,19 +40,21 @@ export default function ExpenseModal({
     fetchExpenses,
     userToken,
     userId,
-    categories
+    categories,
+    currencyOptions,
+    defaultCurrency,
+    preferredCurrencies
 }) {
     if (!showModal) return null;
-    console.log(showModal);
-
     const {
         _id,
         mode,                 // 'split' | 'personal'
+        typeOf,
         description,
         amount,
         date,
         createdAt,
-        updatedAt,
+        currency,
         createdBy,
         category,
         splits = [],
@@ -62,7 +66,7 @@ export default function ExpenseModal({
     const close = () => !busy && setShowModal(false);
     // Split UI state (matches your create flow concepts)
     const [selectedFriends, setSelectedFriends] = useState([]); // [{_id, name, paying, payAmount, owing, oweAmount, owePercent}]
-    const [splitUiMode, setSplitUiMode] = useState("equal"); // "equal" | "value" | "percent"
+    const [showCurrencyModal, setShowCurrencyModal] = useState(false); // "equal" | "value" | "percent"
 
     // 🔧 EDITING: local form state
     const [isEditing, setIsEditing] = useState(false);
@@ -84,6 +88,7 @@ export default function ExpenseModal({
             paying: !!s?.paying,
             owing: !!s?.owing,
         })),
+        currency: showModal?.currency || 'INR'
     });
 
     // reset/initialize when expense or group changes
@@ -97,7 +102,7 @@ export default function ExpenseModal({
                     if (alive) {
                         const norm = mergeMembersWithSplits([], splits);
                         setSelectedFriends(norm);
-                        setSplitUiMode(showModal?.splitMode || "equal");
+                        setForm((f) => ({ ...f, splitMode: showModal?.splitMode || "equal" }))
                     }
                     return;
                 }
@@ -108,7 +113,7 @@ export default function ExpenseModal({
                 if (alive) {
                     setGroupMembers(members);
                     setSelectedFriends(mergeMembersWithSplits(members, splits));
-                    setSplitUiMode(showModal?.splitMode || "equal");
+                    setForm((f) => ({ ...f, splitMode: showModal?.splitMode || "equal" }))
                 }
             } catch (e) {
                 if (alive) {
@@ -138,7 +143,6 @@ export default function ExpenseModal({
         return (amountNum - totalPaid).toFixed(2);
     };
 
-    const toggleMode = (m) => setSplitUiMode(m);
     // top of component
     const [memberSearch, setMemberSearch] = useState("");
     const addAllAvailable = () => {
@@ -150,12 +154,12 @@ export default function ExpenseModal({
         if (me) addSplitMember(me._id, me.name);
     };
     const handleOweChange = (id, val) => {
-        const v = Number(val || 0);
+        const v = Number(val);
         setSelectedFriends(arr => arr.map(f => f._id === id ? { ...f, oweAmount: v, owePercent: undefined } : f));
     };
 
     const handleOwePercentChange = (id, val) => {
-        const p = Number(val || 0);
+        const p = Number(val);
         setSelectedFriends(arr => arr.map(f => f._id === id ? { ...f, owePercent: p, oweAmount: Number(((p / 100) * amountNum).toFixed(2)) } : f));
     };
 
@@ -209,7 +213,7 @@ export default function ExpenseModal({
     const toggleOwing = (friendId) => {
         setSelectedFriends(prev => {
             let next = prev.map(f => f._id === friendId ? { ...f, owing: !f.owing } : f);
-            if (splitUiMode === "equal") next = equalizeOwe(next);
+            if (form.splitMode === "equal") next = equalizeOwe(next);
             else next = deleteOwe(next)
             return next;
         });
@@ -269,7 +273,7 @@ export default function ExpenseModal({
             : [...prev, { _id: friendId, name: name || "Member", paying: false, payAmount: 0, owing: false, oweAmount: 0 }]);
     };
     const shouldShowSubmitButton = () => {
-        if (form.mode == 'personal') {
+        if (form.mode == 'personal' && form.typeOf == 'expense') {
             if (form.description.length > 0 && form.amount > 0 && form.category.length > 0)
                 return true
             else return false
@@ -278,7 +282,6 @@ export default function ExpenseModal({
         const hasPaying = selectedFriends.some(friend => friend.paying);
 
         if (!hasOwing || !hasPaying) return false;
-
         if (form.splitMode === "equal") {
             return hasOwing && isPaidAmountValid();
         }
@@ -295,7 +298,6 @@ export default function ExpenseModal({
             const totalValue = selectedFriends
                 .filter(friend => friend.owing)
                 .reduce((sum, f) => sum + (f.oweAmount || 0), 0);
-
             return totalValue === form.amount && isPaidAmountValid();
         }
 
@@ -303,9 +305,6 @@ export default function ExpenseModal({
     };
     const getRemainingTop = () => {
         const owingFriends = selectedFriends.filter(f => f.owing);
-        console.log(selectedFriends.length);
-        console.log(form.splitMode)
-
         if (form.splitMode === 'percent') {
             const totalPercent = owingFriends.reduce((sum, f) => parseFloat(sum) + parseFloat(f.owePercent || 0), 0);
             return `${totalPercent.toFixed(2)} / 100%`;
@@ -313,8 +312,7 @@ export default function ExpenseModal({
 
         if (form.splitMode === 'value') {
             const totalValue = owingFriends.reduce((sum, f) => sum + parseFloat(f.oweAmount || 0), 0);
-            console.log(totalValue);
-            return `₹${totalValue.toFixed(2)} / ₹${form?.amount?.toFixed(2)}`;
+            return `${getSymbol('en-IN', currency)} ${totalValue.toFixed(2)} / ${getSymbol('en-IN', currency)} ${form?.amount?.toFixed(2)}`;
         }
 
         return '';
@@ -322,8 +320,6 @@ export default function ExpenseModal({
 
     const getRemainingBottom = () => {
         const owingFriends = selectedFriends.filter(f => f.owing);
-        console.log(selectedFriends.length);
-        console.log(form.splitMode)
         if (form.splitMode === 'percent') {
             const totalPercent = owingFriends.reduce((sum, f) => sum + (parseFloat(f.owePercent) || 0), 0);
             const remaining = 100 - totalPercent;
@@ -333,7 +329,7 @@ export default function ExpenseModal({
         if (form.splitMode === 'value') {
             const totalValue = owingFriends.reduce((sum, f) => sum + (f.oweAmount || 0), 0);
             const remaining = form.amount - totalValue;
-            return `₹${remaining.toFixed(2)} left`;
+            return `${getSymbol('en-IN', currency)} ${remaining.toFixed(2)} left`;
         }
 
         return '';
@@ -359,6 +355,7 @@ export default function ExpenseModal({
                 paying: !!s?.paying,
                 owing: !!s?.owing,
             })),
+            currency: showModal?.currency || 'INR'
         });
         setReSplit(false);
         setIsEditing(false);
@@ -372,12 +369,12 @@ export default function ExpenseModal({
         setSelectedFriends(prev => {
             let next = prev;
             if (prev.some(p => p.paying)) next = equalizePay(next);
-            if (splitUiMode === "equal") next = equalizeOwe(next);
+            if (form.splitMode === "equal") next = equalizeOwe(next);
             else next = deleteOwe(next)
             return next;
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedFriends.length, splitUiMode, form.mode, amountNum]);
+    }, [selectedFriends.length, form.splitMode, form.mode, amountNum]);
 
 
     const payerInfo = useMemo(() => {
@@ -497,8 +494,9 @@ export default function ExpenseModal({
             category: form.category,
             typeOf: form.typeOf,
             mode: form.mode,
-            splitMode: form.mode === 'split' ? splitUiMode : undefined,
+            splitMode: form.mode === 'split' ? form.splitMode : undefined,
             groupId: showModal?.groupId || undefined,
+            currency: form.currency,
             splits:
                 form.mode === 'split'
                     ? selectedFriends.map(f => ({
@@ -507,7 +505,7 @@ export default function ExpenseModal({
                         owing: !!f.owing,
                         payAmount: Number(f.payAmount || 0),
                         oweAmount: Number(f.oweAmount || 0),
-                        ...(splitUiMode === 'percent' ? { owePercent: Number(f.owePercent || 0) } : {}),
+                        ...(form.splitMode === 'percent' ? { owePercent: Number(f.owePercent || 0) } : {}),
                     }))
                     : [],
         };
@@ -548,20 +546,23 @@ export default function ExpenseModal({
                 <>
                     {!isEditing ? (
                         <>
-                            <button
-                                onClick={() => setIsEditing(true)}
-                                disabled={busy}
-                                className="text-[#EBF1D5] border border-[#EBF1D5] px-4 py-2 rounded-md hover:bg-[#3a3a3a] transition text-sm inline-flex items-center gap-1"
-                            >
-                                <Pencil size={16} /> Edit
-                            </button>
-                            <button
-                                onClick={() => setConfirmDelete(true)}
-                                disabled={busy}
-                                className="text-red-400 border border-red-500 px-4 py-2 rounded-md hover:bg-red-500/10 transition text-sm inline-flex items-center gap-1"
-                            >
-                                <Trash2 size={16} /> Delete
-                            </button>
+                            <div className="flex flex-1 gap-3">
+                                <button
+                                    onClick={() => setConfirmDelete(true)}
+                                    disabled={busy}
+                                    className="text-red-400 border border-red-500 px-4 py-2 rounded-md hover:bg-red-500/10 transition text-sm inline-flex items-center gap-1"
+                                >
+                                    <Trash2 size={16} /> Delete
+                                </button>
+                                <button
+                                    onClick={() => setIsEditing(true)}
+                                    disabled={busy}
+                                    className="text-[#EBF1D5] border border-[#EBF1D5] px-4 py-2 rounded-md hover:bg-[#3a3a3a] transition text-sm inline-flex items-center gap-1"
+                                >
+                                    <Pencil size={16} /> Edit
+                                </button>
+
+                            </div>
                             <button
                                 onClick={close}
                                 disabled={busy}
@@ -626,7 +627,7 @@ export default function ExpenseModal({
         <ModalWrapper
             show={!!showModal}
             onClose={close}
-            title={`${isEditing ? "Edit" : ""} ${mode} Expense`.trim()}
+            title={`${isEditing ? "Edit" : ""} ${typeOf == 'expense' ? mode : 'Settle'} Expense`.trim()}
             size="lg"
             footer={footer}
         >
@@ -635,7 +636,7 @@ export default function ExpenseModal({
                 {/* Top row */}
                 {!isEditing ? (
                     <div className="flex items-start justify-between gap-3">
-                        <p className="text-2xl font-semibold">{fmtMoney(amount)}</p>
+                        <p className="text-2xl font-semibold text-teal-500">{getSymbol('en-IN', currency)} {fmtMoney(amount)}</p>
                         {date && <p className="text-sm text-[#c9c9c9]">{fmtDate(date)}</p>}
                     </div>
                 ) : (
@@ -645,7 +646,7 @@ export default function ExpenseModal({
                             <div className="sm:col-span-2">
                                 <label className="block text-sm text-[#9aa08e] mb-1">Description</label>
                                 <input
-                                    className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
+                                    className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left"
                                     value={form.description}
                                     onChange={(e) =>
                                         setForm((f) => ({ ...f, description: e.target.value }))
@@ -656,39 +657,60 @@ export default function ExpenseModal({
                             </div>
 
                             {/* Amount */}
-                            <div>
-                                <label className="block text-sm text-[#9aa08e] mb-1">Amount</label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
-                                    value={form.amount}
-                                    onChange={(e) => {
-                                        const v = e.target.value;
-                                        const n = Number(v || 0);
-                                        setForm((f) => ({ ...f, amount: n }));
+                            <div className="flex flex-row gap-2">
+                                <div className="flex-1">
+                                    <label className="block text-sm text-[#9aa08e] mb-1">Currency</label>
+                                    <button
+                                        onClick={() => setShowCurrencyModal(true)}
+                                        className={`w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                    >
+                                        {currency || "Currency"}
+                                    </button>
+                                    <CurrencyModal
+                                        show={showCurrencyModal}
+                                        onClose={() => setShowCurrencyModal(false)}
+                                        value={currency}
+                                        options={currencyOptions}
+                                        onSelect={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                                        defaultCurrency={defaultCurrency}
+                                        preferredCurrencies={preferredCurrencies}
+                                    />
+                                </div>
 
-                                        // If editing splits and using equal mode, keep them in sync with amount
-                                        if (form.mode === "split") {
-                                            setSelectedFriends((prev) => {
-                                                let next = prev;
-                                                if (prev.some((p) => p.paying)) next = equalizePay(next);
-                                                if (form.splitMode === "equal") next = equalizeOwe(next);
-                                                return next;
-                                            });
-                                        }
-                                    }}
-                                    placeholder="0.00"
-                                />
+                                <div className="flex flex-col gap-1">
+                                    <label className="block text-sm text-[#9aa08e] mb-1">Amount</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left"
+                                        value={form.amount}
+                                        onChange={(e) => {
+                                            const v = e.target.value;
+                                            const n = Number(v || 0);
+                                            setForm((f) => ({ ...f, amount: n }));
+
+                                            // If editing splits and using equal mode, keep them in sync with amount
+                                            if (form.mode === "split") {
+                                                setSelectedFriends((prev) => {
+                                                    let next = prev;
+                                                    if (prev.some((p) => p.paying)) next = equalizePay(next);
+                                                    if (form.splitMode === "equal") next = equalizeOwe(next);
+                                                    return next;
+                                                });
+                                            }
+                                        }}
+                                        placeholder="0.00"
+                                    />
+                                </div>
                             </div>
 
                             {/* Date */}
-                            <div className="flex flex-row w-full gap-4">
+                            {form.typeOf == 'expense' && <div className="flex flex-row w-full gap-4">
                                 <div>
                                     <label className="block text-sm text-[#9aa08e] mb-1">Category</label>
                                     <select
-                                        className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1"
+                                        className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left"
                                         value={form.category}
                                         onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                                     >
@@ -704,13 +726,13 @@ export default function ExpenseModal({
                                     <label className="block text-sm text-[#9aa08e] mb-1">Date</label>
                                     <input
                                         type="date"
-                                        className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1"
+                                        className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left"
                                         value={form.date}
                                         max={new Date().toISOString().split("T")[0]}
                                         onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
                                     />
                                 </div>
-                            </div>
+                            </div>}
                         </div>
 
                         {form.mode === 'split' && (
@@ -754,8 +776,8 @@ export default function ExpenseModal({
 
                                     {selectedFriends.filter(f => f.paying).length > 1 && !isPaidAmountValid() && (
                                         <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col">
-                                            <p>₹{getPaidAmountInfoTop()} / ₹{amountNum.toFixed(2)}</p>
-                                            <p className="text-[#a0a0a0]">₹{getPaidAmountInfoBottom()} left</p>
+                                            <p>{getSymbol('en-IN', currency)} {getPaidAmountInfoTop()} / {getSymbol('en-IN', currency)} {amountNum.toFixed(2)}</p>
+                                            <p className="text-[#a0a0a0]">{getSymbol('en-IN', currency)} {getPaidAmountInfoBottom()} left</p>
                                         </div>
                                     )}
                                 </div>
@@ -784,24 +806,24 @@ export default function ExpenseModal({
                                         {selectedFriends.filter(f => f.owing).length > 1 && (
                                             <div className="flex flex-col gap-2">
                                                 <p>
-                                                    Split {splitUiMode === "equal" ? "Equally" : splitUiMode === "value" ? "By Amounts" : "By Percentages"}
+                                                    Split {form.splitMode === "equal" ? "Equally" : form.splitMode === "value" ? "By Amounts" : "By Percentages"}
                                                 </p>
                                                 <div className="flex gap-2">
                                                     <button
-                                                        onClick={() => { setSplitUiMode("equal"); setSelectedFriends(equalizeOwe); }}
-                                                        className={`px-4 py-1 text-[11px] rounded-md border ${splitUiMode === "equal" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5] border-[#81827C]"}`}
+                                                        onClick={() => { setForm((f) => ({ ...f, splitMode: 'equal' })); setSelectedFriends(equalizeOwe); }}
+                                                        className={`px-4 py-1 text-[11px] rounded-md border ${form.splitMode === "equal" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5] border-[#81827C]"}`}
                                                     >
                                                         =
                                                     </button>
                                                     <button
-                                                        onClick={() => setSplitUiMode("value")}
-                                                        className={`px-4 py-1 text-[11px] rounded-md border ${splitUiMode === "value" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5] border-[#81827C]"}`}
+                                                        onClick={() => setForm((f) => ({ ...f, splitMode: 'value' }))}
+                                                        className={`px-4 py-1 text-[11px] rounded-md border ${form.splitMode === "value" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5] border-[#81827C]"}`}
                                                     >
                                                         1.23
                                                     </button>
                                                     <button
-                                                        onClick={() => setSplitUiMode("percent")}
-                                                        className={`px-4 py-1 text-[11px] rounded-md border ${splitUiMode === "percent" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5] border-[#81827C]"}`}
+                                                        onClick={() => setForm((f) => ({ ...f, splitMode: 'percent' }))}
+                                                        className={`px-4 py-1 text-[11px] rounded-md border ${form.splitMode === "percent" ? "bg-teal-300 text-[#000] border-teal-300 font-bold" : "bg-transparent text-[#EBF1D5] border-[#81827C]"}`}
                                                     >
                                                         %
                                                     </button>
@@ -815,7 +837,7 @@ export default function ExpenseModal({
                                                 {selectedFriends.filter(f => f.owing).map(f => (
                                                     <div key={`oweAmount-${f._id}`} className="flex justify-between items-center w-full">
                                                         <p className="capitalize">{f.name} {f._id == userId ? '(You)' : ''}</p>
-                                                        {splitUiMode === "percent" ? (
+                                                        {form.splitMode === "percent" ? (
                                                             <input
                                                                 className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 text-right"
                                                                 type="number"
@@ -823,7 +845,7 @@ export default function ExpenseModal({
                                                                 onChange={(e) => handleOwePercentChange(f._id, e.target.value)}
                                                                 placeholder="Percent"
                                                             />
-                                                        ) : splitUiMode === "value" ? (
+                                                        ) : form.splitMode === "value" ? (
                                                             <input
                                                                 className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 text-right"
                                                                 type="number"
@@ -837,10 +859,11 @@ export default function ExpenseModal({
                                                     </div>
 
                                                 ))}
-                                                {!shouldShowSubmitButton() ? (<div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
-                                                    <p>{getRemainingTop()}</p>
-                                                    <p className="text-[#a0a0a0]">{getRemainingBottom()}</p>
-                                                </div>) : <></>}
+                                                {!shouldShowSubmitButton() ? (
+                                                    <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
+                                                        <p>{getRemainingTop()}</p>
+                                                        <p className="text-[#a0a0a0]">{getRemainingBottom()}</p>
+                                                    </div>) : <></>}
                                             </div>
                                         )}
                                     </div>
@@ -855,20 +878,21 @@ export default function ExpenseModal({
                 {!isEditing && mode === "split" && (
                     <>
                         <hr className="border-[#2a2a2a]" />
-                        <p className="text-base">
-                            {payerInfo} {amount ? ` ${fmtMoney(amount)}` : ""}
+                        <p className="text-base text-teal-500">
+                            {payerInfo} {amount ? ` ${getSymbol('en-IN', currency)} ${fmtMoney(amount)}` : ""}
                         </p>
                         <div className="ms-1">
                             <div className="flex flex-col gap-1 text-sm">
                                 {splits
                                     .filter((s) => (s.payAmount || 0) > 0 || (s.oweAmount || 0) > 0)
                                     .map((s, idx) => {
+
                                         const name = s?.friendId?.name || "Member";
                                         const payTxt =
-                                            (s.payAmount || 0) > 0 ? `paid ${fmtMoney(s.payAmount)}` : "";
+                                            (s.payAmount || 0) > 0 ? `paid ${getSymbol('en-IN', currency)} ${fmtMoney(s.payAmount)}` : "";
                                         const andTxt =
-                                            (s.payAmount || 0) > 0 && (s.oweAmount || 0) > 0 ? " and " : "";
-                                        const oweTxt = `owes ${fmtMoney(s.oweAmount || 0)}`;
+                                            ((s.payAmount || 0) > 0 && (parseFloat(s.oweAmount) || 0) > 0) ? " and " : "";
+                                        const oweTxt = parseFloat(s.oweAmount) > 0 ? `owes ${getSymbol('en-IN', currency)} ${fmtMoney(parseFloat(s.oweAmount) || 0)}` : '';
                                         return (
                                             <div key={idx} className="flex">
                                                 <p>

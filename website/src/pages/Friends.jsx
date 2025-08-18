@@ -6,6 +6,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { getFriends, acceptLinkFriendRequest } from "../services/FriendService";
 import { fetchReceivedRequests, acceptFriendRequest, rejectFriendRequest } from "../services/FriendService";
 import { getAllExpenses } from "../services/ExpenseService";
+import { getSymbol } from "../utils/currencies";
+
 import {
     Users,
     Wallet,
@@ -87,7 +89,19 @@ const Friends = () => {
             console.log(err.message || "Error accepting request");
         }
     };
-
+    const currencyDigits = (code, locale = "en-IN") => {
+        try {
+            const fmt = new Intl.NumberFormat(locale, { style: "currency", currency: code });
+            return fmt.resolvedOptions().maximumFractionDigits ?? 2;
+        } catch {
+            return 2;
+        }
+    };
+    const roundCurrency = (amount, code, locale = "en-IN") => {
+        const d = currencyDigits(code, locale);
+        const f = 10 ** d;
+        return Math.round((Number(amount) + Number.EPSILON) * f) / f;
+    };
 
     // top of Friends component state
     const [banner, setBanner] = useState(null);
@@ -237,7 +251,7 @@ const Friends = () => {
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-1 gap-x-4">
                             {receivedRequests.length > 0 && (
                                 <div className="rounded-lg">
                                     <h2 className="text-teal-500 pb-2 uppercase">Friend Requests</h2>
@@ -263,31 +277,41 @@ const Friends = () => {
                             )}
 
                             {friends.map((friend) => {
+                                // collect friend-related expenses once
                                 const friendExpenses = expenses?.filter(exp =>
-                                    exp.splits.some(split => {
-                                        return split.friendId?._id?.toString() === friend._id?.toString()
-                                    })
-                                );
-                                // Compute net balance (user - friend) for those expenses
-                                let balance = 0;
-                                friendExpenses.forEach(exp => {
-                                    exp.splits.forEach(split => {
-                                        if (split.friendId?._id?.toString() === friend._id?.toString()) {
-                                            if (split.owing) {
-                                                balance += round(split.oweAmount) || 0;
-                                            }
-                                            if (split.paying) {
-                                                balance -= round(split.payAmount) || 0;
-                                            }
-                                        }
-                                    });
-                                });
+                                    exp.splits?.some(split => String(split.friendId?._id) === String(friend._id))
+                                ) || [];
+
+                                // per-currency net (friend owes you => +ve, you owe friend => -ve)
+                                const totalsByCode = {};
+                                for (const exp of friendExpenses) {
+                                    const code = exp?.currency || "INR";
+                                    const split = exp.splits?.find(s => String(s.friendId?._id) === String(friend._id));
+                                    if (!split) continue;
+
+                                    const owe = Number(split.oweAmount) || 0;
+                                    const pay = Number(split.payAmount) || 0;
+
+                                    // friend marked owing adds +owe, marked paying subtracts -pay
+                                    const delta = (split.owing ? owe : 0) - (split.paying ? pay : 0);
+                                    totalsByCode[code] = (totalsByCode[code] || 0) + delta;
+                                }
+
+                                // make a clean list, round by currency precision, drop near-zero noise
+                                const balances = Object.entries(totalsByCode).reduce((acc, [code, amt]) => {
+                                    const rounded = roundCurrency(amt, code);
+                                    const minUnit = 1 / (10 ** currencyDigits(code));
+                                    if (Math.abs(rounded) >= minUnit) acc.push({ code, amount: rounded });
+                                    return acc;
+                                }, [])
+                                    // optional: sort largest first
+                                    .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
 
                                 return (
                                     <div
                                         onClick={() => navigate(`/friends/${friend._id}`)}
                                         key={friend._id}
-                                        className="flex flex-col gap-2 h-[48px]"
+                                        className="flex flex-col gap-2"
                                     >
                                         <div className="flex flex-1 flex-row justify-between items-center max-w-full">
                                             {/* Left: Name + Email */}
@@ -301,27 +325,29 @@ const Friends = () => {
                                                 </span>
                                             </div>
 
-                                            {/* Right: Balance */}
-                                            {round(balance) !== 0 && !isNaN(balance) && (
-                                                <div className="flex flex-col min-w-[70px] pl-2 flex-shrink-0">
-                                                    <p
-                                                        className={`${balance < 0 ? "text-red-500" : "text-teal-500"
-                                                            } text-[11px] text-right`}
-                                                    >
-                                                        {round(balance) < 0 ? "you owe" : "you are owed"}
-                                                    </p>
-                                                    <p
-                                                        className={`${balance < 0 ? "text-red-500" : "text-teal-500"
-                                                            } text-[14px] -mt-[4px] text-right`}
-                                                    >
-                                                        ₹ {Math.abs(balance.toFixed(2))}
-                                                    </p>
+                                            {/* Right: Multi-currency balances */}
+                                            {balances.length > 0 && (
+                                                <div className="flex flex-col min-w-[90px] pl-2 flex-shrink-0 items-end">
+                                                    {balances.map(({ code, amount }) => {
+                                                        const sym = getSymbol("en-IN", code);
+                                                        const youOwe = amount < 0; // negative => you owe
+                                                        const color = youOwe ? "text-red-500" : "text-teal-500";
+                                                        return (
+                                                            <div key={code} className="leading-tight text-right">
+                                                                <p className={`${color} text-[11px]`}>
+                                                                    {youOwe ? "you owe" : "you are owed"}
+                                                                </p>
+                                                                <p className={`${color} text-[14px] -mt-[4px]`}>
+                                                                    {sym} {Math.abs(amount).toFixed(currencyDigits(code))}
+                                                                </p>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
                                         </div>
                                         <hr />
                                     </div>
-
                                 );
                             })}
                             <p className="text-center text-sm text-teal-500">

@@ -11,11 +11,16 @@ import { getAllGroups, joinGroup } from "../services/GroupService";
 import { createExpense } from "../services/ExpenseService";
 import { CalendarDays } from "lucide-react"; // or use any other icon
 import { logEvent } from '../utils/analytics';
+import CustomSelect from "../components/CustomSelect";
+import CurrencySelect from "../components/CurrencySelect";
+import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies";
+import CategoryModal from "../components/CategoryModal";
+import CurrencyModal from "../components/CurrencyModal";
 
 const AddExpense = () => {
     const navigate = useNavigate()
     const [friends, setFriends] = useState([]);
-    const { userToken, categories } = useAuth() || {}
+    const { categories, user, userToken, defaultCurrency, preferredCurrencies } = useAuth() || {};
     const location = useLocation();
     const [filteredFriends, setFilteredFriends] = useState([]);
     const [filteredGroups, setFilteredGroups] = useState([]);
@@ -30,6 +35,19 @@ const AddExpense = () => {
     const [expenseMode, setExpenseMode] = useState('personal');
     const [showAllGroups, setShowAllGroups] = useState(false);
     const groupDisplayLimit = 4;
+    const [currency, setCurrency] = useState();
+    const [currencyOptions, setCurrencyOptions] = useState([]);
+    const [showCategoryModal, setShowCategoryModal] = useState();
+    const [showCurrencyModal, setShowCurrencyModal] = useState();
+
+    useEffect(() => {
+        setCurrency(defaultCurrency)
+    }, [defaultCurrency]);
+    useEffect(() => {
+        const codes = getAllCurrencyCodes();
+        setCurrencyOptions(toCurrencyOptions(codes).sort((a, b) => a.value.localeCompare(b.value)));
+    }, []);
+
     const [expenseDate, setExpenseDate] = useState(() => {
         const today = new Date();
         return today.toISOString().split("T")[0]; // format: YYYY-MM-DD
@@ -127,7 +145,6 @@ const AddExpense = () => {
         const totalPaid = selectedFriends
             .filter(friend => friend.paying)
             .reduce((sum, friend) => sum + (friend.payAmount || 0), 0);
-
         return totalPaid === amount;
     };
     useEffect(() => {
@@ -159,6 +176,7 @@ const AddExpense = () => {
             splitMode: expenseMode === 'split' ? mode : 'equal', // 'equal' for personal by default
             typeOf: 'expense',
             date: expenseDate,
+            currency
         };
 
         if (expenseMode === 'split') {
@@ -181,7 +199,7 @@ const AddExpense = () => {
         try {
             const data = await createExpense(expenseData, userToken);
             logEvent('expense_added', {
-                currency: 'INR',
+                currency: currency,
                 amount: expenseData.amount,
                 category: expenseData.category,
             });
@@ -463,7 +481,7 @@ const AddExpense = () => {
 
         if (mode === 'value') {
             const totalValue = owingFriends.reduce((sum, f) => sum + parseFloat(f.oweAmount || 0), 0);
-            return `₹${totalValue.toFixed(2)} / ₹${amount.toFixed(2)}`;
+            return `${getSymbol('en-IN', currency)} ${totalValue.toFixed(2)} / ${getSymbol('en-IN', currency)} ${parseFloat(amount).toFixed(2)}`;
         }
 
         return '';
@@ -481,7 +499,7 @@ const AddExpense = () => {
         if (mode === 'value') {
             const totalValue = owingFriends.reduce((sum, f) => sum + (f.oweAmount || 0), 0);
             const remaining = amount - totalValue;
-            return `₹${remaining.toFixed(2)} left`;
+            return `${getSymbol('en-IN', currency)} ${remaining.toFixed(2)} left`;
         }
 
         return '';
@@ -695,7 +713,7 @@ const AddExpense = () => {
                                             {filteredGroups.length > groupDisplayLimit && (
                                                 <button
                                                     onClick={() => setShowAllGroups(!showAllGroups)}
-                                                    className="text-sm text-teal-500 mt-2 hover:underline"
+                                                    className="text-sm text-[#a0a0a0] mt-2 hover:underline"
                                                 >
                                                     {showAllGroups ? 'Show Less' : 'Show More'}
                                                 </button>
@@ -725,7 +743,7 @@ const AddExpense = () => {
                                         {filteredFriends.length > friendDisplayLimit && (
                                             <button
                                                 onClick={() => setShowAllFriends(!showAllFriends)}
-                                                className="text-sm text-teal-500 mt-2 hover:underline"
+                                                className="text-sm text-[#a0a0a0] mt-2 hover:underline"
                                             >
                                                 {showAllFriends ? 'Show Less' : 'Show More'}
                                             </button>
@@ -746,31 +764,57 @@ const AddExpense = () => {
                                         value={desc}
                                         onChange={(e) => setDesc(e.target.value)}
                                     />
-                                    <input
-                                        className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3 flex-1"
-                                        type="number"
-                                        placeholder="Enter Amount"
-                                        value={amount}
-                                        onChange={(e) => setAmount(parseInt(e.target.value))}
-                                    />
                                     <div className="flex flex-row w-full gap-4">
-                                        <div className="flex-1 relative">
-                                            <select
-                                                className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1"
-                                                value={category}
-                                                onChange={(e) => setCategory(e.target.value)}
-                                            >
-                                                <option value="">Select Category</option>
-                                                {categories.map((cat) => (
-                                                    <option key={cat.name} value={cat.name}>
-                                                        {cat.emoji} {cat.name}
-                                                    </option>
-                                                ))}
 
-                                            </select>
+                                        <div className="flex-1">
+                                            <button
+                                                onClick={() => setShowCurrencyModal(true)}
+                                                className={`w-full ${currency ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                            >
+                                                {currency || "Currency"}
+                                            </button>
+                                            <CurrencyModal
+                                                show={showCurrencyModal}
+                                                onClose={() => setShowCurrencyModal(false)}
+                                                value={currency}
+                                                options={currencyOptions}
+                                                onSelect={setCurrency}
+                                                defaultCurrency={defaultCurrency}
+                                                preferredCurrencies={preferredCurrencies}
+                                            />
                                         </div>
 
-                                        <div className="flex-1 relative">
+                                        <input
+                                            className="flex-1 text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3"
+                                            type="number"
+                                            placeholder="Enter Amount"
+                                            value={amount}
+                                            onChange={(e) => setAmount(parseFloat(e.target.value))}
+                                        />
+                                    </div>
+                                    <div className="flex flex-row w-full gap-4">
+                                        <div className="flex-1">
+                                            <button
+                                                onClick={() => setShowCategoryModal(true)}
+                                                className={`w-full ${category ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f] 
+               p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                            >
+                                                {category || "Select Category"}
+                                            </button>
+                                            <CategoryModal
+                                                show={showCategoryModal}
+                                                onClose={() => setShowCategoryModal(false)}
+                                                value={category}
+                                                options={categories.map(cat => ({
+                                                    value: cat.name,
+                                                    label: `${cat.emoji} ${cat.name}`,
+                                                }))}
+                                                onSelect={setCategory}
+                                            />
+                                        </div>
+
+
+                                        <div className="flex-1">
                                             <input
                                                 type="date"
                                                 value={expenseDate}
@@ -872,8 +916,8 @@ const AddExpense = () => {
                                                 </div>
                                             )}
                                             {expenseMode == 'split' && selectedFriends.filter(f => f.paying).length > 1 && !isPaidAmountValid() && <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
-                                                <p>₹{getPaidAmountInfoTop()} / ₹{amount.toFixed(2)}</p>
-                                                <p className="text-[#a0a0a0]">₹{getPaidAmountInfoBottom()} left</p>
+                                                <p>{getSymbol('en-IN', currency)} {getPaidAmountInfoTop()} / {getSymbol('en-IN', currency)} {parseFloat(amount).toFixed(2)}</p>
+                                                <p className="text-[#a0a0a0]">{getSymbol('en-IN', currency)} {getPaidAmountInfoBottom()} left</p>
                                             </div>}
                                             {expenseMode == 'split' && isPaidAmountValid() && <>
                                                 <p className="text-lg font-medium">Owed by  <span className="text-[13px] text-[#81827C] mb-1">(Select the people who owe.)</span></p>
@@ -979,7 +1023,7 @@ const AddExpense = () => {
                                                 </div>}
 
                                                 {/* 2. Amount input view for multiple owe-ers */}
-                                                {expenseMode == 'split' && selectedFriends.filter(f => f.owing).length > 1 && (
+                                                {expenseMode == 'split' && isPaidAmountValid() && selectedFriends.filter(f => f.owing).length > 1 && (
                                                     <div className="w-full flex flex-col gap-2">
                                                         {selectedFriends
                                                             .filter(f => f.owing)
@@ -1028,11 +1072,12 @@ const AddExpense = () => {
                             >
                                 Save Expense
                             </button>
-                        ) :
+                        ) : expenseMode == 'split' && isPaidAmountValid() && selectedFriends.filter(f => f.owing).length > 1 ? (
                             <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
                                 <p>{getRemainingTop()}</p>
                                 <p className="text-[#a0a0a0]">{getRemainingBottom()}</p>
                             </div>
+                        ) : <></>
                         }
 
                     </div>

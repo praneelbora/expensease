@@ -8,7 +8,7 @@ import SettleModal from '../components/SettleModal';
 import { getGroupDetails, getGroupExpenses } from '../services/GroupService';
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
 import PullToRefresh from "pulltorefreshjs";
-
+import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies"
 import Cookies from 'js-cookie';
 import {
     Users,
@@ -27,7 +27,21 @@ import { settleExpense } from '../services/ExpenseService';
 import { logEvent } from "../utils/analytics";
 
 const GroupDetails = () => {
-    const { userToken, categories } = useAuth() || {}
+    const { logout, user, userToken, defaultCurrency, preferredCurrencies,
+        persistDefaultCurrency, categories } = useAuth() || {};
+
+    const [dc, setDc] = useState(defaultCurrency || '');
+
+    const [showDefaultModal, setShowDefaultModal] = useState(false);
+
+    const [dcStatus, setDcStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+    const [dcError, setDcError] = useState('');
+    const [allCodes, setAllCodes] = useState([]);
+    useEffect(() => { setAllCodes(getAllCurrencyCodes()); }, []);
+    useEffect(() => { setDc(defaultCurrency || ''); }, [defaultCurrency]);
+    const currencyOptions = toCurrencyOptions(allCodes); // e.g., [{value:'INR', label:'₹ INR'}, ...]
+
+
     const navigate = useNavigate()
     const { id } = useParams();
     const [group, setGroup] = useState(null);
@@ -46,9 +60,9 @@ const GroupDetails = () => {
     const [copiedTop, setCopiedTop] = useState(false);
     const [adminEnforcedPrivacy, setAdminEnforcedPrivacy] = useState(false);
 
-    const handleSettle = async ({ payerId, receiverId, amount, description }) => {
+    const handleSettle = async ({ payerId, receiverId, amount, description, currency }) => {
         try {
-            await settleExpense({ payerId, receiverId, amount, description, groupId: id }, userToken);
+            await settleExpense({ payerId, receiverId, amount, description, groupId: id, currency }, userToken);
             await getGroupExpenses(id, userToken);
             console.log("Settlement recorded successfully!");
             await fetchGroupExpenses()
@@ -109,9 +123,9 @@ const GroupDetails = () => {
         const net = payAmount - oweAmount;
 
         if (net > 0) {
-            return { text: 'you lent', amount: ` ₹${net.toFixed(2)}` };
+            return { text: 'you lent', amount: `${net.toFixed(2)}` };
         } else if (net < 0) {
-            return { text: 'you borrowed', amount: ` ₹${Math.abs(net).toFixed(2)}` };
+            return { text: 'you borrowed', amount: `${Math.abs(net).toFixed(2)}` };
         } else {
             return null;
         }
@@ -151,32 +165,27 @@ const GroupDetails = () => {
     };
 
 
+    // replace your calculateDebt with this
     const calculateDebt = (groupExpenses, members) => {
-        const totalDebt = {};
+        const totalDebt = {}; // memberId -> { [currency]: netAmount }
 
-        // Initialize all members' total debts to 0
-        members.forEach(member => {
-            totalDebt[member._id] = 0;
-        });
-        // Calculate the total amount each member owes or is owed
+        // init
+        members.forEach(m => { totalDebt[m._id] = {}; });
+
         groupExpenses.forEach(exp => {
+            const code = exp.currency || "INR";
             exp.splits.forEach(split => {
-                const { friendId, oweAmount, payAmount } = split;
-                const memberId = friendId._id;
+                const memberId = split.friendId._id;
+                const curMap = totalDebt[memberId];
+                if (curMap[code] == null) curMap[code] = 0;
 
-                if (payAmount > 0) {
-                    // This person paid, so they are owed money
-                    totalDebt[memberId] += payAmount;
-                }
-
-                if (oweAmount > 0) {
-                    // This person owes money, so they have a negative debt
-                    totalDebt[memberId] -= oweAmount;
-                }
+                if (split.payAmount > 0) curMap[code] += split.payAmount; // paid → is owed
+                if (split.oweAmount > 0) curMap[code] -= split.oweAmount; // owes → negative
             });
         });
         return totalDebt;
     };
+
     const scrollRef = useRef(null);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -206,76 +215,91 @@ const GroupDetails = () => {
         };
     }, []);
 
-    // Simplify debts
-    const simplifyDebts = (totalDebt, members) => {
-        const owe = [];
-        const owed = [];
-
-        // Separate the people who owe money and the ones who are owed money
-        for (let memberId in totalDebt) {
-            if (totalDebt[memberId] > 0) {
-                owed.push({ memberId, amount: totalDebt[memberId] });
-            } else if (totalDebt[memberId] < 0) {
-                owe.push({ memberId, amount: Math.abs(totalDebt[memberId]) });
-            }
-        }
-
-        // Simplify the debts
+    const simplifyDebts = (totalDebt, members, locale = "en-IN") => {
         const transactions = [];
-        let i = 0, j = 0;
+        const currencies = new Set();
 
-        while (i < owe.length && j < owed.length) {
-            const oweAmount = owe[i].amount;
-            const owedAmount = owed[j].amount;
+        Object.values(totalDebt).forEach(map =>
+            Object.keys(map || {}).forEach(c => currencies.add(c))
+        );
 
-            // Determine how much is transferred between them
-            const transactionAmount = Math.min(oweAmount, owedAmount);
-            if (transactionAmount > 0.1) {
-                transactions.push({
-                    from: owe[i].memberId,
-                    to: owed[j].memberId,
-                    amount: round(transactionAmount)
-                });
+        currencies.forEach(code => {
+            // precision + thresholds
+            let digits = 2;
+            try {
+                const fmt = new Intl.NumberFormat(locale, { style: "currency", currency: code });
+                digits = fmt.resolvedOptions().maximumFractionDigits ?? 2;
+            } catch { }
+            const pow = 10 ** digits;
+            const round = v => Math.round((Number(v) + Number.EPSILON) * pow) / pow;
+            const minUnit = 1 / pow;
+
+            const owe = [];
+            const owed = [];
+
+            for (const memberId in totalDebt) {
+                const amt = round(totalDebt[memberId]?.[code] || 0);
+                if (amt > 0) owed.push({ memberId, amount: amt });
+                else if (amt < 0) owe.push({ memberId, amount: Math.abs(amt) });
             }
-            // Adjust the amounts
-            owe[i].amount = round(owe[i].amount - transactionAmount);
-            owed[j].amount = round(owed[j].amount - transactionAmount);
 
+            let i = 0, j = 0;
+            // safety guard to avoid any unexpected infinite loop
+            let guard = 0, guardMax = (owe.length + owed.length + 1) * 5000;
 
-            if (owe[i].amount === 0) i++;
-            if (owed[j].amount === 0) j++;
-        }
+            while (i < owe.length && j < owed.length) {
+                if (guard++ > guardMax) { console.warn("simplifyDebts: guard break", code); break; }
+
+                const transfer = Math.min(owe[i].amount, owed[j].amount);
+                if (transfer >= minUnit) {
+                    transactions.push({
+                        from: owe[i].memberId,
+                        to: owed[j].memberId,
+                        amount: round(transfer),
+                        currency: code,
+                    });
+                }
+
+                // 🔧 subtract the transfer and round
+                owe[i].amount = round(owe[i].amount - transfer);
+                owed[j].amount = round(owed[j].amount - transfer);
+
+                // clamp tiny residuals to zero so pointers can move
+                if (Math.abs(owe[i].amount) < minUnit) owe[i].amount = 0;
+                if (Math.abs(owed[j].amount) < minUnit) owed[j].amount = 0;
+
+                if (owe[i].amount === 0) i++;
+                if (owed[j].amount === 0) j++;
+            }
+        });
 
         return transactions;
     };
-    const [totalDebt, setTotalDebt] = useState(null);
-    const [simplifiedTransactions, setSimplifiedTransactions] = useState(null);
+
     const getMemberName = (memberId) => {
         if (memberId == userId) return "You"
         const member = group.members.find(m => m._id === memberId);
         return member ? member.name : "Unknown";
     };
-    const userDebts = simplifiedTransactions?.filter(t => t.from === userId) || [];
-
-    const groupedDebts = userDebts.reduce((acc, curr) => {
-        if (!acc[curr.to]) acc[curr.to] = 0;
-        acc[curr.to] += curr.amount;
-        return acc;
-    }, {});
+    const [totalDebt, setTotalDebt] = useState(null);
+    const [simplifiedTransactions, setSimplifiedTransactions] = useState(null);
 
     useEffect(() => {
         if (group && group?.members && groupExpenses?.length > 0) {
-            setTotalDebt(calculateDebt(groupExpenses, group.members)); // Always recalculate
+            setTotalDebt(calculateDebt(groupExpenses, group.members));
         }
     }, [group, groupExpenses]);
 
     useEffect(() => {
         if (totalDebt) {
-            const transactions = simplifyDebts(totalDebt, group.members)
-            if(group?.settings?.enforcePrivacy) setSimplifiedTransactions(transactions?.filter(t => (t.from === userId || t.to === userId)))
-            else setSimplifiedTransactions(transactions)
+            const tx = simplifyDebts(totalDebt, group.members);
+            if (group?.settings?.enforcePrivacy) {
+                setSimplifiedTransactions(tx.filter(t => t.from === userId || t.to === userId));
+            } else {
+                setSimplifiedTransactions(tx);
+            }
         }
-    }, [totalDebt])
+    }, [totalDebt, group?.settings?.enforcePrivacy, userId]);
     useEffect(() => {
         fetchGroup();
         fetchGroupExpenses();
@@ -477,6 +501,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     </button>
                                 </div>
                                 {simplifiedTransactions?.map((transaction, index) => {
+                                    const sym = getSymbol("en-IN", transaction.currency);
                                     const name1 = getMemberName(transaction.from);
                                     const name2 = getMemberName(transaction.to);
                                     const amt = transaction.amount.toFixed(2);
@@ -493,7 +518,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     return (
                                         <div key={index} className={textColor}>
                                             {`${name1} ${isYouPaying ? "owe" : "owes"} ${name2} `}
-                                            <span className={amountColor}>₹{amt}</span>
+                                            <span className={amountColor}>{getSymbol('en-IN', transaction?.currency)} {amt}</span>
                                         </div>
                                     );
                                 })}
@@ -541,7 +566,17 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
 
 
             {showModal && (
-                <ExpenseModal showModal={showModal} fetchExpenses={fetchGroupExpenses} setShowModal={setShowModal} userToken={userToken} userId={userId} categories={categories} />
+                <ExpenseModal
+                    showModal={showModal}
+                    fetchExpenses={fetchGroupExpenses}
+                    setShowModal={setShowModal}
+                    userToken={userToken}
+                    userId={userId}
+                    categories={categories}
+                    currencyOptions={currencyOptions}
+                    defaultCurrency={defaultCurrency}
+                    preferredCurrencies={preferredCurrencies}
+                />
             )}
             {showSettleModal && (
                 <SettleModal
@@ -551,6 +586,9 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                     simplifiedTransactions={simplifiedTransactions}
                     onSubmit={handleSettle}
                     userId={userId}
+                    currencyOptions={currencyOptions}
+                    defaultCurrency={defaultCurrency}
+                    preferredCurrencies={preferredCurrencies}
                 />
 
             )}

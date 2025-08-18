@@ -3,13 +3,47 @@ import MainLayout from '../layouts/MainLayout';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { getAllExpenses } from '../services/ExpenseService';
-import { updateUserProfile } from '../services/UserService'; // make sure this exists
+import { updatePreferredCurrency, updateUserProfile } from '../services/UserService'; // make sure this exists
 import CategoriesManage from '../components/SettingsCategoryManager';
 import { logEvent } from "../utils/analytics";
+import { getAllCurrencyCodes, toCurrencyOptions } from "../utils/currencies";
+import CurrencyModal from '../components/CurrencyModal';
+import { Check, Loader2 } from "lucide-react";
 
 const Account = () => {
-    const { logout, user, userToken } = useAuth() || {};
+    const { logout, user, userToken, defaultCurrency, preferredCurrencies,
+        persistDefaultCurrency, persistPreferredCurrencies } = useAuth() || {};
     const location = useLocation();
+    const [dc, setDc] = useState(defaultCurrency || '');
+
+    const [showDefaultModal, setShowDefaultModal] = useState(false);
+
+    const [dcStatus, setDcStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+    const [dcError, setDcError] = useState('');
+    const [allCodes, setAllCodes] = useState([]);
+    useEffect(() => { setAllCodes(getAllCurrencyCodes()); }, []);
+    useEffect(() => { setDc(defaultCurrency || ''); }, [defaultCurrency]);
+    const currencyOptions = toCurrencyOptions(allCodes); // e.g., [{value:'INR', label:'₹ INR'}, ...]
+    const saveCurrencyPrefs = async ({ dc: nextDc = dc } = {}) => {
+        setDcStatus('saving');
+        setDcError('');
+        try {
+            await updateUserProfile(userToken, {
+                defaultCurrency: nextDc
+            });
+            persistDefaultCurrency(nextDc);
+            logEvent('update_default_currency', { defaultCurrency: nextDc });
+            setDcStatus('saved');
+            // hide the tick after 2s
+            setTimeout(() => setDcStatus('idle'), 2000);
+        } catch (e) {
+            console.error(e);
+            setDcStatus('error');
+            setDcError(e?.message || 'Failed to save currency');
+            // auto-clear error after a bit
+            setTimeout(() => { setDcStatus('idle'); setDcError(''); }, 3000);
+        }
+    };
 
     const [editing, setEditing] = useState(false);
     const [name, setName] = useState(user?.name || '');
@@ -23,7 +57,6 @@ const Account = () => {
     const [upiId, setUpiId] = useState(user?.upiId || '');
     const upiRef = useRef(null);
     const upiInputRef = useRef(null);
-
     const calculateTotals = (expenses, userId) => {
         let totalOwe = 0;
         let totalPay = 0;
@@ -151,6 +184,54 @@ const Account = () => {
                                     </p>
                                 )}
                             </div>
+                            <div className="bg-[#1E1E1E] p-4 rounded-xl shadow">
+                                <h2 className="text-[20px] font-semibold mb-2">Default currency</h2>
+
+                                <div className="mt-1 relative">
+                                    <button
+                                        onClick={() => setShowDefaultModal(true)}
+                                        className="w-full bg-[#2A2A2A] text-white px-3 py-2 rounded border border-transparent text-left pr-10"
+                                    >
+                                        {dc || 'Select'}
+                                    </button>
+
+                                    {/* right-side status icon */}
+                                    {dcStatus === 'saving' && (
+                                        <Loader2
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin"
+                                            size={18}
+                                        />
+                                    )}
+                                    {dcStatus === 'saved' && (
+                                        <Check
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400"
+                                            size={18}
+                                        />
+                                    )}
+                                </div>
+
+                                {dcStatus === 'error' && (
+                                    <p className="text-[12px] text-red-400 mt-1">{dcError}</p>
+                                )}
+
+                                <p className="text-[11px] text-gray-500 mt-2">
+                                    Your default currency is used for summaries & expenses are saved in this currency
+                                    so totals align across entries.
+                                </p>
+                            </div>
+
+
+                            {/* --- Modals --- */}
+                            <CurrencyModal
+                                show={showDefaultModal}
+                                onClose={() => setShowDefaultModal(false)}
+                                value={dc}
+                                options={currencyOptions}
+                                onSelect={(cur) => {
+                                    setDc(cur)
+                                    saveCurrencyPrefs()
+                                }}
+                            />
 
                             {/* Categories manager */}
                             <CategoriesManage userToken={userToken} />

@@ -3,6 +3,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import ModalWrapper from "./ModalWrapper";
 import CustomSelect from "./CustomSelect"; // ⬅️ import
+import { getSymbol } from "../utils/currencies";
+import CurrencyModal from "./CurrencyModal";
 export default function SettleModal({
     setShowModal,
     showModal,
@@ -11,15 +13,20 @@ export default function SettleModal({
     onSubmit,                     // ({ payerId, receiverId, amount, description })
     userId,
     friends = [],                  // [{id, name}]
-    prefill
+    prefill,
+    currencyOptions,
+    defaultCurrency,
+    preferredCurrencies
 }) {
     const [payerId, setPayerId] = useState("");
     const [receiverId, setReceiverId] = useState("");
     const [amount, setAmount] = useState("");
     const [description, setDescription] = useState("");
+    const [currency, setCurrency] = useState("");
     const [settleMode, setSettleMode] = useState("suggested");
     const [selectedTxnIndex, setSelectedTxnIndex] = useState(null);
     const [confirmationVisible, setConfirmationVisible] = useState(false);
+    const [showCurrencyModal, setShowCurrencyModal] = useState(false);
 
     const members = useMemo(() => {
         if (group?.members?.length) {
@@ -32,7 +39,7 @@ export default function SettleModal({
         if (!id) return "Unknown";
         const m = members.find((x) => x.id === id);
         if (!m) return "Unknown";
-        return m.id === userId ? "You" : (m.name || "Unknown");
+        return m.id === userId ? "you" : (m.name || "Unknown");
     };
 
     const resetForm = () => {
@@ -53,6 +60,7 @@ export default function SettleModal({
         setPayerId(txn.from);
         setReceiverId(txn.to);
         setAmount(Number(txn.amount || 0).toFixed(2));
+        setCurrency(txn.currency);
         setDescription(
             `Settling between ${getMemberName(txn.from)} and ${getMemberName(txn.to)}`
         );
@@ -96,6 +104,7 @@ export default function SettleModal({
             receiverId,
             amount: parseFloat(amount),
             description,
+            currency,
         });
         setShowModal(false);
     };
@@ -184,7 +193,7 @@ export default function SettleModal({
                     <div className="flex flex-col h-[180px] items-center justify-center gap-2">
                         <p className="text-lg text-center font-medium">{getConfirmationText()}</p>
                         <p className="text-2xl text-teal-400">
-                            ₹{Number(amount || 0).toFixed(2)}
+                            {getSymbol('en-IN', currency)} {Number(amount || 0).toFixed(2)}
                         </p>
                         {description && (
                             <p className="text-sm text-[#c9c9c9] mt-1">{description}</p>
@@ -196,6 +205,7 @@ export default function SettleModal({
                         {simplifiedTransactions?.length ? (
                             simplifiedTransactions.map((txn, idx) => {
                                 const from = getMemberName(txn.from);
+                                const curr = txn.currency;
                                 const to = getMemberName(txn.to);
                                 const amt = Number(txn.amount || 0).toFixed(2);
                                 const isSelected = idx === selectedTxnIndex;
@@ -212,7 +222,7 @@ export default function SettleModal({
                                             : "bg-[#121212] border-[rgba(255,255,255,0.1)]"
                                             }`}
                                     >
-                                        {from} owes {to} ₹{amt}
+                                        {from} owes {to} {getSymbol('en-IN', curr)} {amt}
                                     </button>
                                 );
                             })
@@ -257,27 +267,49 @@ export default function SettleModal({
 
 
                         {/* Amount */}
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-[#a0a0a0]">Amount</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                placeholder="Enter amount"
-                                className="bg-[#121212] border border-[#333] rounded px-3 py-2"
-                            />
+                        <div className="flex flex-row gap-2">
+                            <div className="flex-1">
+                                <button
+                                    onClick={() => setShowCurrencyModal(true)}
+                                    className={`w-full ${currency ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f] 
+                                           p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                >
+                                    {currency || "Currency"}
+                                </button>
+                                <CurrencyModal
+                                    show={showCurrencyModal}
+                                    onClose={() => setShowCurrencyModal(false)}
+                                    value={currency}
+                                    options={currencyOptions}
+                                    onSelect={setCurrency}
+                                    defaultCurrency={defaultCurrency}
+                                    preferredCurrencies={preferredCurrencies}
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    placeholder="Enter amount"
+                                    className="text-[18px] border-b-2 border-[#55554f] 
+                                           p-2 text-base h-[45px] pl-3 flex-1 text-left"
+                                />
+                            </div>
                         </div>
 
                         {/* Description */}
                         <div className="flex flex-col gap-1">
-                            <label className="text-xs text-[#a0a0a0]">Description (optional)</label>
+                            {/* <label className="text-xs text-[#a0a0a0]">Description (optional)</label> */}
                             <input
                                 type="text"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
-                                placeholder="Add a note"
-                                className="bg-[#121212] border border-[#333] rounded px-3 py-2"
+                                placeholder="Description (optional)"
+                                className="text-[18px] border-b-2 border-[#55554f] 
+                                           p-2 text-base h-[45px] pl-3 flex-1 text-left"
                             />
                         </div>
 

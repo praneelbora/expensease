@@ -12,7 +12,7 @@ const auth = require('../../middleware/auth');
  */
 router.post('/', auth, async (req, res) => {
     try {
-        const { lenderId, borrowerId, principal, note } = req.body;
+        const { lenderId, borrowerId, principal, notes, description, currency } = req.body;
 
         if (!lenderId || !borrowerId || !principal) {
             return res.status(400).json({ error: 'Missing required fields.' });
@@ -22,7 +22,9 @@ router.post('/', auth, async (req, res) => {
             lenderId: lenderId === 'me' ? req.user.id : lenderId,
             borrowerId: borrowerId === 'me' ? req.user.id : borrowerId,
             principal,
-            note
+            notes,
+            description,
+            currency
         });
 
         await newLoan.save();

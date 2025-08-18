@@ -7,9 +7,23 @@ import { getFriends } from "../services/FriendService";
 import { createLoan } from "../services/LoanService";
 import { useLocation, useNavigate } from "react-router-dom";
 import { logEvent } from "../utils/analytics";
+import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies";
+import CategoryModal from "../components/CategoryModal";
+import CurrencyModal from "../components/CurrencyModal";
 
 const AddLoan = () => {
-    const { userToken } = useAuth() || {};
+    const { categories, user, userToken, defaultCurrency, preferredCurrencies } = useAuth() || {};
+    const [currency, setCurrency] = useState();
+    const [currencyOptions, setCurrencyOptions] = useState([]);
+    const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+    useEffect(() => {
+        setCurrency(defaultCurrency)
+    }, [defaultCurrency]);
+    useEffect(() => {
+        const codes = getAllCurrencyCodes();
+        setCurrencyOptions(toCurrencyOptions(codes).sort((a, b) => a.value.localeCompare(b.value)));
+    }, []);
+
     const [loading, setLoading] = useState(true);
     const location = useLocation();
     const navigate = useNavigate();
@@ -31,7 +45,6 @@ const AddLoan = () => {
     // form
     const [iAm, setIAm] = useState(""); // '', 'lender', 'borrower'
     const [principal, setPrincipal] = useState("");
-    const [currency, setCurrency] = useState("INR");
     const [interestRate, setInterestRate] = useState("");
     const [estimatedReturnDate, setEstimatedReturnDate] = useState("");
     const [description, setDescription] = useState("");
@@ -264,25 +277,34 @@ const AddLoan = () => {
                                             onChange={(e) => setDescription(e.target.value)}
                                         />
 
-                                        <div className="flex gap-4">
-                                            <input
-                                                className="flex-1 text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 pl-3"
-                                                type="number"
-                                                placeholder="Principal amount"
-                                                value={principal}
-                                                onChange={(e) => setPrincipal(e.target.value)}
-                                            />
-                                            <select
-                                                className="w-[130px] text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2"
-                                                value={currency}
-                                                onChange={(e) => setCurrency(e.target.value)}
-                                            >
-                                                <option value="INR">INR</option>
-                                                <option value="USD">USD</option>
-                                                <option value="EUR">EUR</option>
-                                            </select>
-                                        </div>
+                                        <div className="flex flex-row w-full gap-4">
 
+                                            <div className="flex-1">
+                                                <button
+                                                    onClick={() => setShowCurrencyModal(true)}
+                                                    className={`w-full ${currency ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                                >
+                                                    {currency || "Currency"}
+                                                </button>
+                                                <CurrencyModal
+                                                    show={showCurrencyModal}
+                                                    onClose={() => setShowCurrencyModal(false)}
+                                                    value={currency}
+                                                    options={currencyOptions}
+                                                    onSelect={setCurrency}
+                                                    defaultCurrency={defaultCurrency}
+                                                    preferredCurrencies={preferredCurrencies}
+                                                />
+                                            </div>
+
+                                            <input
+                                                className="flex-1 text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3"
+                                                type="number"
+                                                placeholder="Enter Amount"
+                                                value={principal}
+                                                onChange={(e) => setPrincipal(parseFloat(e.target.value))}
+                                            />
+                                        </div>
                                         {/* <div className="flex gap-4">
                       <input
                         className="flex-1 text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 pl-3"

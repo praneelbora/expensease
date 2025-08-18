@@ -1,11 +1,13 @@
 import React from 'react';
 import { useAuth } from "../context/AuthContext";
+import { getSymbol } from "../utils/currencies";
 const ExpenseItem = ({
     expense,
     onClick,
     userId
 }) => {
     const { userToken, categories } = useAuth() || {}
+
     const isSettle = expense.typeOf === 'settle';
     const isSplit = expense.mode === 'split';
     const getEmojiForCategory = (categoryName) => {
@@ -47,9 +49,9 @@ const ExpenseItem = ({
         const net = payAmount - oweAmount;
 
         if (net > 0) {
-            return { text: 'you lent', amount: ` ₹${net.toFixed(2)}` };
+            return { text: 'you lent', amount: ` ${getSymbol('en-IN', expense.currency)} ${net.toFixed(2)}` };
         } else if (net < 0) {
-            return { text: 'you borrowed', amount: ` ₹${Math.abs(net).toFixed(2)}` };
+            return { text: 'you borrowed', amount: ` ${getSymbol('en-IN', expense.currency)} ${Math.abs(net).toFixed(2)}` };
         } else {
             return null;
         }
@@ -86,13 +88,13 @@ const ExpenseItem = ({
                             <p className="text-[18px] capitalize truncate">{expense.description}</p>
                             <p className="text-[13px] text-[#81827C] capitalize -mt-[6px]">
                                 {isSplit
-                                    ? `${getPayerInfo(expense.splits)} ${getPayerInfo(expense.splits) !== 'You were not involved' ? `₹${expense.amount.toFixed(2)}` : ''}`
+                                    ? `${getPayerInfo(expense.splits)} ${getPayerInfo(expense.splits) !== 'You were not involved' ? `${getSymbol('en-IN', expense.currency)} ${expense.amount.toFixed(2)}` : ''}`
                                     : expense.category}
                             </p>
                         </>
                     ) : (
                         <p className="text-[13px] text-[#81827C] capitalize">
-                            {getSettleDirectionText(expense.splits)} ₹{expense.amount.toFixed(2)}
+                            {getSettleDirectionText(expense.splits)} {getSymbol('en-IN', expense.currency)} {expense.amount.toFixed(2)}
                         </p>
                     )}
                 </div>
@@ -106,7 +108,7 @@ const ExpenseItem = ({
                         </>
                     ) : (
                         <p className="text-[18px] capitalize -mt-[6px] whitespace-nowrap">
-                            ₹{Math.abs(expense.amount).toFixed(2)}
+                            {getSymbol('en-IN', expense.currency)} {Math.abs(expense.amount).toFixed(2)}
                         </p>
                     )}
                 </div>

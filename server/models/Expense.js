@@ -23,6 +23,15 @@ const expenseSchema = new mongoose.Schema(
     {
         description: { type: String, required: true }, // Description of the expense
         amount: { type: Number, required: true }, // Total amount of the expense
+        // Expense schema (add)
+        currency: {
+            type: String,
+            uppercase: true,
+            trim: true,
+            match: /^[A-Z]{3}$/,
+            default: 'INR'
+        },
+
         mode: { type: String, enum: ['split', 'personal'], required: true, default: 'personal' }, // Description of the expense
         splitMode: { type: String, enum: ['equal', 'value', 'percent'], required: function () { return this.mode === 'split'; }, default: 'equal' }, // Mode of splitting
         splits: [splitSchema], // Array of splits (details for each friend)

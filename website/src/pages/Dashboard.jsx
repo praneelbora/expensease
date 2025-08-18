@@ -11,6 +11,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { Loader } from "lucide-react";
 
+import { getSymbol } from "../utils/currencies";
 
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
@@ -24,7 +25,7 @@ const Dashboard = () => {
     const [userId, setUserId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showExpenseModal, setShowExpenseModal] = useState(false);
-        const didRedirect = useRef(false);
+    const didRedirect = useRef(false);
 
     useEffect(() => {
         if (didRedirect.current) return;
@@ -43,7 +44,7 @@ const Dashboard = () => {
             navigate(`/friends?add=${encodeURIComponent(friend)}`, { replace: true });
         }
     }, [userToken, navigate]);
-    
+
     const fetchExpenses = async () => {
         try {
             const data = await getAllExpenses(userToken);
@@ -98,16 +99,35 @@ const Dashboard = () => {
         };
     }, []);
 
+    const currencyDigits = (code, locale = "en-IN") => {
+        try {
+            const fmt = new Intl.NumberFormat(locale, { style: "currency", currency: code });
+            return fmt.resolvedOptions().maximumFractionDigits ?? 2;
+        } catch {
+            return 2;
+        }
+    };
+    const formatAmount = (amount, code) => {
+        const d = currencyDigits(code);
+        return Number(amount || 0).toLocaleString(undefined, {
+            minimumFractionDigits: d,
+            maximumFractionDigits: d,
+        });
+    };
+
+    // === replace your stats useMemo with this ===
     const stats = useMemo(() => {
         const acc = {
-            total: 0,
-            personal: { amount: 0, count: 0 },
-            group: { amount: 0, count: 0 },
-            friend: { amount: 0, count: 0 },
-            settle: { amount: 0, count: 0 },
+            total: {},                         // { [code]: number } - expenses only
+            personal: { amount: {}, count: 0 },// { [code]: number }
+            group: { amount: {}, count: 0 },
+            friend: { amount: {}, count: 0 },
+            settle: { amount: {}, count: 0 },// settlements per currency (can be +/-)
         };
 
-        for (const exp of expenses) {
+        for (const exp of expenses || []) {
+            const code = exp?.currency || "INR";
+
             if (exp.typeOf === "expense") {
                 const amt = Number(exp?.amount) || 0;
                 const userSplit = exp.splits?.find(s => s.friendId?._id === userId);
@@ -115,26 +135,27 @@ const Dashboard = () => {
 
                 if (exp.groupId) {
                     if (userSplit?.owing && Number.isFinite(share)) {
-                        acc.group.amount += share;
-                        acc.total += share;
+                        acc.group.amount[code] = (acc.group.amount[code] || 0) + share;
+                        acc.total[code] = (acc.total[code] || 0) + share;
                     }
                     acc.group.count += 1;
                 } else if (exp.splits?.length > 0) {
                     // friend-to-friend split (not in a group)
                     if (userSplit?.owing && Number.isFinite(share)) {
-                        acc.friend.amount += share;
-                        acc.total += share;
+                        acc.friend.amount[code] = (acc.friend.amount[code] || 0) + share;
+                        acc.total[code] = (acc.total[code] || 0) + share;
                     }
                     acc.friend.count += 1;
                 } else {
-                    // purely personal expense (no group, no splits)
-                    acc.personal.amount += amt;
-                    acc.total += amt;
+                    // purely personal (no group, no splits)
+                    acc.personal.amount[code] = (acc.personal.amount[code] || 0) + amt;
+                    acc.total[code] = (acc.total[code] || 0) + amt;
                     acc.personal.count += 1;
                 }
             } else if (exp.typeOf === "settle") {
-                const sAmt = Number(exp?.amount) || 0; // keep sign as-is if you use +/- for direction
-                acc.settle.amount += sAmt;
+                // keep sign if you rely on +/- for direction
+                const sAmt = Number(exp?.amount) || 0;
+                acc.settle.amount[code] = (acc.settle.amount[code] || 0) + sAmt;
                 acc.settle.count += 1;
             }
         }
@@ -284,63 +305,85 @@ const Dashboard = () => {
                                 onClick={() => navigate('/expenses')}
                             >
                                 <p className="text-[15px] text-[#888]">Total Expenses</p>
-                                <p className="text-xl font-bold break-words">
-                                    ₹{stats.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                </p>
+                                <div className="text-xl font-bold break-words space-y-1">
+                                    {Object.entries(stats.total).map(([code, amt]) => (
+                                        <div key={`total-${code}`}>
+                                            {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                        </div>
+                                    ))}
+                                    {Object.keys(stats.total).length === 0 && <span>—</span>}
+                                </div>
                             </div>
 
                             {/* Personal */}
-                            {stats.personal.amount > 0 && (
+                            {Object.keys(stats.personal.amount).length > 0 && (
                                 <div
                                     className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
                                     onClick={() => navigate('/expenses?filter=personal')}
                                 >
                                     <p className="text-[15px] text-[#888]">Personal Expenses</p>
-                                    <p className="text-xl break-words">
-                                        ₹{stats.personal.amount.toLocaleString()}
-                                    </p>
+                                    <div className="text-xl break-words space-y-1">
+                                        {Object.entries(stats.personal.amount).map(([code, amt]) => (
+                                            <div key={`personal-${code}`}>
+                                                {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
                             {/* Group */}
-                            {stats.group.amount > 0 && (
+                            {Object.keys(stats.group.amount).length > 0 && (
                                 <div
                                     className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
                                     onClick={() => navigate('/expenses?filter=group')}
                                 >
                                     <p className="text-[15px] text-[#888]">Group Expenses</p>
-                                    <p className="text-xl break-words">
-                                        ₹{stats.group.amount.toLocaleString()}
-                                    </p>
+                                    <div className="text-xl break-words space-y-1">
+                                        {Object.entries(stats.group.amount).map(([code, amt]) => (
+                                            <div key={`group-${code}`}>
+                                                {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
                             {/* Friend */}
-                            {stats.friend.amount > 0 && (
+                            {Object.keys(stats.friend.amount).length > 0 && (
                                 <div
                                     className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
                                     onClick={() => navigate('/expenses?filter=friend')}
                                 >
                                     <p className="text-[15px] text-[#888]">Friend Expenses</p>
-                                    <p className="text-xl break-words">
-                                        ₹{stats.friend.amount.toLocaleString()}
-                                    </p>
+                                    <div className="text-xl break-words space-y-1">
+                                        {Object.entries(stats.friend.amount).map(([code, amt]) => (
+                                            <div key={`friend-${code}`}>
+                                                {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
                             {/* Settlements */}
-                            {stats.settle.amount > 0 && (
+                            {Object.keys(stats.settle.amount).length > 0 && (
                                 <div
                                     className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
                                     onClick={() => navigate('/expenses?filter=settle')}
                                 >
                                     <p className="text-[15px] text-[#888]">Settlements</p>
-                                    <p className="text-xl break-words">
-                                        ₹{stats.settle.amount.toLocaleString()}
-                                    </p>
+                                    <div className="text-xl break-words space-y-1">
+                                        {Object.entries(stats.settle.amount).map(([code, amt]) => (
+                                            <div key={`settle-${code}`}>
+                                                {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
+
 
 
 
@@ -369,7 +412,7 @@ const Dashboard = () => {
                         </div>}
 
                         {/* Charts */}
-                        {expenses.length > 0 && <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                        {/* {expenses.length > 0 && <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                             <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md overflow-hidden">
                                 <h3 className="text-lg font-semibold mb-2">Category Distribution</h3>
                                 <ResponsiveContainer width="100%" height={250}>
@@ -404,7 +447,7 @@ const Dashboard = () => {
                                 </ResponsiveContainer>
 
                             </div>
-                        </div>}
+                        </div>} */}
                     </>
                 )}
                 </div>
