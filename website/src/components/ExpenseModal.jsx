@@ -61,6 +61,7 @@ export default function ExpenseModal({
         auditLog
     } = showModal || {};
 
+
     const [busy, setBusy] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const close = () => !busy && setShowModal(false);
@@ -363,17 +364,30 @@ export default function ExpenseModal({
     }, [_id]);
 
     const [reSplit, setReSplit] = useState(false); // only used for 'split'
-    // after add or remove, re-equalize when in "equal"
     useEffect(() => {
         if (form.mode !== "split") return;
+
         setSelectedFriends(prev => {
             let next = prev;
+
+            // keep pay equalized if multiple payers
             if (prev.some(p => p.paying)) next = equalizePay(next);
-            if (form.splitMode === "equal") next = equalizeOwe(next);
-            else next = deleteOwe(next)
+
+            if (form.splitMode === "equal") {
+                // recalc equal owes
+                next = equalizeOwe(next);
+            } else if (form.splitMode === "percent") {
+                // keep existing percents; recompute amounts when total changes
+                next = next.map(f =>
+                    f.owing && f.owePercent != null
+                        ? { ...f, oweAmount: Number(((Number(f.owePercent) / 100) * amountNum).toFixed(2)) }
+                        : f
+                );
+            } // 'value' => leave as-is (user-entered amounts)
+
             return next;
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // keep selectedFriends.length so equalizePay runs when members change
     }, [selectedFriends.length, form.splitMode, form.mode, amountNum]);
 
 
@@ -509,7 +523,6 @@ export default function ExpenseModal({
                     }))
                     : [],
         };
-
 
         if (!payload.description) return alert("Description is required.");
         if (isNaN(payload.amount) || payload.amount <= 0) return alert("Enter a valid amount.");
@@ -664,14 +677,16 @@ export default function ExpenseModal({
                                         onClick={() => setShowCurrencyModal(true)}
                                         className={`w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left`}
                                     >
-                                        {currency || "Currency"}
+                                        {form.currency || "Currency"}
                                     </button>
                                     <CurrencyModal
                                         show={showCurrencyModal}
                                         onClose={() => setShowCurrencyModal(false)}
-                                        value={currency}
+                                        value={form.currency}
                                         options={currencyOptions}
-                                        onSelect={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                                        onSelect={(val) => {
+                                            setForm((f) => ({ ...f, currency: val }))
+                                        }}
                                         defaultCurrency={defaultCurrency}
                                         preferredCurrencies={preferredCurrencies}
                                     />

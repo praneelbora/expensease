@@ -10,23 +10,21 @@ import {
 } from "recharts";
 import { useNavigate } from "react-router-dom";
 import { Loader } from "lucide-react";
-
-import { getSymbol } from "../utils/currencies";
-
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
+import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies"
 
 
 const Dashboard = () => {
     // Inside your component:
     const navigate = useNavigate();
-    const { userToken, categories } = useAuth() || {};
+    const { user, userToken, defaultCurrency, preferredCurrencies, categories } = useAuth() || {};
     const [expenses, setExpenses] = useState([]);
     const [userId, setUserId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const didRedirect = useRef(false);
-
+    const currencyOptions = toCurrencyOptions(getAllCurrencyCodes());
     useEffect(() => {
         if (didRedirect.current) return;
         if (!userToken) return; // treat as logged-in when token exists
@@ -453,7 +451,17 @@ const Dashboard = () => {
                 </div>
             </div>
             {showExpenseModal && (
-                <ExpenseModal showModal={showExpenseModal} setShowModal={setShowExpenseModal} fetchExpenses={fetchExpenses} userToken={userToken} userId={userId} categories={categories} />
+                <ExpenseModal
+                    showModal={showExpenseModal}
+                    setShowModal={setShowExpenseModal}
+                    fetchExpenses={fetchExpenses}
+                    userToken={userToken}
+                    userId={userId}
+                    categories={categories}
+                    currencyOptions={currencyOptions}
+                    defaultCurrency={defaultCurrency}
+                    preferredCurrencies={preferredCurrencies}
+                />
             )}
         </MainLayout>
     );

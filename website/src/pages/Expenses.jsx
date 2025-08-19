@@ -8,14 +8,16 @@ import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies"
 
 const Expenses = () => {
-    const { userToken, categories } = useAuth() || {}
+    const { user, userToken, defaultCurrency, preferredCurrencies, categories } = useAuth() || {};
     const [loading, setLoading] = useState(true);
     const [expenses, setExpenses] = useState([]);
     const [userId, setUserId] = useState();
     const [showModal, setShowModal] = useState(false);
     const navigate = useNavigate();
+    const currencyOptions = toCurrencyOptions(getAllCurrencyCodes());
     const getSettleDirectionText = (splits) => {
         const payer = splits.find(s => s.paying && s.payAmount > 0);
         const receiver = splits.find(s => s.owing && s.oweAmount > 0);
@@ -256,7 +258,17 @@ const Expenses = () => {
                 </div>
             </div>
             {showModal && (
-                <ExpenseModal showModal={showModal} setShowModal={setShowModal} fetchExpenses={fetchExpenses} userToken={userToken} userId={userId} categories={categories} />
+                <ExpenseModal
+                    showModal={showModal}
+                    setShowModal={setShowModal}
+                    fetchExpenses={fetchExpenses}
+                    userToken={userToken}
+                    userId={userId}
+                    categories={categories}
+                    currencyOptions={currencyOptions}
+                    defaultCurrency={defaultCurrency}
+                    preferredCurrencies={preferredCurrencies}
+                />
             )}
         </MainLayout>
     );
