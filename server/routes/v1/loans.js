@@ -13,17 +13,6 @@ const auth = require('../../middleware/auth');
 const mongoose = require("mongoose");
 const PaymentMethod = require("../../models/PaymentMethod"); // Adjust path as needed
 
-async function logBalance(pmId, currency, label) {
-    const pm = await PaymentMethod.findById(pmId).lean();
-    if (!pm) {
-        console.log(`[${label}] PaymentMethod ${pmId} not found`);
-        return;
-    }
-    const balances = pm.balances || {};
-    const currBalance = balances[currency] || null;
-    console.log(`[${label}] PaymentMethod ${pmId} balances:`, currBalance);
-}
-
 router.post('/', auth, async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -44,19 +33,6 @@ router.post('/', auth, async (req, res) => {
         if (!lenderId || !borrowerId || !principal || !lenderPaymentMethod || !borrowerPaymentMethod || !currency) {
             return res.status(400).json({ error: 'Missing required fields.' });
         }
-
-        console.log('Creating loan with:', {
-            lenderId,
-            borrowerId,
-            lenderPaymentMethod,
-            borrowerPaymentMethod,
-            principal,
-            currency,
-        });
-
-        // Debug: log balances BEFORE update
-        await logBalance(borrowerPaymentMethod, currency, 'Before Borrower Update');
-        await logBalance(lenderPaymentMethod, currency, 'Before Lender Update');
 
         // Create and save the new loan document within the session
         const newLoan = new Loan({
@@ -105,10 +81,6 @@ router.post('/', auth, async (req, res) => {
             { session }
         );
 
-        // Debug: log balances AFTER update
-        await logBalance(borrowerPaymentMethod, currency, 'After Borrower Update');
-        await logBalance(lenderPaymentMethod, currency, 'After Lender Update');
-
         // Commit the transaction and end session
         await session.commitTransaction();
         session.endSession();
@@ -155,7 +127,6 @@ router.post('/:id/repay', auth, async (req, res) => {
     session.startTransaction();
     try {
         const { amount, note, paymentMethodId, recieverMethodId, currency } = req.body;
-        console.log(req.body);
 
         if (!amount) return res.status(400).json({ error: 'Repayment amount required.' });
         if (!currency) return res.status(400).json({ error: 'Currency is required for repayment.' });

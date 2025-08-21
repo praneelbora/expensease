@@ -22,22 +22,12 @@ export default function LoanViewModal({
     onCloseLoan,        // optional async override
     onDeleteLoan,       // async () => void (required for delete)
     onAfterChange,      // optional refresh callback
-    user,
-    paymentModal,
-    setPaymentModal,
     openPaymentModal,
-    closePaymentModal,
     party,
-    setParty,
     counterParty,
-    setCounterParty,
-
 }) {
     const [busy, setBusy] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
-
-    console.log(party?.paymentMethods, counterParty?.paymentMethods);
-
 
     // Local copy for optimistic updates
     const [localLoan, setLocalLoan] = useState(loan);

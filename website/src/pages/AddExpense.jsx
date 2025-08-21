@@ -185,11 +185,11 @@ const AddExpense = () => {
 
 
     const handleSubmitExpense = async () => {
-        if (!desc || !amount || !category) {
+        if (!desc || !amount || !category || !currency) {
             console.log('Please fill all required fields');
             return;
         }
-
+        setLoading(true);
         const expenseData = {
             description: desc,
             amount,
@@ -223,8 +223,6 @@ const AddExpense = () => {
         }
 
         try {
-            console.log(expenseData);
-
             const data = await createExpense(expenseData, userToken);
             logEvent('expense_added', {
                 currency: currency,
@@ -245,6 +243,8 @@ const AddExpense = () => {
         } catch (error) {
             console.error(error);
             console.log('Error creating expense');
+        } finally {
+            setLoading(false)
         }
     };
 
@@ -814,6 +814,20 @@ const AddExpense = () => {
         paymentMethod, paymentMethods, selectedFriends, groupSelect, mode,
         payersNeedingPM.length, requirePersonalPM
     ]);
+    if (loading)
+        return (
+            <MainLayout>
+                <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
+                    <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
+                        <div className="flex flex-row gap-2">
+                            <h1 className="text-3xl font-bold capitalize">New Expense</h1>
+                        </div>
+                    </div>
+                    <div className="flex flex-col flex-1 w-full justify-center items-center">
+                        <Loader />
+                    </div>
+                </div>
+            </MainLayout>)
     return (
         <MainLayout>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">

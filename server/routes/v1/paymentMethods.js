@@ -516,7 +516,6 @@ const sanitizePaymentMethodPublic = (acc) => {
 // ───────────────────────────────────────────────────────────────────────────────
 router.post('/public/friends', auth, async (req, res) => {
     try {
-        console.log(req.body);
         let ids = [];
         if (Array.isArray(req.body?.friendIds)) {
             ids = req.body.friendIds;
@@ -532,8 +531,6 @@ router.post('/public/friends', auth, async (req, res) => {
             else return id
         })
         const validIds = ids.filter(isValidObjectId);
-        console.log(validIds);
-
         if (validIds.length === 0) {
             return res.json([]);
         }

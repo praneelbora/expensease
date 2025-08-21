@@ -74,11 +74,8 @@ const FriendDetails = () => {
         if (!paymentModal.open) return [];
         if (paymentModal.context === 'lender') {
             // raw docs from Auth — already rich
-            console.log('options: ', party?.paymentMethods);
-
             return (party?.paymentMethods || []).map(m => ({ _id: m.paymentMethodId, ...m }))
         }
-        console.log('options: ', counterParty?.paymentMethods);
         return (counterParty?.paymentMethods || []).map(m => ({ _id: m.paymentMethodId, ...m }));
     }, [paymentModal, party, counterParty]);
 
@@ -102,8 +99,6 @@ const FriendDetails = () => {
     };
     const updateFriendsPaymentMethods = async (list) => {
         const map = await fetchFriendsPaymentMethods(list, userToken); // { [friendId]: PaymentMethod[] }
-        console.log(map);
-
 
         setCounterParty((prev) => {
             const raw = map[prev._id];

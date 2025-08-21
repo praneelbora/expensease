@@ -204,8 +204,6 @@ const AddLoan = () => {
     }, [friends, counterParty, allowChangeFriend]);
     const updateFriendsPaymentMethods = async (list) => {
         const map = await fetchFriendsPaymentMethods(list, userToken); // { [friendId]: PaymentMethod[] }
-        console.log(map);
-
         // setFriendsPaymentMethods(map);
         // Merge into selectedFriends and auto-pick when there's exactly one option
         setCounterParty((prev) => {

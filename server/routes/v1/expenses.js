@@ -48,7 +48,7 @@ const loadAndValidatePM = async ({ pmId, userId, need = 'send', currency }) => {
     if (!pmId) return null;
     const pm = await PaymentMethod.findOne({ _id: pmId, userId });
     if (!pm) throw { status: 400, message: 'Invalid paymentMethod Id' };
-    console.log('pm found');
+
     return pm;
 };
 
@@ -73,7 +73,6 @@ const applyPMDebit = async ({ pm, userId, currency, amountMajor, related, sessio
         },
         { session }
     );
-    console.log(pmupdate);
 
     // journal the movement
     await PaymentMethodTxn.create([{
@@ -169,8 +168,6 @@ router.post('/', auth, async (req, res) => {
 
         const usedCurrency = pickCurrency(currency, me.defaultCurrency || 'INR');
         const splitsN = normaliseSplits(splits, req.user.id);
-        console.log(splitsN);
-
         // light consistency checks for split
         if (mode === 'split') {
             const paySum = Number(splitsN.filter(s => s.paying).reduce((n, s) => n + (Number(s.payAmount) || 0), 0).toFixed(2));
@@ -206,8 +203,6 @@ router.post('/', auth, async (req, res) => {
                 s.paidFromPaymentMethodId = pm._id;
             }
         }
-        console.log('splitzN: ', splitsN);
-
         // Prepare expense doc
         const expenseDoc = new Expense({
             createdBy: req.user.id,
@@ -227,8 +222,6 @@ router.post('/', auth, async (req, res) => {
         let topPayerPM = null;
         if (mode === 'personal') {
             const topPMId = paidFromPaymentMethodId || paymentMethodId;
-            console.log(topPMId);
-
             if (topPMId) {
                 topPayerPM = await loadAndValidatePM({
                     pmId: topPMId,
@@ -547,8 +540,6 @@ router.put('/:id', auth, async (req, res) => {
         const { id } = req.params;
         const expense = await Expense.findById(id).populate('auditLog.updatedBy', 'name email');
         if (!expense) return res.status(404).json({ error: 'Expense not found' });
-        console.log(req.body);
-
         // Optional permission
         // if (expense.createdBy.toString() !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
 

@@ -1,6 +1,6 @@
 // components/ExpenseModal.jsx
 import React, { useMemo, useState, useEffect } from "react";
-import { Trash2, Pencil, Save, X, SplitSquareHorizontal, Coins } from "lucide-react";
+import { Trash2, Pencil, Save, X, SplitSquareHorizontal, Coins, Loader } from "lucide-react";
 import ModalWrapper from "./ModalWrapper";
 import { deleteExpense, updateExpense } from "../services/ExpenseService";
 import { logEvent } from "../utils/analytics";
@@ -66,9 +66,9 @@ export default function ExpenseModal({
         if (TEST_MODE) console.log('Page: ExpenseModal\nLine 63\nshowModal: ', showModal)
     }, [])
 
-    const [busy, setBusy] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
-    const close = () => !busy && setShowModal(false);
+    const close = () => !loading && setShowModal(false);
     // Split UI state (matches your create flow concepts)
     const [selectedFriends, setSelectedFriends] = useState([]); // [{_id, name, paying, payAmount, owing, oweAmount, owePercent}]
     const [showCurrencyModal, setShowCurrencyModal] = useState(false); // "equal" | "value" | "percent"
@@ -395,7 +395,7 @@ export default function ExpenseModal({
 
         const list = Array.isArray(paymentMethods) ? paymentMethods : [];
         if (!list.length) return;
-        if (showModal.paidFromPaymentMethodId) setPaymentMethod(paidFromPaymentMethodId);
+        if (showModal?.paidFromPaymentMethodId) setPaymentMethod(showModal?.paidFromPaymentMethodId);
         // priority: default send -> default receive -> single item
         const preferred =
             list.find(pm => pm.isDefaultSend) ||
@@ -467,14 +467,14 @@ export default function ExpenseModal({
     const handleDelete = async () => {
         if (!_id) return;
         try {
-            setBusy(true);
+            setLoading(true);
             await deleteExpense(_id, userToken);
             await fetchExpenses?.();
             setShowModal(false);
         } catch (err) {
             console.log(err?.message || "Something went wrong while deleting.");
         } finally {
-            setBusy(false);
+            setLoading(false);
         }
     };
     const updateSplit = (idx, patch) =>
@@ -566,8 +566,6 @@ export default function ExpenseModal({
     // 🔧 EDITING: save
     const handleSave = async () => {
         if (!_id) return;
-        console.log(selectedFriends);
-
         const payload = {
             description: form.description.trim(),
             amount: amountNum,
@@ -604,7 +602,7 @@ export default function ExpenseModal({
         }
 
         try {
-            setBusy(true);
+            setLoading(true);
             await updateExpense(_id, payload, userToken);
             logEvent("expense_updated", {
                 mode,
@@ -618,7 +616,7 @@ export default function ExpenseModal({
             console.log(err?.message || "Something went wrong while updating.");
             alert("Failed to update expense. Please try again.");
         } finally {
-            setBusy(false);
+            setLoading(false);
         }
     };
     const updateFriendsPaymentMethods = async (list) => {
@@ -629,8 +627,8 @@ export default function ExpenseModal({
             showModal.splits.forEach((s) => {
                 // Use either .friendId._id or .friendId if it's an ID, depending on how your data is structured
                 const fid = s.friendId._id || s.friendId;
-                if (s.paidFromPaymentMethodId) { // adjust name if needed
-                    oldSelections[fid] = s.paidFromPaymentMethodId;
+                if (s?.paidFromPaymentMethodId) { // adjust name if needed
+                    oldSelections[fid] = s?.paidFromPaymentMethodId;
                 }
             });
         }
@@ -661,10 +659,6 @@ export default function ExpenseModal({
     useEffect(() => {
         if (isEditing) updateFriendsPaymentMethods(selectedFriends.map((f) => f._id))
     }, [isEditing])
-    useEffect(() => {
-        console.log(selectedFriends);
-
-    }, [selectedFriends])
     // Build footer
     const footer = (
         <>
@@ -675,14 +669,14 @@ export default function ExpenseModal({
                             <div className="flex flex-1 gap-3">
                                 <button
                                     onClick={() => setConfirmDelete(true)}
-                                    disabled={busy}
+                                    disabled={loading}
                                     className="text-red-400 border border-red-500 px-4 py-2 rounded-md hover:bg-red-500/10 transition text-sm inline-flex items-center gap-1"
                                 >
                                     <Trash2 size={16} /> Delete
                                 </button>
                                 <button
                                     onClick={() => setIsEditing(true)}
-                                    disabled={busy}
+                                    disabled={loading}
                                     className="text-[#EBF1D5] border border-[#EBF1D5] px-4 py-2 rounded-md hover:bg-[#3a3a3a] transition text-sm inline-flex items-center gap-1"
                                 >
                                     <Pencil size={16} /> Edit
@@ -691,7 +685,7 @@ export default function ExpenseModal({
                             </div>
                             <button
                                 onClick={close}
-                                disabled={busy}
+                                disabled={loading}
                                 className="text-[#EBF1D5] border border-[#EBF1D5] px-4 py-2 rounded-md hover:bg-[#3a3a3a] transition text-sm"
                             >
                                 Close
@@ -701,7 +695,7 @@ export default function ExpenseModal({
                         <>
                             <button
                                 onClick={handleSave}
-                                disabled={busy || !shouldShowSubmitButton()}
+                                disabled={loading || !shouldShowSubmitButton()}
                                 className={`px-4 py-2 rounded-md ${shouldShowSubmitButton() ? 'bg-teal-500' : 'bg-gray-500'} text-white text-sm inline-flex items-center gap-1`}
                             >
                                 <Save size={16} /> Save
@@ -716,7 +710,7 @@ export default function ExpenseModal({
                                     });
                                     setReSplit(false);
                                 }}
-                                disabled={busy}
+                                disabled={loading}
                                 className="px-4 py-2 rounded-md border border-[#55554f] hover:bg-[#2a2a2a] text-sm inline-flex items-center gap-1"
                             >
                                 <X size={16} /> Cancel
@@ -729,7 +723,7 @@ export default function ExpenseModal({
                     <span className="text-sm text-[#c9c9c9]">Delete permanently?</span>
                     <button
                         onClick={() => setConfirmDelete(false)}
-                        disabled={busy}
+                        disabled={loading}
                         className="px-4 py-2 rounded-md border border-[#55554f] hover:bg-[#2a2a2a] text-sm"
                     >
                         Cancel
@@ -739,7 +733,7 @@ export default function ExpenseModal({
                             logEvent("expense_deleted", { surface: "modal" });
                             handleDelete();
                         }}
-                        disabled={busy}
+                        disabled={loading}
                         className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm inline-flex items-center gap-1"
                     >
                         <Trash2 size={16} /> Confirm
@@ -748,7 +742,19 @@ export default function ExpenseModal({
             )}
         </>
     );
-
+    if(loading)
+    return (
+        <ModalWrapper
+            show={!!showModal}
+            onClose={close}
+            title={`${isEditing ? "Edit" : ""} ${typeOf == 'expense' ? mode : 'Settle'} Expense`.trim()}
+            size="lg"
+        >
+            <div className="w-full flex flex-col justify-center items-center">
+                <Loader />
+            </div>
+        </ModalWrapper> 
+    )
     return (
         <ModalWrapper
             show={!!showModal}
