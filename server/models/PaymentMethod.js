@@ -15,7 +15,7 @@ const PaymentMethodSchema = new mongoose.Schema({
     type: { type: String, enum: ["upi", "bank", "card", "cash", "wallet", "other"], required: true },
     defaultCurrency: { type: String },       // primary display currency
     supportedCurrencies: { type: [String], default: [] },    // [] = any; else whitelist
-    balances: {                                             
+    balances: {
         type: Map,
         of: BalanceSchema,
         default: {}

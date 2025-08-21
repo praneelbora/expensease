@@ -166,7 +166,7 @@ router.patch('/:paymentMethodId', auth, async (req, res) => {
     session.startTransaction();
     try {
         const paymentMethod = await ensureOwnership(req.user.id, req.params.paymentMethodId);
-        
+
         const allowed = [
             'label',
             'defaultCurrency',

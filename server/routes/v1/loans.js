@@ -156,7 +156,7 @@ router.post('/:id/repay', auth, async (req, res) => {
     try {
         const { amount, note, paymentMethodId, recieverMethodId, currency } = req.body;
         console.log(req.body);
-        
+
         if (!amount) return res.status(400).json({ error: 'Repayment amount required.' });
         if (!currency) return res.status(400).json({ error: 'Currency is required for repayment.' });
 

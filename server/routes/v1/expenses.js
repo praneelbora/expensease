@@ -170,7 +170,7 @@ router.post('/', auth, async (req, res) => {
         const usedCurrency = pickCurrency(currency, me.defaultCurrency || 'INR');
         const splitsN = normaliseSplits(splits, req.user.id);
         console.log(splitsN);
-        
+
         // light consistency checks for split
         if (mode === 'split') {
             const paySum = Number(splitsN.filter(s => s.paying).reduce((n, s) => n + (Number(s.payAmount) || 0), 0).toFixed(2));
@@ -206,8 +206,8 @@ router.post('/', auth, async (req, res) => {
                 s.paidFromPaymentMethodId = pm._id;
             }
         }
-        console.log('splitzN: ',splitsN);
-        
+        console.log('splitzN: ', splitsN);
+
         // Prepare expense doc
         const expenseDoc = new Expense({
             createdBy: req.user.id,
@@ -548,7 +548,7 @@ router.put('/:id', auth, async (req, res) => {
         const expense = await Expense.findById(id).populate('auditLog.updatedBy', 'name email');
         if (!expense) return res.status(404).json({ error: 'Expense not found' });
         console.log(req.body);
-        
+
         // Optional permission
         // if (expense.createdBy.toString() !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
 
@@ -579,7 +579,7 @@ router.put('/:id', auth, async (req, res) => {
 
         const usedCurrency = currency
         const amountNum = req.body.amount != null ? Number(req.body.amount) : expense.amount;
-         for (const s of splitsN) {
+        for (const s of splitsN) {
             if (s.paying && s.paidFromPaymentMethodId) {
                 // Validate the PM belongs to the payer (not just creator)
                 const pmOwnerId = s.friendId;
