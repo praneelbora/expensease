@@ -137,7 +137,8 @@ router.patch('/profile', auth, async (req, res) => {
             defaultCurrency,
             preferredCurrencies,
         } = req.body || {};
-
+        console.log(req.body);
+        
         const update = {};
 
         // --- Basic fields ---

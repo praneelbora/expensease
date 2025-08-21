@@ -57,16 +57,6 @@ export const AuthProvider = ({ children }) => {
         setPreferredCurrencies(sorted);
     }, [user]);
 
-    const persistDefaultCurrency = async (newCur) => {
-        setDefaultCurrency(newCur);
-        localStorage.setItem("currency", newCur);
-        try {
-            // Intentionally wrapped: if updatePreferredCurrency is not imported/defined, this won't crash the app.
-            // eslint-disable-next-line no-undef
-            await updatePreferredCurrency?.(newCur, userToken);
-        } catch { }
-    };
-
     const fetchData = async () => {
         try {
             const fetchedUser = await fetchUserData();
@@ -135,7 +125,6 @@ export const AuthProvider = ({ children }) => {
                 setCategories,
                 defaultCurrency,
                 preferredCurrencies,
-                persistDefaultCurrency,
                 paymentMethods,
                 setPaymentMethods,
                 fetchPaymentMethods,

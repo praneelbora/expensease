@@ -12,8 +12,7 @@ import { Check, Loader2 } from "lucide-react";
 const TEST_MODE = import.meta.env.VITE_TEST_MODE
 
 const Account = () => {
-    const { logout, user, userToken, defaultCurrency, preferredCurrencies,
-        persistDefaultCurrency, persistPreferredCurrencies } = useAuth() || {};
+    const { logout, user, userToken, defaultCurrency, preferredCurrencies, persistPreferredCurrencies } = useAuth() || {};
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -65,15 +64,16 @@ const Account = () => {
     useEffect(() => { setAllCodes(getAllCurrencyCodes()); }, []);
     useEffect(() => { setDc(defaultCurrency || ''); }, [defaultCurrency]);
     const currencyOptions = toCurrencyOptions(allCodes); // e.g., [{value:'INR', label:'₹ INR'}, ...]
-    const saveCurrencyPrefs = async ({ dc: nextDc = dc } = {}) => {
+    const saveCurrencyPrefs = async (curr) => {
         setDcStatus('saving');
         setDcError('');
         try {
+            console.log(curr);
+
             await updateUserProfile(userToken, {
-                defaultCurrency: nextDc
+                defaultCurrency: curr
             });
-            persistDefaultCurrency(nextDc);
-            logEvent('update_default_currency', { defaultCurrency: nextDc });
+            logEvent('update_default_currency', { defaultCurrency: curr });
             setDcStatus('saved');
             // hide the tick after 2s
             setTimeout(() => setDcStatus('idle'), 2000);
@@ -306,8 +306,10 @@ const Account = () => {
                                 value={dc}
                                 options={currencyOptions}
                                 onSelect={(cur) => {
+                                    console.log(cur);
+
                                     setDc(cur)
-                                    saveCurrencyPrefs()
+                                    saveCurrencyPrefs(cur)
                                 }}
                             />
                             <div ref={categoryRef} id="category-section">

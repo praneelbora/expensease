@@ -110,12 +110,13 @@ const Dashboard = () => {
             const { name, value } = payload[0];
             return (
                 <div className="bg-black text-[#EBF1D5] text-sm px-2 py-1 rounded shadow-md">
-                    <strong>{name}</strong>: ₹{value.toFixed(2)}
+                    <strong>{name}</strong>: {getSymbol("en-IN", defaultCurrency)}{value.toFixed(2)}
                 </div>
             );
         }
         return null;
     };
+
     const scrollRef = useRef(null);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -328,10 +329,11 @@ const Dashboard = () => {
                 textAnchor="middle"
                 fontSize={12}
             >
-                ₹{value}
+                {getSymbol("en-IN", defaultCurrency)}{value}
             </text>
         );
     };
+
 
 
     return (
@@ -526,7 +528,7 @@ const Dashboard = () => {
                         </div>}
 
                         {/* Charts */}
-                        {/* {expenses.length > 0 && <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                        {expenses.length > 0 && <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                             <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md overflow-hidden">
                                 <h3 className="text-lg font-semibold mb-2">Category Distribution</h3>
                                 <ResponsiveContainer width="100%" height={250}>
@@ -561,7 +563,7 @@ const Dashboard = () => {
                                 </ResponsiveContainer>
 
                             </div>
-                        </div>} */}
+                        </div>}
                     </div>
                 )}
                 </div>

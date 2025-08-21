@@ -103,7 +103,7 @@ export default function PaymentMethodCard({
                     {/* Actions (top-right) */}
 
                 </div>
-                {Object.entries(peek).length > 0 && <div className="flex flex-col">
+                {Object.entries(peek).length > 0 && <div className="flex flex-col mt-2">
                     <span className="text-sm font-medium text-[#b9c29f]">Current Balances</span>
                     <div className="flex flex-wrap justify-between mt-2 ">
 
