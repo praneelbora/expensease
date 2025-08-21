@@ -1,5 +1,5 @@
 // src/pages/AddLoan.jsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
 import { useAuth } from "../context/AuthContext";
 import { ChevronLeft, Loader } from "lucide-react";
@@ -10,12 +10,18 @@ import { logEvent } from "../utils/analytics";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies";
 import CategoryModal from "../components/CategoryModal";
 import CurrencyModal from "../components/CurrencyModal";
+import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
+import UnifiedPaymentModal from "../components/UnifiedPaymentModal";
 
 const AddLoan = () => {
-    const { categories, user, userToken, defaultCurrency, preferredCurrencies } = useAuth() || {};
+    const { categories, user, userToken, defaultCurrency, preferredCurrencies, paymentMethods, fetchPaymentMethods } = useAuth() || {};
     const [currency, setCurrency] = useState();
     const [currencyOptions, setCurrencyOptions] = useState([]);
     const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+    const [paymentModal, setPaymentModal] = useState({ open: false, context: '', friendId: null });
+    const openPaymentModal = ({ context, friendId = null }) => setPaymentModal({ open: true, context, friendId });
+    const closePaymentModal = () => setPaymentModal({ open: false, context: '', friendId: null });
+
     useEffect(() => {
         setCurrency(defaultCurrency)
     }, [defaultCurrency]);
@@ -40,7 +46,37 @@ const AddLoan = () => {
     const [friends, setFriends] = useState([]);
     const [filteredFriends, setFilteredFriends] = useState([]);
     const [search, setSearch] = useState("");
-    const [counterparty, setCounterparty] = useState(null); // selected friend object
+    const [party, setParty] = useState(null); // selected friend object
+    const [counterParty, setCounterParty] = useState(null); // selected friend object
+    const [paymentMethod, setPaymentMethod] = useState();
+    const pmLabel = (m) => {
+        return `${m?.label || m?.type || "Method"}`;
+    };
+
+    const unifiedOptions = useMemo(() => {
+        if (!paymentModal.open) return [];
+        if (paymentModal.context === 'lender') {
+            // raw docs from Auth — already rich
+            return (party?.paymentMethods || []).map(m => ({ _id: m.paymentMethodId, ...m }))
+        }
+        return (counterParty?.paymentMethods || []).map(m => ({ _id: m.paymentMethodId, ...m }));
+    }, [paymentModal, paymentMethods, counterParty]);
+
+    const unifiedValue = useMemo(() => {
+        if (paymentModal.context === 'lender') return paymentMethod || null;
+        const f = counterParty
+        return f?.selectedPaymentMethodId ?? null;
+    }, [paymentModal, paymentMethod, counterParty]);
+
+    const handleSelectUnified = (id) => {
+        if (paymentModal.context === 'lender') {
+            setParty(prev => ({ ...prev, selectedPaymentMethodId: id }));
+        } else {
+            setCounterParty(prev => ({ ...prev, selectedPaymentMethodId: id }));
+        }
+    };
+
+    // mo
 
     // form
     const [iAm, setIAm] = useState(""); // '', 'lender', 'borrower'
@@ -48,8 +84,13 @@ const AddLoan = () => {
     const [interestRate, setInterestRate] = useState("");
     const [estimatedReturnDate, setEstimatedReturnDate] = useState("");
     const [description, setDescription] = useState("");
+    const [paymentMethodsUpdated, setPaymentMethodsUpdated] = useState(false);
     const [notes, setNotes] = useState("");
 
+    const paymentMethodRedirect = () => {
+        setShowPaymentMethodModal(false)
+        navigate('/account?section=paymentMethod')
+    };
     const initialMount = useRef(false);
 
     useEffect(() => {
@@ -74,23 +115,26 @@ const AddLoan = () => {
         }
         const q = search.toLowerCase();
         const filtered = friends
-            .map((f) => ({ ...f, selected: counterparty?._id === f._id }))
+            .map((f) => ({ ...f, selected: counterParty?._id === f._id }))
             .filter(
                 (f) =>
                     f.name.toLowerCase().includes(q) || f.email.toLowerCase().includes(q)
             )
             .sort((a, b) => (b.selected === true) - (a.selected === true));
         setFilteredFriends(filtered);
-    }, [search, friends, counterparty]);
+    }, [search, friends, counterParty]);
 
     const canSubmit =
-        !!counterparty &&
+        !!counterParty &&
         (iAm === "lender" || iAm === "borrower") &&
         Number(principal) > 0 &&
-        description.trim().length > 0;
+        description.trim().length > 0 && party?.selectedPaymentMethodId && counterParty?.selectedPaymentMethodId;
 
     const resetAll = () => {
-        setCounterparty(null);
+        setCounterParty(null);
+        setParty(null)
+        setPaymentMethodsUpdated(false)
+        setPaymentMethod("")
         setIAm("");
         setPrincipal("");
         setCurrency("INR");
@@ -106,8 +150,10 @@ const AddLoan = () => {
 
         try {
             const payload = {
-                lenderId: iAm === "lender" ? "me" : counterparty._id,
-                borrowerId: iAm === "borrower" ? "me" : counterparty._id,
+                lenderId: iAm === "lender" ? "me" : counterParty._id,
+                borrowerId: iAm === "borrower" ? "me" : counterParty._id,
+                lenderPaymentMethod: iAm === "lender" ? party?.selectedPaymentMethodId : counterParty?.selectedPaymentMethodId,
+                borrowerPaymentMethod: iAm === "borrower" ? party?.selectedPaymentMethodId : counterParty?.selectedPaymentMethodId,
                 principal: Number(principal),
                 currency,
                 interestRate: interestRate === "" ? 0 : Number(interestRate),
@@ -124,7 +170,9 @@ const AddLoan = () => {
                 amount: principal
             })
             await createLoan(payload, userToken);
+            await fetchPaymentMethods()
             resetAll();
+
             if (cameFromFriendDetailsRef) {
                 navigate(`/friends/${fromFriendIdRef.current}?tab=loan`); // go back to friend details
             } else {
@@ -142,19 +190,52 @@ const AddLoan = () => {
         if (preselectAppliedRef.current) return;
 
         // only preselect if we DID come from friend page AND haven't unlocked AND no selection yet
-        if (!fromFriendIdRef.current || allowChangeFriend || friends.length === 0 || counterparty) return;
+        if (!fromFriendIdRef.current || allowChangeFriend || friends.length === 0 || counterParty) return;
 
         const pre = friends.find(f => f._id === fromFriendIdRef.current);
-        if (pre) setCounterparty(pre);
+        if (pre) {
+            setCounterParty(pre);
+            setPaymentMethodsUpdated(false)
+        }
 
         preselectAppliedRef.current = true; // <- prevent future re-runs
         navigate(".", { replace: true, state: {} }); // optional cleanup
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [friends, counterparty, allowChangeFriend]);
+    }, [friends, counterParty, allowChangeFriend]);
+    const updateFriendsPaymentMethods = async (list) => {
+        const map = await fetchFriendsPaymentMethods(list, userToken); // { [friendId]: PaymentMethod[] }
+        console.log(map);
 
+        // setFriendsPaymentMethods(map);
+        // Merge into selectedFriends and auto-pick when there's exactly one option
+        setCounterParty((prev) => {
+            const raw = map[prev._id];
+            const methods = raw;
+            let selectedPaymentMethodId;
+            selectedPaymentMethodId = methods.length === 1 ? methods[0].paymentMethodId : null; // auto-pick when only one
 
+            return { ...prev, paymentMethods: methods, selectedPaymentMethodId };
+        })
+        setParty((prev) => {
+            const raw = map[prev._id];
+            const methods = raw;
+            let selectedPaymentMethodId;
+            selectedPaymentMethodId = methods.length === 1 ? methods[0].paymentMethodId : null; // auto-pick when only one
+
+            return { ...prev, paymentMethods: methods, selectedPaymentMethodId };
+        })
+        setPaymentMethodsUpdated(true)
+    };
+    useEffect(() => {
+        if (counterParty && !paymentMethodsUpdated && party)
+            updateFriendsPaymentMethods([party._id, counterParty._id])
+    }, [counterParty, party])
+    useEffect(() => {
+        if (user)
+            setParty(user)
+    }, [user])
     const getMissingMessage = () => {
-        if (!counterparty) return "Select a friend to start.";
+        if (!counterParty) return "Select a friend to start.";
         if (!iAm) return "Choose “I lent” or “I borrowed”.";
         if (!description.trim()) return "Add a description.";
         if (!principal || Number(principal) <= 0) return "Enter the loan amount.";
@@ -184,7 +265,7 @@ const AddLoan = () => {
                     ) : (
                         <div className="flex w-full flex-col gap-4">
                             {/* STEP 1: Pick exactly one friend */}
-                            {!counterparty && (
+                            {!counterParty && (
                                 <div className="mt-2">
                                     <p className="text-[13px] text-[#81827C] mb-2">
                                         Select a friend (loan is strictly between two people).
@@ -199,7 +280,11 @@ const AddLoan = () => {
                                         {filteredFriends.map((friend) => (
                                             <div
                                                 key={friend._id}
-                                                onClick={() => setCounterparty(friend)}
+                                                onClick={() => {
+                                                    setCounterParty(friend)
+                                                    setPaymentMethodsUpdated(false)
+                                                    setPaymentMethod("")
+                                                }}
                                                 className="flex flex-col gap-1 cursor-pointer hover:bg-[#1f1f1f] py-2 rounded-md transition px-2"
                                             >
                                                 <h2 className="text-xl font-semibold capitalize">
@@ -219,18 +304,20 @@ const AddLoan = () => {
                             )}
 
                             {/* After friend selected: show chip + Change button, then STEP 2 */}
-                            {counterparty && (
+                            {counterParty && (
                                 <>
                                     <div className="flex flex-col gap-2 mt-2">
                                         <span className="text-[13px] text-teal-500 uppercase">
                                             Friend Selected
                                         </span>
                                         <div className="flex justify-between items-center h-[30px] gap-2 text-xl text-[#EBF1D5]">
-                                            <p className="capitalize">{counterparty.name}</p>
+                                            <p className="capitalize">{counterParty.name}</p>
                                             {allowChangeFriend && (
                                                 <button
                                                     onClick={() => {
-                                                        setCounterparty(null);
+                                                        setCounterParty(null);
+                                                        setPaymentMethodsUpdated(false)
+                                                        setPaymentMethod("")
                                                         setIAm("");
                                                         fromFriendIdRef.current = null;      // <- stop auto-reselect
                                                         preselectAppliedRef.current = true;  // <- don't try again
@@ -304,7 +391,28 @@ const AddLoan = () => {
                                                 value={principal}
                                                 onChange={(e) => setPrincipal(parseFloat(e.target.value))}
                                             />
+
                                         </div>
+                                        <div className="flex flex-col flex-1/3">
+                                            <p className="text-[rgba(130,130,130,1)]">{party?.name}'s Account</p>
+                                            <button
+                                                onClick={() => openPaymentModal({ context: 'lender' })}
+                                                className={`w-full ${party?.selectedPaymentMethodId ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                            >
+                                                {party?.selectedPaymentMethodId ? party?.paymentMethods?.find(acc => acc.paymentMethodId === party?.selectedPaymentMethodId)?.label : "Payment Account"}
+                                            </button>
+                                        </div>
+                                        <div className="flex flex-col flex-1/3">
+                                            <p className="text-[rgba(130,130,130,1)]">{counterParty?.name}'s Account</p>
+                                            <button
+                                                onClick={() => openPaymentModal({ context: 'borrower' })}
+                                                className={`w-full ${counterParty?.selectedPaymentMethodId ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                            >
+                                                {counterParty?.selectedPaymentMethodId ? counterParty?.paymentMethods?.find(acc => acc.paymentMethodId === counterParty?.selectedPaymentMethodId)?.label : "Payment Account"}
+                                                {/* Split (inside payer rows) */}
+                                            </button>
+                                        </div>
+
                                         {/* <div className="flex gap-4">
                       <input
                         className="flex-1 text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 pl-3"
@@ -332,7 +440,7 @@ const AddLoan = () => {
                                         />
                                     </div>
                                     {/* Summary before Submit */}
-                                    {counterparty && principal > 0 && iAm && (
+                                    {counterParty && principal > 0 && iAm && (
                                         <div className="bg-[#1f1f1f] border border-[#55554f] rounded-md p-4 text-sm">
                                             <p>
                                                 {iAm === "lender" ? "You lent" : "You borrowed"}{" "}
@@ -340,7 +448,7 @@ const AddLoan = () => {
                                                     {currency} {Number(principal).toLocaleString()}
                                                 </span>{" "}
                                                 {iAm === "lender" ? "to" : "from"}{" "}
-                                                <span className="font-bold">{counterparty.name}</span>.
+                                                <span className="font-bold">{counterParty.name}</span>.
                                             </p>
                                             {interestRate && Number(interestRate) > 0 && (
                                                 <p>
@@ -399,8 +507,9 @@ const AddLoan = () => {
                                                 className="text-teal-400 underline"
                                                 onClick={() => {
                                                     setAllowChangeFriend(true);   // unlock
-                                                    setCounterparty(null);
-                                                    setCounterparty(null);
+                                                    setCounterParty(null);
+                                                    setPaymentMethod("")
+                                                    setPaymentMethodsUpdated(false)
                                                     setIAm("");
                                                 }}
                                             >
@@ -417,6 +526,18 @@ const AddLoan = () => {
                     )}
 
                 </div>
+                <UnifiedPaymentModal
+                    show={paymentModal.open}
+                    onClose={closePaymentModal}
+                    context={paymentModal.context}                       // 'personal' | 'split'
+                    privacy={'private'}
+                    options={unifiedOptions}
+                    value={unifiedValue}
+                    onSelect={(id, close) => { handleSelectUnified(id); if (close) closePaymentModal(); }}
+                    defaultSendId={paymentMethods?.find(a => a.isDefaultSend)?._id}
+                    defaultReceiveId={paymentMethods?.find(a => a.isDefaultReceive)?._id}
+                    paymentMethodRedirect={paymentMethodRedirect}
+                />
             </div>
         </MainLayout>
     );

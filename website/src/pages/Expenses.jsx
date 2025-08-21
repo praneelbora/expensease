@@ -11,7 +11,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies"
 
 const Expenses = () => {
-    const { user, userToken, defaultCurrency, preferredCurrencies, categories } = useAuth() || {};
+    const { user, userToken, defaultCurrency, preferredCurrencies, categories, paymentMethods } = useAuth() || {};
     const [loading, setLoading] = useState(true);
     const [expenses, setExpenses] = useState([]);
     const [userId, setUserId] = useState();
@@ -268,6 +268,7 @@ const Expenses = () => {
                     currencyOptions={currencyOptions}
                     defaultCurrency={defaultCurrency}
                     preferredCurrencies={preferredCurrencies}
+                    paymentMethods={paymentMethods}
                 />
             )}
         </MainLayout>

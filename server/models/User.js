@@ -3,6 +3,12 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
+    phone: {
+        type: String,
+        unique: true,      // must be unique if provided
+        sparse: true,      // allows multiple docs without phone at all
+        trim: true,
+    },
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     customCategories: [
         {
@@ -29,8 +35,6 @@ const userSchema = new mongoose.Schema({
             message: 'preferredCurrencies must be ISO 4217 codes (e.g., INR, USD).'
         }
     },
-
-    // 🔽 NEW: usage counts per currency code
     preferredCurrencyUsage: {
         type: Map,
         of: Number,
@@ -38,5 +42,6 @@ const userSchema = new mongoose.Schema({
     },
 
 }, { timestamps: true });
+userSchema.index({ phone: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('User', userSchema);

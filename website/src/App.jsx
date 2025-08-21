@@ -8,11 +8,14 @@ import Expenses from "./pages/Expenses";
 import GroupDetails from "./pages/GroupDetails";
 import FriendDetails from "./pages/FriendDetails";
 import Account from "./pages/Account";
+import PaymentMethods from "./pages/PaymentMethods";
+import Transactions from "./pages/Transactions";
 import Logout from "./pages/Logout";
 import GroupJoin from "./pages/GroupJoin";
 import GroupSettings from "./pages/GroupSettings";
 import Dashboard from "./pages/Dashboard";
 import AddLoan from "./pages/AddLoan";
+import Guide from "./pages/Guide";
 import SupportDev from "./pages/SupportDev";
 import Cookies from "js-cookie";
 import { Loader } from "lucide-react";
@@ -77,6 +80,18 @@ function App() {
                 element={<PrivateRoute><Account /></PrivateRoute>}
             />
             <Route
+                path="/paymentMethods"
+                element={<PrivateRoute><PaymentMethods /></PrivateRoute>}
+            />
+            <Route
+                path="/transactions"
+                element={<PrivateRoute><Transactions /></PrivateRoute>}
+            />
+            <Route
+                path="/guide"
+                element={<PrivateRoute><Guide /></PrivateRoute>}
+            />
+            <Route
                 path="/supportdeveloper"
                 element={<PrivateRoute><SupportDev /></PrivateRoute>}
             />
@@ -85,7 +100,7 @@ function App() {
                 element={<Logout />}
             />
             <Route
-                path="/"
+                path="/*"
                 element={<Navigate to={user ? "/dashboard" : "/login"} />}
             />
             <Route path="/groups/join/:code" element={<GroupJoin />} />

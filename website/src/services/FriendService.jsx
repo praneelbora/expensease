@@ -1,7 +1,7 @@
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 export const getFriends = async (userToken) => {
-   const response = await fetch(`${BASE_URL}/v1/friends/`, {
+    const response = await fetch(`${BASE_URL}/v1/friends/`, {
         headers: {
             "Content-Type": "application/json",
             'x-auth-token': userToken

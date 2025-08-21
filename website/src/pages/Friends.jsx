@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
+import { getLoans } from "../services/LoanService";
 const Friends = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -28,6 +29,7 @@ const Friends = () => {
     const [loading, setLoading] = useState(true);
     const [expenses, setExpenses] = useState([]); // ✅ Array of expenses
     const [userId, setUserId] = useState(null);
+    const [loans, setLoans] = useState(null);
     const round = (val) => Math.round(val * 100) / 100;
     const [receivedRequests, setReceivedRequests] = useState([]);
     const scrollRef = useRef(null);
@@ -37,7 +39,7 @@ const Friends = () => {
     const doRefresh = async () => {
         setRefreshing(true);
         try {
-            await Promise.all([fetchReceived(), fetchFriends(), fetchExpenses()]);
+            await Promise.all([fetchReceived(), fetchFriends(), fetchExpenses(), fetchLoans()]);
         } finally {
             setRefreshing(false);
         }
@@ -132,6 +134,7 @@ const Friends = () => {
         fetchReceived()
         fetchFriends();
         fetchExpenses();
+        fetchLoans()
     }, []);
     const fetchExpenses = async () => {
         try {
@@ -140,6 +143,14 @@ const Friends = () => {
             setUserId(data.id);
         } catch (error) {
             console.error("Error loading expenses:", error);
+        }
+    };
+    const fetchLoans = async () => {
+        try {
+            const data = await getLoans(userToken);
+            setLoans(data);
+        } catch (error) {
+            console.error("Error loading loans:", error);
         }
     };
     const hasRequestedRef = useRef(false);
@@ -201,10 +212,9 @@ const Friends = () => {
                     </button>
                 </div>
                 {banner && (
-                    <div className={`mt-2 mb-2 rounded-md px-3 py-2 text-sm border 
-    ${banner.type === 'success' ? 'bg-teal-900/30 border-teal-500 text-teal-200' :
-                            banner.type === 'error' ? 'bg-red-900/30 border-red-500 text-red-200' :
-                                'bg-zinc-800 border-zinc-600 text-zinc-200'}`}>
+                    <div className={`mt-2 mb-2 rounded-md px-3 py-2 text-sm border ${banner.type === 'success' ? 'bg-teal-900/30 border-teal-500 text-teal-200' :
+                        banner.type === 'error' ? 'bg-red-900/30 border-red-500 text-red-200' :
+                            'bg-zinc-800 border-zinc-600 text-zinc-200'}`}>
                         <div className="flex items-start justify-between gap-4">
                             <p className="leading-5">{banner.text}</p>
                             <button
@@ -277,12 +287,17 @@ const Friends = () => {
                             )}
 
                             {friends.map((friend) => {
-                                // collect friend-related expenses once
+                                // Collect friend-related expenses
                                 const friendExpenses = expenses?.filter(exp =>
                                     exp.splits?.some(split => String(split.friendId?._id) === String(friend._id))
                                 ) || [];
 
-                                // per-currency net (friend owes you => +ve, you owe friend => -ve)
+                                // Collect friend-related loans (borrowed or lent)
+                                const friendLoans = loans?.filter(loan =>
+                                    String(loan.borrowerId._id) === String(friend._id) || String(loan.lenderId._id) === String(friend._id)
+                                ) || [];
+
+                                // Calculate net from expenses per currency
                                 const totalsByCode = {};
                                 for (const exp of friendExpenses) {
                                     const code = exp?.currency || "INR";
@@ -292,20 +307,35 @@ const Friends = () => {
                                     const owe = Number(split.oweAmount) || 0;
                                     const pay = Number(split.payAmount) || 0;
 
-                                    // friend marked owing adds +owe, marked paying subtracts -pay
+                                    // friend owing adds +owe, paying subtracts pay
                                     const delta = (split.owing ? owe : 0) - (split.paying ? pay : 0);
                                     totalsByCode[code] = (totalsByCode[code] || 0) + delta;
                                 }
 
-                                // make a clean list, round by currency precision, drop near-zero noise
+                                // Calculate net adjustment from loans per currency
+                                // If friend is borrower, this is money friend owes you (positive)
+                                // If friend is lender, this is money you owe friend (negative)
+                                for (const loan of friendLoans) {
+                                    const code = loan?.currency || "INR";
+                                    const principal = Number(loan.principal) || 0;
+
+                                    if (String(loan.borrowerId._id) === String(friend._id)) {
+                                        // Friend borrowed money from YOU => friend owes you => add positive
+                                        totalsByCode[code] = (totalsByCode[code] || 0) + principal;
+                                    } else if (String(loan.lenderId._id) === String(friend._id)) {
+                                        // Friend lent money TO YOU => you owe friend => subtract
+                                        totalsByCode[code] = (totalsByCode[code] || 0) - principal;
+                                    }
+                                }
+
+                                // Clean and round balances, omit near zero noise
                                 const balances = Object.entries(totalsByCode).reduce((acc, [code, amt]) => {
                                     const rounded = roundCurrency(amt, code);
                                     const minUnit = 1 / (10 ** currencyDigits(code));
                                     if (Math.abs(rounded) >= minUnit) acc.push({ code, amount: rounded });
                                     return acc;
                                 }, [])
-                                    // optional: sort largest first
-                                    .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+                                    .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)); // Sort largest absolute first
 
                                 return (
                                     <div
@@ -350,6 +380,7 @@ const Friends = () => {
                                     </div>
                                 );
                             })}
+
                             <p className="text-center text-sm text-teal-500">
                                 {friends.length} Friend{friends?.length > 1 ? "s" : ""}
                             </p>

@@ -27,7 +27,7 @@ import { settleExpense } from '../services/ExpenseService';
 import { logEvent } from "../utils/analytics";
 
 const GroupDetails = () => {
-    const { logout, user, userToken, defaultCurrency, preferredCurrencies, categories } = useAuth() || {};
+    const { logout, user, userToken, defaultCurrency, preferredCurrencies, categories, paymentMethods } = useAuth() || {};
 
     const [dc, setDc] = useState(defaultCurrency || '');
 
@@ -575,6 +575,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                     currencyOptions={currencyOptions}
                     defaultCurrency={defaultCurrency}
                     preferredCurrencies={preferredCurrencies}
+                    paymentMethods={paymentMethods}
                 />
             )}
             {showSettleModal && (

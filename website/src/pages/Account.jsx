@@ -1,20 +1,61 @@
 import { useAuth } from '../context/AuthContext';
 import MainLayout from '../layouts/MainLayout';
 import { useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getAllExpenses } from '../services/ExpenseService';
-import { updatePreferredCurrency, updateUserProfile } from '../services/UserService'; // make sure this exists
+import { updatePreferredCurrency, updateUserProfile, deleteAccount } from '../services/UserService'; // make sure this exists
 import CategoriesManage from '../components/SettingsCategoryManager';
 import { logEvent } from "../utils/analytics";
 import { getAllCurrencyCodes, toCurrencyOptions } from "../utils/currencies";
 import CurrencyModal from '../components/CurrencyModal';
 import { Check, Loader2 } from "lucide-react";
+const TEST_MODE = import.meta.env.VITE_TEST_MODE
 
 const Account = () => {
     const { logout, user, userToken, defaultCurrency, preferredCurrencies,
         persistDefaultCurrency, persistPreferredCurrencies } = useAuth() || {};
     const location = useLocation();
+    const navigate = useNavigate();
+
     const [dc, setDc] = useState(defaultCurrency || '');
+    const [highlighted, setHighlighted] = useState(null); // 'upi' | 'paymentMethod' | null
+    const highlightTimerRef = useRef(null);
+
+    const scrollFocusAndHighlight = (ref, sectionKey, focusEl) => {
+        if (!ref?.current) return;
+
+        const scroller = scrollerRef.current;
+        const headerH = headerRef.current?.getBoundingClientRect().height || 60;
+        const pad = 40; // a little breathing room
+
+        if (scroller) {
+            const targetY = Math.max(0, ref.current.offsetTop - headerH - pad);
+            scroller.scrollTo({ top: targetY, behavior: 'smooth' });
+        } else {
+            // fallback (shouldn’t hit in your layout)
+            const absoluteY =
+                window.pageYOffset +
+                ref.current.getBoundingClientRect().top -
+                headerH -
+                pad;
+            window.scrollTo({ top: Math.max(0, absoluteY), behavior: 'smooth' });
+        }
+
+        // Focus after the scroll kick-off
+        if (focusEl?.current) setTimeout(() => focusEl.current?.focus?.(), 120);
+
+        if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+        setHighlighted(sectionKey);
+        highlightTimerRef.current = setTimeout(() => setHighlighted(null), 1500);
+    };
+
+
+    // convenience class helper
+    const highlightCls = (key) =>
+        highlighted === key
+            ? 'ring-2 ring-inset ring-teal-500'
+            : '';
+
 
     const [showDefaultModal, setShowDefaultModal] = useState(false);
 
@@ -55,8 +96,16 @@ const Account = () => {
 
     // ---- UPI section state ----
     const [upiId, setUpiId] = useState(user?.upiId || '');
+    const headerRef = useRef(null);
+    const scrollerRef = useRef(null);
+
     const upiRef = useRef(null);
+    const paymentMethodRef = useRef(null);
+    const guideRef = useRef(null);
+    const currencyRef = useRef(null);
+    const categoryRef = useRef(null);
     const upiInputRef = useRef(null);
+
     const calculateTotals = (expenses, userId) => {
         let totalOwe = 0;
         let totalPay = 0;
@@ -85,17 +134,35 @@ const Account = () => {
         fetchExpenses();
     }, []);
 
-    // Auto-scroll to UPI section if /account?section=upi
     useEffect(() => {
         const params = new URLSearchParams(location.search);
-        if (params.get('section') === 'upi' && upiRef.current) {
-            setTimeout(() => {
-                upiRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                // focus the input for convenience
-                upiInputRef.current?.focus();
-            }, 100);
+        const section = params.get('section');
+
+        if (section === 'upi') {
+            scrollFocusAndHighlight(upiRef, 'upi', upiInputRef);
         }
+
+        if (section === 'paymentMethod') {
+            scrollFocusAndHighlight(paymentMethodRef, 'paymentMethod');
+        }
+
+        if (section === 'guide') {
+            scrollFocusAndHighlight(guideRef, 'guide');
+        }
+
+        if (section === 'currency') {
+            scrollFocusAndHighlight(currencyRef, 'currency');
+        }
+
+        if (section === 'category') {
+            scrollFocusAndHighlight(categoryRef, 'category');
+        }
+
+        return () => {
+            if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+        };
     }, [location.search]);
+
 
     const handleSave = () => {
         setEditing(false);
@@ -124,11 +191,11 @@ const Account = () => {
     return (
         <MainLayout>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
-                <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
+                <div ref={headerRef} className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">My Account</h1>
                 </div>
 
-                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar gap-3">
+                <div ref={scrollerRef} className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar gap-3">
                     {loading ? (
                         <div className="animate-pulse space-y-4 mt-3">
                             <div className="h-6 bg-gray-700 rounded w-1/3" />
@@ -140,15 +207,15 @@ const Account = () => {
                             {/* Basic info */}
                             <div className="bg-[#1E1E1E] p-4 rounded-xl shadow">
                                 <p className="text-[18px] text-[#888]">Name</p>
-                                <h2 className="text-[20px] font-semibold mb-2">{user?.name}</h2>
+                                <h2 className="text-md text-teal-500 uppercase font-semibold mb-2">{user?.name}</h2>
                                 <p className="text-[18px] text-[#888]">Email</p>
-                                <h2 className="text-[20px] font-semibold">{user?.email}</h2>
+                                <h2 className="text-md text-teal-500 lowercase font-semibold">{user?.email}</h2>
                             </div>
 
                             {/* --- UPI Section --- */}
-                            <div ref={upiRef} id="upi-section" className="bg-[#1E1E1E] p-4 rounded-xl shadow">
+                            <div ref={upiRef} id="upi-section" className={`bg-[#1E1E1E] p-4 rounded-xl shadow transition-all ${highlightCls('upi')}`}>
                                 <div className="flex items-center justify-between mb-2">
-                                    <h2 className="text-[20px] font-semibold">UPI for Quick Payments</h2>
+                                    <h2 className="text-md text-teal-500 uppercase font-semibold">UPI for Quick Payments</h2>
                                 </div>
 
                                 <p className="text-xs text-[#888] mb-1 italic">
@@ -184,8 +251,19 @@ const Account = () => {
                                     </p>
                                 )}
                             </div>
-                            <div className="bg-[#1E1E1E] p-4 rounded-xl shadow">
-                                <h2 className="text-[20px] font-semibold mb-2">Default currency</h2>
+                            <div ref={paymentMethodRef} id="payment-method-section" onClick={() => navigate('/paymentMethods')} className={`bg-[#1E1E1E] p-4 rounded-xl shadow cursor-pointer transition-all ${highlightCls('paymentMethod')}`}>
+                                <h2 className="text-md text-teal-500 uppercase font-semibold">Payment Accounts</h2>
+                                <p className="text-[#888] text-sm">
+                                    Manage UPI, bank accounts, and cards payment accounts for better expense tracking.
+                                </p>
+                            </div><div ref={guideRef} id="guide-section" onClick={() => navigate('/guide')} className={`bg-[#1E1E1E] p-4 rounded-xl shadow cursor-pointer transition-all ${highlightCls('guide')}`}>
+                                <h2 className="text-md text-teal-500 uppercase font-semibold">Guide</h2>
+                                <p className="text-[#888] text-sm">
+                                    Quick tour: add expenses, split fairly, create groups, and settle up.
+                                </p>
+                            </div>
+                            <div ref={currencyRef} id="currency-section" className={`bg-[#1E1E1E] p-4 rounded-xl shadow transition-all ${highlightCls('currency')}`}>
+                                <h2 className="text-md text-teal-500 uppercase font-semibold">Default currency</h2>
 
                                 <div className="mt-1 relative">
                                     <button
@@ -232,17 +310,16 @@ const Account = () => {
                                     saveCurrencyPrefs()
                                 }}
                             />
-
-                            {/* Categories manager */}
-                            <CategoriesManage userToken={userToken} />
-
+                            <div ref={categoryRef} id="category-section">
+                                <CategoriesManage userToken={userToken} highlightCls={highlightCls} />
+                            </div>
                             {/* Support the Developer */}
                             <div
                                 onClick={() => (window.location.href = '/supportdeveloper')}
                                 className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-between cursor-pointer"
                             >
                                 <div>
-                                    <h2 className="text-[20px] font-semibold mb-2">Support the Developer ☕</h2>
+                                    <h2 className="text-md text-teal-500 uppercase font-semibold">Support the Developer ☕</h2>
                                     <p className="text-[#888] text-sm">
                                         If you find this platform helpful, consider supporting its development!
                                     </p>
@@ -258,6 +335,15 @@ const Account = () => {
                                     Logout
                                 </button>
                             </div>
+                            {/* Logout */}
+                            {TEST_MODE && <div className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-end">
+                                <button
+                                    className="text-red-500 border border-red-500 px-4 py-2 rounded-md w-full"
+                                    onClick={deleteAccount}
+                                >
+                                    Delete Account
+                                </button>
+                            </div>}
                         </div>
                     ) : (
                         <p className="text-red-500">User not logged in.</p>

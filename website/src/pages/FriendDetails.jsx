@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import React, { Fragment } from 'react';
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
@@ -13,7 +13,7 @@ import ExpenseModal from "../components/ExpenseModal"; // Adjust import path
 import PaymentModal from "../components/PaymentModal"; // Adjust import path
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies"
-
+import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
 import {
     getLoans,
     addRepayment as addLoanRepayment,
@@ -22,9 +22,10 @@ import {
 
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
+import UnifiedPaymentModal from "../components/UnifiedPaymentModal";
 
 const FriendDetails = () => {
-    const { user, userToken, defaultCurrency, preferredCurrencies, categories } = useAuth() || {};
+    const { user, userToken, defaultCurrency, preferredCurrencies, categories, paymentMethods, fetchPaymentMethods } = useAuth() || {};
     const { id } = useParams();
     const [searchParams] = useSearchParams();
     const tab = searchParams.get("tab"); // "loan" or null
@@ -33,6 +34,9 @@ const FriendDetails = () => {
     const [allCodes, setAllCodes] = useState([]);
     useEffect(() => { setAllCodes(getAllCurrencyCodes()); }, []);
     const currencyOptions = toCurrencyOptions(allCodes); // e.g., [{value:'INR', label:'₹ INR'}, ...]
+    const [paymentModal, setPaymentModal] = useState({ open: false, context: '', friendId: null });
+    const openPaymentModal = ({ context, friendId = null }) => setPaymentModal({ open: true, context, friendId });
+    const closePaymentModal = () => setPaymentModal({ open: false, context: '', friendId: null });
 
 
     const navigate = useNavigate();
@@ -56,7 +60,73 @@ const FriendDetails = () => {
     const [repayAmount, setRepayAmount] = useState("");
     const [repayNote, setRepayNote] = useState("");
     const [showLoanView, setShowLoanView] = useState(false);
+    const [party, setParty] = useState(); // selected friend object
+    const [counterParty, setCounterParty] = useState(); // selected friend object
+    const [paymentMethodsUpdated, setPaymentMethodsUpdated] = useState(false);
 
+    const [paymentMethod, setPaymentMethod] = useState();
+    const pmLabel = (m) => {
+        return `${m?.label || m?.type || "Method"}`;
+    };
+
+
+    const unifiedOptions = useMemo(() => {
+        if (!paymentModal.open) return [];
+        if (paymentModal.context === 'lender') {
+            // raw docs from Auth — already rich
+            console.log('options: ', party?.paymentMethods);
+
+            return (party?.paymentMethods || []).map(m => ({ _id: m.paymentMethodId, ...m }))
+        }
+        console.log('options: ', counterParty?.paymentMethods);
+        return (counterParty?.paymentMethods || []).map(m => ({ _id: m.paymentMethodId, ...m }));
+    }, [paymentModal, party, counterParty]);
+
+    const unifiedValue = useMemo(() => {
+        if (paymentModal.context === 'lender') return paymentMethod || null;
+        const f = counterParty
+        return f?.selectedPaymentMethodId ?? null;
+    }, [paymentModal, paymentMethod, counterParty]);
+
+    const handleSelectUnified = (id) => {
+        if (paymentModal.context === 'lender') {
+            setParty(prev => ({ ...prev, selectedPaymentMethodId: id }));
+        } else {
+            setCounterParty(prev => ({ ...prev, selectedPaymentMethodId: id }));
+        }
+    };
+    const paymentMethodRedirect = () => {
+        setShowLoanModal(false)
+        setShowPaymentModal(false)
+        navigate('/account?section=paymentMethod')
+    };
+    const updateFriendsPaymentMethods = async (list) => {
+        const map = await fetchFriendsPaymentMethods(list, userToken); // { [friendId]: PaymentMethod[] }
+        console.log(map);
+
+
+        setCounterParty((prev) => {
+            const raw = map[prev._id];
+            const methods = raw;
+            let selectedPaymentMethodId;
+            selectedPaymentMethodId = methods.length === 1 ? methods[0].paymentMethodId : null; // auto-pick when only one
+
+            return { ...prev, paymentMethods: methods, selectedPaymentMethodId };
+        })
+        setParty((prev) => {
+            const raw = map[prev._id];
+            const methods = raw;
+            let selectedPaymentMethodId;
+            selectedPaymentMethodId = methods.length === 1 ? methods[0].paymentMethodId : null; // auto-pick when only one
+
+            return { ...prev, paymentMethods: methods, selectedPaymentMethodId };
+        })
+        setPaymentMethodsUpdated(true)
+    };
+    useEffect(() => {
+        if (counterParty && !paymentMethodsUpdated && party)
+            updateFriendsPaymentMethods([party._id, counterParty._id])
+    }, [counterParty, party])
     // helpers:
     const openLoanView = (loan) => {
         setActiveLoan(loan);
@@ -182,11 +252,14 @@ const FriendDetails = () => {
             setLoanLoading(false);
         }
     };
-
+    useEffect(() => {
+        if (user) setParty(user)
+    }, [])
     const fetchData = async () => {
 
         const data = await getFriendDetails(id, userToken);
         setFriend(data.friend);
+        setCounterParty(data.friend)
         setUserId(data.id);
 
         const expenseData = await getFriendExpense(id, userToken);
@@ -272,7 +345,8 @@ const FriendDetails = () => {
 
 
     useEffect(() => {
-        fetchData();
+        if (id)
+            fetchData();
     }, [id]);
     const getPayerInfo = (splits) => {
         const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
@@ -631,6 +705,7 @@ const FriendDetails = () => {
                     currencyOptions={currencyOptions}
                     defaultCurrency={defaultCurrency}
                     preferredCurrencies={preferredCurrencies}
+                    paymentMethods={paymentMethods}
                 />
             )}
             {showSettleModal && (
@@ -667,6 +742,7 @@ const FriendDetails = () => {
                     loan={activeLoan}
                     friend={friend}
                     userId={userId}
+                    user={user}
                     userToken={userToken}
                     onClose={() => setShowLoanView(false)}
                     onCloseLoan={async () => {
@@ -685,6 +761,14 @@ const FriendDetails = () => {
                     currencyOptions={currencyOptions}
                     defaultCurrency={defaultCurrency}
                     preferredCurrencies={preferredCurrencies}
+                    paymentModal={paymentModal}
+                    setPaymentModal={setPaymentModal}
+                    openPaymentModal={openPaymentModal}
+                    closePaymentModal={closePaymentModal}
+                    party={party}
+                    setParty={setParty}
+                    counterParty={counterParty}
+                    setCounterParty={setCounterParty}
                 />
             )}
 
@@ -729,7 +813,18 @@ const FriendDetails = () => {
                     )}
                 </>
             )}
-
+            <UnifiedPaymentModal
+                show={paymentModal.open}
+                onClose={closePaymentModal}
+                context={paymentModal.context}                       // 'personal' | 'split'
+                privacy={'private'}
+                options={unifiedOptions}
+                value={unifiedValue}
+                onSelect={(id, close) => { handleSelectUnified(id); if (close) closePaymentModal(); }}
+                defaultSendId={paymentMethods?.find(a => a.isDefaultSend)?._id}
+                defaultReceiveId={paymentMethods?.find(a => a.isDefaultReceive)?._id}
+                paymentMethodRedirect={paymentMethodRedirect}
+            />
         </MainLayout>
     );
 };

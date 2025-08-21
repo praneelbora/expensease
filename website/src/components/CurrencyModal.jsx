@@ -12,6 +12,7 @@ export default function CurrencyModal({
     defaultCurrency,
     preferredCurrencies = [],
     onTogglePreferred, // optional: (code, shouldBePreferred) => void
+    currencyRedirect
 }) {
     const [query, setQuery] = useState("");
 
@@ -103,8 +104,8 @@ export default function CurrencyModal({
                                 onTogglePreferred(opt.value, !isPreferred);
                             }}
                             className={`text-[11px] px-2 py-1 rounded border ${isPreferred
-                                    ? "border-teal-600 text-teal-400 hover:bg-[#133]"
-                                    : "border-[#3a3a3a] text-[#9aa] hover:border-teal-600"
+                                ? "border-teal-600 text-teal-400 hover:bg-[#133]"
+                                : "border-[#3a3a3a] text-[#9aa] hover:border-teal-600"
                                 }`}
                             aria-label={isPreferred ? "Remove from preferred" : "Add to preferred"}
                             title={isPreferred ? "Remove from preferred" : "Add to preferred"}
@@ -120,7 +121,20 @@ export default function CurrencyModal({
     if (!show) return null;
 
     return (
-        <ModalWrapper show={show} onClose={onClose} title="Select Currency">
+        <ModalWrapper
+            show={show}
+            onClose={onClose}
+            title="Select Currency"
+            footer={currencyRedirect && <div className="w-full text-center text-sm text-[#a0a0a0]">
+                Want to change default currency?{" "}
+                <button
+                    className="text-teal-400 underline"
+                    onClick={currencyRedirect}
+                >
+                    Change Currency
+                </button>
+            </div>}
+        >
             <div className="space-y-3">
                 <input
                     autoFocus
@@ -149,6 +163,7 @@ export default function CurrencyModal({
                     {filteredAll.map((opt) => <Row key={opt.value} opt={opt} />)}
                 </div>
             </div>
+
         </ModalWrapper>
     );
 }

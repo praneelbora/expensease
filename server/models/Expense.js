@@ -9,15 +9,10 @@ const splitSchema = new mongoose.Schema({
     oweAmount: { type: Number, default: 0 },
     owePercent: { type: Number, default: 0 },
     payAmount: { type: Number, default: 0 },
+    paidFromPaymentMethodId: { type: mongoose.Schema.Types.ObjectId, ref: "PaymentMethod" },
 });
 
-// Add this beside `splits`
-const fundingSourceSchema = new mongoose.Schema({
-    sourceType: { type: String, enum: ['group', 'user'], required: true },
-    groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group' }, // when sourceType === 'group'
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },   // when sourceType === 'user'
-    amount: { type: Number, required: true },
-});
+
 // Main Expense Schema
 const expenseSchema = new mongoose.Schema(
     {
@@ -40,6 +35,8 @@ const expenseSchema = new mongoose.Schema(
         date: { type: Date, default: Date.now }, // Timestamp of when the expense was created,
         typeOf: { type: String, enum: ['expense', 'settle', 'income', 'loan'], default: 'expense' },
         category: { type: String }, // New field to store expense category
+        paidFromPaymentMethodId: { type: mongoose.Schema.Types.ObjectId, ref: "PaymentMethod" },
+        receivedToPaymentMethodId: { type: mongoose.Schema.Types.ObjectId, ref: "PaymentMethod" },  // friend's "get paid to"
     },
     { timestamps: true }
 );
@@ -54,7 +51,6 @@ const auditEntrySchema = new mongoose.Schema({
 }, { _id: false });
 
 expenseSchema.add({
-    funding: [fundingSourceSchema],
     auditLog: [auditEntrySchema],               // <— history of edits
 });
 

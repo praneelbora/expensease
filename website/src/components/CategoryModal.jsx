@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ModalWrapper from "./ModalWrapper";
 
-export default function CategoryModal({ show, onClose, options = [], value, onSelect }) {
+export default function CategoryModal({ show, onClose, options = [], value, onSelect, categoryRedirect }) {
     const [query, setQuery] = useState("");
 
     useEffect(() => {
@@ -24,7 +24,20 @@ export default function CategoryModal({ show, onClose, options = [], value, onSe
     };
 
     return (
-        <ModalWrapper show={show} onClose={onClose} title="Select Category">
+        <ModalWrapper
+            show={show}
+            onClose={onClose}
+            title="Select Category"
+            footer={categoryRedirect && <div className="w-full text-center text-sm text-[#a0a0a0]">
+                Want to Add / Rearrange?{" "}
+                <button
+                    className="text-teal-400 underline"
+                    onClick={categoryRedirect}
+                >
+                    Customise Categories
+                </button>
+            </div>}
+        >
             <div className="space-y-3">
                 <input
                     autoFocus
@@ -44,8 +57,8 @@ export default function CategoryModal({ show, onClose, options = [], value, onSe
                             key={opt.value}
                             onClick={() => { onSelect(opt.value); onClose?.(); }}
                             className={`w-full text-left px-3 py-2 rounded border transition ${value === opt.value
-                                    ? "bg-teal-500 text-black border-teal-500"
-                                    : "border-[#333] text-[#EBF1D5] hover:border-teal-600"
+                                ? "bg-teal-500 text-black border-teal-500"
+                                : "border-[#333] text-[#EBF1D5] hover:border-teal-600"
                                 }`}
                         >
                             {opt.label}
@@ -53,6 +66,7 @@ export default function CategoryModal({ show, onClose, options = [], value, onSe
                     ))}
                 </div>
             </div>
+
         </ModalWrapper>
     );
 }

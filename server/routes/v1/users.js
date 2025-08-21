@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const User = require('../../models/User');
 const bcrypt = require('bcryptjs');
@@ -6,62 +7,12 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const auth = require('../../middleware/auth');
 const DefaultCategories = require('../../assets/Categories').default;
-const { sendLoginLinkEmail } = require('./email');
 const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET;
+const PaymentMethod = require("../../models/PaymentMethod");
+const PaymentMethodTxn = require("../../models/PaymentMethodTransaction");
 
-router.post('/login', async (req, res) => {
-    const { email, name } = req.body;
-    if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-    }
-
-    try {
-        let user = await User.findOne({ email });
-
-        if (!user && name) {
-            // ✅ Create user if not found and name is provided
-            user = await User.create({ email, name });
-        }
-
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        const token = jwt.sign({ id: user._id, type: 'login' }, JWT_SECRET, { expiresIn: '10m' });
-
-        await sendLoginLinkEmail(user.email, token, user.name);
-
-        res.json({ message: 'Login link sent to email!' });
-
-    } catch (err) {
-        console.error('Login error:', err);
-        res.status(500).json({ error: 'Something went wrong' });
-    }
-});
-
-// ✅ Verify Login Link
-router.get('/login', async (req, res) => {
-    const { token } = req.query;
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        if (decoded.type !== 'login') throw new Error('Invalid token type');
-
-        const user = await User.findById(decoded.id);
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
-        const authToken = jwt.sign({ id: user._id }, JWT_SECRET);
-
-        res.json({
-            responseBody: { "x-auth-token": authToken },
-            user: { id: user._id, name: user.name, email: user.email },
-        });
-    } catch (err) {
-        console.error('login verify link error:', err);
-        res.status(400).json({ error: 'Invalid or expired login link' });
-    }
-});
 
 // // 👤 Authenticated User Info
 router.get('/', auth, async (req, res) => {
@@ -138,6 +89,21 @@ router.post("/google-login", async (req, res) => {
         let user = await User.findOne({ email });
         if (!user) {
             user = await User.create({ email, name, picture, googleId });
+            // Create default Cash account for this new user
+            await PaymentMethod.create({
+                userId: user._id,
+                label: "Cash",
+                type: "cash",
+                supportedCurrencies: [], // any currency
+                balances: {
+                    INR: { available: 0, pending: 0 }
+                },
+                capabilities: ["send", "receive"],
+                isDefaultSend: true,       // optional: treat cash as default send
+                isDefaultReceive: true,    // optional: treat cash as default receive
+                provider: "manual",
+                status: "verified"         // cash doesn’t need verification
+            });
         }
 
         // 3. Issue your JWT
@@ -248,6 +214,78 @@ router.patch('/profile', auth, async (req, res) => {
     } catch (err) {
         console.error('/profile PATCH error:', err);
         return res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
+router.delete('/me', auth, async (req, res) => {
+    const session = await mongoose.startSession();
+    try {
+        const userId = req.user.id;
+
+        await session.withTransaction(async () => {
+            // 1) Collect this user's payment account IDs
+            const pmIds = await PaymentMethod
+                .find({ userId }, { _id: 1 })
+                .session(session)
+                .lean()
+                .then(rows => rows.map(r => r._id));
+
+            // 2) Delete PM transactions (journal)
+            if (pmIds.length) {
+                await PaymentMethodTxn.deleteMany(
+                    { userId, paymentMethodId: { $in: pmIds } },
+                    { session }
+                );
+            }
+
+            // 3) Delete payment accounts
+            await PaymentMethod.deleteMany({ userId }, { session });
+
+            // 4) Delete expenses created by the user
+            await Expense.deleteMany({ createdBy: userId }, { session });
+
+            // 5) Remove the user from any splits in other peoples' expenses
+            await Expense.updateMany(
+                { 'splits.friendId': userId },
+                { $pull: { splits: { friendId: userId } } },
+                { session }
+            );
+
+            // 6) Remove the user from groups
+            await Group.updateMany(
+                { 'members._id': userId },
+                { $pull: { members: { _id: userId } } },
+                { session }
+            );
+            // (Optional) delete empty groups afterwards
+            await Group.deleteMany({ members: { $size: 0 } }, { session });
+
+            // 7) Delete friend requests involving this user (if model exists)
+            if (FriendRequest) {
+                await FriendRequest.deleteMany(
+                    {
+                        $or: [
+                            { from: userId },
+                            { to: userId },
+                            // common alt field names:
+                            { requester: userId },
+                            { recipient: userId }
+                        ]
+                    },
+                    { session }
+                );
+            }
+
+            // 8) Finally, delete the user
+            await User.deleteOne({ _id: userId }, { session });
+        });
+
+        res.status(204).send(); // no content
+    } catch (err) {
+        console.error('Delete user error:', err);
+        res.status(500).json({ error: 'Failed to delete user' });
+    } finally {
+        session.endSession();
     }
 });
 

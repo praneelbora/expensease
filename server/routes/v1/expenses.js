@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const express = require('express');
 const router = express.Router();
 const User = require('../../models/User');
@@ -5,11 +6,141 @@ const Group = require('../../models/Group');
 const Expense = require('../../models/Expense');
 
 const auth = require("../../middleware/auth");
-const {
-    normaliseSplits,
-} = require('./normalise');
 
+const PaymentMethod = require('../../models/PaymentMethod');
+const PaymentMethodTxn = require('../../models/PaymentMethodTransaction');
+
+// -------- currency helpers (minor units) ----------
+const CURRENCY_DECIMALS = {
+    BHD: 3, IQD: 3, JOD: 3, KWD: 3, LYD: 3, OMR: 3, TND: 3,
+    CLP: 0, ISK: 0, JPY: 0, KRW: 0, VND: 0
+};
+// -------- split normalizer (privacy + shape) ----------
+const normaliseSplits = (raw = [], meId) => {
+    return (raw || []).map((s) => ({
+        payerType: s.payerType || 'user',
+        friendId: String(s.friendId) === 'me' ? meId : s.friendId,
+        owing: !!s.owing,
+        paying: !!s.paying,
+        oweAmount: Number(s.oweAmount) || 0,
+        owePercent: Number(s.owePercent) || 0,
+        payAmount: Number(s.payAmount) || 0,
+        // accept either name but persist as paidFromPaymentMethodId
+        paidFromPaymentMethodId: s.paidFromPaymentMethodId || s.paymentMethodId || undefined,
+    }));
+};
+
+// -------- validations ----------
+const assertGroup = async (groupId) => {
+    if (!groupId) return;
+    const g = await Group.findById(groupId);
+    if (!g) throw { status: 400, message: 'Invalid groupId' };
+};
+
+const pickCurrency = (v, fallback) => {
+    if (typeof v !== 'string') return (fallback || 'INR');
+    const up = v.toUpperCase().trim();
+    return /^[A-Z]{3}$/.test(up) ? up : (fallback || 'INR');
+};
+
+// make sure PM exists, belongs to user, supports send/receive + currency
+const loadAndValidatePM = async ({ pmId, userId, need = 'send', currency }) => {
+    if (!pmId) return null;
+    const pm = await PaymentMethod.findOne({ _id: pmId, userId });
+    if (!pm) throw { status: 400, message: 'Invalid paymentMethod Id' };
+    console.log('pm found');
+    return pm;
+};
+
+// update balances (minor units) + create txn (simple, no model methods)
+const applyPMDebit = async ({ pm, userId, currency, amountMajor, related, session }) => {
+    const cur = String(currency || 'INR').toUpperCase();
+    // read current available (minor)
+    const prev = (pm.balances?.get?.(cur)?.available) ?? (pm.balances?.[cur]?.available) ?? 0;
+    const deltaMinor = amountMajor;
+    const next = prev - deltaMinor;
+
+    // write back new balance + bump usage
+    const pmupdate = await PaymentMethod.updateOne(
+        { _id: pm._id, userId },
+        {
+            // ensure subdoc exists when first writing this currency
+            $set: {
+                [`balances.${cur}.available`]: next,
+                [`balances.${cur}.pending`]: prev,
+            },
+            $inc: { usageCount: 1 },
+        },
+        { session }
+    );
+    console.log(pmupdate);
+
+    // journal the movement
+    await PaymentMethodTxn.create([{
+        paymentMethodId: pm._id,
+        userId,
+        currency: cur,
+        amount: deltaMinor,    // negative = debit
+        kind: 'debit',
+        balanceAfter: next,
+        related,               // { type: 'expense', id, note }
+    }], { session });
+
+    return next;
+};
+
+// optional: fallback pick default send if personal missing pmId
+const pickDefaultSendPM = async (userId) => {
+    const send = await PaymentMethod.findOne({ userId, isDefaultSend: true }).sort({ createdAt: -1 });
+    if (send) return send;
+    const recv = await PaymentMethod.findOne({ userId, isDefaultReceive: true }).sort({ createdAt: -1 });
+    if (recv) return recv;
+    return PaymentMethod.findOne({ userId }).sort({ isDefaultSend: -1, isDefaultReceive: -1, usageCount: -1, createdAt: -1 });
+};
+
+async function creditBackPM({ pmId, userId, currency, amount, session, related }) {
+    const cur = String(currency).toUpperCase();
+    const pmDoc = await PaymentMethod.findOne(
+        { _id: pmId, userId },
+        { balances: 1 }
+    ).session(session);
+    if (!pmDoc) return;
+
+    const prevAvail =
+        pmDoc?.balances?.get?.(cur)?.available ??
+        pmDoc?.balances?.[cur]?.available ??
+        0;
+    const nextAvail = prevAvail + Number(amount);
+
+    await PaymentMethod.updateOne(
+        { _id: pmId, userId },
+        {
+            $set: { [`balances.${cur}.available`]: nextAvail },
+            $inc: { usageCount: -1 },
+        },
+        { session }
+    );
+
+    await PaymentMethodTxn.create(
+        [
+            {
+                paymentMethodId: pmId,
+                userId,
+                currency: cur,
+                amount: Number(amount),
+                kind: "credit",
+                balanceAfter: nextAvail,
+                related,
+            },
+        ],
+        { session }
+    );
+}
+
+
+// ------------- CREATE EXPENSE -------------
 router.post('/', auth, async (req, res) => {
+    const session = await mongoose.startSession();
     try {
         const {
             description,
@@ -21,75 +152,178 @@ router.post('/', auth, async (req, res) => {
             splits,
             groupId,
             date,
-            currency, // ⬅️ NEW (optional)
+            currency,
+            paymentMethodId,                // top-level (personal) alias
+            paidFromPaymentMethodId,        // top-level canonical name (personal)
+            receivedToPaymentMethodId,      // optional receive-to (for loans/income)
         } = req.body;
 
         if (amount == null || Number.isNaN(Number(amount))) {
             return res.status(400).json({ error: 'Invalid amount' });
         }
 
-        if (groupId) {
-            const group = await Group.findById(groupId);
-            if (!group) return res.status(400).json({ error: 'Invalid groupId' });
-        }
+        await assertGroup(groupId);
 
-        // figure out which currency to count
         const me = await User.findById(req.user.id).select('defaultCurrency preferredCurrencies');
         if (!me) return res.status(401).json({ error: 'Unauthorized' });
 
-        const pickCurrency = (v) => {
-            if (typeof v !== 'string') return null;
-            const up = v.toUpperCase().trim();
-            return /^[A-Z]{3}$/.test(up) ? up : null;
-        };
+        const usedCurrency = pickCurrency(currency, me.defaultCurrency || 'INR');
+        const splitsN = normaliseSplits(splits, req.user.id);
+        console.log(splitsN);
+        
+        // light consistency checks for split
+        if (mode === 'split') {
+            const paySum = Number(splitsN.filter(s => s.paying).reduce((n, s) => n + (Number(s.payAmount) || 0), 0).toFixed(2));
+            const oweSum = Number(splitsN.filter(s => s.owing).reduce((n, s) => n + (Number(s.oweAmount) || 0), 0).toFixed(2));
+            const total = Number(Number(amount).toFixed(2));
 
-        const usedCurrency = pickCurrency(currency) || me.defaultCurrency || 'INR';
+            if (paySum !== total) {
+                return res.status(400).json({ error: `Sum of payAmounts (${paySum}) must equal amount (${total}).` });
+            }
+            if (splitMode === 'value' && oweSum !== total) {
+                return res.status(400).json({ error: `Sum of oweAmounts (${oweSum}) must equal amount (${total}) in 'value' mode.` });
+            }
+            if (splitMode === 'percent') {
+                const pct = Number(splitsN.filter(s => s.owing).reduce((n, s) => n + (Number(s.owePercent) || 0), 0).toFixed(4));
+                if (pct !== 100) {
+                    return res.status(400).json({ error: `Sum of owePercent must be 100.` });
+                }
+            }
+        }
 
-        const splitsN = normaliseSplits(req.body.splits, req.user.id) || [];
-
-        const newExpense = new Expense({
+        for (const s of splitsN) {
+            if (s.paying && s.paidFromPaymentMethodId) {
+                // Validate the PM belongs to the payer (not just creator)
+                const pmOwnerId = s.friendId;
+                const pm = await loadAndValidatePM({
+                    pmId: s.paidFromPaymentMethodId,
+                    userId: pmOwnerId,           // <-- Validate for payer!
+                    need: 'send',
+                    currency: usedCurrency
+                });
+                if (!pm) return res.status(400).json({ error: `Invalid payment account for payer ${pmOwnerId}` });
+                // Optionally overwrite/standardize the method in splitsN
+                s.paidFromPaymentMethodId = pm._id;
+            }
+        }
+        console.log('splitzN: ',splitsN);
+        
+        // Prepare expense doc
+        const expenseDoc = new Expense({
             createdBy: req.user.id,
             description,
             amount: Number(amount),
             category,
             mode,
             typeOf,
-            splitMode,
+            splitMode: mode === 'split' ? splitMode : 'equal',
             date: date ? new Date(date) : undefined,
             splits: splitsN,
-            currency: usedCurrency, // ⬅️ store it on the expense (recommended)
+            currency: usedCurrency,
             ...(groupId && { groupId }),
         });
 
-        await newExpense.save();
+        // top-level PMs (personal charge / receive-to)
+        let topPayerPM = null;
+        if (mode === 'personal') {
+            const topPMId = paidFromPaymentMethodId || paymentMethodId;
+            console.log(topPMId);
 
-        // 🔽 Atomically bump usage count and keep the array in sync
-        const user = await User.updateOne(
-            { _id: req.user.id },
-            {
-                $inc: { [`preferredCurrencyUsage.${usedCurrency}`]: 1 },
-                $addToSet: { preferredCurrencies: usedCurrency },
+            if (topPMId) {
+                topPayerPM = await loadAndValidatePM({
+                    pmId: topPMId,
+                    userId: req.user.id,
+                    need: 'send',
+                    currency: usedCurrency
+                });
+                if (topPayerPM) expenseDoc.paidFromPaymentMethodId = topPayerPM._id;
+            } else {
+                // optional backend fallback to default send (safe; remove if you don’t want it)
+                const fallback = await pickDefaultSendPM(req.user.id);
+                if (fallback) {
+                    // currency support check for fallback
+                    await loadAndValidatePM({ pmId: fallback._id, userId: req.user.id, need: 'send', currency: usedCurrency });
+                    topPayerPM = fallback;
+                    expenseDoc.paidFromPaymentMethodId = fallback._id;
+                }
             }
-        );
+        }
 
-        const populated = await Expense.findById(newExpense._id)
+        if (receivedToPaymentMethodId) {
+            const recvPM = await loadAndValidatePM({
+                pmId: receivedToPaymentMethodId,
+                userId: req.user.id,
+                need: 'receive',
+                currency: usedCurrency
+            });
+            if (recvPM) expenseDoc.receivedToPaymentMethodId = recvPM._id;
+        }
+
+        // persist + side effects inside a transaction
+        await session.withTransaction(async () => {
+            await expenseDoc.save({ session });
+
+            // Journal debits for creator’s own charges
+            if (mode === 'personal' && topPayerPM) {
+                await applyPMDebit({
+                    pm: topPayerPM,
+                    userId: req.user.id,
+                    currency: usedCurrency,
+                    amountMajor: amount,
+                    related: { type: 'expense', id: String(expenseDoc._id), note: 'personal expense' }
+                });
+            }
+
+            if (mode === 'split') {
+                for (const s of splitsN) {
+                    if (s.paying && s.paidFromPaymentMethodId) {
+                        await applyPMDebit({
+                            pm: await PaymentMethod.findById(s.paidFromPaymentMethodId),   // Already validated above
+                            userId: s.friendId,      // The payer’s user
+                            currency: usedCurrency,
+                            amountMajor: s.payAmount,
+                            related: { type: 'expense', id: String(expenseDoc._id), note: 'split expense (share paid)' }
+                        });
+                    }
+                }
+            }
+
+
+            // bump user currency prefs like you already do
+            await User.updateOne(
+                { _id: req.user.id },
+                {
+                    $inc: { [`preferredCurrencyUsage.${usedCurrency}`]: 1 },
+                    $addToSet: { preferredCurrencies: usedCurrency },
+                },
+                { session }
+            );
+        });
+
+        const populated = await Expense.findById(expenseDoc._id)
             .populate('createdBy', 'name email')
             .populate('splits.friendId', 'name email')
             .populate('auditLog.updatedBy', 'name email');
 
-        res.status(201).json(populated);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to create expense' });
+        return res.status(201).json(populated);
+    } catch (err) {
+        console.error('Create expense error:', err);
+        const status = err?.status || 500;
+        return res.status(status).json({ error: err?.message || 'Failed to create expense' });
+    } finally {
+        session.endSession();
     }
 });
+
+
 
 
 
 router.get('/group/:id', auth, async (req, res) => {
     try {
         const groupId = req.params.id;
-
+        if (!groupId)
+            return res.status(404).json({ error: 'Group not found' });
         const group = await Group.findById(groupId).populate('members', 'name email');
 
         if (!group) {
@@ -172,20 +406,121 @@ router.post('/settle', auth, async (req, res) => {
     }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", auth, async (req, res) => {
     const { id } = req.params;
+    const session = await mongoose.startSession();
 
     try {
-        const deleted = await Expense.findByIdAndDelete(id);
+        const expense = await Expense.findById(id);
+        if (!expense) return res.status(404).json({ message: "Expense not found." });
+        // if (String(expense.createdBy) !== String(req.user.id)) {
+        //     return res.status(403).json({ message: "Not allowed." });
+        // }
 
-        if (!deleted) {
-            return res.status(404).json({ message: "Expense not found." });
-        }
+        await session.withTransaction(async () => {
+            // 1) Reverse all journaled PM movements for this expense, if any
+            const txns = await PaymentMethodTxn.find({
+                "related.type": "expense",
+                "related.id": String(id),
+                userId: req.user.id,
+            }).session(session);
 
-        return res.status(200).json({ message: "Expense deleted successfully." });
+            if (txns.length) {
+                for (const t of txns) {
+                    if (t.kind !== "debit" || !t.amount) continue; // only reverse debits
+                    const cur = String(t.currency).toUpperCase();
+
+                    // read current available
+                    const pmDoc = await PaymentMethod.findOne(
+                        { _id: t.paymentMethodId, userId: req.user.id },
+                        { balances: 1 }
+                    ).session(session);
+
+                    if (!pmDoc) continue;
+                    const prevAvail =
+                        pmDoc?.balances?.get?.(cur)?.available ??
+                        pmDoc?.balances?.[cur]?.available ??
+                        0;
+                    const nextAvail = prevAvail + Number(t.amount);
+
+                    // write back balance
+                    await PaymentMethod.updateOne(
+                        { _id: t.paymentMethodId, userId: req.user.id },
+                        {
+                            $set: {
+                                [`balances.${cur}.available`]: nextAvail,
+                            },
+                            $inc: { usageCount: -1 },
+                        },
+                        { session }
+                    );
+
+                    // journal reversal
+                    await PaymentMethodTxn.create(
+                        [
+                            {
+                                paymentMethodId: t.paymentMethodId,
+                                userId: req.user.id,
+                                currency: cur,
+                                amount: Number(t.amount), // credit back same (your ledger uses +amount with kind flag)
+                                kind: "credit",
+                                balanceAfter: nextAvail,
+                                related: {
+                                    type: "expense-reversal",
+                                    id: String(id),
+                                    note: "expense deleted",
+                                    reversalOf: String(t._id),
+                                },
+                            },
+                        ],
+                        { session }
+                    );
+                }
+            } else {
+                // 2) Fallback for legacy rows without txns:
+                // Reverse based on expense fields you debited during creation.
+                const cur = String(expense.currency || "INR").toUpperCase();
+
+                // personal: full amount from top-level PM
+                if (expense.mode === "personal" && expense.paidFromPaymentMethodId) {
+                    await creditBackPM({
+                        pmId: expense.paidFromPaymentMethodId,
+                        userId: req.user.id,
+                        currency: cur,
+                        amount: Number(expense.amount), // same unit you used when debiting
+                        session,
+                        related: { type: "expense-reversal", id: String(id), note: "expense deleted (personal)" },
+                    });
+                }
+
+                // split: only creator's payer share (if PM was set)
+                if (expense.mode === "split" && Array.isArray(expense.splits)) {
+                    const myPay = expense.splits.find(
+                        (s) => s.paying && String(s.friendId) === String(req.user.id) && s.paidFromPaymentMethodId
+                    );
+                    if (myPay) {
+                        await creditBackPM({
+                            pmId: myPay.paidFromPaymentMethodId,
+                            userId: req.user.id,
+                            currency: cur,
+                            amount: Number(myPay.payAmount),
+                            session,
+                            related: { type: "expense-reversal", id: String(id), note: "expense deleted (split share)" },
+                        });
+                    }
+                }
+            }
+
+            // 3) Finally delete the expense
+            await Expense.deleteOne({ _id: id }).session(session);
+        });
+
+        return res.status(200).json({ message: "Expense deleted & PM balances reversed." });
     } catch (error) {
         console.error("Delete error:", error);
         return res.status(500).json({ message: "Server error while deleting expense." });
+    } finally {
+        session.endSession();
     }
 });
 
@@ -212,7 +547,8 @@ router.put('/:id', auth, async (req, res) => {
         const { id } = req.params;
         const expense = await Expense.findById(id).populate('auditLog.updatedBy', 'name email');
         if (!expense) return res.status(404).json({ error: 'Expense not found' });
-
+        console.log(req.body);
+        
         // Optional permission
         // if (expense.createdBy.toString() !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
 
@@ -225,6 +561,7 @@ router.put('/:id', auth, async (req, res) => {
             splitMode,  // 'equal' | 'value' | 'percent'
             splits,
             groupId,
+            currency,
             date,
             note,       // optional audit note
         } = req.body;
@@ -238,11 +575,25 @@ router.put('/:id', auth, async (req, res) => {
             if (!group) return res.status(400).json({ error: 'Invalid groupId' });
         }
 
-        const splitsN = normaliseSplits(req.body.splits, req.user.id);   // may be undefined (not sent)
+        const splitsN = normaliseSplits(splits, req.user.id);   // may be undefined (not sent)
 
-
+        const usedCurrency = currency
         const amountNum = req.body.amount != null ? Number(req.body.amount) : expense.amount;
-
+         for (const s of splitsN) {
+            if (s.paying && s.paidFromPaymentMethodId) {
+                // Validate the PM belongs to the payer (not just creator)
+                const pmOwnerId = s.friendId;
+                const pm = await loadAndValidatePM({
+                    pmId: s.paidFromPaymentMethodId,
+                    userId: pmOwnerId,           // <-- Validate for payer!
+                    need: 'send',
+                    currency: usedCurrency
+                });
+                if (!pm) return res.status(400).json({ error: `Invalid payment account for payer ${pmOwnerId}` });
+                // Optionally overwrite/standardize the method in splitsN
+                s.paidFromPaymentMethodId = pm._id;
+            }
+        }
 
         // Settlement rule (exactly 1 payer & 1 receiver)
         if (typeOf === 'settle' && splitsN) {
@@ -264,6 +615,7 @@ router.put('/:id', auth, async (req, res) => {
         if (typeOf != null) expense.typeOf = typeOf;
         if (splitMode != null) expense.splitMode = splitMode;
         if (splitsN) expense.splits = splitsN;
+        if (currency) expense.currency = currency;
 
         if (groupId != null) expense.groupId = groupId || undefined;
         if (date != null) expense.date = new Date(date);
@@ -296,4 +648,3 @@ router.put('/:id', auth, async (req, res) => {
 
 
 module.exports = router;
-

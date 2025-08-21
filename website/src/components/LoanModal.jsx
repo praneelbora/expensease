@@ -22,11 +22,22 @@ export default function LoanViewModal({
     onCloseLoan,        // optional async override
     onDeleteLoan,       // async () => void (required for delete)
     onAfterChange,      // optional refresh callback
+    user,
+    paymentModal,
+    setPaymentModal,
+    openPaymentModal,
+    closePaymentModal,
+    party,
+    setParty,
+    counterParty,
+    setCounterParty,
+
 }) {
     const [busy, setBusy] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
 
-    const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+    console.log(party?.paymentMethods, counterParty?.paymentMethods);
+
 
     // Local copy for optimistic updates
     const [localLoan, setLocalLoan] = useState(loan);
@@ -93,7 +104,13 @@ export default function LoanViewModal({
             setSavingRepay(true);
             await addLoanRepayment(
                 localLoan._id,
-                { amount: amt, note: repayNote },
+                {
+                    currency: currency,
+                    amount: amt,
+                    note: repayNote,
+                    paymentMethodId: youAreLender ? party.selectedPaymentMethodId : counterParty.selectedPaymentMethodId,
+                    recieverMethodId: !youAreLender ? party.selectedPaymentMethodId : counterParty.selectedPaymentMethodId
+                },
                 userToken
             );
 
@@ -348,6 +365,25 @@ export default function LoanViewModal({
                                         className="w-full flex-1 text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3"
                                         placeholder="Note (optional) e.g., UPI"
                                     />
+                                </div>
+                                <div className="flex flex-col">
+                                    <p className="text-[rgba(130,130,130,1)]">{party?.name}'s Account</p>
+                                    <button
+                                        onClick={() => openPaymentModal({ context: 'lender' })}
+                                        className={`w-full ${party?.selectedPaymentMethodId ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                    >
+                                        {party?.selectedPaymentMethodId ? party?.paymentMethods?.find(acc => acc.paymentMethodId === party?.selectedPaymentMethodId)?.label : "Payment Account"}
+                                    </button>
+                                </div>
+                                <div className="flex flex-col flex-1/3">
+                                    <p className="text-[rgba(130,130,130,1)]">{counterParty?.name}'s Account</p>
+                                    <button
+                                        onClick={() => openPaymentModal({ context: 'borrower' })}
+                                        className={`w-full ${counterParty?.selectedPaymentMethodId ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                    >
+                                        {counterParty?.selectedPaymentMethodId ? counterParty?.paymentMethods?.find(acc => acc.paymentMethodId === counterParty?.selectedPaymentMethodId)?.label : "Payment Account"}
+                                        {/* Split (inside payer rows) */}
+                                    </button>
                                 </div>
                             </div>
 

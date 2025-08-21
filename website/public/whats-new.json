@@ -1,0 +1,43 @@
+{
+  "entries": [
+    {
+      "id": "2025-08-20-guide-page",
+      "date": "2025-08-20",
+      "title": "New Guide: Features & How-tos",
+      "body": "A concise in-app guide covering setup, splitting flows, balances privacy, and power-tips.",
+      "tags": ["docs", "guide"],
+      "link": "/guide"
+    },
+    {
+      "id": "2025-08-20-currency-defaults-switcher",
+      "date": "2025-08-20",
+      "title": "Currencies: defaults + quick switch",
+      "body": "Pick a default currency in Account → Currency, and choose a currency per expense with the new picker.",
+      "tags": ["currency", "settings", "ux"],
+      "link": "/guide#currency"
+    },
+    {
+      "id": "2025-08-20-payment-modes-personal-split",
+      "date": "2025-08-20",
+      "title": "Payment modes: Personal vs Split",
+      "body": "Clearer flow for who paid vs who owes. If a payer has multiple methods, you’ll be prompted to pick one.",
+      "tags": ["split", "personal", "payments"],
+      "link": "/guide#payment-modes"
+    },
+    {
+      "id": "2025-08-01-dark-balance-blur",
+      "date": "2025-08-01",
+      "title": "Privacy: balance blur + 5s reveal",
+      "body": "Balances are blurred by default and auto-hide after 5s.",
+      "tags": ["privacy", "ui"],
+      "link": "/guide#balances"
+    },
+    {
+      "id": "2025-07-20-split-flow",
+      "date": "2025-07-20",
+      "title": "Smarter split flow",
+      "body": "Auto equalize pay/owe with rounding fix.",
+      "tags": ["split", "math"]
+    }
+  ]
+}

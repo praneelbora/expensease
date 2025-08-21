@@ -60,7 +60,7 @@ const arraysEqual = (a, b) => {
     );
 };
 
-const SettingsCategoryManager = ({ userToken }) => {
+const SettingsCategoryManager = ({ userToken, highlightCls }) => {
     const { categories, setCategories } = useAuth() || {};
     const [showEditor, setShowEditor] = useState(false);
     const [newCategories, setNewCategories] = useState(categories || []);
@@ -102,9 +102,9 @@ const SettingsCategoryManager = ({ userToken }) => {
     if (!categories) return null;
 
     return (
-        <div className="bg-[#1E1E1E] p-4 rounded-xl shadow">
+        <div className={`bg-[#1E1E1E] p-4 rounded-xl shadow ${highlightCls('category')}`}>
             <div className="flex justify-between items-center">
-                <h2 className="text-[20px] font-semibold">Customize Categories</h2>
+                <h2 className="text-md text-teal-500 uppercase font-semibold">Customize Categories</h2>
                 <button
                     className="w-[65px] py-1 rounded bg-teal-600 hover:bg-teal-700 font-semibold text-[15px]"
                     onClick={() => setShowEditor(!showEditor)}

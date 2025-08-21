@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import MainLayout from "../layouts/MainLayout";
 import { getAllExpenses } from "../services/ExpenseService";
 import { useAuth } from "../context/AuthContext";
@@ -9,21 +9,28 @@ import {
     BarChart, Bar, XAxis, YAxis, ResponsiveContainer
 } from "recharts";
 import { useNavigate } from "react-router-dom";
-import { Loader } from "lucide-react";
+import { Loader, Plus } from "lucide-react";
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies"
+import ModalWrapper from "../components/ModalWrapper";
+import BalancesModal from "../components/BalancesModal";
+import PaymentMethodModal from "../components/PaymentMethodModal";
+import { createPaymentMethod } from "../services/PaymentMethodService";
 
 
 const Dashboard = () => {
     // Inside your component:
     const navigate = useNavigate();
-    const { user, userToken, defaultCurrency, preferredCurrencies, categories } = useAuth() || {};
+    const { user, userToken, defaultCurrency, preferredCurrencies, categories, paymentMethods, fetchPaymentMethods } = useAuth() || {};
     const [expenses, setExpenses] = useState([]);
     const [userId, setUserId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const didRedirect = useRef(false);
+    const pmJustAddedRef = useRef(false);
+
+
     const currencyOptions = toCurrencyOptions(getAllCurrencyCodes());
     useEffect(() => {
         if (didRedirect.current) return;
@@ -57,6 +64,47 @@ const Dashboard = () => {
     useEffect(() => {
         fetchExpenses();
     }, []);
+    const [page, setPage] = useState(0);
+    const [showBalances, setShowBalances] = useState(false);
+    const [selectedPM, setSelectedPM] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const scrollRef2 = React.useRef(null);
+
+    const itemsPerPage = 2;
+    const totalPages = Math.ceil((paymentMethods.length + 1) / itemsPerPage);
+
+    const handleScroll = React.useCallback(() => {
+        const el = scrollRef2.current;
+        if (!el) return;
+        const currentPage = Math.round(el.scrollLeft / el.clientWidth);
+        setPage(Math.min(currentPage, totalPages - 1));
+    }, [totalPages]);
+
+    React.useEffect(() => {
+        const onKey = (e) => e.key === "Escape" && setShowBalances(false);
+        if (showBalances) window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [showBalances]);
+
+    function formatMoney(ccy, value = 0) {
+        try {
+            return new Intl.NumberFormat(undefined, { style: "currency", currency: ccy }).format(value);
+        } catch {
+            return `${value?.toLocaleString?.() ?? value} ${ccy}`;
+        }
+    }
+
+    function openBalances(pm) {
+        setSelectedPM(pm);
+        setShowBalances(true);
+    }
+    function manageRedirect() {
+        setShowBalances(false)
+        navigate('/account?section=paymentMethod')
+    }
+
+
     const CustomTooltip = ({ active, payload }) => {
         if (active && payload && payload.length) {
             const { name, value } = payload[0];
@@ -71,10 +119,11 @@ const Dashboard = () => {
     const scrollRef = useRef(null);
     const [refreshing, setRefreshing] = useState(false);
 
+
     const doRefresh = async () => {
         setRefreshing(true);
         try {
-            await Promise.all([fetchExpenses()]);
+            await Promise.all([fetchExpenses(), fetchPaymentMethods()]);
         } finally {
             setRefreshing(false);
         }
@@ -112,6 +161,32 @@ const Dashboard = () => {
             maximumFractionDigits: d,
         });
     };
+    const onSave = async (payload,) => {
+        setSubmitting(true);
+        try {
+            await createPaymentMethod(payload, userToken);
+            setShowPaymentModal(false);
+            pmJustAddedRef.current = true;
+            await fetchPaymentMethods();
+        } catch (e) {
+            console.error(e);
+            alert(e.message || "Failed to save payment account");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+    useEffect(() => {
+        if (!pmJustAddedRef.current) return;
+        pmJustAddedRef.current = false;
+
+        // wait a tick to ensure the new card is rendered
+        requestAnimationFrame(() => {
+            if (scrollRef2.current) {
+                scrollRef2.current.scrollTo({ left: 0, behavior: "smooth" });
+            }
+            setPage(0);
+        });
+    }, [paymentMethods?.length]); // react when the number of cards changes
 
     // === replace your stats useMemo with this ===
     const stats = useMemo(() => {
@@ -293,102 +368,143 @@ const Dashboard = () => {
                         </div>
                     </div>
                 ) : (
+                    <div className="flex flex-col gap-2 pb-[75px]">
+                        {paymentMethods?.length >= 1 && <div className="flex flex-col gap-2">
+                            <p className="text-[13px] text-teal-500 uppercase">Payment Accounts</p>
 
-                    <>
-                        {/* Stats */}
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-                            {/* Total */}
                             <div
-                                className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
-                                onClick={() => navigate('/expenses')}
+                                ref={scrollRef2}
+                                onScroll={handleScroll}
+                                className="flex gap-4 overflow-x-auto snap-x snap-mandatory snap-always scroll-smooth no-scrollbar"
                             >
-                                <p className="text-[15px] text-[#888]">Total Expenses</p>
-                                <div className="text-xl font-bold break-words space-y-1">
-                                    {Object.entries(stats.total).map(([code, amt]) => (
-                                        <div key={`total-${code}`}>
-                                            {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                {paymentMethods.map((pay) => (
+                                    <button
+                                        key={pay._id}
+                                        type="button"
+                                        onClick={() => { setSelectedPM(pay); setShowBalances(true); }}
+                                        className="bg-[#1f1f1f] p-4 rounded-xl shadow-md min-w-[calc(50%-8px)] snap-start text-left outline-none "
+                                    >
+                                        <p className="text-xl font-bold break-words">{pay.label}</p>
+                                        <div className="text-[15px] text-[#888] space-y-1">
+                                            <div className="capitalize">{pay.type}</div>
+                                            <div className="text-xs text-teal-500/80">Tap to view balances</div>
                                         </div>
+                                    </button>
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowPaymentModal(true) }}
+                                    className="bg-[#1f1f1f] p-4 rounded-xl shadow-md min-w-[calc(50%-8px)] snap-start"
+                                >
+                                    <div className="w-full flex flex-col justify-center items-center">
+                                        <Plus strokeWidth={4} width={30} height={30} />
+                                        <p className="text-md text-center break-words text-[#888]">Add New</p>
+
+                                    </div>
+
+                                </button>
+                            </div>
+                            <BalancesModal
+                                show={showBalances}
+                                onClose={() => setShowBalances(false)}
+                                method={selectedPM}
+                                manageRedirect={manageRedirect}
+                            />
+
+                            {totalPages > 1 && (
+                                <div className="flex justify-center gap-2">
+                                    {Array.from({ length: totalPages }).map((_, i) => (
+                                        <div
+                                            key={i}
+                                            className={`h-2 w-2 rounded-full transition-all ${i === page ? "bg-teal-500 scale-110" : "bg-gray-500"}`}
+                                        />
                                     ))}
-                                    {Object.keys(stats.total).length === 0 && <span>—</span>}
                                 </div>
+                            )}
+
+
+                        </div>}
+
+                        {/* Stats */}
+                        <div className="flex flex-col gap-2">
+                            <p className="text-[13px] text-teal-500 uppercase">Summary</p>
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+
+                                {/* Total */}
+                                <div
+                                    className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                    onClick={() => navigate('/expenses')}
+                                >
+                                    <p className="text-[15px] text-[#888]">Total Expenses</p>
+                                    <div className="text-xl font-bold break-words space-y-1">
+                                        {Object.entries(stats.total).map(([code, amt]) => (
+                                            <div key={`total-${code}`}>
+                                                {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                            </div>
+                                        ))}
+                                        {Object.keys(stats.total).length === 0 && <span>—</span>}
+                                    </div>
+                                </div>
+
+                                {/* Personal */}
+                                {Object.keys(stats.personal.amount).length > 0 && (
+                                    <div
+                                        className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                        onClick={() => navigate('/expenses?filter=personal')}
+                                    >
+                                        <p className="text-[15px] text-[#888]">Personal Expenses</p>
+                                        <div className="text-xl break-words space-y-1">
+                                            {Object.entries(stats.personal.amount).map(([code, amt]) => (
+                                                <div key={`personal-${code}`}>
+                                                    {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Group */}
+                                {Object.keys(stats.group.amount).length > 0 && (
+                                    <div
+                                        className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                        onClick={() => navigate('/expenses?filter=group')}
+                                    >
+                                        <p className="text-[15px] text-[#888]">Group Expenses</p>
+                                        <div className="text-xl break-words space-y-1">
+                                            {Object.entries(stats.group.amount).map(([code, amt]) => (
+                                                <div key={`group-${code}`}>
+                                                    {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Friend */}
+                                {Object.keys(stats.friend.amount).length > 0 && (
+                                    <div
+                                        className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                        onClick={() => navigate('/expenses?filter=friend')}
+                                    >
+                                        <p className="text-[15px] text-[#888]">Friend Expenses</p>
+                                        <div className="text-xl break-words space-y-1">
+                                            {Object.entries(stats.friend.amount).map(([code, amt]) => (
+                                                <div key={`friend-${code}`}>
+                                                    {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Personal */}
-                            {Object.keys(stats.personal.amount).length > 0 && (
-                                <div
-                                    className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
-                                    onClick={() => navigate('/expenses?filter=personal')}
-                                >
-                                    <p className="text-[15px] text-[#888]">Personal Expenses</p>
-                                    <div className="text-xl break-words space-y-1">
-                                        {Object.entries(stats.personal.amount).map(([code, amt]) => (
-                                            <div key={`personal-${code}`}>
-                                                {getSymbol("en-IN", code)} {formatAmount(amt, code)}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Group */}
-                            {Object.keys(stats.group.amount).length > 0 && (
-                                <div
-                                    className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
-                                    onClick={() => navigate('/expenses?filter=group')}
-                                >
-                                    <p className="text-[15px] text-[#888]">Group Expenses</p>
-                                    <div className="text-xl break-words space-y-1">
-                                        {Object.entries(stats.group.amount).map(([code, amt]) => (
-                                            <div key={`group-${code}`}>
-                                                {getSymbol("en-IN", code)} {formatAmount(amt, code)}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Friend */}
-                            {Object.keys(stats.friend.amount).length > 0 && (
-                                <div
-                                    className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
-                                    onClick={() => navigate('/expenses?filter=friend')}
-                                >
-                                    <p className="text-[15px] text-[#888]">Friend Expenses</p>
-                                    <div className="text-xl break-words space-y-1">
-                                        {Object.entries(stats.friend.amount).map(([code, amt]) => (
-                                            <div key={`friend-${code}`}>
-                                                {getSymbol("en-IN", code)} {formatAmount(amt, code)}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Settlements */}
-                            {Object.keys(stats.settle.amount).length > 0 && (
-                                <div
-                                    className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
-                                    onClick={() => navigate('/expenses?filter=settle')}
-                                >
-                                    <p className="text-[15px] text-[#888]">Settlements</p>
-                                    <div className="text-xl break-words space-y-1">
-                                        {Object.entries(stats.settle.amount).map(([code, amt]) => (
-                                            <div key={`settle-${code}`}>
-                                                {getSymbol("en-IN", code)} {formatAmount(amt, code)}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
                         </div>
-
-
 
 
                         {/* Last 3 Expenses */}
                         {expenses.length > 0 && <div className="space-y-2">
-                            <div className="flex flex-row items-center justify-between mt-4">
-                                <h2 className="text-2xl font-semibold">Recent Expenses</h2>
+                            <div className="flex flex-row items-center justify-between mt-2">
+                                <h2 className="text-sm text-teal-500 uppercase">Recent Expenses</h2>
                                 <button
                                     onClick={() => navigate('/expenses')}
                                     className="text-sm text-teal-500 hover:underline"
@@ -446,8 +562,20 @@ const Dashboard = () => {
 
                             </div>
                         </div>} */}
-                    </>
+                    </div>
                 )}
+                </div>
+                <div className="py-2 text-center text-sm text-[#a0a0a0]">
+                    New here?{" "}
+                    <button
+                        className="text-teal-400 underline"
+                        onClick={() => {
+                            logEvent('navigate', { screen: 'guide', source: 'cta' });
+                            navigate('/guide');
+                        }}
+                    >
+                        Open the Guide
+                    </button>
                 </div>
             </div>
             {showExpenseModal && (
@@ -461,8 +589,17 @@ const Dashboard = () => {
                     currencyOptions={currencyOptions}
                     defaultCurrency={defaultCurrency}
                     preferredCurrencies={preferredCurrencies}
+                    paymentMethods={paymentMethods}
                 />
             )}
+            <PaymentMethodModal
+                show={showPaymentModal}
+                onClose={() => {
+                    setShowPaymentModal(false);
+                }}
+                submitting={submitting}
+                onSave={(payload) => onSave(payload)}
+            />
         </MainLayout>
     );
 };

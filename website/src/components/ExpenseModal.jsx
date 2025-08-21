@@ -1,13 +1,15 @@
 // components/ExpenseModal.jsx
 import React, { useMemo, useState, useEffect } from "react";
-import { Trash2, Pencil, Save, X, SplitSquareHorizontal } from "lucide-react";
+import { Trash2, Pencil, Save, X, SplitSquareHorizontal, Coins } from "lucide-react";
 import ModalWrapper from "./ModalWrapper";
 import { deleteExpense, updateExpense } from "../services/ExpenseService";
 import { logEvent } from "../utils/analytics";
 import { getGroupDetails } from "../services/GroupService";
 import { getSymbol } from "../utils/currencies";
+import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
 import CurrencyModal from "./CurrencyModal";
-
+import UnifiedPaymentModal from "./UnifiedPaymentModal";
+const TEST_MODE = import.meta.env.VITE_TEST_MODE
 const fmtMoney = (n) => `${Number(n || 0).toFixed(2)}`;
 const fmtDate = (d) =>
     new Date(d).toLocaleDateString(undefined, {
@@ -43,8 +45,8 @@ export default function ExpenseModal({
     categories,
     currencyOptions,
     defaultCurrency,
-    preferredCurrencies
-}) {
+    preferredCurrencies,
+    paymentMethods }) {
     if (!showModal) return null;
     const {
         _id,
@@ -60,7 +62,9 @@ export default function ExpenseModal({
         splits = [],
         auditLog
     } = showModal || {};
-
+    useEffect(() => {
+        if (TEST_MODE) console.log('Page: ExpenseModal\nLine 63\nshowModal: ', showModal)
+    }, [])
 
     const [busy, setBusy] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -68,9 +72,57 @@ export default function ExpenseModal({
     // Split UI state (matches your create flow concepts)
     const [selectedFriends, setSelectedFriends] = useState([]); // [{_id, name, paying, payAmount, owing, oweAmount, owePercent}]
     const [showCurrencyModal, setShowCurrencyModal] = useState(false); // "equal" | "value" | "percent"
-
+    const paymentMethodRedirect = () => {
+        setShowPaymentMethodModal(false)
+        navigate('/account?section=paymentMethod')
+    };
     // 🔧 EDITING: local form state
     const [isEditing, setIsEditing] = useState(false);
+    // state
+    const [paymentModal, setPaymentModal] = useState({ open: false, context: 'personal', friendId: null });
+    const openPaymentModal = ({ context, friendId = null }) => setPaymentModal({ open: true, context, friendId });
+    const [paymentMethod, setPaymentMethod] = useState('');
+
+    const closePaymentModal = () => setPaymentModal({ open: false, context: 'personal', friendId: null });
+
+    const unifiedOptions = useMemo(() => {
+        if (!paymentModal.open) return [];
+        if (paymentModal.context === 'personal') {
+            // raw docs from Auth — already rich
+            return paymentMethods || [];
+        }
+        // split: friend methods come as { paymentMethodId, ... }
+        const f = selectedFriends.find(x => x._id === paymentModal.friendId);
+        return (f?.paymentMethods || []).map(m => ({ _id: m.paymentMethodId, ...m }));
+    }, [paymentModal, paymentMethods, selectedFriends]);
+
+    const unifiedValue = useMemo(() => {
+        if (paymentModal.context === 'personal') return paymentMethod || null;
+        const f = selectedFriends.find(x => x._id === paymentModal.friendId);
+        return f?.selectedPaymentMethodId ?? null;
+    }, [paymentModal, paymentMethod, selectedFriends]);
+
+    const handleSelectUnified = (id) => {
+        if (paymentModal.context === 'personal') {
+            setPaymentMethod(id);
+        } else {
+            setSelectedFriends(prev =>
+                prev.map(f => f._id === paymentModal.friendId ? { ...f, selectedPaymentMethodId: id } : f)
+            );
+        }
+    };
+    const payersNeedingPM = useMemo(() => {
+        return (selectedFriends || [])
+            .filter(f => f.paying)
+            .filter(f => Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1)
+            .filter(f => !f.selectedPaymentMethodId);
+    }, [selectedFriends]);
+    const payersWithPM = useMemo(() => {
+        return (selectedFriends || [])
+            .filter(f => f.paying)
+            .filter(f => Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1)
+    }, [selectedFriends]);
+
     // inside component, replace your form state init with:
     const [form, setForm] = useState({
         description: description || "",
@@ -129,7 +181,9 @@ export default function ExpenseModal({
     }, [_id, showModal?.groupId, userToken]);
 
     const amountNum = Number(form.amount || 0);
-
+    const pmLabel = (m) => {
+        return `${m?.label || m?.type || "Method"}`;
+    };
     const isPaidAmountValid = () => {
         const totalPaid = selectedFriends.filter(f => f.paying).reduce((a, b) => a + Number(b.payAmount || 0), 0);
         return Number(totalPaid.toFixed(2)) === Number(amountNum.toFixed(2));
@@ -335,9 +389,21 @@ export default function ExpenseModal({
 
         return '';
     };
-    const removeSplitMember = (friendId) => {
-        setSelectedFriends(prev => prev.filter(f => f._id !== friendId));
-    };
+    useEffect(() => {
+        if (form.mode !== 'personal') return;
+        if (paymentMethod) return; // don't override user's choice
+
+        const list = Array.isArray(paymentMethods) ? paymentMethods : [];
+        if (!list.length) return;
+        if (showModal.paidFromPaymentMethodId) setPaymentMethod(paidFromPaymentMethodId);
+        // priority: default send -> default receive -> single item
+        const preferred =
+            list.find(pm => pm.isDefaultSend) ||
+            list.find(pm => pm.isDefaultReceive) ||
+            (list.length === 1 ? list[0] : null);
+
+        if (preferred?._id) setPaymentMethod(preferred._id);
+    }, [form.mode, paymentMethods, paymentMethod]);
 
     useEffect(() => {
         setForm({
@@ -366,7 +432,6 @@ export default function ExpenseModal({
     const [reSplit, setReSplit] = useState(false); // only used for 'split'
     useEffect(() => {
         if (form.mode !== "split") return;
-
         setSelectedFriends(prev => {
             let next = prev;
 
@@ -501,6 +566,8 @@ export default function ExpenseModal({
     // 🔧 EDITING: save
     const handleSave = async () => {
         if (!_id) return;
+        console.log(selectedFriends);
+
         const payload = {
             description: form.description.trim(),
             amount: amountNum,
@@ -520,6 +587,7 @@ export default function ExpenseModal({
                         payAmount: Number(f.payAmount || 0),
                         oweAmount: Number(f.oweAmount || 0),
                         ...(form.splitMode === 'percent' ? { owePercent: Number(f.owePercent || 0) } : {}),
+                        paymentMethodId: f.selectedPaymentMethodId
                     }))
                     : [],
         };
@@ -527,7 +595,9 @@ export default function ExpenseModal({
         if (!payload.description) return alert("Description is required.");
         if (isNaN(payload.amount) || payload.amount <= 0) return alert("Enter a valid amount.");
         if (!payload.date) return alert("Date is required.");
-
+        if (form.mode === 'personal' && paymentMethod) {
+            expenseData.paymentMethodId = paymentMethod;
+        }
         // Optional equal re-split if enabled
         if (mode === "split" && reSplit) {
             payload.splits = buildEqualResplit(payload.amount, splits);
@@ -551,7 +621,50 @@ export default function ExpenseModal({
             setBusy(false);
         }
     };
+    const updateFriendsPaymentMethods = async (list) => {
+        const map = await fetchFriendsPaymentMethods(list, userToken); // { [friendId]: PaymentMethod[] }
+        // Build a lookup of { [friendId]: oldPaymentMethodId }
+        const oldSelections = {};
+        if (showModal.splits) {
+            showModal.splits.forEach((s) => {
+                // Use either .friendId._id or .friendId if it's an ID, depending on how your data is structured
+                const fid = s.friendId._id || s.friendId;
+                if (s.paidFromPaymentMethodId) { // adjust name if needed
+                    oldSelections[fid] = s.paidFromPaymentMethodId;
+                }
+            });
+        }
 
+        setSelectedFriends((prev) =>
+            prev.map((f) => {
+                const raw = map[f._id === 'me' ? user._id : f._id] || [];
+                let selectedPaymentMethodId = f.selectedPaymentMethodId;
+
+                // If editing (showModal), set from old if present & valid
+                const oldSelected = oldSelections[f._id];
+                if (oldSelected && raw.some(m => m.paymentMethodId === oldSelected)) {
+                    selectedPaymentMethodId = oldSelected;
+                } else {
+                    // keep any previous, otherwise pick if only one method, else null
+                    const stillValid = raw.some(m => m.paymentMethodId === selectedPaymentMethodId);
+                    if (!stillValid) {
+                        selectedPaymentMethodId =
+                            raw.length === 1 ? raw[0].paymentMethodId : null;
+                    }
+                }
+
+                return { ...f, paymentMethods: raw, selectedPaymentMethodId };
+            })
+        );
+    };
+
+    useEffect(() => {
+        if (isEditing) updateFriendsPaymentMethods(selectedFriends.map((f) => f._id))
+    }, [isEditing])
+    useEffect(() => {
+        console.log(selectedFriends);
+
+    }, [selectedFriends])
     // Build footer
     const footer = (
         <>
@@ -692,7 +805,7 @@ export default function ExpenseModal({
                                     />
                                 </div>
 
-                                <div className="flex flex-col gap-1">
+                                <div className="flex-1 flex flex-col gap-1">
                                     <label className="block text-sm text-[#9aa08e] mb-1">Amount</label>
                                     <input
                                         type="number"
@@ -721,8 +834,8 @@ export default function ExpenseModal({
                             </div>
 
                             {/* Date */}
-                            {form.typeOf == 'expense' && <div className="flex flex-row w-full gap-4">
-                                <div>
+                            {form.typeOf == 'expense' && <div className="flex flex-row w-full gap-2">
+                                <div className="flex-1">
                                     <label className="block text-sm text-[#9aa08e] mb-1">Category</label>
                                     <select
                                         className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left"
@@ -737,7 +850,7 @@ export default function ExpenseModal({
                                         ))}
 
                                     </select>
-                                </div><div>
+                                </div><div className="flex-1">
                                     <label className="block text-sm text-[#9aa08e] mb-1">Date</label>
                                     <input
                                         type="date"
@@ -748,7 +861,19 @@ export default function ExpenseModal({
                                     />
                                 </div>
                             </div>}
+                            {form.mode == "personal" && <div className="w-full flex flex-col">
+                                <label className="block text-sm text-[#9aa08e] mb-1">Payment Account</label>
+
+                                <button
+                                    onClick={() => openPaymentModal({ context: 'personal' })}
+                                    className={`w-full ${paymentMethod ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                >
+                                    {paymentMethod ? paymentMethods?.find(acc => acc._id === paymentMethod)?.label : "Payment Account"}
+                                    {/* Split (inside payer rows) */}
+                                </button>
+                            </div>}
                         </div>
+
 
                         {form.mode === 'split' && (
                             <div className="sm:col-span-3 mt-2 flex flex-col gap-4">
@@ -769,12 +894,41 @@ export default function ExpenseModal({
                                         ))}
                                     </div>
 
-                                    {selectedFriends.filter(f => f.paying).length > 1 && (
+                                    {(selectedFriends.filter(f => f.paying).length > 1 || payersWithPM.length > 0) && (
                                         <div className="w-full flex flex-col gap-2">
                                             {selectedFriends.filter(f => f.paying).map(f => (
                                                 <div key={`payAmount-${f._id}`} className="flex justify-between items-center w-full">
                                                     <p className="capitalize">{f.name} {f._id == userId ? '(You)' : ''}</p>
-                                                    <input
+                                                    <div className="flex flex-row gap-2 items-end">
+                                                        {/* Only show button when >1 methods; auto-select kept for single method */}
+                                                        {Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openPaymentModal({ context: 'split', friendId: f._id })}
+                                                                className="bg-transparent border-2 border-[#55554f] text-[#EBF1D5] px-2 py-1 rounded-md hover:border-teal-600 transition"
+                                                            >
+                                                                {(() => {
+                                                                    const sel = f.paymentMethods?.find(
+                                                                        m => m.paymentMethodId === f.selectedPaymentMethodId
+                                                                    );
+                                                                    return sel ? pmLabel(sel) : <Coins />;
+                                                                })()}
+                                                            </button>
+                                                        )}
+                                                        {selectedFriends.filter(f => f.paying).length > 1 && <input
+                                                            className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
+                                                            type="number"
+                                                            value={f.payAmount}
+                                                            onChange={(e) => {
+                                                                const val = parseFloat(e.target.value || 0);
+                                                                setSelectedFriends((prev) =>
+                                                                    prev.map((f) => (f._id === friend._id ? { ...f, payAmount: val } : f))
+                                                                );
+                                                            }}
+                                                            placeholder="Amount"
+                                                        />}
+                                                    </div>
+                                                    {/* <input
                                                         className="max-w-[110px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 text-right"
                                                         type="number"
                                                         value={f.payAmount}
@@ -783,7 +937,7 @@ export default function ExpenseModal({
                                                             setSelectedFriends(prev => prev.map(x => x._id === f._id ? { ...x, payAmount: v } : x));
                                                         }}
                                                         placeholder="Amount"
-                                                    />
+                                                    /> */}
                                                 </div>
                                             ))}
                                         </div>
@@ -944,7 +1098,18 @@ export default function ExpenseModal({
                     )}
 
                 </div>
-
+                <UnifiedPaymentModal
+                    show={paymentModal.open}
+                    onClose={closePaymentModal}
+                    context={paymentModal.context}                       // 'personal' | 'split'
+                    privacy={paymentModal.context === 'split' ? 'shared' : 'private'}
+                    options={unifiedOptions}
+                    value={unifiedValue}
+                    onSelect={(id, close) => { handleSelectUnified(id); if (close) closePaymentModal(); }}
+                    defaultSendId={paymentMethods?.find(a => a.isDefaultSend)?._id}
+                    defaultReceiveId={paymentMethods?.find(a => a.isDefaultReceive)?._id}
+                    paymentMethodRedirect={paymentMethodRedirect}
+                />
 
             </div>
         </ModalWrapper>

@@ -10,12 +10,12 @@ export default function Support() {
         <MainLayout>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
-                <div className="flex flex-row gap-2">
-                    <button onClick={() => navigate(`/account`)}>
-                        <ChevronLeft />
-                    </button>
-                    <h1 className="text-3xl font-bold capitalize">Support Developer</h1>
-                </div>
+                    <div className="flex flex-row gap-2">
+                        <button onClick={() => navigate(`account`)}>
+                            <ChevronLeft />
+                        </button>
+                        <h1 className="text-3xl font-bold capitalize">Support Developer</h1>
+                    </div>
                 </div>
 
                 <div className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar">
@@ -70,7 +70,7 @@ export default function Support() {
                         </div>
                     </div>
                 </div>
-                </div>
+            </div>
         </MainLayout>
     );
 }

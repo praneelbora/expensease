@@ -28,26 +28,6 @@ export const fetchUserData = async () => {
     }
 };
 
-export const linkLogin = async (token) => {
-    try {
-        const response = await fetch(`${BASE_URL}/v1/users/login?token=${token}`);
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || "Login link expired or invalid.");
-        }
-
-        const authToken = data.responseBody["x-auth-token"];
-        Cookies.set("userToken", authToken, { expires: 100 });
-        return {
-            token: authToken,
-            user: data.user,
-        };
-    } catch (err) {
-        console.error("link login error:", err);
-        throw err;
-    }
-};
 
 // services/UserService.js
 export const getUserCategories = async (userToken) => {
@@ -138,3 +118,38 @@ export const updatePreferredCurrency = async (currencyCode, token) => {
 export const updateCurrencyPrefs = async ({ defaultCurrency, preferredCurrencies }, token) => {
     return updateUserProfile(token, { defaultCurrency, preferredCurrencies });
 };
+
+export const deleteAccount = async () => {
+    const token = Cookies.get("userToken");
+    if (!token) return null;
+
+    try {
+        const response = await fetch(`${BASE_URL}/v1/users/me`, {
+            method: "DELETE",
+            headers: {
+                "Content-Type": "application/json",
+                "x-auth-token": token,
+            },
+        });
+
+        if (response.ok) {
+            Cookies.remove("userToken");
+            return null;
+        }
+        const data = await response.json();
+        return data;
+    } catch (err) {
+        console.error("Error deleting user data:", err);
+        Cookies.remove("userToken");
+        return null;
+    }
+};
+
+
+export async function fetchWhatsNew() {
+    // swap to your API if you have one: /api/whats-new
+    const res = await fetch('/whats-new.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to load What’s New');
+    const data = await res.json();
+    return Array.isArray(data.entries) ? data.entries : [];
+}
