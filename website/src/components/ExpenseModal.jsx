@@ -594,7 +594,7 @@ export default function ExpenseModal({
         if (isNaN(payload.amount) || payload.amount <= 0) return alert("Enter a valid amount.");
         if (!payload.date) return alert("Date is required.");
         if (form.mode === 'personal' && paymentMethod) {
-            expenseData.paymentMethodId = paymentMethod;
+            form.paymentMethodId = paymentMethod;
         }
         // Optional equal re-split if enabled
         if (mode === "split" && reSplit) {
