@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Group = require('../../models/Group');
 const User = require('../../models/User');
+const Expense = require('../../models/Expense');
 const auth = require('../../middleware/auth');
 
 function generateGroupCode() {
@@ -54,6 +55,7 @@ router.get('/:groupId', auth, async (req, res) => {
         res.status(400).json({ error: error.message });
     }
 });
+
 router.get('/', auth, async (req, res) => {
     try {
         const groups = await Group.find({ members: req.user.id })
@@ -140,6 +142,33 @@ router.put('/:groupId/privacy', auth, async (req, res) => {
     } catch (err) {
         console.error("Error updating privacy setting:", err);
         res.status(500).json({ message: 'Server error' });
+    }
+});
+
+router.delete("/:groupId", auth, async (req, res) => {
+    try {
+        const { groupId } = req.params;
+
+        const group = await Group.findById(groupId);
+        if (!group) {
+            return res.status(404).json({ message: "Group not found" });
+        }
+
+        // Only creator can delete (or adjust logic if members can too)
+        if (group.createdBy.toString() !== req.user.id) {
+            return res.status(403).json({ message: "Not authorized to delete this group" });
+        }
+
+        // Delete all related expenses
+        await Expense.deleteMany({ groupId });
+
+        // Delete the group
+        await Group.findByIdAndDelete(groupId);
+
+        return res.json({ message: "Group and related expenses deleted successfully" });
+    } catch (err) {
+        console.error("Error deleting group:", err);
+        return res.status(500).json({ message: "Server error" });
     }
 });
 

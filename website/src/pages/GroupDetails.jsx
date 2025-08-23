@@ -380,7 +380,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                         </div>
                     ) : !group ? (
                         <p>Group not found</p>
-                    ) : (group.members.length == 1 || groupExpenses.length == 0) ? (
+                    ) : (group.members.length == 1 && groupExpenses.length == 0) ? (
                         <div className="flex flex-1 flex-col justify-center gap-2">
                             {group.members.length === 1 && (
                                 <div className="flex flex-col items-center justify-center p-4 rounded-lg text-center space-y-4 bg-[#1f1f1f]">
@@ -443,7 +443,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                             </div>}
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-y-3 gap-x-4">
+                        <div className="flex flex-1 flex-col gap-y-3 gap-x-4">
 
                             {/* Toggle Button */}
                             <div className="flex flex-col gap-2">
@@ -527,7 +527,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 <hr /></>}
 
                             {/* Expenses */}
-                            <div className="flex flex-col">
+                            <div className="flex flex-1 flex-col">
                                 <div className="flex flex-row justify-between">
                                     <p className="text-[13px]
                                           text-teal-500 uppercase">Expenses</p>
@@ -542,7 +542,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                         <Plus className="text-teal-500" size={20} />
                                     </button>
                                 </div>
-                                <ul className="flex flex-col w-full gap-2 pb-[75px]">
+                                {filteredExpenses.length>0 && <ul className="flex flex-col w-full gap-2 pb-[75px]">
                                     {filteredExpenses?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
                                         .map((exp) => (
                                             <ExpenseItem
@@ -555,7 +555,27 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                 userId={userId}
                                             />
                                         ))}
-                                </ul>
+                                </ul>}
+                                {groupExpenses.length === 0 && !loadingExpenses && (<div className="flex flex-col h-full flex-1 justify-center items-center">
+                                    <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-3 bg-[#1f1f1f]">
+                                <h2 className="text-2xl font-semibold">No Expenses Yet</h2>
+                                <p className="text-sm text-gray-[#888] max-w-sm">
+                                    You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
+                                </p>
+                                <button
+                                    onClick={() => {
+                                        logEvent('navigate',
+                                            { screen: 'group_detail', to: 'add_expense', source: 'cta' }
+                                        );
+                                        navigate('/new-expense', { state: { groupId: id } })
+                                    }}
+                                    className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
+                                >
+                                    Add Expense
+                                </button>
+                            </div>
+                            </div>
+                            )}
                             </div>
 
                         </div>

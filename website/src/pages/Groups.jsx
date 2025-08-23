@@ -207,7 +207,16 @@ const Groups = () => {
                                     className="flex flex-col gap-2 "
                                 >
                                     <div className="flex flex-1 flex-row justify-between items-center">
-                                        <h2 className="text-xl font-semibold capitalize truncate">{group.name}</h2>
+                                        <div className="flex flex-col justify-center items-start flex-grow overflow-hidden">
+                                                <h2 className="text-xl font-semibold capitalize truncate">{group.name}</h2>
+                                                <span
+                                                    className="text-sm text-[#888] truncate overflow-hidden whitespace-nowrap"
+                                                    title={'members'}
+                                                >
+                                                    {group.members?.length || 0} Member{group?.members?.length !== 1 ? "s" : ""}
+                                                </span>
+
+                                            </div>
 
                                         {group?.totalOweList?.length > 0 && (
                                             <div className="flex flex-col items-end">
@@ -216,10 +225,10 @@ const Groups = () => {
                                                     const owed = amount < 0; // negative => you are owed
                                                     return (
                                                         <div key={code} className="leading-tight">
-                                                            <p className={`${owed ? "text-teal-500" : "text-red-500"} text-[11px] text-right`}>
+                                                            <p className={`${owed ? "text-teal-500" : "text-red-500"} text-[${group.totalOweList.length==1?'14px':group.totalOweList.length==2?'12px':'11px'}] text-right`}>
                                                                 {owed ? "you are owed" : "you owe"}
                                                             </p>
-                                                            <p className={`${owed ? "text-teal-500" : "text-red-500"} text-[14px] -mt-[2px] text-right`}>
+                                                            <p className={`${owed ? "text-teal-500" : "text-red-500"} text-[${group.totalOweList.length==1?'17px':group.totalOweList.length==2?'15px':'14px'}] -mt-[2px] text-right`}>
                                                                 {sym} {Math.abs(amount).toFixed(2)}
                                                             </p>
                                                         </div>
@@ -231,8 +240,11 @@ const Groups = () => {
                                     <hr />
                                 </div>
                             ))}
-
+                            <p className="text-center text-sm text-teal-500">
+                                {groups.length} Group{groups?.length > 1 ? "s" : ""}
+                            </p>
                         </div>
+
                     )}
                 </div>
             </div>

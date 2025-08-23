@@ -251,7 +251,7 @@ ${friendLink}`;
                                             </div>
                                             <div className="flex flex-row w-min gap-2">
                                                 <button
-                                                    className="border-[#34C759] text-[#34C759] border h-[40px] px-2 rounded-md hover:bg-[#1b3522]"
+                                                    className="border-teal-500 text-teal-500 border h-[40px] px-2 rounded-md hover:bg-[#1b3522]"
                                                     onClick={() => handleAccept(req._id)}
                                                 >
                                                     Accept

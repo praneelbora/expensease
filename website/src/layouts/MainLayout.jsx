@@ -18,7 +18,7 @@ const MainLayout = ({ children, groupId }) => {
             {!isMobile && <SideNavbar groupId={groupId} />}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 {isMobile && <MobileNavbar groupId={groupId} />}
-                {showWhatsNew && <WhatsNew variant="fab" />}
+                {/* {showWhatsNew && <WhatsNew variant="fab" />} */}
                 <main
                     style={{
                         flex: 1,

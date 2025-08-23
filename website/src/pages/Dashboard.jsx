@@ -567,7 +567,7 @@ const Dashboard = () => {
                     </div>
                 )}
                 </div>
-                <div className="py-2 text-center text-sm text-[#a0a0a0]">
+                {/* <div className="py-2 text-center text-sm text-[#a0a0a0]">
                     New here?{" "}
                     <button
                         className="text-teal-400 underline"
@@ -578,7 +578,7 @@ const Dashboard = () => {
                     >
                         Open the Guide
                     </button>
-                </div>
+                </div> */}
             </div>
             {showExpenseModal && (
                 <ExpenseModal

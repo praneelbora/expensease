@@ -153,3 +153,15 @@ export async function fetchWhatsNew() {
     const data = await res.json();
     return Array.isArray(data.entries) ? data.entries : [];
 }
+
+// services/UserService.js
+export const getSuggestions = async (userToken) => {
+    const res = await fetch(`${BASE_URL}/v1/users/suggestions`, {
+        headers: {
+            "Content-Type": "application/json",
+            "x-auth-token": userToken,
+        },
+    });
+    const responseJson = await res.json()
+    return responseJson
+};

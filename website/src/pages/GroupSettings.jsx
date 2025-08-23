@@ -8,6 +8,7 @@ import { getFriends, sendFriendRequest } from "../services/FriendService";
 import { getGroupExpenses, updateGroupPrivacySetting } from "../services/GroupService";
 import ModalWrapper from "../components/ModalWrapper";
 import { getSymbol } from "../utils/currencies"
+import { fetchReceivedRequests, fetchSentRequests, acceptFriendRequest, rejectFriendRequest } from "../services/FriendService";
 
 import { useMemo } from "react";
 import { logEvent } from "../utils/analytics";
@@ -100,6 +101,22 @@ export default function GroupSettings() {
             console.log("Something went wrong.");
         }
     };
+        const fetchReceived = async () => {
+            try {
+                const data = await fetchReceivedRequests(userToken);
+                setReceivedRequests(data.slice(0, 4)); // show only first 2-4
+            } catch (err) {
+                console.error("Error fetching received requests:", err);
+            }
+        };
+        const fetchSent = async () => {
+            try {
+                const data = await fetchSentRequests(userToken);
+                set(data.slice(0, 4)); // show only first 2-4
+            } catch (err) {
+                console.error("Error fetching received requests:", err);
+            }
+        };
 
 
     async function fetchGroup() {

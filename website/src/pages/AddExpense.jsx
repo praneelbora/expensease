@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { ChevronLeft, Coins, Loader } from "lucide-react";
 import { getFriends } from "../services/FriendService";
 import { getAllGroups, joinGroup } from "../services/GroupService";
+import { getSuggestions } from "../services/UserService";
 import { createExpense } from "../services/ExpenseService";
 import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
 import { CalendarDays } from "lucide-react"; // or use any other icon
@@ -38,7 +39,7 @@ const AddExpense = () => {
     const [paymentMethod, setPaymentMethod] = useState('');
     const [mode, setMode] = useState("equal"); // equal, value, or percent
     const [selectedFriends, setSelectedFriends] = useState([]);
-    const [expenseMode, setExpenseMode] = useState('personal');
+    const [expenseMode, setExpenseMode] = useState('split');
     const [showAllGroups, setShowAllGroups] = useState(false);
     const groupDisplayLimit = 4;
     const [currency, setCurrency] = useState();
@@ -46,6 +47,7 @@ const AddExpense = () => {
     const [showCategoryModal, setShowCategoryModal] = useState();
     const [showCurrencyModal, setShowCurrencyModal] = useState();
     const [showPaymentMethodModal, setShowPaymentMethodModal] = useState();
+    const [suggestions, setSuggestions] = useState();
 
     useEffect(() => {
         setCurrency(defaultCurrency)
@@ -60,10 +62,10 @@ const AddExpense = () => {
         return today.toISOString().split("T")[0]; // format: YYYY-MM-DD
     });
 
-    const visibleGroups = showAllGroups ? filteredGroups : filteredGroups.slice(0, groupDisplayLimit);
     const [showAllFriends, setShowAllFriends] = useState(false);
 
-    const friendDisplayLimit = 4;
+    const friendDisplayLimit = 10;
+    const visibleGroups = showAllGroups ? filteredGroups : filteredGroups.slice(0, groupDisplayLimit);
     const visibleFriends = showAllFriends ? filteredFriends : filteredFriends.slice(0, friendDisplayLimit);
 
     const [deleteConfirmMap, setDeleteConfirmMap] = useState({});
@@ -301,12 +303,22 @@ const AddExpense = () => {
             setLoading(false);
         }
     };
-
-
+    const fetchSuggestions = async () => {
+        try {
+            const data = await getSuggestions(userToken);
+            console.log(data);
+            setSuggestions(data);
+        } catch (error) {
+            console.error("Error loading friends:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         fetchFriends();
         fetchGroups();
+        fetchSuggestions();
     }, []);
 
     const handleOweChange = (friendId, value) => {
@@ -417,22 +429,9 @@ const AddExpense = () => {
         setGroups(updatedGroups);
     };
 
-    const friendFilter = (val) => {
-        const lowerVal = val.toLowerCase();
-        let filtered = friends.map(friend => ({
-            ...friend,
-            selected: selectedFriends.some(sel => sel._id === friend._id)
-        }))
-            .filter(friend =>
-                friend.name.toLowerCase().includes(lowerVal) ||
-                friend.email.toLowerCase().includes(lowerVal)
-            );
 
-        // Sort: selected friends at the top
-        filtered.sort((a, b) => (b.selected === true) - (a.selected === true));
 
-        setFilteredFriends(filtered);
-    };
+
 
     const toggleFriendSelection = (friend) => {
         let updatedSelected;
@@ -541,22 +540,111 @@ const AddExpense = () => {
             setLoading(false);
         }
     };
+    const friendFilter = (val) => {
+        const lowerVal = val.toLowerCase();
+
+        // normalize suggestedIds
+        const suggestedIds = suggestions?.friends.map(f => String(f.friendId));
+
+        // Step 1: enrich friend objects
+        let filtered = friends.map(friend => ({
+            ...friend,
+            selected: selectedFriends.some(sel => String(sel._id) === String(friend._id)),
+            suggested: suggestedIds?.includes(String(friend._id)) // convert to string
+        }));
+
+        if (!val) {
+            // ✅ Case 1: No search → only suggested
+            filtered = filtered.filter(f => f.suggested);
+        } else {
+            // ✅ Case 2: With search → match & sort by priority
+            filtered = filtered.filter(friend =>
+                friend.name.toLowerCase().includes(lowerVal) ||
+                friend.email.toLowerCase().includes(lowerVal)
+            );
+
+            // Sorting: priority to name starting with search
+            filtered.sort((a, b) => {
+                const aName = a.name.toLowerCase();
+                const bName = b.name.toLowerCase();
+
+                // 1️⃣ Name starts with search
+                const aStarts = aName.startsWith(lowerVal);
+                const bStarts = bName.startsWith(lowerVal);
+                if (aStarts !== bStarts) return bStarts - aStarts;
+
+                // 2️⃣ Any word in name starts with search
+                const aWordStarts = aName.split(" ").some(w => w.startsWith(lowerVal));
+                const bWordStarts = bName.split(" ").some(w => w.startsWith(lowerVal));
+                if (aWordStarts !== bWordStarts) return bWordStarts - aWordStarts;
+
+                // 3️⃣ Otherwise just alphabetical
+                return aName.localeCompare(bName);
+            });
+        }
+
+        console.log("Final filtered friends:", filtered);
+        setFilteredFriends(filtered);
+    };
     const groupFilter = (val) => {
         const lowerVal = val.toLowerCase();
+
+        // normalize suggestedIds
+        const suggestedIds = suggestions?.groups.map(g => String(g.groupId));
+
+        // Step 1: enrich group objects
         let filtered = groups.map(group => ({
-            ...group
-        }))
-            .filter(group =>
-                group.name.toLowerCase().includes(lowerVal)
-            );
+            ...group,
+            suggested: suggestedIds?.includes(String(group._id))
+        }));
+
+        if (!val) {
+            // ✅ Case 1: No search → only suggested
+            filtered = filtered.filter(g => g.suggested);
+        } else {
+            // ✅ Case 2: With search → match & sort by priority
+            filtered = filtered.filter(group => {
+                const groupName = group.name.toLowerCase();
+                const memberNames = group.members?.map(m => m.name.toLowerCase()) || [];
+
+                return (
+                    groupName.includes(lowerVal) ||
+                    memberNames.some(name => name.includes(lowerVal))
+                );
+            });
+
+
+            // Sorting: priority to name starting with search
+            filtered.sort((a, b) => {
+                const aName = a.name.toLowerCase();
+                const bName = b.name.toLowerCase();
+
+                // 1️⃣ Name starts with search
+                const aStarts = aName.startsWith(lowerVal);
+                const bStarts = bName.startsWith(lowerVal);
+                if (aStarts !== bStarts) return bStarts - aStarts;
+
+                // 2️⃣ Any word in name starts with search
+                const aWordStarts = aName.split(" ").some(w => w.startsWith(lowerVal));
+                const bWordStarts = bName.split(" ").some(w => w.startsWith(lowerVal));
+                if (aWordStarts !== bWordStarts) return bWordStarts - aWordStarts;
+
+                // 3️⃣ Otherwise alphabetical
+                return aName.localeCompare(bName);
+            });
+        }
+
+        console.log("Final filtered groups:", filtered);
         setFilteredGroups(filtered);
     };
+
+
     useEffect(() => {
         groupFilter('')
-    }, [groups])
+    }, [groups, suggestions])
     useEffect(() => {
         friendFilter('');
-    }, [friends]);
+    }, [friends, suggestions]);
     const initialMountComplete = useRef(false);
 
     useEffect(() => {
@@ -972,32 +1060,42 @@ const AddExpense = () => {
                                     {(val.length === 0 || selectedFriends?.length === 0) && visibleGroups?.length > 0 && (
                                         <div>
                                             {groups.length > 0 && (
-                                                <p className="text-[14px] text-teal-500 uppercase w-full mb-1">GROUPS</p>
+                                                <p className="text-[14px] text-teal-500 uppercase w-full mb-1">{val.length == 0 && "SUGGESTED "}GROUPS</p>
                                             )}
                                             <div className="flex flex-wrap gap-2">
                                                 {visibleGroups.map((group) => (
                                                     <button
                                                         key={group._id}
                                                         onClick={() => toggleGroupSelection(group)}
-                                                        className={`px-3 py-2 rounded-lg border border-[#333] text-[#EBF1D5]`}
+                                                        className="px-3 py-2 rounded-lg border border-[#333] text-[#EBF1D5] flex flex-col items-start"
                                                     >
-                                                        {group.name}
-                                                    </button>))}
+                                                        <span className="font-medium">{group.name}</span>
+                                                        {val.length > 0 && (
+                                                            <span className="text-xs text-gray-400">
+                                                                {group.members
+                                                                    .filter(m => m.name.toLowerCase().includes(val.toLowerCase())).slice(0,2)
+                                                                    .map(m => m.name)
+                                                                    .join(", ")}
+                                                            </span>
+                                                        )}
+                                                    </button>
+                                                ))}
                                             </div>
-                                            {filteredGroups.length > groupDisplayLimit && (
+
+                                            {/* {filteredGroups.length > groupDisplayLimit && (
                                                 <button
                                                     onClick={() => setShowAllGroups(!showAllGroups)}
                                                     className="text-sm text-[#a0a0a0] mt-2 hover:underline"
                                                 >
                                                     {showAllGroups ? 'Show Less' : 'Show More'}
                                                 </button>
-                                            )}
+                                            )} */}
                                         </div>
                                     )}
                                     <div>
                                         {filteredFriends.length > 0 && (
                                             <p className={`text-[14px] text-teal-500 uppercase mb-1 ${(filteredGroups.length > 0 && selectedFriends.length === 0) && 'mt-2'}`}>
-                                                FRIENDS
+                                                {val.length == 0 && "SUGGESTED "}FRIENDS
                                             </p>
                                         )}
                                         <div className="flex flex-wrap gap-2">
@@ -1014,14 +1112,14 @@ const AddExpense = () => {
                                             ))}
                                         </div>
 
-                                        {filteredFriends.length > friendDisplayLimit && (
+                                        {/* {filteredFriends.length > friendDisplayLimit && (
                                             <button
                                                 onClick={() => setShowAllFriends(!showAllFriends)}
                                                 className="text-sm text-[#a0a0a0] mt-2 hover:underline"
                                             >
                                                 {showAllFriends ? 'Show Less' : 'Show More'}
                                             </button>
-                                        )}
+                                        )} */}
                                     </div>
                                 </div>
                             )}

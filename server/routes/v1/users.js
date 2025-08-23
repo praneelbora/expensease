@@ -2,6 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const User = require('../../models/User');
+const Group = require('../../models/Group');
+const Expense = require('../../models/Expense');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const auth = require('../../middleware/auth');
@@ -107,7 +109,7 @@ router.post("/google-login", async (req, res) => {
 
         // 3. Issue your JWT
         const authToken = jwt.sign({ id: user._id }, JWT_SECRET, {
-            expiresIn: "7d",
+            expiresIn: "100d",
         });
 
         // 4. Respond with token and user info
@@ -287,4 +289,141 @@ router.delete('/me', auth, async (req, res) => {
     }
 });
 
+const getFriendSuggestions = async (userId, topN = 5) => {
+  const now = new Date();
+
+  // fetch user's friends first
+  const user = await User.findById(userId).select("friends");
+  const friendIds = user.friends.map(f => new mongoose.Types.ObjectId(f));
+
+  const results = await Expense.aggregate([
+    {
+      $match: {
+        $or: [
+          { createdBy: new mongoose.Types.ObjectId(userId) },
+          { "splits.friendId": new mongoose.Types.ObjectId(userId) }
+        ]
+      }
+    },
+    { $unwind: "$splits" },
+    {
+      $match: { "splits.friendId": { $in: friendIds, $ne: new mongoose.Types.ObjectId(userId) } }
+    },
+    {
+      $group: {
+        _id: "$splits.friendId",
+        frequency: { $sum: 1 },
+        lastSeen: { $max: "$date" }
+      }
+    },
+    {
+      $addFields: {
+        recencyWeight: {
+          $divide: [
+            1,
+            {
+              $add: [
+                {
+                  $divide: [
+                    { $subtract: [now, "$lastSeen"] },
+                    1000 * 60 * 60 * 24
+                  ]
+                },
+                1
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      $addFields: {
+        score: {
+          $add: [
+            { $multiply: [0.6, "$frequency"] },
+            { $multiply: [0.4, "$recencyWeight"] }
+          ]
+        }
+      }
+    },
+    { $sort: { score: -1 } },
+    { $limit: topN },
+    {
+      $lookup: {
+        from: "users",
+        localField: "_id",
+        foreignField: "_id",
+        as: "friend"
+      }
+    },
+    { $unwind: "$friend" },
+    {
+      $project: {
+        _id: 0,
+        friendId: "$friend._id",
+        name: "$friend.name",
+        email: "$friend.email",
+        score: 1
+      }
+    }
+  ]);
+
+  return results;
+};
+
+const getGroupSuggestions = async (userId, topN = 5) => {
+  const results = await Expense.aggregate([
+    {
+      $match: {
+        $or: [
+          { createdBy: new mongoose.Types.ObjectId(userId) },
+          { groupId: { $exists: true, $ne: null } }
+        ]
+      }
+    },
+    {
+      $group: {
+        _id: "$groupId",
+        frequency: { $sum: 1 },
+        lastSeen: { $max: "$date" }
+      }
+    },
+    { $sort: { frequency: -1, lastSeen: -1 } },
+    { $limit: topN },
+    {
+      $lookup: {
+        from: "groups",
+        localField: "_id",
+        foreignField: "_id",
+        as: "group"
+      }
+    },
+    { $unwind: "$group" },
+    {
+      $project: {
+        groupId: "$group._id",
+        name: "$group.name",
+        frequency: 1,
+        lastSeen: 1
+      }
+    }
+  ]);
+
+  return results;
+};
+
+// NEW route
+router.get("/suggestions", auth, async (req, res) => {
+  try {
+    const [friends, groups] = await Promise.all([
+      getFriendSuggestions(req.user.id),
+      getGroupSuggestions(req.user.id)
+    ]);
+
+    res.json({ friends, groups });
+  } catch (error) {
+    console.error("suggestions/ error: ", error);
+    res.status(500).json({ error: error.message });
+  }
+});
 module.exports = router;
