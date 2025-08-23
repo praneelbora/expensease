@@ -338,7 +338,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     if (navigator.share) {
                                         navigator
                                             .share({
-                                                title: "Join my group on SplitFree",
+                                                title: "Join my group on Expensease",
                                                 text: message1,
                                                 url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`,
                                             })
@@ -405,7 +405,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                 if (navigator.share) {
                                                     navigator
                                                         .share({
-                                                            title: "Join my group on SplitFree",
+                                                            title: "Join my group on Expensease",
                                                             text: message1,
                                                             url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`,
                                                         })

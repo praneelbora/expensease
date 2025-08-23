@@ -76,7 +76,7 @@ export function logScreenView(screenName) {
 
     if (typeof window.gtag === "function") {
         window.gtag("event", "screen_view", {
-            app_name: "Split Free",
+            app_name: "Expensease",
             screen_name: cleanName
         });
     } else {

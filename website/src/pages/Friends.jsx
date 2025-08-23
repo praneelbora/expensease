@@ -318,12 +318,20 @@ const Friends = () => {
                                 for (const loan of friendLoans) {
                                     const code = loan?.currency || "INR";
                                     const principal = Number(loan.principal) || 0;
-
+                                    if(loan.status === 'closed') continue; // skip closed loans
                                     if (String(loan.borrowerId._id) === String(friend._id)) {
-                                        // Friend borrowed money from YOU => friend owes you => add positive
+                                        if(loan.status === 'partially_repaid') {
+                                            const principalPaid = loan.repayments.reduce((sum, r) => sum + (r.amount || 0), 0);
+                                            totalsByCode[code] = (totalsByCode[code] || 0) + (principal - principalPaid);
+                                        } 
+                                        else
                                         totalsByCode[code] = (totalsByCode[code] || 0) + principal;
                                     } else if (String(loan.lenderId._id) === String(friend._id)) {
-                                        // Friend lent money TO YOU => you owe friend => subtract
+                                        if(loan.status === 'partially_repaid') {
+                                            const principalPaid = loan.repayments.reduce((sum, r) => sum + (r.amount || 0), 0);                                            
+                                            totalsByCode[code] = (totalsByCode[code] || 0) - (principal - principalPaid);
+                                        } 
+                                        else
                                         totalsByCode[code] = (totalsByCode[code] || 0) - principal;
                                     }
                                 }

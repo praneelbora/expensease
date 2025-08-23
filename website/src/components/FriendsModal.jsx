@@ -38,7 +38,7 @@ export default function FriendsModal({ setShowModal, showModal, fetchFriends }) 
 
     // Invite link + message
     const friendLink = `${import.meta.env.VITE_FRONTEND_URL}/friends/add/${user?._id || ""}`;
-    const message = `Let's connect on SplitFree! 🤝
+    const message = `Let's connect on Expensease! 🤝
 
 Tap this link to login and send me a friend request:
 ${friendLink}`;
@@ -53,8 +53,8 @@ ${friendLink}`;
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: "Add me on SplitFree!",
-                    text: "Join me on SplitFree and send me a friend request:",
+                    title: "Add me on Expensease!",
+                    text: "Join me on Expensease and send me a friend request:",
                     url: friendLink,
                 });
                 return;

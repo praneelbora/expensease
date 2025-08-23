@@ -200,7 +200,7 @@ export default function GroupsModal({ setShowModal, showModal, fetchGroups }) {
                             <button
                                 onClick={() =>
                                     copy(
-                                        `Join my group on SplitFree using this code: ${groupCreatedCode}
+                                        `Join my group on Expensease using this code: ${groupCreatedCode}
 Click this link to login & join now:
 ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
                                     )
@@ -215,8 +215,8 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
                             <button
                                 onClick={() => {
                                     const shareData = {
-                                        title: "Join my SplitFree group",
-                                        text: `Use code ${groupCreatedCode} to join my group on SplitFree.`,
+                                        title: "Join my Expensease group",
+                                        text: `Use code ${groupCreatedCode} to join my group on Expensease.`,
                                         url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`,
                                     };
                                     if (navigator.share) {

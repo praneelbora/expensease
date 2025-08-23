@@ -68,8 +68,6 @@ const Account = () => {
         setDcStatus('saving');
         setDcError('');
         try {
-            console.log(curr);
-
             await updateUserProfile(userToken, {
                 defaultCurrency: curr
             });
@@ -306,8 +304,6 @@ const Account = () => {
                                 value={dc}
                                 options={currencyOptions}
                                 onSelect={(cur) => {
-                                    console.log(cur);
-
                                     setDc(cur)
                                     saveCurrencyPrefs(cur)
                                 }}

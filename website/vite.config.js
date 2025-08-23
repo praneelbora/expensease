@@ -20,9 +20,9 @@ export default defineConfig({
         'icons/image512.png',
       ],
       manifest: {
-        name: 'SplitFree',
-        short_name: 'SplitFree',
-        description: 'Track group expenses and balances',
+        name: 'Expensease',
+        short_name: 'Expensease',
+        description: 'Expensease is a comprehensive expense management app that helps users effortlessly split expenses with friends and groups, track loans among contacts, and monitor personal spending through categorized expenses. With customizable accounts to manage finances effectively, Expensease simplifies budgeting and fosters financial transparency in social and personal contexts.',
         theme_color: '#1f1f1f',
         background_color: '#1f1f1f',
         display: 'standalone',

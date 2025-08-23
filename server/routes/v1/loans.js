@@ -146,11 +146,12 @@ router.post('/:id/repay', auth, async (req, res) => {
             recieverMethodId: recieverMethodId || null,
             at: new Date(),
         });
-
+        console.log(paymentMethodId, recieverMethodId, currency);
+        
         // Update payer's balance: decrement available by repayment amount
         if (paymentMethodId) {
             await PaymentMethod.updateOne(
-                { _id: paymentMethodId, userId: req.user.id },
+                { _id: paymentMethodId },
                 { $inc: { [`balances.${currency}.available`]: -Math.abs(amount) } },
                 { session }
             );
@@ -163,12 +164,12 @@ router.post('/:id/repay', auth, async (req, res) => {
                 loan.lenderId.toString() === req.user.id ? loan.borrowerId : loan.lenderId;
 
             await PaymentMethod.updateOne(
-                { _id: recieverMethodId, userId: receiverUserId },
+                { _id: recieverMethodId },
                 { $inc: { [`balances.${currency}.available`]: Math.abs(amount) } },
                 { session }
             );
         }
-
+        loan.status = 'partially_repaid'; // Update status if not already closed
         await loan.save({ session });
 
         await session.commitTransaction();

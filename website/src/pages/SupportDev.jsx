@@ -64,7 +64,6 @@ export default function Support() {
                             <ul className="list-disc list-inside text-[#888] text-sm space-y-1">
                                 <li>Server & hosting costs</li>
                                 <li>Building new features faster</li>
-                                <li>Keeping the app free and ad-free</li>
                                 <li>Buying coffee to stay up late and fix bugs ☕</li>
                             </ul>
                         </div>

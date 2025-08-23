@@ -98,8 +98,8 @@ export default function LoanViewModal({
                     currency: currency,
                     amount: amt,
                     note: repayNote,
-                    paymentMethodId: youAreLender ? party.selectedPaymentMethodId : counterParty.selectedPaymentMethodId,
-                    recieverMethodId: !youAreLender ? party.selectedPaymentMethodId : counterParty.selectedPaymentMethodId
+                    paymentMethodId: !youAreLender ? party.selectedPaymentMethodId : counterParty.selectedPaymentMethodId,
+                    recieverMethodId: youAreLender ? party.selectedPaymentMethodId : counterParty.selectedPaymentMethodId
                 },
                 userToken
             );

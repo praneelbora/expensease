@@ -4,7 +4,6 @@ const router = express.Router();
 const User = require('../../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
 const auth = require('../../middleware/auth');
 const DefaultCategories = require('../../assets/Categories').default;
 const { OAuth2Client } = require("google-auth-library");
@@ -137,8 +136,7 @@ router.patch('/profile', auth, async (req, res) => {
             defaultCurrency,
             preferredCurrencies,
         } = req.body || {};
-        console.log(req.body);
-        
+
         const update = {};
 
         // --- Basic fields ---
@@ -206,7 +204,6 @@ router.patch('/profile', auth, async (req, res) => {
                 email: user.email,
                 profilePic: user.profilePic,
                 upiId: user.upiId || null,
-                upiids: user.upiids || [],
                 defaultCurrency: user.defaultCurrency || 'INR',
                 preferredCurrencies: user.preferredCurrencies || ['INR'],
                 customCategories: user.customCategories || [],

@@ -3,13 +3,13 @@
 ![Forks](https://img.shields.io/github/forks/praneelbora/splitfree)
 ![Stars](https://img.shields.io/github/stars/praneelbora/splitfree)
 
-# 🧾 SplitFree – Simplified Group Expense Tracker
+# 🧾 Expensease – Simplified Group Expense Tracker
 
-**SplitFree** is being developed as a **free and open-source alternative** to expense splitting apps, with a strong focus on transparency, simplicity, and user control. I believe expense tracking shouldn't be locked behind paywalls or ads, and everyone deserves a tool they can trust and contribute to.
+**Expensease** is being developed as a **free and open-source alternative** to expense splitting apps, with a strong focus on transparency, simplicity, and user control. I believe expense tracking shouldn't be locked behind paywalls or ads, and everyone deserves a tool they can trust and contribute to.
 
 ---
 
-✨ **Now open for contributions** – Help improve SplitFree and shape it into the best open-source expense tracker!
+✨ **Now open for contributions** – Help improve Expensease and shape it into the best open-source expense tracker!
 
 ---
 
@@ -38,7 +38,7 @@
 
 ## 🤝 Contributing
 
-SplitFree is open to contributions from developers of all experience levels! Whether you're fixing a bug, adding a feature, or improving documentation — you're welcome.
+Expensease is open to contributions from developers of all experience levels! Whether you're fixing a bug, adding a feature, or improving documentation — you're welcome.
 
 ### How to Contribute
 

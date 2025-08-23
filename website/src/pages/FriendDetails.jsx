@@ -98,8 +98,7 @@ const FriendDetails = () => {
         navigate('/account?section=paymentMethod')
     };
     const updateFriendsPaymentMethods = async (list) => {
-        const map = await fetchFriendsPaymentMethods(list, userToken); // { [friendId]: PaymentMethod[] }
-
+        const map = await fetchFriendsPaymentMethods(list, userToken); // { [friendId]: PaymentMethod[] }        
         setCounterParty((prev) => {
             const raw = map[prev._id];
             const methods = raw;
