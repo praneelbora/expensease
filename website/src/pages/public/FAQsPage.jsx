@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import SEO from "../../components/SEO";
 import Navbar from "../../components/NavBar";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import Footer from "../../components/Footer";
 
 const faqs = [
     {
@@ -102,7 +103,7 @@ const FAQ = () => {
                 description="Frequently asked questions about Expensease and how it works."
             />
             <Navbar />
-            <div className="min-h-screen bg-[#121212] p-6 pt-[100px]">
+            <div className="min-h-screen bg-[#121212] p-12 mt-[80px]">
                 <h1 className="text-3xl font-bold text-center mb-12 text-white">
                     Frequently Asked Questions
                 </h1>
@@ -135,6 +136,7 @@ const FAQ = () => {
                     ))}
                 </div>
             </div>
+            <Footer />
         </>
     );
 };

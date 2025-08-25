@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Cookies from "js-cookie";
 import SEO from "../../components/SEO";
 import NavBar from "../../components/NavBar";
+import Footer from "../../components/Footer";
 
 const LandingPage = () => {
     const userToken = Cookies.get("userToken"); // or whatever key you use
@@ -68,6 +69,7 @@ const LandingPage = () => {
                     </div>
                 </div>
             </section>
+            <Footer />
         </>
     );
 };

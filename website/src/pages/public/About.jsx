@@ -2,6 +2,7 @@ import React from "react";
 import SEO from "../../components/SEO";
 import NavBar from "../../components/NavBar";
 import { Users, DollarSign, Shield } from "lucide-react";
+import Footer from "../../components/Footer";
 
 const About = () => {
   return (
@@ -11,7 +12,7 @@ const About = () => {
         description="Learn more about Expensease, our mission, and how we help you track expenses."
       />
       <NavBar />
-      <div className="min-h-screen bg-[#121212] p-6 pt-[100px]">
+            <div className="min-h-[100dvh] bg-[#121212] p-12 pt-[120px]">
         <div className="max-w-5xl mx-auto text-center space-y-10 text-white">
 
           {/* Hero Section */}
@@ -58,6 +59,7 @@ const About = () => {
 
         </div>
       </div>
+      <Footer />
     </>
   );
 };

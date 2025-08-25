@@ -2,6 +2,7 @@ import React from "react";
 import SEO from "../../components/SEO";
 import NavBar from "../../components/NavBar";
 import { Users, PieChart, Lock, Handshake, DollarSign } from "lucide-react";
+import Footer from "../../components/Footer";
 
 const features = [
     {
@@ -45,7 +46,7 @@ const Features = () => {
                 canonical="https://www.expensease.in/features"
             />
             <NavBar />
-            <div className="min-h-screen bg-[#121212] p-6 pt-[100px]">
+            <div className="min-h-[100dvh] bg-[#121212] p-12 pt-[120px]">
                 <h1 className="text-4xl font-bold text-center mb-12 text-white">Features</h1>
                 <div className="max-w-6xl mx-auto grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {features.map((feature, i) => (
@@ -60,6 +61,7 @@ const Features = () => {
                     ))}
                 </div>
             </div>
+            <Footer />
         </>
     );
 };
