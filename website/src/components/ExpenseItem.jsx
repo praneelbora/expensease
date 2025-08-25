@@ -63,7 +63,7 @@ const ExpenseItem = ({
             className={`flex flex-row w-full items-center gap-2 min-h-[${isSettle ? 40 : 50}px]`}
         >
             {/* Date */}
-            <div className="flex flex-col justify-center items-center">
+            <div className="flex flex-col justify-center items-center text-[#81827C]">
                 <p className="text-[13px] uppercase">{month}</p>
                 <p className="text-[18px] -mt-[6px]">{day}</p>
             </div>
@@ -73,11 +73,11 @@ const ExpenseItem = ({
 
             {/* Optional emoji */}
 
-            <div className="flex flex-col justify-center items-center">
+            {getEmojiForCategory?.(expense.typeOf == 'expense' ? expense.category : 'settle') && <div className="flex flex-col justify-center items-center">
                 <p className="text-[18px] -mt-[6px]">
                     {getEmojiForCategory?.(expense.typeOf == 'expense' ? expense.category : 'settle')}
                 </p>
-            </div>
+            </div>}
 
             {/* Main content */}
             <div className="flex grow flex-row justify-between items-center gap-4 min-w-0">
@@ -86,14 +86,14 @@ const ExpenseItem = ({
                     {!isSettle ? (
                         <>
                             <p className="text-[18px] capitalize truncate">{expense.description}</p>
-                            <p className="text-[13px] text-[#81827C] capitalize -mt-[6px]">
+                            <p className="text-[13px] text-[#81827C] -mt-[6px]">
                                 {isSplit
                                     ? `${getPayerInfo(expense.splits)} ${getPayerInfo(expense.splits) !== 'You were not involved' ? `${getSymbol('en-IN', expense.currency)} ${expense.amount.toFixed(2)}` : ''}`
                                     : expense.category}
                             </p>
                         </>
                     ) : (
-                        <p className="text-[13px] text-[#81827C] capitalize">
+                        <p className="text-[13px] text-[#81827C]">
                             {getSettleDirectionText(expense.splits)} {getSymbol('en-IN', expense.currency)} {expense.amount.toFixed(2)}
                         </p>
                     )}

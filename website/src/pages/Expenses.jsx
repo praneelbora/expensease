@@ -2,20 +2,24 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
 import ExpenseModal from "../components/ExpenseModal";
 import { useAuth } from "../context/AuthContext";
-import { ChevronLeft, Loader, Plus } from "lucide-react";
+import { ChevronLeft, Loader, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { getAllExpenses } from '../services/ExpenseService';
 import ExpenseItem from "../components/ExpenseItem"; // Adjust import path
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies"
-
+import FilterModal from "../components/FilterModal"
 const Expenses = () => {
     const { user, userToken, defaultCurrency, preferredCurrencies, categories, paymentMethods } = useAuth() || {};
     const [loading, setLoading] = useState(true);
     const [expenses, setExpenses] = useState([]);
     const [userId, setUserId] = useState();
+    const [showSearch, setShowSearch] = useState(false);
+    const [query, setQuery] = useState("");
     const [showModal, setShowModal] = useState(false);
+    const [showFilterModal, setShowFilterModal] = useState(false);
+    const [appliedFilter, setAppliedFilter] = useState({});
     const navigate = useNavigate();
     const currencyOptions = toCurrencyOptions(getAllCurrencyCodes());
     const getSettleDirectionText = (splits) => {
@@ -59,11 +63,111 @@ const Expenses = () => {
         { key: "friend", label: "Friend Expenses" },
     ];
 
+    const filters = useMemo(() => {
+        const s = new Set();
+
+        expenses?.forEach(e => {
+            let key = null;
+
+            if (e?.typeOf === "settle") {
+                key = "settle";
+            } else if (e?.typeOf === "expense") {
+                if (e.mode === "personal") {
+                    // personal expenses without group
+                    key = e.groupId ? "group" : "friend";
+                } else if (e.mode === "split") {
+                    // split mode always means group expense
+                    key = "group";
+                }
+            }
+
+            if (key) s.add(key);
+        });
+
+        const arr = Array.from(s).sort();
+
+        const mapped = arr.map(type => ({
+            key: type,
+            label:
+                type === "settle" ? "Settlements" :
+                    type === "personal" ? "Personal Expenses" :
+                        type === "group" ? "Group Expenses" :
+                            type === "friend" ? "Friend Expenses" :
+                                type.charAt(0).toUpperCase() + type.slice(1)
+        }));
+
+        return [{ key: "all", label: "All Expenses" }, ...mapped];
+    }, [expenses]);
+
+
     const orderedFilters = useMemo(() => {
         const sel = FILTERS.find(f => f.key === filter) || FILTERS[0];
         const rest = FILTERS.filter(f => f.key !== sel.key);
         return [sel, ...rest];
     }, [filter]);
+    const filteredExpenses = useMemo(() => {
+        const filterExpenses = (
+            expenses,
+            { type = "all", category = "all", currency = "", query = "", sort = "newest" }
+        ) => {
+            let filtered = [...expenses];
+
+            // 1️⃣ Type filter
+            if (type !== "all") {
+                filtered = filtered.filter(exp => {
+                    switch (type) {
+                        case "settle":
+                            return exp.typeOf === "settle";
+                        case "personal":
+                            return !exp.groupId && exp.typeOf !== "settle" && (exp.splits?.length ?? 0) === 0;
+                        case "group":
+                            return exp.groupId && exp.typeOf !== "settle";
+                        case "friend":
+                            return !exp.groupId && exp.typeOf !== "settle" && (exp.splits?.length ?? 0) > 0;
+                        default:
+                            return true;
+                    }
+                });
+            }
+
+            // 2️⃣ Category filter
+            if (category !== "all") {
+                filtered = filtered.filter(exp => (exp?.category || "") === category);
+            }
+
+            // 3️⃣ Currency filter
+            if (currency) {
+                filtered = filtered.filter(exp => exp.currency === currency);
+            }
+
+            // 4️⃣ Search / Query filter
+            if (query && query.trim() !== "") {
+                const q = query.trim().toLowerCase();
+                filtered = filtered.filter(exp => {
+                    const inDesc = (exp.description || "").toLowerCase().includes(q);
+                    const inNames = (exp.splits || []).some(
+                        s => s.friendId && s.friendId.name.toLowerCase().includes(q)
+                    );
+                    const inAmount = exp.amount?.toString().toLowerCase().includes(q);
+                    const inCurrency = exp.currency?.toLowerCase().includes(q);
+                    return inDesc || inNames || inAmount || inCurrency;
+                });
+            }
+
+            // 5️⃣ Sort
+            if (sort === "newest") {
+                filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+            } else if (sort === "oldest") {
+                filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
+            }
+
+            return filtered;
+        };
+
+        // ✅ Call it with current props/state
+        return filterExpenses(expenses, appliedFilter);
+    }, [expenses, filter, category, appliedFilter, query]);
+
 
     const categoryOptions = useMemo(() => {
         const s = new Set();
@@ -166,21 +270,17 @@ const Expenses = () => {
                         <h1 className="text-3xl font-bold capitalize">All Expenses</h1>
                     </div>
 
-                    <button
-                        className={`flex flex-col items-center justify-center z-10 bg-teal-500 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
+                    {/* <button
                         onClick={() => {
-                            logEvent('navigate', {
-                                screen: 'expenses', to: 'add_expense', source: 'plus'
-                            });
-                            navigate('/new-expense')
+                            setShowSearch(!showSearch);
                         }}
                     >
-                        <Plus strokeWidth={3} size={20} />
-                    </button>
+                        <Search strokeWidth={3} size={20} />
+                    </button> */}
                 </div>
                 {/* Type filter */}
-                <div className="flex gap-2 flex-row my-3 overflow-x-auto no-scrollbar">
-                    {FILTERS.map(({ key, label }) => (
+                {/* {expenses.length>0 && filters.length>2 && <div className="flex gap-2 flex-row my-3 overflow-x-auto no-scrollbar">
+                    {filters.map(({ key, label }) => (
                         <button
                             key={key}
                             onClick={() => setFilter(filter === key ? "all" : key)}
@@ -192,10 +292,10 @@ const Expenses = () => {
                             {label}
                         </button>
                     ))}
-                </div>
+                </div>} */}
 
                 {/* Category filter */}
-                <div className="flex gap-2 flex-row mb-3 overflow-x-auto no-scrollbar">
+                {/* {expenses.length>0 && categoryOptions.length>2 && <div className={`flex gap-2 flex-row ${!(expenses.length>0 && filters.length>2) && 'mt-3'} mb-3 overflow-x-auto no-scrollbar`}>
                     {categoryOptions.map((cat) => (
                         <button
                             key={cat}
@@ -210,7 +310,20 @@ const Expenses = () => {
                             {cat === "all" ? "All Categories" : cat}
                         </button>
                     ))}
-                </div>
+                </div>} */}
+                {expenses.length > 0 && <div className="w-full flex flex-ro gap-2 items-center mt-2 mb-2">
+
+                    <input
+                        className={`flex-1 bg-[#121212] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3`}
+                        placeholder="Search Descriptions / Names / Amounts / Currencies"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                    />
+                    <button onClick={() => setShowFilterModal(true)} className={`p-2 rounded-md bg-[#212121] ${(appliedFilter.category !== "all" || appliedFilter.type !== "all" || appliedFilter.sort !== "newest") ? 'text-teal-600 ring-1 ring-inset ring-teal-500' : ' text-[#EBF1D5]'}`}>
+
+                        <SlidersHorizontal />
+                    </button>
+                </div>}
 
                 <div
                     ref={scrollRef}
@@ -224,36 +337,33 @@ const Expenses = () => {
                             <div className="flex flex-col justify-center items-center flex-1 py-5">
                                 <p>No expenses found.</p>
                             </div>
-                        ) : expenses
-                            ?.sort((a, b) => new Date(b.date) - new Date(a.date))
-                            ?.filter((exp) => {
-                                // type filter
-                                const matchesType =
-                                    filter === "all" ? true :
-                                        filter === "settle" ? exp.typeOf === "settle" :
-                                            filter === "personal" ? (!exp.groupId && exp.typeOf !== "settle" && (exp.splits?.length ?? 0) === 0) :
-                                                filter === "group" ? (exp.groupId && exp.typeOf !== "settle") :
-                                                    filter === "friend" ? (!exp.groupId && exp.typeOf !== "settle" && (exp.splits?.length ?? 0) > 0) :
-                                                        true;
-
-                                if (!matchesType) return false;
-
-                                // category filter
-                                if (category === "all") return true;
-                                return (exp?.category || "").toString() === category;
-                            })
-
-                            .map((exp) => (
-                                <ExpenseItem
-                                    key={exp._id}
-                                    expense={exp}
-                                    onClick={setShowModal}
-                                    getPayerInfo={getPayerInfo}
-                                    getOweInfo={getOweInfo}
-                                    getSettleDirectionText={getSettleDirectionText}
-                                    userId={userId}
-                                />
-                            ))}
+                        ) : filteredExpenses?.length === 0 ? (
+                            <div className="flex flex-col justify-center items-center flex-1 py-5 text-[#888]">
+                                <p>No results found. Please <button
+                                    className="text-teal-500 underline"
+                                    onClick={() => {
+                                        setAppliedFilter({
+                                            category: 'all',
+                                            type: 'all',
+                                            currency: '',
+                                            sort: 'newest'
+                                        });
+                                    }}
+                                >
+                                    Clear Filters
+                                </button></p>
+                            </div>
+                        ) : filteredExpenses?.map((exp) => (
+                            <ExpenseItem
+                                key={exp._id}
+                                expense={exp}
+                                onClick={setShowModal}
+                                getPayerInfo={getPayerInfo}
+                                getOweInfo={getOweInfo}
+                                getSettleDirectionText={getSettleDirectionText}
+                                userId={userId}
+                            />
+                        ))}
                     </ul>
                 </div>
             </div>
@@ -269,6 +379,17 @@ const Expenses = () => {
                     defaultCurrency={defaultCurrency}
                     preferredCurrencies={preferredCurrencies}
                     paymentMethods={paymentMethods}
+                />
+            )}
+            {showFilterModal && (
+                <FilterModal
+                    show={showFilterModal}
+                    onClose={() => setShowFilterModal(false)}
+                    onApply={(f) => setAppliedFilter(f)}
+                    selectedFilters={appliedFilter}
+                    filters={FILTERS}
+                    categories={categoryOptions}
+                    defaultCurrency=""
                 />
             )}
         </MainLayout>

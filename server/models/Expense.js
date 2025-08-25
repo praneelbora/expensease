@@ -36,7 +36,9 @@ const expenseSchema = new mongoose.Schema(
         typeOf: { type: String, enum: ['expense', 'settle', 'income', 'loan'], default: 'expense' },
         category: { type: String }, // New field to store expense category
         paidFromPaymentMethodId: { type: mongoose.Schema.Types.ObjectId, ref: "PaymentMethod" },
-        receivedToPaymentMethodId: { type: mongoose.Schema.Types.ObjectId, ref: "PaymentMethod" },  // friend's "get paid to"
+        receivedToPaymentMethodId: { type: mongoose.Schema.Types.ObjectId, ref: "PaymentMethod" },  // friend's "get paid to",
+        settled: { type: Boolean, default: false }, // Has the expense been settled
+        settledAt: { type: Date }, // When was it settled
     },
     { timestamps: true }
 );

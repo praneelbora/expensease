@@ -127,7 +127,7 @@ const Guide = () => {
                                     "Balances always rendered but blurred.",
                                     "Tap “View balances” to reveal for 5s.",
                                 ]}
-                                action={{ label: "Manage Methods", onClick: () => navigate("/paymentMethods") }}
+                                action={{ label: "Manage Payment Accounts", onClick: () => navigate("/paymentMethods") }}
                             />
                             <Feature
                                 icon={Coins}
@@ -233,10 +233,10 @@ const Guide = () => {
 
                     {/* FAQ */}
                     <Section ref={refs.faq} id="faq" title="FAQ" icon={HelpCircle}>
-                        <Faq
+                        {/* <Faq
                             q="Why are balances blurred?"
                             a="Privacy by default. Tap “View balances” to reveal for 5 seconds; they auto-blur again."
-                        />
+                        /> */}
                         <Faq
                             q="I can’t Save in Split mode — what did I miss?"
                             a="Make sure: payers’ amounts add up to the total, each payer with multiple methods has chosen one, and owed amounts (or percentages) match the total or 100%."
@@ -256,7 +256,7 @@ const Guide = () => {
                             </div>
                             <div className="flex flex-col w-full gap-2">
                                 <Primary onClick={() => navigate("/new-expense")} icon={Plus}>Add Expense</Primary>
-                                <Ghost onClick={() => navigate("/paymentMethods")} icon={Wallet}>Manage Methods</Ghost>
+                                <Ghost onClick={() => navigate("/paymentMethods")} icon={Wallet}>Manage Payment Accounts</Ghost>
                             </div>
                         </div>
                     </div>

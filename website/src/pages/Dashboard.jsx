@@ -9,7 +9,7 @@ import {
     BarChart, Bar, XAxis, YAxis, ResponsiveContainer
 } from "recharts";
 import { useNavigate } from "react-router-dom";
-import { Loader, Plus } from "lucide-react";
+import { Loader, Menu, Plus } from "lucide-react";
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies"
@@ -341,6 +341,18 @@ const Dashboard = () => {
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">Dashboard</h1>
+                    <div className="flex flex-row items-center justify-end align-middle">
+                        <button
+                            className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
+                            onClick={() => {
+                                logEvent('navigate',
+                                    { screen: 'dashboard', to: 'guide', source: 'header' }
+                                );
+                                navigate(`/guide`)
+                            }} >
+                            <Menu strokeWidth={2} size={30} />
+                        </button>
+                    </div>
                 </div>
                 <div
                     ref={scrollRef}

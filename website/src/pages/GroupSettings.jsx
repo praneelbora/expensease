@@ -26,6 +26,8 @@ export default function GroupSettings() {
     const [confirmAction, setConfirmAction] = useState(null);
     // 'leave' | 'delete' | null
     const [busyAction, setBusyAction] = useState(false);
+    const [receivedRequests, setReceivedRequests] = useState([]);
+    const [sentRequests, setSentRequests] = useState([]);
 
 
     // ...
@@ -90,33 +92,45 @@ export default function GroupSettings() {
         fetchGroup();
         fetchGroupExpenses()
         fetchFriends();
+        fetchReceived()
+        fetchSent()
     }, [id]);
     const addFriend = async (email) => {
         try {
             const data = await sendFriendRequest(email, userToken)
             console.log(data.message || "Friend request sent!");
             fetchFriends();
+            fetchSent()
         } catch (err) {
             console.error("Error adding friend:", err);
             console.log("Something went wrong.");
         }
     };
-        const fetchReceived = async () => {
-            try {
-                const data = await fetchReceivedRequests(userToken);
-                setReceivedRequests(data.slice(0, 4)); // show only first 2-4
-            } catch (err) {
-                console.error("Error fetching received requests:", err);
-            }
-        };
-        const fetchSent = async () => {
-            try {
-                const data = await fetchSentRequests(userToken);
-                set(data.slice(0, 4)); // show only first 2-4
-            } catch (err) {
-                console.error("Error fetching received requests:", err);
-            }
-        };
+    const fetchReceived = async () => {
+        try {
+            const data = await fetchReceivedRequests(userToken);
+            const map = new Map();
+            data.forEach((req) => {
+                map.set(req.sender._id, req._id); // store requestId
+            });
+            setReceivedRequests(map);
+        } catch (err) {
+            console.error("Error fetching received requests:", err);
+        }
+    };
+
+    const fetchSent = async () => {
+        try {
+            const data = await fetchSentRequests(userToken);
+            const map = new Map();
+            data.forEach((req) => {
+                map.set(req.receiver._id, req._id); // store requestId
+            });
+            setSentRequests(map);
+        } catch (err) {
+            console.error("Error fetching sent requests:", err);
+        }
+    };
 
 
     async function fetchGroup() {
@@ -262,13 +276,49 @@ export default function GroupSettings() {
                                                     {/* {group?.admins?.includes(member._id) && <span className="ml-2 text-xs bg-gray-200 px-1 rounded">Admin</span>} */}
                                                 </div>
                                                 <div className="space-x-2">
-                                                    {(!isMe && !isFriend) && (
-                                                        <button
-                                                            onClick={() => addFriend(member.email)}
-                                                            className="text-sm text-teal-500"
-                                                        >
-                                                            Add Friend
-                                                        </button>
+                                                    {(!isMe && !isFriend) && (<>
+
+                                                        {!sentRequests.has(member._id) && !receivedRequests.has(member._id) ? (
+                                                            <button
+                                                                onClick={() => addFriend(member.email)}
+                                                                className="text-sm text-teal-500"
+                                                            >
+                                                                Add Friend
+                                                            </button>
+                                                        ) : sentRequests.has(member._id) ? (
+                                                            <button
+                                                                disabled
+                                                                className="text-sm text-gray-500 cursor-not-allowed"
+                                                            >
+                                                                Request Sent
+                                                            </button>
+                                                        ) : (
+                                                            <div className="flex flex-row gap-3">
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        const requestId = receivedRequests.get(member._id);
+                                                                        await acceptFriendRequest(requestId, userToken);
+                                                                        fetchFriends();
+                                                                        fetchReceived();
+                                                                    }}
+                                                                    className="text-sm text-teal-500 border-b-1 border-teal-500"
+                                                                >
+                                                                    Accept
+                                                                </button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        const requestId = receivedRequests.get(member._id);
+                                                                        await rejectFriendRequest(requestId, userToken);
+                                                                        fetchReceived();
+                                                                    }}
+                                                                    className="text-sm text-red-500 border-b-1 border-red-500"
+                                                                >
+                                                                    Reject
+                                                                </button>
+                                                            </div>
+                                                        )}
+
+                                                    </>
                                                     )}
                                                     {group?.createdBy?._id === user?._id && (
                                                         <>

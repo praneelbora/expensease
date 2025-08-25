@@ -62,9 +62,6 @@ export default function ExpenseModal({
         splits = [],
         auditLog
     } = showModal || {};
-    useEffect(() => {
-        if (TEST_MODE) console.log('Page: ExpenseModal\nLine 63\nshowModal: ', showModal)
-    }, [])
 
     const [loading, setLoading] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -742,19 +739,19 @@ export default function ExpenseModal({
             )}
         </>
     );
-    if(loading)
-    return (
-        <ModalWrapper
-            show={!!showModal}
-            onClose={close}
-            title={`${isEditing ? "Edit" : ""} ${typeOf == 'expense' ? mode : 'Settle'} Expense`.trim()}
-            size="lg"
-        >
-            <div className="w-full flex flex-col justify-center items-center">
-                <Loader />
-            </div>
-        </ModalWrapper> 
-    )
+    if (loading)
+        return (
+            <ModalWrapper
+                show={!!showModal}
+                onClose={close}
+                title={`${isEditing ? "Edit" : ""} ${typeOf == 'expense' ? mode : 'Settle'} Expense`.trim()}
+                size="lg"
+            >
+                <div className="w-full flex flex-col justify-center items-center">
+                    <Loader />
+                </div>
+            </ModalWrapper>
+        )
     return (
         <ModalWrapper
             show={!!showModal}

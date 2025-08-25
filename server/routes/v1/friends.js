@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../../models/User');
+const Expense = require('../../models/Expense');
+const Loan = require('../../models/Loan');
+
 const FriendRequest = require('../../models/FriendRequest');
 const bcrypt = require('bcryptjs');
 const auth = require("../../middleware/auth");
@@ -112,7 +115,6 @@ router.post('/reject', auth, async (req, res) => {
     try {
         const { requestId } = req.body;
         const request = await FriendRequest.findById(requestId);
-
         if (!request || request.receiver.toString() !== req.user.id) {
             return res.status(403).json({ msg: 'Not authorized' });
         }
@@ -252,6 +254,62 @@ router.get('/:friendId', auth, async (req, res) => {
         res.status(200).json({ friend: user, id: req.user.id });
     } catch (error) {
         console.error('getFriendDetails error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST /v1/friends/remove
+router.post('/remove', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { friendId } = req.body;
+
+        if (userId === friendId) {
+            return res.status(400).json({ message: "Cannot remove yourself as a friend" });
+        }
+
+        // 1. Check unsettled expenses (where mode: 'split' and either owes or is owed)
+        const unsettledExpenses = await Expense.find({
+            mode: 'split',
+            groupId: null, // not part of a group
+            "splits.friendId": { $all: [userId, friendId] }, // both are in splits
+            $expr: { $eq: [{ $size: "$splits" }, 2] }, // exactly two splits
+            "splits.oweAmount": { $gt: 0 } // at least one owes
+        });
+
+        // 2. Check unsettled loans (status not 'closed' between the two)
+        const unsettledLoans = await Loan.find({
+            $or: [
+                { lenderId: userId, borrowerId: friendId, status: { $ne: 'closed' } },
+                { lenderId: friendId, borrowerId: userId, status: { $ne: 'closed' } }
+            ]
+        });
+
+        if (unsettledExpenses.length > 0 || unsettledLoans.length > 0) {
+            return res.status(400).json({
+                message: "Cannot remove friend until all shared expenses and loans are settled",
+                unsettledExpenses: unsettledExpenses.length,
+                unsettledLoans: unsettledLoans.length
+            });
+        }
+
+        // All clear—remove friend relationship
+        const user = await User.findById(userId);
+        const friend = await User.findById(friendId);
+
+        if (!user || !friend) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        user.friends = user.friends.filter(id => id.toString() !== friendId);
+        friend.friends = friend.friends.filter(id => id.toString() !== userId);
+
+        // await user.save();
+        // await friend.save();
+
+        res.status(200).json({ message: "Friend removed successfully" });
+    } catch (error) {
+        console.error('friends/remove error:', error);
         res.status(500).json({ error: error.message });
     }
 });

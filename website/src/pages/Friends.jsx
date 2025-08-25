@@ -263,29 +263,35 @@ const Friends = () => {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-1 gap-x-4">
                             {receivedRequests.length > 0 && (
-                                <div className="rounded-lg bg-[#212121] p-3 mb-2 border border-[#333]">
-                                    <h2 className="text-teal-500 uppercase">Friend Requests</h2>
-                                    {/* <hr /> */}
-                                    {receivedRequests.map((req) => {
-                                        return (
-                                            <div className="flex flex-col gap-2 mt-2">
-                                                <div className="flex flex-row w-full h-[50px] justify-between items-center">
-                                                    <div className="flex flex-col h-full justify-around">
-                                                        <p className="text-xl font-semibold text-[#EBF1D5] capitalize">{req.sender.name}</p>
-                                                        <p className="text-sm text-[#888] lowercase">{req.sender.email}</p>
+                                <div className="mt-1 border border-[#212121] rounded-xl ">
+                                    <div className="bg-[#212121] px-4 py-3 border-b border-[#212121] rounded-t-xl">
+                                        <h3 className="text-sm tracking-wide uppercase text-teal-500">FRIEND REQUESTS</h3>
+                                    </div>
+
+                                    <hr className="border-[#212121]" />
+                                    <div className="px-4 pb-4 pt-1 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                                        {/* <hr /> */}
+                                        {receivedRequests.map((req) => {
+                                            return (
+                                                <div key={req._id} className="flex flex-col gap-2 mt-2">
+                                                    <div className="flex flex-row w-full h-[50px] justify-between items-center">
+                                                        <div className="flex flex-col h-full justify-around">
+                                                            <p className="text-xl font-semibold text-[#EBF1D5] capitalize">{req.sender.name}</p>
+                                                            <p className="text-sm text-[#888] lowercase">{req.sender.email}</p>
+                                                        </div>
+                                                        <div className="flex flex-row w-min gap-2">
+                                                            <button className="border-teal-500 text-teal-500 border-[1px] h-[40px] px-2 rounded-md" onClick={() => handleAccept(req._id)}>Accept</button>
+                                                            <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-3 rounded-md" onClick={() => handleReject(req._id)}>X</button>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-row w-min gap-2">
-                                                        <button className="border-teal-500 text-teal-500 border-[1px] h-[40px] px-2 rounded-md" onClick={() => handleAccept(req._id)}>Accept</button>
-                                                        <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-3 rounded-md" onClick={() => handleReject(req._id)}>X</button>
-                                                    </div>
+                                                    <hr />
                                                 </div>
-                                                <hr />
-                                            </div>
-                                        )
-                                    })}
+                                            )
+                                        })}
+                                    </div>
                                 </div>
                             )}
-                            {receivedRequests.length > 0 && friends.length > 0 && (<div><h2 className="text-teal-500 uppercase py-2">Friends</h2><hr/></div>)}
+                            {receivedRequests.length > 0 && friends.length > 0 && (<div><h2 className="text-teal-500 uppercase py-2">Friends</h2><hr /></div>)}
                             {friends.map((friend) => {
                                 // Collect friend-related expenses
                                 const friendExpenses = expenses?.filter(exp =>
@@ -318,21 +324,21 @@ const Friends = () => {
                                 for (const loan of friendLoans) {
                                     const code = loan?.currency || "INR";
                                     const principal = Number(loan.principal) || 0;
-                                    if(loan.status === 'closed') continue; // skip closed loans
+                                    if (loan.status === 'closed') continue; // skip closed loans
                                     if (String(loan.borrowerId._id) === String(friend._id)) {
-                                        if(loan.status === 'partially_repaid') {
+                                        if (loan.status === 'partially_repaid') {
                                             const principalPaid = loan.repayments.reduce((sum, r) => sum + (r.amount || 0), 0);
                                             totalsByCode[code] = (totalsByCode[code] || 0) + (principal - principalPaid);
-                                        } 
+                                        }
                                         else
-                                        totalsByCode[code] = (totalsByCode[code] || 0) + principal;
+                                            totalsByCode[code] = (totalsByCode[code] || 0) + principal;
                                     } else if (String(loan.lenderId._id) === String(friend._id)) {
-                                        if(loan.status === 'partially_repaid') {
-                                            const principalPaid = loan.repayments.reduce((sum, r) => sum + (r.amount || 0), 0);                                            
+                                        if (loan.status === 'partially_repaid') {
+                                            const principalPaid = loan.repayments.reduce((sum, r) => sum + (r.amount || 0), 0);
                                             totalsByCode[code] = (totalsByCode[code] || 0) - (principal - principalPaid);
-                                        } 
+                                        }
                                         else
-                                        totalsByCode[code] = (totalsByCode[code] || 0) - principal;
+                                            totalsByCode[code] = (totalsByCode[code] || 0) - principal;
                                     }
                                 }
 
@@ -374,10 +380,10 @@ const Friends = () => {
                                                         const color = youOwe ? "text-red-500" : "text-teal-500";
                                                         return (
                                                             <div key={code} className="leading-tight text-right">
-                                                                <p className={`${color} text-[${balances.length==1?'14px':balances.length==2?'12px':'11px'}] font-medium -mb-[2px]`}>
+                                                                <p className={`${color} text-[${balances.length == 1 ? '14px' : balances.length == 2 ? '12px' : '11px'}] font-medium -mb-[2px]`}>
                                                                     {youOwe ? "you owe" : "you are owed"}
                                                                 </p>
-                                                                <p className={`${color} text-[${balances.length==1?'17px':balances.length==2?'15px':'14px'}] font-medium -mb-[2px] -mt-[2px]`}>
+                                                                <p className={`${color} text-[${balances.length == 1 ? '17px' : balances.length == 2 ? '15px' : '14px'}] font-medium -mb-[2px] -mt-[2px]`}>
                                                                     {sym} {Math.abs(amount).toFixed(currencyDigits(code))}
                                                                 </p>
                                                             </div>

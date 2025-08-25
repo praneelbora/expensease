@@ -51,7 +51,14 @@ export default function BalancesModal({
             </div>
             <div className="text-right">
                 <div className="text-xs text-[#aaa]">Available</div>
-                <div className="text-base font-semibold">{formatMoney(e.ccy, e.available)}</div>
+                {(() => {
+                    const balance = formatMoney(e.ccy, e.available);
+                    if (typeof balance === "string" && balance[0] === '-') {
+                        return <div className="text-base font-semibold text-red-500">{balance}</div>;
+                    } else {
+                        return <div className="text-base font-semibold text-teal-500">{balance}</div>;
+                    }
+                })()}
             </div>
         </div>
     );

@@ -19,7 +19,7 @@ const KindBadge = ({ kind }) => {
     const base = "px-2 py-[2px] rounded text-[10px] border";
     const map = {
         debit: "border-red-500 text-red-400",
-        credit: "border-green-500 text-green-400",
+        credit: "border-teal-500 text-teal-400",
         hold: "border-yellow-600 text-yellow-400",
         release: "border-emerald-600 text-emerald-400",
         capture: "border-blue-600 text-blue-400",
@@ -192,7 +192,7 @@ export default function Transactions() {
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0 ml-3">
-                                            <div className={`font-semibold ${positive ? "text-green-400" : "text-red-400"}`}>
+                                            <div className={`font-semibold ${positive ? "text-teal-400" : "text-red-400"}`}>
                                                 {positive ? "+" : "-"}{amtStr}
                                             </div>
                                             {typeof t.balanceAfter === 'number' && (

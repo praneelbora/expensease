@@ -308,10 +308,6 @@ router.post('/', auth, async (req, res) => {
     }
 });
 
-
-
-
-
 router.get('/group/:id', auth, async (req, res) => {
     try {
         const groupId = req.params.id;
@@ -366,9 +362,9 @@ router.post('/settle', auth, async (req, res) => {
             return res.status(400).json({ error: "Missing required fields." });
         }
 
+        // 1. Create the settlement expense
         const settleExpense = new Expense({
             createdBy: fromUserId,
-            groupId,
             description: note || `Settled ${currency} ${amount}`,
             amount,
             typeOf: 'settle',
@@ -392,7 +388,49 @@ router.post('/settle', auth, async (req, res) => {
 
         await settleExpense.save();
 
-        res.status(201).json(settleExpense);
+        let relatedExpenses = [];
+        let net = {}
+        if (groupId) {
+            relatedExpenses = await Expense.find({
+                groupId,
+                currency,
+                $or: [
+                    { settled: false },
+                    { settled: { $exists: false } }
+                ]
+            });
+        } else {
+            relatedExpenses = await Expense.find({
+                groupId: null,
+                currency,
+                $or: [
+                    { settled: false },
+                    { settled: { $exists: false } }
+                ],
+                'splits.friendId': { $all: [fromUserId, toUserId] },  // must contain both
+                $expr: { $eq: [{ $size: "$splits" }, 2] }             // exactly 2 splits
+            });
+        }
+        for (const exp of relatedExpenses) {
+            if (exp.typeOf === 'loan') continue; // skip loans
+            if (exp.currency !== currency) continue;
+            for (const split of exp.splits) {
+                const owe = Number(split.oweAmount) || 0;
+                const pay = Number(split.payAmount) || 0;
+                const delta = (split.owing ? owe : 0) - (split.paying ? pay : 0);
+                net[split.friendId] = (net[split.friendId] || 0) + delta;
+
+            }
+        }
+        const allZero = Object.values(net).every(v => Math.abs(v) < 0.01);
+        if (allZero) {
+            await Expense.updateMany(
+                { _id: { $in: relatedExpenses.map(e => e._id) } },
+                { $set: { settled: true, settledAt: new Date() } }
+            );
+        }
+
+        res.status(201).json({ settleExpense, allSettled: allZero });
     } catch (err) {
         console.error("Settle error:", err);
         res.status(500).json({ error: 'Failed to settle amount' });
@@ -517,7 +555,6 @@ router.delete("/:id", auth, async (req, res) => {
     }
 });
 
-
 router.get('/friend/:friendId', auth, async (req, res) => {
     try {
         const userId = req.user.id;
@@ -533,7 +570,6 @@ router.get('/friend/:friendId', auth, async (req, res) => {
         return res.status(500).json({ error: "Server error fetching expenses" });
     }
 });
-
 
 router.put('/:id', auth, async (req, res) => {
     try {

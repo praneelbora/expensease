@@ -127,3 +127,22 @@ export const getFriendDetails = async (friendId, userToken) => {
     if (!response.ok) throw new Error(data.message || "Failed to get friend details");
     return data;
 };
+
+export const removeFriend = async (friendId, userToken) => {
+    const res = await fetch(`${BASE_URL}/v1/friends/remove`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-auth-token': userToken,
+        },
+        body: JSON.stringify({ friendId }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+        throw new Error(data.message || data.error || "Failed to remove friend");
+    }
+
+    return data;
+};

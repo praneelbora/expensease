@@ -215,7 +215,7 @@ const PaymentMethods = () => {
                                 className="z-50 rounded-sm bg-teal-500 hover:bg-teal-600 active:scale-95 transition text-white px-3 py-2 flex items-center gap-2"
                             >
                                 <Plus size={18} />
-                                <span className="text-sm font-semibold">Add Method</span>
+                                <span className="text-sm font-semibold">Add Account</span>
                             </button>
                         </div>
                             {filtered.map((a, i) => (

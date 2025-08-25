@@ -234,18 +234,21 @@ ${friendLink}`;
                 {/* Received requests */}
                 <div className="w-full gap-3">
                     {received.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                            <p className="uppercase text-[#EBF1D5]">Friend Requests</p>
-                            <div className="w-full flex flex-col">
-                                <hr className="border-[#2a2a2a]" />
+                        <div className="mt-1 border border-[#121212] rounded-xl ">
+                            <div className="bg-[#121212] px-4 py-3 border-b border-[#121212] rounded-t-xl">
+                                <h3 className="text-sm tracking-wide uppercase text-teal-500">FRIEND REQUESTS</h3>
+                            </div>
+
+                            <hr className="border-[#121212]" />
+                            <div className=" px-4 pb-4 pt-1 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
                                 {received.map((req) => (
-                                    <div key={req._id} className="flex flex-col gap-2 pt-2">
+                                    <div key={req._id} className=" flex flex-col gap-2 pt-2">
                                         <div className="flex flex-row w-full h-[50px] justify-between items-center">
                                             <div className="flex flex-col h-full justify-around">
                                                 <p className="text-[18px] text-[#EBF1D5] capitalize">
                                                     {req.sender.name}
                                                 </p>
-                                                <p className="text-[11px] text-[#EBF1D5] lowercase">
+                                                <p className="text-[11px] text-[#888] lowercase">
                                                     {req.sender.email}
                                                 </p>
                                             </div>

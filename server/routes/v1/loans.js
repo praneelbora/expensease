@@ -145,9 +145,7 @@ router.post('/:id/repay', auth, async (req, res) => {
             paymentMethodId: paymentMethodId || null,
             recieverMethodId: recieverMethodId || null,
             at: new Date(),
-        });
-        console.log(paymentMethodId, recieverMethodId, currency);
-        
+        });        
         // Update payer's balance: decrement available by repayment amount
         if (paymentMethodId) {
             await PaymentMethod.updateOne(

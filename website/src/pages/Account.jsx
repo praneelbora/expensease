@@ -280,7 +280,7 @@ const Account = () => {
                                     )}
                                     {dcStatus === 'saved' && (
                                         <Check
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400"
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-400"
                                             size={18}
                                         />
                                     )}

@@ -181,7 +181,7 @@ export default function GroupsModal({ setShowModal, showModal, fetchGroups }) {
         <ModalWrapper
             show={!!showModal}
             onClose={onClose}
-            title="Add a Group"
+            title="Create a Group"
             size="xl"
             footer={footer}
         >
@@ -306,7 +306,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
 
                                 {/* results */}
                                 {filteredFriends.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 px-2 max-h-[40dvh] overflow-y-auto border border-[#333]">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 px-2 py-2 max-h-[40dvh] overflow-y-auto border border-[#333]">
                                         {filteredFriends.map((f) => (
                                             <button
                                                 key={f._id}

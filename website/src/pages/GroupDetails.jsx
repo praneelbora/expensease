@@ -58,7 +58,13 @@ const GroupDetails = () => {
     const [copied, setCopied] = useState(false);
     const [copiedTop, setCopiedTop] = useState(false);
     const [adminEnforcedPrivacy, setAdminEnforcedPrivacy] = useState(false);
+    const [showSettled, setShowSettled] = useState(false);
+    const [hasSettled, setHasSettled] = useState(false);
 
+    const handleHasSettled = () => {
+        if (hasSettled) return true;
+        else setHasSettled(true)
+    };
     const handleSettle = async ({ payerId, receiverId, amount, description, currency }) => {
         try {
             await settleExpense({ payerId, receiverId, amount, description, groupId: id, currency }, userToken);
@@ -511,7 +517,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     const amountColor = isYouPaying
                                         ? "text-red-500"
                                         : isYouReceiving
-                                            ? "text-green-500"
+                                            ? "text-teal-500"
                                             : ""; // or leave blank for no color
                                     const textColor = isYou ? "" : "text-[#81827C]"
                                     return (
@@ -531,19 +537,33 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 <div className="flex flex-row justify-between">
                                     <p className="text-[13px]
                                           text-teal-500 uppercase">Expenses</p>
-                                    <button
-                                        className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
-                                        onClick={() => {
-                                            logEvent('navigate', {
-                                                screen: 'group_detail', to: 'add_expense', source: 'plus'
-                                            })
-                                            navigate('/new-expense', { state: { groupId: id } })
-                                        }}>
-                                        <Plus className="text-teal-500" size={20} />
-                                    </button>
+                                    {hasSettled && <div className="flex justify-end mb-2">
+                                        <button
+                                            onClick={() => setShowSettled(prev => !prev)}
+                                            className="text-xs px-3 py-1 rounded-full border border-[#EBF1D5] hover:bg-[#2a2a2a] transition"
+                                        >
+                                            {showSettled ? "Hide Settled" : "Show Settled"}
+                                        </button>
+                                    </div>}
                                 </div>
-                                {filteredExpenses.length>0 && <ul className="flex flex-col w-full gap-2 pb-[75px]">
-                                    {filteredExpenses?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                {filteredExpenses.length > 0 && <ul className="flex flex-col w-full gap-2 pb-[75px]">
+                                    {filteredExpenses
+                                        ?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                        ?.filter((exp) => {
+
+                                            // Show only unsettled expenses, or if settled, only if settled less than 3 days ago
+                                            if (showSettled) return true;
+                                            if (exp?.settled !== true) return true;
+                                            if (!exp?.settledAt) return false;
+                                            const settledAt = new Date(exp.settledAt);
+                                            const now = new Date();
+                                            const diffDays = (now - settledAt) / (1000 * 60 * 60 * 24);
+                                            const diffTime = (now - settledAt);
+                                            const compareTo = 3
+                                            if (diffDays > compareTo)
+                                                handleHasSettled()
+                                            return diffDays <= compareTo;
+                                        })
                                         .map((exp) => (
                                             <ExpenseItem
                                                 key={exp._id}
@@ -558,24 +578,24 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 </ul>}
                                 {groupExpenses.length === 0 && !loadingExpenses && (<div className="flex flex-col h-full flex-1 justify-center items-center">
                                     <div className="flex flex-col items-center justify-center p-4 rounded-lg  text-center space-y-3 bg-[#1f1f1f]">
-                                <h2 className="text-2xl font-semibold">No Expenses Yet</h2>
-                                <p className="text-sm text-gray-[#888] max-w-sm">
-                                    You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
-                                </p>
-                                <button
-                                    onClick={() => {
-                                        logEvent('navigate',
-                                            { screen: 'group_detail', to: 'add_expense', source: 'cta' }
-                                        );
-                                        navigate('/new-expense', { state: { groupId: id } })
-                                    }}
-                                    className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
-                                >
-                                    Add Expense
-                                </button>
-                            </div>
-                            </div>
-                            )}
+                                        <h2 className="text-2xl font-semibold">No Expenses Yet</h2>
+                                        <p className="text-sm text-gray-[#888] max-w-sm">
+                                            You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
+                                        </p>
+                                        <button
+                                            onClick={() => {
+                                                logEvent('navigate',
+                                                    { screen: 'group_detail', to: 'add_expense', source: 'cta' }
+                                                );
+                                                navigate('/new-expense', { state: { groupId: id } })
+                                            }}
+                                            className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
+                                        >
+                                            Add Expense
+                                        </button>
+                                    </div>
+                                </div>
+                                )}
                             </div>
 
                         </div>

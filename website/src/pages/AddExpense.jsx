@@ -39,7 +39,7 @@ const AddExpense = () => {
     const [paymentMethod, setPaymentMethod] = useState('');
     const [mode, setMode] = useState("equal"); // equal, value, or percent
     const [selectedFriends, setSelectedFriends] = useState([]);
-    const [expenseMode, setExpenseMode] = useState('split');
+    const [expenseMode, setExpenseMode] = useState('personal');
     const [showAllGroups, setShowAllGroups] = useState(false);
     const groupDisplayLimit = 4;
     const [currency, setCurrency] = useState();
@@ -306,7 +306,6 @@ const AddExpense = () => {
     const fetchSuggestions = async () => {
         try {
             const data = await getSuggestions(userToken);
-            console.log(data);
             setSuggestions(data);
         } catch (error) {
             console.error("Error loading friends:", error);
@@ -1073,7 +1072,7 @@ const AddExpense = () => {
                                                         {val.length > 0 && (
                                                             <span className="text-xs text-gray-400">
                                                                 {group.members
-                                                                    .filter(m => m.name.toLowerCase().includes(val.toLowerCase())).slice(0,2)
+                                                                    .filter(m => m.name.toLowerCase().includes(val.toLowerCase())).slice(0, 2)
                                                                     .map(m => m.name)
                                                                     .join(", ")}
                                                             </span>

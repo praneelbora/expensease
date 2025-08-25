@@ -5,7 +5,7 @@ import MainLayout from "../layouts/MainLayout";
 import { getFriendDetails } from "../services/FriendService";
 import { settleExpense, getFriendExpense } from "../services/ExpenseService";
 import SettleModal from "../components/SettleModal";
-import { ChevronLeft, Loader, Wallet, Plus } from "lucide-react";
+import { ChevronLeft, Loader, Wallet, Plus, Settings } from "lucide-react";
 import LoanModal from "../components/LoanModal";
 import { deleteLoan as deleteLoanApi } from "../services/LoanService";
 import { useAuth } from "../context/AuthContext";
@@ -63,6 +63,9 @@ const FriendDetails = () => {
     const [party, setParty] = useState(); // selected friend object
     const [counterParty, setCounterParty] = useState(); // selected friend object
     const [paymentMethodsUpdated, setPaymentMethodsUpdated] = useState(false);
+    const [showSettled, setShowSettled] = useState(false);
+    const [hasSettled, setHasSettled] = useState(false);
+
 
     const [paymentMethod, setPaymentMethod] = useState();
     const pmLabel = (m) => {
@@ -297,9 +300,17 @@ const FriendDetails = () => {
         }
     };
 
-    const handleSettle = async ({ payerId, receiverId, amount, description }) => {
-        await settleExpense({ payerId, receiverId, amount, description }, userToken);
+    const handleSettle = async ({ payerId, receiverId, amount, description, currency }) => {
+        const responseJson = await settleExpense({ payerId, receiverId, amount, description, currency }, userToken);
+        if (responseJson.allSettled) {
+
+        }
         await fetchData();
+    };
+
+    const handleHasSettled = () => {
+        if (hasSettled) return true;
+        else setHasSettled(true)
     };
 
     const calculateFriendBalanceByCurrency = (expenses, userId, friendId) => {
@@ -375,7 +386,7 @@ const FriendDetails = () => {
         <MainLayout>
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
-                    <div className="flex flex-row gap-2">
+                    <div className="flex flex-1 flex-row gap-2">
                         <button onClick={() => {
                             logEvent('back', {
                                 screen: 'friend_detail', to: 'friends'
@@ -386,6 +397,19 @@ const FriendDetails = () => {
                             <ChevronLeft />
                         </button>
                         <h1 className={`${friend?.name ? 'text-[#EBF1D5]' : 'text-[#121212]'} text-3xl font-bold capitalize`}>{friend?.name ? friend?.name : "Loading"}</h1>
+                        <div className="flex flex-1 justify-end flex-row items-end">
+                            <button
+                                className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
+                                onClick={() => {
+                                    logEvent('navigate',
+                                        { screen: 'friend_detail', to: 'friend_setting', source: 'header' }
+                                    );
+                                    navigate(`/friends/settings/${id}`)
+                                }} >
+                                <Settings strokeWidth={2} size={20} />
+                            </button>
+                        </div>
+
                     </div>
                 </div>
                 <div ref={scrollRef} className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar scroll-touch gap-3">
@@ -662,9 +686,34 @@ const FriendDetails = () => {
 
                                 ) : (
                                     <div className="flex flex-col gap-y-3 gap-x-4 ">
-                                        <h3 className="text-lg font-semibold mb-2">Shared Expenses</h3>
+                                        <div className="flex flex-row justify-between items-center">
+                                            <h3 className="text-lg font-semibold mb-2">Shared Expenses</h3>
+                                            {hasSettled && <div className="flex justify-end mb-2">
+                                                <button
+                                                    onClick={() => setShowSettled(prev => !prev)}
+                                                    className="text-xs px-3 py-1 rounded-full border border-[#EBF1D5] hover:bg-[#2a2a2a] transition"
+                                                >
+                                                    {showSettled ? "Hide Settled" : "Show Settled"}
+                                                </button>
+                                            </div>}
+                                        </div>
+
                                         {expenses
                                             ?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                            ?.filter((exp) => {
+                                                // Show only unsettled expenses, or if settled, only if settled less than 3 days ago
+                                                if (showSettled) return true;
+                                                if (exp?.settled !== true) return true;
+                                                if (!exp?.settledAt) return false;
+                                                const settledAt = new Date(exp.settledAt);
+                                                const now = new Date();
+                                                const diffDays = (now - settledAt) / (1000 * 60 * 60 * 24);
+                                                const diffTime = (now - settledAt);
+                                                const compareTo = 3
+                                                if (diffDays > compareTo)
+                                                    handleHasSettled()
+                                                return diffDays <= compareTo;
+                                            }) // show only unsettled expenses or recently settled (<=3 days)
                                             ?.map((exp) => (
                                                 <ExpenseItem
                                                     key={exp._id}
@@ -676,6 +725,8 @@ const FriendDetails = () => {
                                                     userId={userId}
                                                 />
                                             ))}
+
+
                                     </div>
                                 )}
                             </>
@@ -706,7 +757,7 @@ const FriendDetails = () => {
                 <SettleModal
                     showModal={showSettleModal}
                     setShowModal={setShowSettleModal}
-                    simplifiedTransactions={generateSimplifiedTransactionsByCurrency(netBalance, userId, friend._id)}
+                    simplifiedTransactions={generateSimplifiedTransactionsByCurrency(netExpenseBalanceMap, userId, friend._id)}
                     friends={[{ id: userId, name: 'You' }, { id: friend._id, name: friend.name, upiId: friend?.upiId }]}
                     onSubmit={handleSettle}
                     prefill={prefillSettle}

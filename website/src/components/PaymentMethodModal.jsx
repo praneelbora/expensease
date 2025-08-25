@@ -138,7 +138,7 @@ export default function PaymentMethodModal({
             await onSave(payload, editing?._id || null);
             onClose?.();
         } catch (e) {
-            setError(e?.message || "Failed to save Payment Method");
+            setError(e?.message || "Failed to save Payment Account");
         } finally {
             setSaving(false);
         }
@@ -159,7 +159,7 @@ export default function PaymentMethodModal({
         <ModalWrapper
             show={show}
             onClose={onClose}
-            title={isEdit ? "Edit Payment Method" : "Add Payment Method"}
+            title={isEdit ? "Edit Payment Account" : "Add Payment Account"}
             footer={<div className="w-full flex items-center justify-end gap-2 pt-2">
                 {editing && typeof index == 'number' && index != 0 && <div className="flex flex-1 justify-start">
                     <button
@@ -185,7 +185,7 @@ export default function PaymentMethodModal({
                     disabled={saving}
                     className="px-3 py-1.5 rounded-md bg-teal-600 text-black font-semibold disabled:opacity-60"
                 >
-                    {saving ? "Saving…" : isEdit ? "Save Changes" : "Create Payment Method"}
+                    {saving ? "Saving…" : isEdit ? "Save Changes" : "Create Payment Account"}
                 </button>
             </div>}>
             <div className="flex flex-col gap-y-4 overflow-y-scroll no-scollbar">

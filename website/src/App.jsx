@@ -13,6 +13,7 @@ import Transactions from "./pages/Transactions";
 import Logout from "./pages/Logout";
 import GroupJoin from "./pages/GroupJoin";
 import GroupSettings from "./pages/GroupSettings";
+import FriendSettings from "./pages/FriendSettings";
 import Dashboard from "./pages/Dashboard";
 import AddLoan from "./pages/AddLoan";
 import Guide from "./pages/Guide";
@@ -62,6 +63,10 @@ function App() {
             <Route
                 path="/friends/:id"
                 element={<PrivateRoute><FriendDetails /></PrivateRoute>}
+            />
+            <Route
+                path="/friends/settings/:id"
+                element={<PrivateRoute><FriendSettings /></PrivateRoute>}
             />
             <Route
                 path="/new-expense"
