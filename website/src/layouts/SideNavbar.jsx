@@ -1,19 +1,19 @@
 import { Link, useLocation } from "react-router-dom";
-import { User, Users, Plus, Wallet, List, LayoutDashboard, HeartPlus } from "lucide-react";
+import { User, Users, Plus, Wallet, List, LayoutDashboard, HeartPlus, Handshake, Activity, UserPen, SquareUser, Cog } from "lucide-react";
 
 const SideNavbar = ({ groupId }) => {
     const location = useLocation();
 
     const navItems = [
-        { to: "/friends", label: "Friends", icon: <Users size={20} /> },
-        { to: "/groups", label: "Groups", icon: <Wallet size={20} /> },
+        { to: "/friends", label: "Friends", icon: <User size={20} /> },
+        { to: "/groups", label: "Groups", icon: <Users size={20} /> },
         { to: "/expenses", label: "Expenses", icon: <List size={20} /> },
         { to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
         { to: "/new-expense", label: "New Expense", icon: <Plus size={30} />, state: groupId ? { groupId } : null, special: true },
-        { to: "/paymentMethods", label: "Payment Accounts", icon: <LayoutDashboard size={20} /> },
-        { to: "/transactions", label: "Transactions", icon: <List size={20} /> },
+        { to: "/paymentMethods", label: "Payment Accounts", icon: <Wallet size={20} /> },
+        { to: "/transactions", label: "Transactions", icon: <Activity size={20} /> },
         { to: "/supportdeveloper", label: "Support", icon: <HeartPlus size={20} /> },
-        { to: "/account", label: "Account", icon: <User size={20} /> },
+        { to: "/account", label: "Account", icon: <Cog size={20} /> },
     ];
 
     return (

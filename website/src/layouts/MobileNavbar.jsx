@@ -5,7 +5,9 @@ import {
     Plus,
     List,
     User,
-    LayoutDashboard
+    LayoutDashboard,
+    UserPen,
+    Cog
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -23,11 +25,11 @@ const MobileNavbar = ({ groupId }) => {
     }, []);
     const svgSize = isPWA ? 28 : 26;
     const navItems = [
-        { to: "/friends", label: "Friends", icon: <Users size={svgSize} /> },
-        { to: "/groups", label: "Groups", icon: <Wallet size={svgSize} /> },
+        { to: "/friends", label: "Friends", icon: <User size={svgSize} /> },
+        { to: "/groups", label: "Groups", icon: <Users size={svgSize} /> },
         { to: "/new-expense", label: "Add", icon: <Plus strokeWidth={3} size={svgSize + 3} />, isCenter: true, state: groupId ? { groupId } : null, special: true },
         { to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={svgSize} /> },
-        { to: "/account", label: "Account", icon: <User size={svgSize} /> },
+        { to: "/account", label: "Account", icon: <Cog size={svgSize} /> },
     ];
 
     return (
