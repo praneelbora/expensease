@@ -19,7 +19,6 @@ const Expenses = () => {
     const [query, setQuery] = useState("");
     const [showModal, setShowModal] = useState(false);
     const [showFilterModal, setShowFilterModal] = useState(false);
-    const [appliedFilter, setAppliedFilter] = useState({});
     const navigate = useNavigate();
     const currencyOptions = toCurrencyOptions(getAllCurrencyCodes());
     const getSettleDirectionText = (splits) => {
@@ -36,24 +35,32 @@ const Expenses = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const initialFilter = searchParams.get("filter") || "all";
     const initialCategory = searchParams.get("category") || "all";
-
+    const [appliedFilter, setAppliedFilter] = useState({
+        category: initialFilter ? initialFilter : 'all',
+        type: initialCategory ? initialCategory : 'all',
+        currency: '',
+        sort: 'newest'
+    });
     const [filter, setFilter] = useState(initialFilter);        // 'all','personal','settle','group','friend'
     const [category, setCategory] = useState(initialCategory);  // category name or 'all'
 
     // keep URL in sync when state changes
     useEffect(() => {
         const next = new URLSearchParams(searchParams);
-        next.set("filter", filter);
-        next.set("category", category);
+        next.set("type", appliedFilter.type);
+        next.set("category", appliedFilter.category);
+        next.set("sort", appliedFilter.sort);
         setSearchParams(next, { replace: true });
-    }, [filter, category]);
+    }, [appliedFilter]);
 
     // respond to URL changes (e.g., user navigates back)
     useEffect(() => {
-        const qf = searchParams.get("filter") || "all";
+        const qt = searchParams.get("type") || "all";
         const qc = searchParams.get("category") || "all";
-        if (qf !== filter) setFilter(qf);
-        if (qc !== category) setCategory(qc);
+        const qs = searchParams.get("sort") || "newest";
+        if (qt !== appliedFilter.type) setAppliedFilter(f => ({ ...f, type: qf }));
+        if (qc !== appliedFilter.category) setAppliedFilter(f => ({ ...f, category: qc }));
+        if (qs !== appliedFilter.sort) setAppliedFilter(f => ({ ...f, sort: qs }));
     }, [searchParams]);
     const FILTERS = [
         { key: "all", label: "All Expenses" },
@@ -108,7 +115,8 @@ const Expenses = () => {
     const filteredExpenses = useMemo(() => {
         const filterExpenses = (
             expenses,
-            { type = "all", category = "all", currency = "", query = "", sort = "newest" }
+            { type = "all", category = "all", currency = "", sort = "newest" },
+            query
         ) => {
             let filtered = [...expenses];
 
@@ -143,16 +151,52 @@ const Expenses = () => {
             // 4️⃣ Search / Query filter
             if (query && query.trim() !== "") {
                 const q = query.trim().toLowerCase();
+
                 filtered = filtered.filter(exp => {
                     const inDesc = (exp.description || "").toLowerCase().includes(q);
+
                     const inNames = (exp.splits || []).some(
                         s => s.friendId && s.friendId.name.toLowerCase().includes(q)
                     );
+
                     const inAmount = exp.amount?.toString().toLowerCase().includes(q);
-                    const inCurrency = exp.currency?.toLowerCase().includes(q);
-                    return inDesc || inNames || inAmount || inCurrency;
+
+                    const inCurrency = (exp.currency || "").toLowerCase().includes(q);                    
+                    const inGroup = (exp.groupId?.name || "").toLowerCase().includes(q);
+
+                    // normalize date
+                    const dateStr = exp.date
+                        ? new Date(exp.date).toLocaleDateString("en-GB", {
+                            year: "numeric",
+                            month: "short",
+                            day: "2-digit",
+                        }).toLowerCase()
+                        : "";
+
+                    const inDate = dateStr.includes(q);
+
+                    // special case: month only search (e.g. "aug", "2025-08")
+                    const monthStr = exp.date
+                        ? new Date(exp.date).toLocaleDateString("en-GB", {
+                            year: "numeric",
+                            month: "short",
+                        }).toLowerCase()
+                        : "";
+
+                    const inMonth = monthStr.includes(q);
+
+                    return (
+                        inDesc ||
+                        inNames ||
+                        inAmount ||
+                        inCurrency ||
+                        inGroup ||
+                        inDate ||
+                        inMonth
+                    );
                 });
             }
+
 
             // 5️⃣ Sort
             if (sort === "newest") {
@@ -165,7 +209,7 @@ const Expenses = () => {
         };
 
         // ✅ Call it with current props/state
-        return filterExpenses(expenses, appliedFilter);
+        return filterExpenses(expenses, appliedFilter, query);
     }, [expenses, filter, category, appliedFilter, query]);
 
 
@@ -353,17 +397,35 @@ const Expenses = () => {
                                     Clear Filters
                                 </button></p>
                             </div>
-                        ) : filteredExpenses?.map((exp) => (
-                            <ExpenseItem
-                                key={exp._id}
-                                expense={exp}
-                                onClick={setShowModal}
-                                getPayerInfo={getPayerInfo}
-                                getOweInfo={getOweInfo}
-                                getSettleDirectionText={getSettleDirectionText}
-                                userId={userId}
-                            />
-                        ))}
+                        ) : <>
+                            {filteredExpenses?.map((exp) => (
+                                <ExpenseItem
+                                    key={exp._id}
+                                    expense={exp}
+                                    onClick={setShowModal}
+                                    getPayerInfo={getPayerInfo}
+                                    getOweInfo={getOweInfo}
+                                    getSettleDirectionText={getSettleDirectionText}
+                                    userId={userId}
+                                />
+                            ))}
+                            {(appliedFilter.type != 'all' || appliedFilter.category != 'all') && (
+                                <p className="text-sm text-[#888] text-center mt-3" >End of Results. Please <button
+                                    className="text-teal-500 underline"
+                                    onClick={() => {
+                                        setAppliedFilter({
+                                            category: 'all',
+                                            type: 'all',
+                                            currency: '',
+                                            sort: 'newest'
+                                        });
+                                    }}
+                                >
+                                    Clear Filters
+                                </button> to view more</p>
+                            )}
+                        </>
+                        }
                     </ul>
                 </div>
             </div>

@@ -315,9 +315,9 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
                                                 className="text-left"
                                             >
                                                 <div className="flex flex-row w-full justify-between items-center">
-                                                    <div className="flex flex-col">
-                                                        <h2 className="text-xl capitalize text-[#EBF1D5]">{f.name}</h2>
-                                                        <p className="lowercase text-[#81827C]">{f.email}</p>
+                                                    <div className="flex flex-col max-w-full">
+                                                        <h2 className="text-xl capitalize text-[#EBF1D5] break-words">{f.name}</h2>
+                                                        <p className="lowercase text-[#81827C] break-words">{f.email}</p>
                                                     </div>
                                                 </div>
                                                 <hr className="border-[#2a2a2a] mt-2" />
