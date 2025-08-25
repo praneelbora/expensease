@@ -19,6 +19,8 @@ import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/curr
 import CategoryModal from "../components/CategoryModal";
 import CurrencyModal from "../components/CurrencyModal";
 import UnifiedPaymentModal from "../components/UnifiedPaymentModal"
+import SEO from "../components/SEO";
+
 const TEST_MODE = import.meta.env.VITE_TEST_MODE
 const AddExpense = () => {
     const navigate = useNavigate()
@@ -904,6 +906,19 @@ const AddExpense = () => {
     if (loading)
         return (
             <MainLayout>
+                <SEO
+                    title="Add New Expense | Expensease"
+                    description="Easily add and split new expenses with friends or groups. Simplify bill sharing with Expensease."
+                    canonical="https://www.expensease.in/new-expense"
+                    schema={{
+                        "@context": "https://schema.org",
+                        "@type": "WebPage",
+                        "name": "Add New Expense | Expensease",
+                        "description": "Easily add and split new expenses with friends or groups. Simplify bill sharing with Expensease.",
+                        "url": "https://www.expensease.in/new-expense"
+                    }}
+                />
+
                 <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                     <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                         <div className="flex flex-row gap-2">
@@ -917,6 +932,20 @@ const AddExpense = () => {
             </MainLayout>)
     return (
         <MainLayout>
+            <SEO
+                title="Add New Expense | Expensease"
+                description="Easily add and split new expenses with friends or groups. Simplify bill sharing with Expensease."
+                canonical="https://www.expensease.in/expenses/new"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "Add New Expense | Expensease",
+                    "description": "Easily add and split new expenses with friends or groups. Simplify bill sharing with Expensease.",
+                    "url": "https://www.expensease.in/expenses/new"
+                }}
+            />
+
+
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
 
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">

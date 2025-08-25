@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- Main Pages -->
+  <url>
+    <loc>https://www.expensease.in/</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/login</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/dashboard</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/account</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/features</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/faqs</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/about</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Friends Pages -->
+  <url>
+    <loc>https://www.expensease.in/friends</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/friends/settings</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/friends/{id}</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Groups Pages -->
+  <url>
+    <loc>https://www.expensease.in/groups</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/groups/{id}</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/groups/settings/{id}</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Expense & Loan Pages -->
+  <url>
+    <loc>https://www.expensease.in/new-expense</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/expenses</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/new-loan</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Other Pages -->
+  <url>
+    <loc>https://www.expensease.in/transactions</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/paymentMethods</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/guide</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://www.expensease.in/supportdeveloper</loc>
+    <lastmod>2025-08-25</lastmod>
+    <priority>0.5</priority>
+  </url>
+
+</urlset>

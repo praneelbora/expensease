@@ -19,6 +19,8 @@ import {
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
 import { getLoans } from "../services/LoanService";
+import SEO from "../components/SEO";
+
 const Friends = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -196,6 +198,20 @@ const Friends = () => {
 
     return (
         <MainLayout>
+            <SEO
+                title="Friends | Expensease"
+                description="Manage friends, track shared expenses, and simplify settlements with Expensease. Easily split bills and settle balances."
+                canonical="https://www.expensease.in/friends"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "Friends | Expensease",
+                    "description": "Manage friends, track shared expenses, and simplify settlements with Expensease. Easily split bills and settle balances.",
+                    "url": "https://www.expensease.in/friends"
+                }}
+            />
+
+
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">All Friends</h1>

@@ -9,6 +9,7 @@ import { logEvent } from "../utils/analytics";
 import { getAllCurrencyCodes, toCurrencyOptions } from "../utils/currencies";
 import CurrencyModal from '../components/CurrencyModal';
 import { Check, Loader2 } from "lucide-react";
+import SEO from '../components/SEO';
 const TEST_MODE = import.meta.env.VITE_TEST_MODE
 
 const Account = () => {
@@ -188,6 +189,20 @@ const Account = () => {
 
     return (
         <MainLayout>
+            <SEO
+                title="My Account | Expensease"
+                description="Manage your account, settings, and preferences in Expensease. Keep your expense tracking personalized and efficient."
+                canonical="https://www.expensease.in/account"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "ProfilePage",
+                    "name": "My Account | Expensease",
+                    "description": "Manage your account, settings, and preferences in Expensease. Keep your expense tracking personalized and efficient.",
+                    "url": "https://www.expensease.in/account"
+                }}
+            />
+
+
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div ref={headerRef} className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">My Account</h1>

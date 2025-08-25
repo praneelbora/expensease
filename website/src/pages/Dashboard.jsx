@@ -17,6 +17,7 @@ import ModalWrapper from "../components/ModalWrapper";
 import BalancesModal from "../components/BalancesModal";
 import PaymentMethodModal from "../components/PaymentMethodModal";
 import { createPaymentMethod } from "../services/PaymentMethodService";
+import SEO from "../components/SEO";
 
 
 const Dashboard = () => {
@@ -338,6 +339,19 @@ const Dashboard = () => {
 
     return (
         <MainLayout>
+            <SEO
+                title="Dashboard | Expensease"
+                description="Track, manage, and analyze your personal and shared expenses with Expensease. Get insights into spending trends and categories."
+                canonical="https://www.expensease.in/dashboard"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "Dashboard | Expensease",
+                    "description": "Track, manage, and analyze your personal and shared expenses with Expensease. Get insights into spending trends and categories.",
+                    "url": "https://www.expensease.in/dashboard"
+                }}
+            />
+
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">Dashboard</h1>

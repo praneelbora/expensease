@@ -12,6 +12,7 @@ import CategoryModal from "../components/CategoryModal";
 import CurrencyModal from "../components/CurrencyModal";
 import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
 import UnifiedPaymentModal from "../components/UnifiedPaymentModal";
+import SEO from "../components/SEO";
 
 const AddLoan = () => {
     const { categories, user, userToken, defaultCurrency, preferredCurrencies, paymentMethods, fetchPaymentMethods } = useAuth() || {};
@@ -241,6 +242,19 @@ const AddLoan = () => {
     };
     return (
         <MainLayout>
+
+            <SEO
+                title="Add New Loan | Expensease"
+                description="Easily add a loan with friends. Simplify loan tracking with Expensease."
+                canonical="https://www.expensease.in/new-loan"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "Add New Loan | Expensease",
+                    "description": "Easily add a loan with friends. Simplify loan tracking with Expensease.",
+                    "url": "https://www.expensease.in/new-loan"
+                }}
+            />
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">

@@ -18,6 +18,10 @@ import Dashboard from "./pages/Dashboard";
 import AddLoan from "./pages/AddLoan";
 import Guide from "./pages/Guide";
 import SupportDev from "./pages/SupportDev";
+import LandingPage from "./pages/public/LandingPage";
+import About from "./pages/public/About";
+import FeaturesPage from "./pages/public/FeaturesPage";
+import FAQsPage from "./pages/public/FAQsPage";
 import Cookies from "js-cookie";
 import { Loader } from "lucide-react";
 import FriendRequest from "./pages/FriendRequest";
@@ -103,6 +107,22 @@ function App() {
             <Route
                 path="/logout"
                 element={<Logout />}
+            />
+            <Route
+                path="/"
+                element={<LandingPage />}
+            />
+            <Route
+                path="/about"
+                element={<About />}
+            />
+            <Route
+                path="/features"
+                element={<FeaturesPage />}
+            />
+            <Route
+                path="/faqs"
+                element={<FAQsPage />}
             />
             <Route
                 path="/*"

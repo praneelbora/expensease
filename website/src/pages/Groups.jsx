@@ -10,6 +10,7 @@ import { getAllGroups, getGroupExpenses, joinGroup } from "../services/GroupServ
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
 import { getSymbol } from "../utils/currencies";
+import SEO from "../components/SEO";
 
 const Groups = () => {
 
@@ -152,6 +153,20 @@ const Groups = () => {
     }, []);
     return (
         <MainLayout>
+            <SEO
+                title="Groups | Expensease"
+                description="Create and manage groups for trips, events, or households. Track group expenses and simplify settlements with Expensease."
+                canonical="https://www.expensease.in/groups"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "Groups | Expensease",
+                    "description": "Create and manage groups for trips, events, or households. Track group expenses and simplify settlements with Expensease.",
+                    "url": "https://www.expensease.in/groups"
+                }}
+            />
+
+
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">All Groups</h1>
@@ -208,15 +223,15 @@ const Groups = () => {
                                 >
                                     <div className="flex flex-1 flex-row justify-between items-center">
                                         <div className="flex flex-col justify-center items-start flex-grow overflow-hidden">
-                                                <h2 className="text-xl font-semibold capitalize truncate">{group.name}</h2>
-                                                <span
-                                                    className="text-sm text-[#888] truncate overflow-hidden whitespace-nowrap"
-                                                    title={'members'}
-                                                >
-                                                    {group.members?.length || 0} Member{group?.members?.length !== 1 ? "s" : ""}
-                                                </span>
+                                            <h2 className="text-xl font-semibold capitalize truncate">{group.name}</h2>
+                                            <span
+                                                className="text-sm text-[#888] truncate overflow-hidden whitespace-nowrap"
+                                                title={'members'}
+                                            >
+                                                {group.members?.length || 0} Member{group?.members?.length !== 1 ? "s" : ""}
+                                            </span>
 
-                                            </div>
+                                        </div>
 
                                         {group?.totalOweList?.length > 0 && (
                                             <div className="flex flex-col items-end">
@@ -225,10 +240,10 @@ const Groups = () => {
                                                     const owed = amount < 0; // negative => you are owed
                                                     return (
                                                         <div key={code} className="leading-tight">
-                                                            <p className={`${owed ? "text-teal-500" : "text-red-500"} text-[${group.totalOweList.length==1?'14px':group.totalOweList.length==2?'12px':'11px'}] text-right`}>
+                                                            <p className={`${owed ? "text-teal-500" : "text-red-500"} text-[${group.totalOweList.length == 1 ? '14px' : group.totalOweList.length == 2 ? '12px' : '11px'}] text-right`}>
                                                                 {owed ? "you are owed" : "you owe"}
                                                             </p>
-                                                            <p className={`${owed ? "text-teal-500" : "text-red-500"} text-[${group.totalOweList.length==1?'17px':group.totalOweList.length==2?'15px':'14px'}] -mt-[2px] text-right`}>
+                                                            <p className={`${owed ? "text-teal-500" : "text-red-500"} text-[${group.totalOweList.length == 1 ? '17px' : group.totalOweList.length == 2 ? '15px' : '14px'}] -mt-[2px] text-right`}>
                                                                 {sym} {Math.abs(amount).toFixed(2)}
                                                             </p>
                                                         </div>

@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { googleLogin } from "../services/UserService";
 import { useNavigate } from "react-router-dom";
 import ModalWrapper from "../components/ModalWrapper";
+import Navbar from "../components/NavBar";
 
 function detectEnv() {
     const ua = (navigator.userAgent || "").toLowerCase();
@@ -184,6 +185,7 @@ export default function LoginRegister() {
 
     return (
         <div className="h-[100dvh] w-full flex items-center justify-center bg-[#121212] text-[#EBF1D5]">
+            <Navbar />
             <div className="w-full max-w-md p-8 space-y-6">
                 <h2 className="text-3xl font-bold text-center">Expensease Login</h2>
 

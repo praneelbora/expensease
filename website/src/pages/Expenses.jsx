@@ -10,6 +10,7 @@ import { logEvent } from "../utils/analytics";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies"
 import FilterModal from "../components/FilterModal"
+import SEO from "../components/SEO";
 const Expenses = () => {
     const { user, userToken, defaultCurrency, preferredCurrencies, categories, paymentMethods } = useAuth() || {};
     const [loading, setLoading] = useState(true);
@@ -161,7 +162,7 @@ const Expenses = () => {
 
                     const inAmount = exp.amount?.toString().toLowerCase().includes(q);
 
-                    const inCurrency = (exp.currency || "").toLowerCase().includes(q);                    
+                    const inCurrency = (exp.currency || "").toLowerCase().includes(q);
                     const inGroup = (exp.groupId?.name || "").toLowerCase().includes(q);
 
                     // normalize date
@@ -305,6 +306,18 @@ const Expenses = () => {
     }, []);
     return (
         <MainLayout>
+            <SEO
+                title="All Expenses | Expensease"
+                description="View and manage all your expenses in one place. Track, filter, and search your expenses easily with Expensease."
+                canonical="https://www.expensease.in/expenses"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "All Expenses | Expensease",
+                    "description": "View and manage all your expenses in one place. Track, filter, and search your expenses easily with Expensease.",
+                    "url": "https://www.expensease.in/expenses"
+                }}
+            />
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
