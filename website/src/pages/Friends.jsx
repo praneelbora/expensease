@@ -218,7 +218,7 @@ const Friends = () => {
                     <button
                         className={`flex flex-col items-center justify-center z-10 bg-teal-500 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
                         onClick={() => {
-                            logEvent('open_modal_friends_add', {
+                            logEvent('open_add_friends_modal', {
                                 screen: 'friends'
                             })
                             setShowModal(true)
@@ -264,7 +264,7 @@ const Friends = () => {
                                 <div className="flex justify-center gap-4">
                                     <button
                                         onClick={() => {
-                                            logEvent('open_modal_friends_add', {
+                                            logEvent('open_add_friends_modal', {
                                                 screen: 'friends'
                                             })
                                             setShowModal(true)
@@ -296,8 +296,18 @@ const Friends = () => {
                                                             <p className="text-sm text-[#888] lowercase">{req.sender.email}</p>
                                                         </div>
                                                         <div className="flex flex-row w-min gap-2">
-                                                            <button className="border-teal-500 text-teal-500 border-[1px] h-[40px] px-2 rounded-md" onClick={() => handleAccept(req._id)}>Accept</button>
-                                                            <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-3 rounded-md" onClick={() => handleReject(req._id)}>X</button>
+                                                            <button className="border-teal-500 text-teal-500 border-[1px] h-[40px] px-2 rounded-md" onClick={() => {
+                                                                logEvent('friend_request_accepted', {
+                                                                    screen: 'friends', source: 'screen'
+                                                                })
+                                                                handleAccept(req._id)
+                                                            }}>Accept</button>
+                                                            <button className="border-[#EA4335] text-[#EA4335] border-[1px] h-[40px] px-3 rounded-md" onClick={() => {
+                                                                logEvent('friend_request_accepted', {
+                                                                    screen: 'friends', source: 'screen'
+                                                                })
+                                                                handleReject(req._id)
+                                                            }}>X</button>
                                                         </div>
                                                     </div>
                                                     <hr />
@@ -369,7 +379,12 @@ const Friends = () => {
 
                                 return (
                                     <div
-                                        onClick={() => navigate(`/friends/${friend._id}`)}
+                                        onClick={() => {
+                                            logEvent('navigate', {
+                                                fromScreen: 'friends', toScreen: 'friend_detail', source: 'friend_list'
+                                            })
+                                            navigate(`/friends/${friend._id}`)
+                                        }}
                                         key={friend._id}
                                         className="flex flex-col gap-2"
                                     >

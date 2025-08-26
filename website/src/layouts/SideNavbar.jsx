@@ -10,7 +10,7 @@ const SideNavbar = ({ groupId }) => {
         { to: "/expenses", label: "Expenses", icon: <List size={20} /> },
         { to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
         { to: "/new-expense", label: "New Expense", icon: <Plus size={30} />, state: groupId ? { groupId } : null, special: true },
-        { to: "/paymentMethods", label: "Payment Accounts", icon: <Wallet size={20} /> },
+        { to: "/paymentAccounts", label: "Payment Accounts", icon: <Wallet size={20} /> },
         { to: "/transactions", label: "Transactions", icon: <Activity size={20} /> },
         { to: "/supportdeveloper", label: "Support", icon: <HeartPlus size={20} /> },
         { to: "/account", label: "Account", icon: <Cog size={20} /> },

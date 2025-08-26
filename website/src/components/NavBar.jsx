@@ -1,11 +1,22 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
 
 const Navbar = () => {
     const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const userToken = Cookies.get("userToken"); // or whatever key you use
-
+    const navigate = useNavigate();
+    useEffect(() => {
+        if (userToken) {
+            setIsLoading(false);
+            navigate("/dashboard");
+        }
+        setIsLoading(false);
+    }, [userToken, navigate]);
+    if (isLoading) {
+        return <div>Loading...</div>;
+    }
     return (
         <nav className="fixed top-0 left-0 w-full bg-[#212121] text-white px-4 sm:px-6 py-4 flex items-center justify-between">
             {/* Logo */}

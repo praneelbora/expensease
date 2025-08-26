@@ -51,12 +51,7 @@ const Account = () => {
 
 
     // convenience class helper
-    const highlightCls = (key) =>
-        highlighted === key
-            ? 'ring-2 ring-inset ring-teal-500'
-            : '';
-
-
+    const highlightCls = (key) => highlighted === key ? 'ring-2 ring-inset ring-teal-500' : '';
     const [showDefaultModal, setShowDefaultModal] = useState(false);
 
     const [dcStatus, setDcStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
@@ -202,7 +197,6 @@ const Account = () => {
                 }}
             />
 
-
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div ref={headerRef} className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <h1 className="text-3xl font-bold capitalize">My Account</h1>
@@ -264,12 +258,23 @@ const Account = () => {
                                     </p>
                                 )}
                             </div>
-                            <div ref={paymentMethodRef} id="payment-method-section" onClick={() => navigate('/paymentMethods')} className={`bg-[#1E1E1E] p-4 rounded-xl shadow cursor-pointer transition-all ${highlightCls('paymentMethod')}`}>
+                            <div ref={paymentMethodRef} id="payment-method-section" onClick={() => {
+                                logEvent('navigate', {
+                                    fromScreen: 'account', toScreen: 'paymentAccounts', source: 'payment_method_section'
+                                })
+                                navigate('/paymentAccounts')
+                            }} className={`bg-[#1E1E1E] p-4 rounded-xl shadow cursor-pointer transition-all ${highlightCls('paymentMethod')}`}>
                                 <h2 className="text-md text-teal-500 uppercase font-semibold">Payment Accounts</h2>
                                 <p className="text-[#888] text-sm">
                                     Manage UPI, bank accounts, and cards payment accounts for better expense tracking.
                                 </p>
-                            </div><div ref={guideRef} id="guide-section" onClick={() => navigate('/guide')} className={`bg-[#1E1E1E] p-4 rounded-xl shadow cursor-pointer transition-all ${highlightCls('guide')}`}>
+                            </div>
+                            <div ref={guideRef} id="guide-section" onClick={() => {
+                                logEvent('navigate', {
+                                    fromScreen: 'account', toScreen: 'guide', source: 'guide_section'
+                                })
+                                navigate('/guide')
+                            }} className={`bg-[#1E1E1E] p-4 rounded-xl shadow cursor-pointer transition-all ${highlightCls('guide')}`}>
                                 <h2 className="text-md text-teal-500 uppercase font-semibold">Guide</h2>
                                 <p className="text-[#888] text-sm">
                                     Quick tour: add expenses, split fairly, create groups, and settle up.
@@ -328,7 +333,13 @@ const Account = () => {
                             </div>
                             {/* Support the Developer */}
                             <div
-                                onClick={() => (window.location.href = '/supportdeveloper')}
+                                onClick={() => {
+
+                                    logEvent('navigate', {
+                                        fromScreen: 'account', toScreen: 'supportdeveloper', source: 'support_developer_section'
+                                    })
+                                    navigate('/supportdeveloper')
+                                }}
                                 className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-between cursor-pointer"
                             >
                                 <div>
@@ -343,8 +354,12 @@ const Account = () => {
                             <div className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-end">
                                 <button
                                     className="text-red-500 border border-red-500 px-4 py-2 rounded-md w-full"
-                                    onClick={logout}
-                                >
+                                    onClick={() => {
+                                        logEvent('logout', {
+                                            fromScreen: 'account'
+                                        })
+                                        logout()
+                                    }}>
                                     Logout
                                 </button>
                             </div>

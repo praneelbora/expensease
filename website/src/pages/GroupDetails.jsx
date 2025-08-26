@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { settleExpense } from '../services/ExpenseService';
 import { logEvent } from "../utils/analytics";
+import SEO from "../components/SEO";
 
 const GroupDetails = () => {
     const { logout, user, userToken, defaultCurrency, preferredCurrencies, categories, paymentMethods } = useAuth() || {};
@@ -313,13 +314,24 @@ const GroupDetails = () => {
 
     return (
         <MainLayout groupId={id}>
+            <SEO
+                title={`Group - Expense Details | Expensease`}
+                description={`Track your shared expenses and settlements with your group on Expensease.`}
+                canonical={`https://www.expensease.in/groups/:id`}
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "ProfilePage",
+                    "name": "Group - Expense Details | Expensease",
+                    "description": `Track your shared expenses and settlements with your group on Expensease.`,
+                    "url": `https://www.expensease.in/groups/:id`
+                }}
+            />
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
                         <button onClick={() => {
-                            logEvent('back', {
-                                screen: 'group_detail', to: 'groups'
-                            })
+                            logEvent('navigate', { fromScreen: 'group_detail', toScreen: 'groups', source: 'back' }
+                            );
                             navigate(`/groups`)
                         }}>
                             <ChevronLeft />
@@ -334,7 +346,7 @@ const GroupDetails = () => {
                                     const message1 = `Use this code: ${group.code}
 
 Or just click the link below to join directly:
-${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
+${import.meta.env.VITE_FRONTEND_URL}/groups?join=${group.code}`;
                                     navigator.clipboard.writeText(message1);
                                     logEvent('invite_group_copy',
                                         { screen: 'group_detail', source: 'header' }
@@ -346,7 +358,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                             .share({
                                                 title: "Join my group on Expensease",
                                                 text: message1,
-                                                url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`,
+                                                url: `${import.meta.env.VITE_FRONTEND_URL}/groups?join=${group.code}`,
                                             })
                                             .catch((err) => console.error("Sharing failed", err));
                                     }
@@ -359,8 +371,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                             <button
                                 className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
                                 onClick={() => {
-                                    logEvent('navigate',
-                                        { screen: 'group_detail', to: 'group_setting', source: 'header' }
+                                    logEvent('navigate', { fromScreen: 'group_detail', toScreen: 'group_settings', source: 'setting' }
                                     );
                                     navigate(`/groups/settings/${group._id}`)
                                 }} >
@@ -401,7 +412,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                 const message1 = `Use this code: ${group.code}
 
 Or just click the link below to join directly:
-${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
+${import.meta.env.VITE_FRONTEND_URL}/groups?join=${group.code}`;
                                                 navigator.clipboard.writeText(message1);
                                                 setCopied(true);
                                                 logEvent('invite_group_copy',
@@ -413,7 +424,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                                         .share({
                                                             title: "Join my group on Expensease",
                                                             text: message1,
-                                                            url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`,
+                                                            url: `${import.meta.env.VITE_FRONTEND_URL}/groups?join=${group.code}`,
                                                         })
                                                         .catch((err) => console.error("Sharing failed", err));
                                                 }
@@ -437,9 +448,9 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 </p>
                                 <button
                                     onClick={() => {
-                                        logEvent('navigate',
-                                            { screen: 'group_detail', to: 'add_expense', source: 'cta' }
-                                        );
+                                        logEvent('navigate', {
+                                            fromScreen: 'group_detail', toScreen: 'new-expense', source: 'cta'
+                                        })
                                         navigate('/new-expense', { state: { groupId: id } })
                                     }}
                                     className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
@@ -457,7 +468,13 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                 <div className="flex justify-between items-center">
                                     <p className="text-[13px] text-teal-500 uppercase">Members</p>
                                     <button
-                                        onClick={() => setShowMembers((prev) => !prev)}
+                                        onClick={() => {
+                                            logEvent('toggle_member_list', {
+                                                screen: 'group_detail',
+                                                action: showMembers ? 'hide' : 'show'
+                                            })
+                                            setShowMembers((prev) => !prev)
+                                        }}
                                         className="text-sm rounded-full uppercase text-teal-500"
                                     >
                                         {showMembers ? <Eye /> : <EyeClosed />}
@@ -495,7 +512,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                     <p className="text-[13px] text-teal-500 uppercase">Debt Summary</p>
                                     <button
                                         onClick={() => {
-                                            logEvent('open_modal_settle', {
+                                            logEvent('open_settle_modal', {
                                                 screen: 'group_detail'
                                             })
                                             setShowSettleModal(true)
@@ -568,7 +585,12 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                             <ExpenseItem
                                                 key={exp._id}
                                                 expense={exp}
-                                                onClick={setShowModal}
+                                                onClick={() => {
+                                                    logEvent('open_expense_modal', {
+                                                        screen: 'group_detail',
+                                                    });
+                                                    setShowModal(exp)
+                                                }}
                                                 getPayerInfo={getPayerInfo}
                                                 getOweInfo={getOweInfo}
                                                 getSettleDirectionText={getSettleDirectionText}
@@ -584,9 +606,9 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                                         </p>
                                         <button
                                             onClick={() => {
-                                                logEvent('navigate',
-                                                    { screen: 'group_detail', to: 'add_expense', source: 'cta' }
-                                                );
+                                                logEvent('navigate', {
+                                                    fromScreen: 'group_detail', toScreen: 'new-expense', source: 'cta'
+                                                })
                                                 navigate('/new-expense', { state: { groupId: id } })
                                             }}
                                             className="bg-teal-500 text-black px-4 py-2 rounded hover:bg-teal-400 transition"
@@ -639,7 +661,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${group.code}`;
                         <button
                             onClick={() => {
                                 logEvent('navigate', {
-                                    screen: 'group_detail', to: 'add_expense', source: 'fab'
+                                    fromScreen: 'group_detail', toScreen: 'new-expense', source: 'fab'
                                 })
                                 navigate('/new-expense', { state: { groupId: id } })
                             }}

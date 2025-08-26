@@ -173,7 +173,7 @@ const Groups = () => {
                     <button
                         className={`flex flex-col items-center justify-center z-10 bg-teal-500 text-black w-8 h-8 rounded-full shadow-md text-2xl`}
                         onClick={() => {
-                            logEvent('open_modal_group_new', {
+                            logEvent('open_add_group_modal', {
                                 screen: 'groups', source: 'plus'
                             })
                             setShowModal(true)
@@ -201,7 +201,7 @@ const Groups = () => {
                                 </p>
                                 <button
                                     onClick={() => {
-                                        logEvent('open_modal_group_new', {
+                                        logEvent('open_add_group_modal', {
                                             screen: 'groups',
                                             source: 'cta'
                                         })
@@ -218,7 +218,13 @@ const Groups = () => {
                             {groups?.map((group) => (
                                 <div
                                     key={group._id}
-                                    onClick={() => navigate(`/groups/${group._id}`)}
+                                    onClick={() => {
+                                        logEvent('navigate', {
+                                            fromScreen: 'groups', toScreen: 'group_detail', source: 'group_list'
+                                        })
+                                        navigate(`/groups/${group._id}`)
+                                    }
+                                    }
                                     className="flex flex-col gap-2 "
                                 >
                                     <div className="flex flex-1 flex-row justify-between items-center">

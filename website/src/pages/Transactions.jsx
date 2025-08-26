@@ -8,6 +8,7 @@ import { ChevronLeft } from "lucide-react";
 import { getSymbol } from "../utils/currencies";
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
+import SEO from "../components/SEO";
 
 
 
@@ -122,10 +123,28 @@ export default function Transactions() {
 
     return (
         <MainLayout>
+            <SEO
+                title="Transactions | Expensease"
+                description="View your Expensease transactions including debits, credits, transfers, and settlements across all your payment accounts."
+                canonical="https://www.expensease.in/transactions"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "CollectionPage",
+                    "name": "Transactions | Expensease",
+                    "description": "View your Expensease transactions including debits, credits, transfers, and settlements across all your payment accounts.",
+                    "url": "https://www.expensease.in/transactions"
+                }}
+            />
+
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#2a2a2a] flex flex-row justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <button onClick={() => navigate(`/account`)}>
+                        <button onClick={() => {
+                            logEvent('navigate', {
+                                fromScreen: 'transactions', toScreen: 'account', source: 'back'
+                            })
+                            navigate(`/account`)
+                        }}>
                             <ChevronLeft />
                         </button>
                         <h1 className="text-3xl font-bold">Transactions</h1>

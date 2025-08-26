@@ -76,6 +76,7 @@ export const googleLogin = async (credential) => {
         return {
             userToken: authToken,
             user: data.user,
+            newUser: data.newUser || false,
         };
     } catch (err) {
         console.error("Google login error:", err);

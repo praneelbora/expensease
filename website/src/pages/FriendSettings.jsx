@@ -14,6 +14,7 @@ import {
 import { getFriendExpense } from "../services/ExpenseService"; // 👈 create this
 import { getSymbol } from "../utils/currencies";
 import { logEvent } from "../utils/analytics";
+import SEO from "../components/SEO";
 
 export default function FriendSettings() {
     const { id } = useParams(); // friendId
@@ -86,6 +87,9 @@ export default function FriendSettings() {
         logEvent('remove_friend')
         try {
             await removeFriend(id, userToken);
+            logEvent('remove_friend', {
+                screen: 'friend_settings'
+            })
             navigate("/friends");
 
         } catch (error) {
@@ -111,10 +115,27 @@ export default function FriendSettings() {
 
     return (
         <MainLayout>
+            <SEO
+                title={`Friend Settings | Expensease`}
+                description={`Adjust settings for a specific friend and manage expense preferences in Expensease.`}
+                canonical={`https://www.expensease.in/friends/settings/:id`}
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "ProfilePage",
+                    "name": "Friend Settings | Expensease",
+                    "description": `Adjust settings for a specific friend and manage expense preferences in Expensease.`,
+                    "url": `https://www.expensease.in/friends/settings/:id`
+                }}
+            />
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 {/* Header */}
                 <div className="sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row items-center gap-2">
-                    <button onClick={() => navigate(`/friends/${id}`)}>
+                    <button onClick={() => {
+                        logEvent('navigate', {
+                            fromScreen: 'friend_settings', toScreen: 'friends', source: 'back'
+                        })
+                        navigate(`/friends/${id}`)
+                    }}>
                         <ChevronLeft />
                     </button>
                     <h1 className="text-3xl font-bold capitalize">Friend Settings</h1>
@@ -132,7 +153,12 @@ export default function FriendSettings() {
                             <p className="text-[#888]">
                                 More Features coming soon! Meanwhile you can view all expenses with this friend{" "}
                                 <span
-                                    onClick={() => navigate(`/friends/${id}`)}
+                                    onClick={() => {
+                                        logEvent('navigate', {
+                                            fromScreen: 'friend_settings', toScreen: 'friend_detail', source: 'cta_text'
+                                        })
+                                        navigate(`/friends/${id}`)
+                                    }}
                                     className="text-teal-500 hover:underline cursor-pointer"
                                 >here
                                 </span>.
@@ -178,7 +204,6 @@ export default function FriendSettings() {
                                 </div>
                                 <button
                                     onClick={() => {
-
                                         handleRemoveFriend()
                                     }}
                                     className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm"

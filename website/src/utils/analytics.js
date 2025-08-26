@@ -39,18 +39,23 @@ export function setGAUserId(userId) {
     }
 }
 
-
 export function logEvent(name, params = {}) {
+    const timestamp = new Date().toISOString(); // ISO string, easy to read + sort
     if (MODE !== "production") {
         console.log(`[DEV] Event log skipped: ${name} - ${JSON.stringify(params)}`);
         return;
     }
+
     if (typeof window.gtag === "function") {
-        window.gtag('event', name, params);
+        window.gtag("event", name, {
+            ...params,
+            'time': timestamp, // include readable timestamp
+        });
     } else {
         console.warn("logEvent called before GA initialized.");
     }
 }
+
 
 let lastScreen = null;
 
@@ -60,24 +65,23 @@ function sanitizePath(path) {
 }
 
 export function logScreenView(screenName) {
+    const timestamp = new Date().toISOString(); // ISO string, easy to read + sort
     // Only run in production
     if (MODE !== "production") {
         console.log(`[DEV] Screen view skipped: ${sanitizePath(screenName)}`);
         return;
     }
-
     const cleanName = sanitizePath(screenName);
-
-    // Avoid duplicate logging
     if (lastScreen === cleanName) {
         return;
     }
     lastScreen = cleanName;
-
+    console.log(cleanName);
+    
     if (typeof window.gtag === "function") {
-        window.gtag("event", "screen_view", {
-            app_name: "Expensease",
-            screen_name: cleanName
+        window.gtag("event", "page_view", {
+            'page_title': cleanName,
+            'time': timestamp
         });
     } else {
         console.warn("Tried to log screen_view before GA initialized.");

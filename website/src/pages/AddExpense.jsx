@@ -143,15 +143,24 @@ const AddExpense = () => {
 
 
     const paymentMethodRedirect = () => {
+        logEvent('navigate', {
+            fromScreen: 'new-expense', toScreen: 'account', source: 'payment_modal', section: 'payment_accounts'
+        });
         setShowPaymentMethodModal(false)
         navigate('/account?section=paymentMethod')
     };
 
     const categoryRedirect = () => {
+        logEvent('navigate', {
+            fromScreen: 'new-expense', toScreen: 'account', source: 'category_modal', section: 'category'
+        });
         setShowCategoryModal(false)
         navigate('/account?section=category')
     };
     const currencyRedirect = () => {
+        logEvent('navigate', {
+            fromScreen: 'new-expense', toScreen: 'account', source: 'currency_modal', section: 'currency'
+        });
         setShowCurrencyModal(false)
         navigate('/account?section=currency')
     };
@@ -228,10 +237,13 @@ const AddExpense = () => {
 
         try {
             const data = await createExpense(expenseData, userToken);
-            logEvent('expense_added', {
+            logEvent('new-expense', {
                 currency: currency,
                 amount: expenseData.amount,
                 category: expenseData.category,
+                type: expenseData.mode,
+                splitMode: expenseData.splitMode,
+                currency: expenseData.currency,
             });
             console.log('Expense created successfully!');
             setDesc('');
@@ -907,13 +919,13 @@ const AddExpense = () => {
         return (
             <MainLayout>
                 <SEO
-                    title="Add New Expense | Expensease"
+                    title="New Expense | Expensease"
                     description="Easily add and split new expenses with friends or groups. Simplify bill sharing with Expensease."
                     canonical="https://www.expensease.in/new-expense"
                     schema={{
                         "@context": "https://schema.org",
                         "@type": "WebPage",
-                        "name": "Add New Expense | Expensease",
+                        "name": "New Expense | Expensease",
                         "description": "Easily add and split new expenses with friends or groups. Simplify bill sharing with Expensease.",
                         "url": "https://www.expensease.in/new-expense"
                     }}
@@ -933,15 +945,15 @@ const AddExpense = () => {
     return (
         <MainLayout>
             <SEO
-                title="Add New Expense | Expensease"
+                title="New Expense | Expensease"
                 description="Easily add and split new expenses with friends or groups. Simplify bill sharing with Expensease."
-                canonical="https://www.expensease.in/expenses/new"
+                canonical="https://www.expensease.in/new-expense"
                 schema={{
                     "@context": "https://schema.org",
                     "@type": "WebPage",
-                    "name": "Add New Expense | Expensease",
+                    "name": "New Expense | Expensease",
                     "description": "Easily add and split new expenses with friends or groups. Simplify bill sharing with Expensease.",
-                    "url": "https://www.expensease.in/expenses/new"
+                    "url": "https://www.expensease.in/new-expense"
                 }}
             />
 
@@ -1533,7 +1545,7 @@ const AddExpense = () => {
                         className="text-teal-400 underline"
                         onClick={() => {
                             logEvent('navigate', {
-                                screen: 'groups', source: 'cta'
+                                fromScreen: 'new-expense', toScreen: 'groups', source: 'cta'
                             });
                             navigate('/groups')
                         }}
@@ -1547,7 +1559,7 @@ const AddExpense = () => {
                             className="text-teal-400 underline"
                             onClick={() => {
                                 logEvent('navigate', {
-                                    screen: 'add_expense', source: 'cta'
+                                    fromScreen: 'new-expense', toScreen: 'new-loan', source: 'cta'
                                 });
                                 navigate('/new-loan')
                             }}

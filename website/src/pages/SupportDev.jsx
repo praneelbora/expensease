@@ -2,16 +2,47 @@ import MainLayout from "../layouts/MainLayout";
 
 import { ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import SEO from "../components/SEO";
+import { logEvent } from "../utils/analytics";
 const upiId = import.meta.env.VITE_UPI_ID;
 const buymeacoffee = import.meta.env.VITE_BUYMEACOFFEE_URL;
 export default function Support() {
     const navigate = useNavigate();
     return (
         <MainLayout>
+            <SEO
+                title="Support the Developer | Expensease"
+                description="Support the independent developer behind Expensease. Contribute via UPI or Buy Me a Coffee to help cover hosting costs and fuel new features."
+                canonical="https://www.expensease.in/supportdeveloper"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "Support the Developer - Expensease",
+                    "description": "Support the independent developer behind Expensease. Contribute via UPI or Buy Me a Coffee to help cover hosting costs and fuel new features.",
+                    "url": "https://www.expensease.in/supportdeveloper",
+                    "potentialAction": {
+                        "@type": "DonateAction",
+                        "target": [
+                            "upi://pay?pa=<YOUR-UPI-ID>",
+                            buymeacoffee
+                        ],
+                        "recipient": {
+                            "@type": "Person",
+                            "name": "Developer of Expensease"
+                        }
+                    }
+                }}
+            />
+
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
-                        <button onClick={() => navigate(`account`)}>
+                        <button onClick={() => {
+                            logEvent('navigate', {
+                                fromScreen: 'supportdeveloper', toScreen: 'account', source: 'back'
+                            })
+                            navigate(`account`)
+                        }}>
                             <ChevronLeft />
                         </button>
                         <h1 className="text-3xl font-bold capitalize">Support Developer</h1>

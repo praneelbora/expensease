@@ -102,6 +102,9 @@ const Dashboard = () => {
     }
     function manageRedirect() {
         setShowBalances(false)
+        logEvent('navigate', {
+            fromScreen: 'dashboard', toScreen: 'account_settings', source: 'balances_modal', section: 'payment_accounts'
+        })
         navigate('/account?section=paymentMethod')
     }
 
@@ -360,7 +363,7 @@ const Dashboard = () => {
                             className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
                             onClick={() => {
                                 logEvent('navigate',
-                                    { screen: 'dashboard', to: 'guide', source: 'header' }
+                                    { fromScreen: 'dashboard', toScreen: 'guide', source: 'header' }
                                 );
                                 navigate(`/guide`)
                             }} >
@@ -385,7 +388,7 @@ const Dashboard = () => {
                             <button
                                 onClick={() => {
                                     logEvent('navigate', {
-                                        screen: 'dashboard', to: 'add_expense', source: 'cta'
+                                        fromScreen: 'dashboard', toScreen: 'new-ense', source: 'cta'
                                     })
                                     navigate("/new-expense")
                                 }}
@@ -409,7 +412,14 @@ const Dashboard = () => {
                                     <button
                                         key={pay._id}
                                         type="button"
-                                        onClick={() => { setSelectedPM(pay); setShowBalances(true); }}
+                                        onClick={() => {
+                                            {
+                                                logEvent('open_balances_modal', {
+                                                    screen: 'dashboard', source: 'payment_accounts', paymentMethodType: pay.type
+                                                })
+                                                setSelectedPM(pay); setShowBalances(true);
+                                            }
+                                        }}
                                         className="bg-[#1f1f1f] p-4 rounded-xl shadow-md min-w-[calc(50%-8px)] snap-start text-left outline-none "
                                     >
                                         <p className="text-xl font-bold break-words">{pay.label}</p>
@@ -421,7 +431,13 @@ const Dashboard = () => {
                                 ))}
                                 <button
                                     type="button"
-                                    onClick={() => { setShowPaymentModal(true) }}
+                                    onClick={() => {
+                                        logEvent('open_add_payment_method_modal', {
+                                            screen: 'dashboard', source: 'add_payment_account'
+                                        }
+                                        )
+                                        setShowPaymentModal(true)
+                                    }}
                                     className="bg-[#1f1f1f] p-4 rounded-xl shadow-md min-w-[calc(50%-8px)] snap-start"
                                 >
                                     <div className="w-full flex flex-col justify-center items-center">
@@ -461,7 +477,12 @@ const Dashboard = () => {
                                 {/* Total */}
                                 <div
                                     className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
-                                    onClick={() => navigate('/expenses')}
+                                    onClick={() => {
+                                        logEvent('navigate', {
+                                            fromScreen: 'dashboard', toScreen: 'expenses', source: 'total_expenses'
+                                        });
+                                        navigate('/expenses')
+                                    }}
                                 >
                                     <p className="text-[15px] text-[#888]">Total Expenses</p>
                                     <div className="text-xl font-bold break-words space-y-1">
@@ -478,7 +499,12 @@ const Dashboard = () => {
                                 {Object.keys(stats.personal.amount).length > 0 && (
                                     <div
                                         className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
-                                        onClick={() => navigate('/expenses?filter=personal')}
+                                        onClick={() => {
+                                            logEvent('navigate', {
+                                                fromScreen: 'dashboard', toScreen: 'personal_expenses', source: 'personal_expenses'
+                                            });
+                                            navigate('/expenses?filter=personal')
+                                        }}
                                     >
                                         <p className="text-[15px] text-[#888]">Personal Expenses</p>
                                         <div className="text-xl break-words space-y-1">
@@ -495,7 +521,12 @@ const Dashboard = () => {
                                 {Object.keys(stats.group.amount).length > 0 && (
                                     <div
                                         className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
-                                        onClick={() => navigate('/expenses?filter=group')}
+                                        onClick={() => {
+                                            logEvent('navigate', {
+                                                fromScreen: 'dashboard', toScreen: 'expenses', source: 'group_expenses'
+                                            });
+                                            navigate('/expenses?filter=group')
+                                        }}
                                     >
                                         <p className="text-[15px] text-[#888]">Group Expenses</p>
                                         <div className="text-xl break-words space-y-1">
@@ -534,7 +565,12 @@ const Dashboard = () => {
                             <div className="flex flex-row items-center justify-between mt-2">
                                 <h2 className="text-sm text-teal-500 uppercase">Recent Expenses</h2>
                                 <button
-                                    onClick={() => navigate('/expenses')}
+                                    onClick={() => {
+                                        logEvent('navigate', {
+                                            fromScreen: 'dashboard', toScreen: 'expenses', source: 'view_all'
+                                        });
+                                        navigate('/expenses')
+                                    }}
                                     className="text-sm text-teal-500 hover:underline"
                                 >
                                     View All
@@ -547,7 +583,12 @@ const Dashboard = () => {
                                         key={exp._id}
                                         expense={exp}
                                         userId={userId}
-                                        onClick={() => { setShowExpenseModal(exp) }}
+                                        onClick={() => {
+                                            logEvent('open_expense_modal', {
+                                                screen: 'dashboard'
+                                            });
+                                            setShowExpenseModal(exp)
+                                        }}
                                     />
                                 ))}
                             </ul>

@@ -23,6 +23,7 @@ import { useNavigate } from "react-router-dom";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies"
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
+import SEO from "../components/SEO";
 
 
 const PaymentMethods = () => {
@@ -150,6 +151,9 @@ const PaymentMethods = () => {
     // --- Add Balance flow ---
     const onAddBalance = (pm) => {
         setSelectedPM(pm);
+        logEvent('open_add_balance_modal', {
+            screen: 'payment_accounts'
+        })
         setShowAddBalance(true);
     };
 
@@ -183,12 +187,25 @@ const PaymentMethods = () => {
     // ---------- ui ----------
     return (
         <MainLayout>
+            <SEO
+                title="Payment Accounts | Expensease"
+                description="Manage your payment accounts in Expensease. Add bank accounts, UPI, cards, wallets, or cash methods for sending and receiving money."
+                canonical="https://www.expensease.in/paymentAccounts"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "Payment Accounts | Expensease",
+                    "description": "Manage your payment accounts in Expensease. Add bank accounts, UPI, cards, wallets, or cash methods for sending and receiving money.",
+                    "url": "https://www.expensease.in/paymentAccounts"
+                }}
+            />
+
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
                         <button onClick={() => {
-                            logEvent('back', {
-                                screen: 'payment_method', to: 'account'
+                            logEvent('navigate', {
+                                fromScreen: 'payment_accounts', toScreen: 'account', source: 'back'
                             })
                             navigate(`/account`)
                         }
@@ -208,6 +225,10 @@ const PaymentMethods = () => {
                         <ul className="space-y-3"><div className="flex w-full justify-end">
                             <button
                                 onClick={() => {
+                                    logEvent('open_add_payment_method_modal', {
+                                        screen: 'payment_accounts',
+                                    }
+                                    )
                                     setEditing(null);
                                     setShowModal(true);
                                 }}

@@ -165,10 +165,10 @@ const AddLoan = () => {
 
             // If your backend resolves "me" from auth, you're done.
             // Otherwise map "me" to current user id here before submit.
-            logEvent('loan_added', {
-                screen: 'add_loan',
+            logEvent('new-loan', {
                 currency: currency,
-                amount: principal
+                amount: principal,
+                currency: currency,
             })
             await createLoan(payload, userToken);
             await fetchPaymentMethods()
@@ -244,13 +244,13 @@ const AddLoan = () => {
         <MainLayout>
 
             <SEO
-                title="Add New Loan | Expensease"
+                title="New Loan | Expensease"
                 description="Easily add a loan with friends. Simplify loan tracking with Expensease."
                 canonical="https://www.expensease.in/new-loan"
                 schema={{
                     "@context": "https://schema.org",
                     "@type": "WebPage",
-                    "name": "Add New Loan | Expensease",
+                    "name": "New Loan | Expensease",
                     "description": "Easily add a loan with friends. Simplify loan tracking with Expensease.",
                     "url": "https://www.expensease.in/new-loan"
                 }}

@@ -5,6 +5,8 @@ import { googleLogin } from "../services/UserService";
 import { useNavigate } from "react-router-dom";
 import ModalWrapper from "../components/ModalWrapper";
 import Navbar from "../components/NavBar";
+import SEO from "../components/SEO";
+import { logEvent } from "../utils/analytics";
 
 function detectEnv() {
     const ua = (navigator.userAgent || "").toLowerCase();
@@ -84,6 +86,10 @@ export default function LoginRegister() {
             setError(result.error);
             return;
         }
+        if (result?.newUser)
+            logEvent("sign_up", { method: "google" });
+        else
+            logEvent("login", { method: "google" });
         setUser(result.user);
         setUserToken(result.userToken);
         navigate("/dashboard");
@@ -185,6 +191,19 @@ export default function LoginRegister() {
 
     return (
         <div className="h-[100dvh] w-full flex items-center justify-center bg-[#121212] text-[#EBF1D5]">
+            <SEO
+                title="Login | Expensease"
+                description="Login to Expensease to track shared expenses, manage friends, and simplify settlements."
+                canonical="https://www.expensease.in/login"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "Login - Expensease",
+                    "description": "Login to Expensease to track shared expenses, manage friends, and simplify settlements.",
+                    "url": "https://www.expensease.in/login"
+                }}
+            />
+
             <Navbar />
             <div className="w-full max-w-md p-8 space-y-6">
                 <h2 className="text-3xl font-bold text-center">Expensease Login</h2>
@@ -224,7 +243,14 @@ export default function LoginRegister() {
                         )}
 
                         <button
-                            onClick={() => setModalOpen(true)}
+                            onClick={() => {
+                                logEvent('install_instructions_viewed', {
+                                    screen: 'login',
+                                    browser: browser,
+                                    os: isIos ? 'ios' : 'other',
+                                })
+                                setModalOpen(true)
+                            }}
                             className="text-sm px-3 py-2 bg-white/10 hover:bg-white/20 rounded-md mt-3"
                             aria-label="View installation instructions"
                         >

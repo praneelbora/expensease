@@ -202,7 +202,7 @@ export default function GroupsModal({ setShowModal, showModal, fetchGroups }) {
                                     copy(
                                         `Join my group on Expensease using this code: ${groupCreatedCode}
 Click this link to login & join now:
-${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
+${import.meta.env.VITE_FRONTEND_URL}/groups?join=${groupCreatedCode}`
                                     )
                                 }
                                 className={`px-4 py-2 rounded-lg text-sm font-medium ${copied
@@ -217,7 +217,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`
                                     const shareData = {
                                         title: "Join my Expensease group",
                                         text: `Use code ${groupCreatedCode} to join my group on Expensease.`,
-                                        url: `${import.meta.env.VITE_FRONTEND_URL}/groups/join/${groupCreatedCode}`,
+                                        url: `${import.meta.env.VITE_FRONTEND_URL}/groups?join=${groupCreatedCode}`,
                                     };
                                     if (navigator.share) {
                                         navigator.share(shareData).catch(() => {

@@ -12,6 +12,7 @@ import { fetchReceivedRequests, fetchSentRequests, acceptFriendRequest, rejectFr
 
 import { useMemo } from "react";
 import { logEvent } from "../utils/analytics";
+import SEO from "../components/SEO";
 
 export default function GroupSettings() {
     const { id } = useParams();
@@ -178,10 +179,27 @@ export default function GroupSettings() {
     }
     return (
         <MainLayout groupId={id}>
+            <SEO
+                title={`Group Settings | Expensease`}
+                description={`Adjust settings for a specific group and manage expense preferences in Expensease.`}
+                canonical={`https://www.expensease.in/groups/settings/:id`}
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "ProfilePage",
+                    "name": "Group Settings | Expensease",
+                    "description": `Adjust settings for a specific group and manage expense preferences in Expensease.`,
+                    "url": `https://www.expensease.in/groups/settings/:id`
+                }}
+            />
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
-                        <button onClick={() => navigate(`/groups/${id}`)}>
+                        <button onClick={() => {
+                            logEvent('navigate', {
+                                fromScreen: 'group_settings', toScreen: 'group_detail', source: 'back'
+                            })
+                            navigate(`/groups/${id}`)
+                        }}>
                             <ChevronLeft />
                         </button>
                         <h1 className="text-3xl font-bold capitalize">Group Settings</h1>
@@ -212,11 +230,11 @@ export default function GroupSettings() {
                                 </button>}
                             </div>
                             {/* Net Balance Summary Box */}
-                            {totals && (
+                            {totals && Object.keys(totals?.balance).length > 0 && (
                                 <div className="bg-[#1E1E1E] p-4 rounded-xl shadow space-y-6 mt-4">
                                     <h2 className="text-xl font-semibold mb-2">Summary</h2>
 
-                                    {Object.keys(totals.balance || {}).map(code => {
+                                    {Object.keys(totals?.balance || {}).map(code => {
                                         const bal = totals.balance[code] || 0;
                                         const yourExp = totals.yourExpense[code] || 0;
                                         const groupExp = totals.groupExpense[code] || 0;
@@ -278,14 +296,19 @@ export default function GroupSettings() {
                                                 <div className="space-x-2">
                                                     {(!isMe && !isFriend) && (<>
 
-                                                        {!sentRequests.has(member._id) && !receivedRequests.has(member._id) ? (
+                                                        {!sentRequests?.has(member._id) && !receivedRequests?.has(member._id) ? (
                                                             <button
-                                                                onClick={() => addFriend(member.email)}
+                                                                onClick={() => {
+                                                                    logEvent('friend_request_sent', {
+                                                                        screen: 'group_settings',
+                                                                    })
+                                                                    addFriend(member.email)
+                                                                }}
                                                                 className="text-sm text-teal-500"
                                                             >
                                                                 Add Friend
                                                             </button>
-                                                        ) : sentRequests.has(member._id) ? (
+                                                        ) : sentRequests?.has(member._id) ? (
                                                             <button
                                                                 disabled
                                                                 className="text-sm text-gray-500 cursor-not-allowed"
@@ -298,6 +321,9 @@ export default function GroupSettings() {
                                                                     onClick={async () => {
                                                                         const requestId = receivedRequests.get(member._id);
                                                                         await acceptFriendRequest(requestId, userToken);
+                                                                        logEvent('friend_request_accepted', {
+                                                                            screen: 'group_settings',
+                                                                        })
                                                                         fetchFriends();
                                                                         fetchReceived();
                                                                     }}
@@ -309,6 +335,9 @@ export default function GroupSettings() {
                                                                     onClick={async () => {
                                                                         const requestId = receivedRequests.get(member._id);
                                                                         await rejectFriendRequest(requestId, userToken);
+                                                                        logEvent('friend_request_rejected', {
+                                                                            screen: 'group_settings',
+                                                                        })
                                                                         fetchReceived();
                                                                     }}
                                                                     className="text-sm text-red-500 border-b-1 border-red-500"

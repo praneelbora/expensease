@@ -72,7 +72,7 @@ router.post('/categories', auth, async (req, res) => {
 
 router.post("/google-login", async (req, res) => {
     const { credential } = req.body;
-
+    let newUser = false;
     if (!credential) {
         return res.status(400).json({ error: "Missing Google ID token" });
     }
@@ -89,6 +89,7 @@ router.post("/google-login", async (req, res) => {
         // 2. Find or Create User
         let user = await User.findOne({ email });
         if (!user) {
+            newUser = true;
             user = await User.create({ email, name, picture, googleId });
             // Create default Cash account for this new user
             await PaymentMethod.create({
@@ -121,6 +122,7 @@ router.post("/google-login", async (req, res) => {
                 email: user.email,
                 picture: user.picture,
             },
+            newUser
         });
     } catch (err) {
         console.error("Google login failed:", err);

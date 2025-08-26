@@ -321,7 +321,12 @@ const Expenses = () => {
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
-                        <button onClick={() => navigate(`/dashboard`)}>
+                        <button onClick={() => {
+                            logEvent('navigate', {
+                                fromScreen: 'expenses', toScreen: 'dashboard', source: 'back'
+                            });
+                            navigate(`/dashboard`)
+                        }}>
                             <ChevronLeft />
                         </button>
                         <h1 className="text-3xl font-bold capitalize">All Expenses</h1>
@@ -376,7 +381,12 @@ const Expenses = () => {
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                     />
-                    <button onClick={() => setShowFilterModal(true)} className={`p-2 rounded-md bg-[#212121] ${(appliedFilter.category !== "all" || appliedFilter.type !== "all" || appliedFilter.sort !== "newest") ? 'text-teal-600 ring-1 ring-inset ring-teal-500' : ' text-[#EBF1D5]'}`}>
+                    <button onClick={() => {
+                        logEvent('open_filter_modal', {
+                            screen: 'expenses'
+                        });
+                        setShowFilterModal(true)
+                    }} className={`p-2 rounded-md bg-[#212121] ${(appliedFilter.category !== "all" || appliedFilter.type !== "all" || appliedFilter.sort !== "newest") ? 'text-teal-600 ring-1 ring-inset ring-teal-500' : ' text-[#EBF1D5]'}`}>
 
                         <SlidersHorizontal />
                     </button>
@@ -399,6 +409,9 @@ const Expenses = () => {
                                 <p>No results found. Please <button
                                     className="text-teal-500 underline"
                                     onClick={() => {
+                                        logEvent('clear_filters', {
+                                            screen: 'expenses', source: 'no_results'
+                                        });
                                         setAppliedFilter({
                                             category: 'all',
                                             type: 'all',
@@ -415,7 +428,12 @@ const Expenses = () => {
                                 <ExpenseItem
                                     key={exp._id}
                                     expense={exp}
-                                    onClick={setShowModal}
+                                    onClick={() => {
+                                        logEvent('open_expense_modal', {
+                                            screen: 'expenses'
+                                        });
+                                        setShowModal(exp)
+                                    }}
                                     getPayerInfo={getPayerInfo}
                                     getOweInfo={getOweInfo}
                                     getSettleDirectionText={getSettleDirectionText}
@@ -426,6 +444,9 @@ const Expenses = () => {
                                 <p className="text-sm text-[#888] text-center mt-3" >End of Results. Please <button
                                     className="text-teal-500 underline"
                                     onClick={() => {
+                                        logEvent('clear_filters', {
+                                            screen: 'expenses', source: 'end_of_results'
+                                        });
                                         setAppliedFilter({
                                             category: 'all',
                                             type: 'all',

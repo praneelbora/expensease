@@ -11,7 +11,6 @@ import Account from "./pages/Account";
 import PaymentMethods from "./pages/PaymentMethods";
 import Transactions from "./pages/Transactions";
 import Logout from "./pages/Logout";
-import GroupJoin from "./pages/GroupJoin";
 import GroupSettings from "./pages/GroupSettings";
 import FriendSettings from "./pages/FriendSettings";
 import Dashboard from "./pages/Dashboard";
@@ -22,11 +21,8 @@ import LandingPage from "./pages/public/LandingPage";
 import About from "./pages/public/About";
 import FeaturesPage from "./pages/public/FeaturesPage";
 import FAQsPage from "./pages/public/FAQsPage";
-import Cookies from "js-cookie";
 import { Loader } from "lucide-react";
-import FriendRequest from "./pages/FriendRequest";
 import { useLocation } from "react-router-dom";
-import { useEffect } from "react";
 
 
 // ✅ Updated PrivateRoute using context
@@ -89,7 +85,7 @@ function App() {
                 element={<PrivateRoute><Account /></PrivateRoute>}
             />
             <Route
-                path="/paymentMethods"
+                path="/paymentAccounts"
                 element={<PrivateRoute><PaymentMethods /></PrivateRoute>}
             />
             <Route
@@ -128,8 +124,6 @@ function App() {
                 path="/*"
                 element={<Navigate to={user ? "/dashboard" : "/login"} />}
             />
-            <Route path="/groups/join/:code" element={<GroupJoin />} />
-            <Route path="/friends/add/:senderId" element={<FriendRequest />} />
 
         </Routes>
     );

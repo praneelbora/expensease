@@ -37,7 +37,7 @@ export default function FriendsModal({ setShowModal, showModal, fetchFriends }) 
     const [received, setReceived] = useState([]);
 
     // Invite link + message
-    const friendLink = `${import.meta.env.VITE_FRONTEND_URL}/friends/add/${user?._id || ""}`;
+    const friendLink = `${import.meta.env.VITE_FRONTEND_URL}/friends?add=${user?._id || ""}`;
     const message = `Let's connect on Expensease! 🤝
 
 Tap this link to login and send me a friend request:

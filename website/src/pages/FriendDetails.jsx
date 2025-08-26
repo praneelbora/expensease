@@ -23,6 +23,7 @@ import {
 import PullToRefresh from "pulltorefreshjs";
 import { logEvent } from "../utils/analytics";
 import UnifiedPaymentModal from "../components/UnifiedPaymentModal";
+import SEO from "../components/SEO";
 
 const FriendDetails = () => {
     const { user, userToken, defaultCurrency, preferredCurrencies, categories, paymentMethods, fetchPaymentMethods } = useAuth() || {};
@@ -384,13 +385,26 @@ const FriendDetails = () => {
     };
     return (
         <MainLayout>
+            <SEO
+                title={`Friend - Expense Details | Expensease`}
+                description={`Track your shared expenses, loans, and settlements with your friend on Expensease.`}
+                canonical={`https://www.expensease.in/friends/:id`}
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "ProfilePage",
+                    "name": "Friend - Expense Details | Expensease",
+                    "description": `Track your shared expenses, loans, and settlements with your friend on Expensease.`,
+                    "url": `https://www.expensease.in/friends/:id`
+                }}
+            />
+
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-1 flex-row gap-2">
                         <button onClick={() => {
-                            logEvent('back', {
-                                screen: 'friend_detail', to: 'friends'
-                            })
+                            logEvent('navigate', {
+                                fromScreen: 'friend_detail', toScreen: 'friends', source: 'back'
+                            });
                             navigate(`/friends`)
                         }
                         }>
@@ -402,7 +416,7 @@ const FriendDetails = () => {
                                 className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
                                 onClick={() => {
                                     logEvent('navigate',
-                                        { screen: 'friend_detail', to: 'friend_setting', source: 'header' }
+                                        { fromScreen: 'friend_detail', toScreen: 'friend_setting', source: 'setting' }
                                     );
                                     navigate(`/friends/settings/${id}`)
                                 }} >
@@ -495,7 +509,7 @@ const FriendDetails = () => {
                                         <button
                                             onClick={() => {
                                                 logEvent('navigate', {
-                                                    screen: 'friend_detail', to: 'add_loan', source: 'cta'
+                                                    fromScreen: 'friend_detail', toScreen: 'new-loan', source: 'cta'
                                                 });
                                                 navigate(`/new-loan`, { state: { friendId: friend._id } })
                                             }}
@@ -526,7 +540,7 @@ const FriendDetails = () => {
                                                 key={loan._id}
                                                 className={`border ${outstanding > 0 ? "border-teal-500" : "border-[#333]"} rounded-lg p-3 bg-[#171717] flex flex-col gap-1 cursor-pointer`}
                                                 onClick={() => {
-                                                    logEvent("open_modal_loan", { screen: "friend_detail" });
+                                                    logEvent("open_loan_modal", { screen: "friend_detail" });
                                                     openLoanView(loan);
                                                 }}
                                             >
@@ -607,7 +621,7 @@ const FriendDetails = () => {
                                                     ) : (
                                                         <button
                                                             onClick={() => {
-                                                                logEvent("open_modal_payment", { screen: "friend_detail" });
+                                                                logEvent("open_payment_modal", { screen: "friend_detail" });
                                                                 setShowPaymentModal(true);
                                                             }}
                                                             className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
@@ -626,7 +640,7 @@ const FriendDetails = () => {
                                                             💡 To make settlements faster, add your UPI ID here —{" "}
                                                             <button
                                                                 onClick={() => {
-                                                                    logEvent("navigate", { screen: "friend_detail", to: "account_upi" });
+                                                                    logEvent("navigate", { fromScreen: "friend_detail", toScreen: "account", section: "upi", source: "cta" });
                                                                     navigate("/account?section=upi");
                                                                 }}
                                                                 className="underline underline-offset-2 text-teal-400 hover:text-teal-300"
@@ -644,7 +658,7 @@ const FriendDetails = () => {
                                                 <div className="flex flex-col gap-2 mt-2">
                                                     <button
                                                         onClick={() => {
-                                                            logEvent("open_modal_settle", { screen: "friend_detail" });
+                                                            logEvent("open_settle_modal", { screen: "friend_detail" });
                                                             setSettleType("full");
                                                             setShowSettleModal(true);
                                                         }}
@@ -674,7 +688,7 @@ const FriendDetails = () => {
                                             <button
                                                 onClick={() => {
                                                     logEvent('navigate', {
-                                                        screen: 'friend_detail', to: 'add_expense', source: 'cta'
+                                                        fromScreen: 'friend_detail', toScreen: 'new-expense', source: 'cta'
                                                     });
                                                     navigate('/new-expense', { state: { friendId: id } })
                                                 }}
@@ -718,7 +732,12 @@ const FriendDetails = () => {
                                                 <ExpenseItem
                                                     key={exp._id}
                                                     expense={exp}
-                                                    onClick={setShowModal}
+                                                    onClick={() => {
+                                                        logEvent('open_expense_modal', {
+                                                            screen: 'friend_detail',
+                                                        });
+                                                        setShowModal(exp)
+                                                    }}
                                                     getPayerInfo={getPayerInfo}
                                                     getOweInfo={getOweInfo}
                                                     getSettleDirectionText={getSettleDirectionText}
@@ -826,7 +845,7 @@ const FriendDetails = () => {
                         <button
                             onClick={() => {
                                 logEvent('navigate', {
-                                    screen: 'friend_detail', to: 'add_expense', source: 'fab'
+                                    fromScreen: 'friend_detail', toScreen: 'new-expense', source: 'fab'
                                 });
                                 navigate('/new-expense', { state: { friendId: id } })
                             }
@@ -844,7 +863,7 @@ const FriendDetails = () => {
                         <button
                             onClick={() => {
                                 logEvent('navigate', {
-                                    screen: 'friend_detail', to: 'add_loan', source: 'fab'
+                                    fromScreen: 'friend_detail', toScreen: 'new-loan', source: 'fab'
                                 });
                                 navigate(`/new-loan`, { state: { friendId: friend._id } })
                             }

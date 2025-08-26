@@ -19,6 +19,7 @@ import {
     Coins,
     ChevronLeft,
 } from "lucide-react";
+import SEO from "../components/SEO";
 
 const Guide = () => {
     const navigate = useNavigate();
@@ -34,12 +35,27 @@ const Guide = () => {
 
     const refs = Object.fromEntries(sections.map(s => [s.id, useRef(null)]));
 
-    const jump = (id) => {
+    const jump = (id, label) => {
+        logEvent('navigate', {
+            fromScreen: 'guide', toScreen: 'guide', source: 'on_this_page', section: label.toLowerCase()
+        })
         refs[id]?.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     };
 
     return (
         <MainLayout>
+            <SEO
+                title={`Guide | Expensease`}
+                description={`Comprehensive guide to using Expensease, including features, workflows, and tips for managing expenses with friends and groups.`}
+                canonical={`https://www.expensease.in/guide`}
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "ProfilePage",
+                    "name": "Guide | Expensease",
+                    "description": `Comprehensive guide to using Expensease, including features, workflows, and tips for managing expenses with friends and groups.`,
+                    "url": `https://www.expensease.in/guide`
+                }}
+            />
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
                     <div className="flex flex-row gap-2">
@@ -57,7 +73,7 @@ const Guide = () => {
                             {sections.map(({ id, label, icon: Icon }) => (
                                 <button
                                     key={id}
-                                    onClick={() => jump(id)}
+                                    onClick={() => jump(id, label)}
                                     className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#2a2a2a] bg-[#181818] hover:border-teal-700/40"
                                 >
                                     <Icon size={16} className="opacity-80" />
@@ -85,24 +101,59 @@ const Guide = () => {
                     <Section ref={refs.quickstart} id="quickstart" title="Quick Start" icon={Rocket}>
                         <ol className="list-decimal ml-5 space-y-2 text-[#cfdac0]">
                             <li>
-                                Add a <NavLink onClick={() => navigate("/paymentMethods")}>Payment Account</NavLink> (e.g., UPI or bank).
+                                Add a <NavLink onClick={() => {
+                                    logEvent('navigate', {
+                                        fromScreen: 'guide', toScreen: 'paymentAccounts', source: 'quickstart_text'
+                                    })
+                                    navigate("/paymentAccounts")
+                                }}>Payment Account</NavLink> (e.g., UPI or bank).
                             </li>
                             <li>
-                                Set your <NavLink onClick={() => navigate("/account?section=currency")}>Default Currency</NavLink>.
+                                Set your <NavLink onClick={() => {
+                                    logEvent('navigate', {
+                                        fromScreen: 'guide', toScreen: 'account', source: 'quickstart_text', toSection: 'currency'
+                                    })
+                                    navigate("/account?section=currency")
+                                }}>Default Currency</NavLink>.
                             </li>
                             <li>
-                                Add your first expense from <NavLink onClick={() => navigate("/new-expense")}>New Expense</NavLink>.
+                                Add your first expense from <NavLink onClick={() => {
+                                    logEvent('navigate', {
+                                        fromScreen: 'guide', toScreen: 'new-expense', source: 'quickstart_text'
+                                    })
+                                    navigate("/new-expense")
+                                }}>New Expense</NavLink>.
                             </li>
                             <li>
-                                Invite <NavLink onClick={() => navigate("/friends")}>Friends</NavLink> or create a <NavLink onClick={() => navigate("/groups")}>Group</NavLink> to split.
+                                Invite <NavLink onClick={() => {
+                                    logEvent('navigate', {
+                                        fromScreen: 'guide', toScreen: 'friends', source: 'quickstart_text'
+                                    })
+                                    navigate("/friends")
+                                }}>Friends</NavLink> or create a <NavLink onClick={() => {
+                                    logEvent('navigate', {
+                                        fromScreen: 'guide', toScreen: 'groups', source: 'quickstart_text'
+                                    })
+                                    navigate("/groups")
+                                }}>Group</NavLink> to split.
                             </li>
                             <li>
                                 Review balances on the Dashboard and tap a method to view blurred balances.
                             </li>
                         </ol>
                         <div className="mt-3 flex flex-col gap-2">
-                            <Primary onClick={() => navigate("/new-expense")} icon={Plus}>Add Expense</Primary>
-                            <Ghost onClick={() => navigate("/paymentMethods")} icon={Wallet}>Payment Accounts</Ghost>
+                            <Primary onClick={() => {
+                                logEvent('navigate', {
+                                    fromScreen: 'guide', toScreen: 'new-expense', source: 'quickstart_cta'
+                                })
+                                navigate("/new-expense")
+                            }} icon={Plus}>Add Expense</Primary>
+                            <Ghost onClick={() => {
+                                logEvent('navigate', {
+                                    fromScreen: 'guide', toScreen: 'paymentAccounts', source: 'quickstart_cta'
+                                })
+                                navigate("/paymentAccounts")
+                            }} icon={Wallet}>Payment Accounts</Ghost>
                         </div>
                     </Section>
 
@@ -117,7 +168,14 @@ const Guide = () => {
                                     "Split: multiple payers and owe-ers.",
                                     "Modes: Equal, By Value, By Percent.",
                                 ]}
-                                action={{ label: "Add Expense", onClick: () => navigate("/new-expense") }}
+                                action={{
+                                    label: "Add Expense", onClick: () => {
+                                        logEvent('navigate', {
+                                            fromScreen: 'guide', toScreen: 'new-expense', source: 'key_features'
+                                        })
+                                        navigate("/new-expense")
+                                    }
+                                }}
                             />
                             <Feature
                                 icon={Wallet}
@@ -127,7 +185,14 @@ const Guide = () => {
                                     "Balances always rendered but blurred.",
                                     "Tap “View balances” to reveal for 5s.",
                                 ]}
-                                action={{ label: "Manage Payment Accounts", onClick: () => navigate("/paymentMethods") }}
+                                action={{
+                                    label: "Manage Payment Accounts", onClick: () => {
+                                        logEvent('navigate', {
+                                            fromScreen: 'guide', toScreen: 'paymentAccounts', source: 'key_features'
+                                        })
+                                        navigate("/paymentAccounts")
+                                    }
+                                }}
                             />
                             <Feature
                                 icon={Coins}
@@ -146,7 +211,14 @@ const Guide = () => {
                                     "Each expense saved in its own currency.",
                                     "Clear totals and formatted amounts.",
                                 ]}
-                                action={{ label: "Default Currency", onClick: () => navigate("/account?section=currency") }}
+                                action={{
+                                    label: "Default Currency", onClick: () => {
+                                        logEvent('navigate', {
+                                            fromScreen: 'guide', toScreen: 'account', source: 'key_features', section: 'currency',
+                                        })
+                                        navigate("/account?section=currency")
+                                    }
+                                }}
                             />
                             <Feature
                                 icon={PieChart}
@@ -156,7 +228,14 @@ const Guide = () => {
                                     "Dashboard shows recent items & summaries.",
                                     "Drill into personal, friend, or group totals.",
                                 ]}
-                                action={{ label: "Manage Categories", onClick: () => navigate("/account?section=category") }}
+                                action={{
+                                    label: "Manage Categories", onClick: () => {
+                                        logEvent('navigate', {
+                                            fromScreen: 'guide', toScreen: 'account', source: 'key_features', section: 'category',
+                                        })
+                                        navigate("/account?section=category")
+                                    }
+                                }}
                             />
                             <Feature
                                 icon={RefreshCcw}
@@ -191,7 +270,14 @@ const Guide = () => {
                                 "Select who owes, choose Equal/Value/Percent, ensure totals match.",
                                 "Save. Everyone’s shares are recorded, your payment account debited if applicable.",
                             ]}
-                            cta={{ label: "Try it now", onClick: () => navigate("/new-expense") }}
+                            cta={{
+                                label: "Try it now", onClick: () => {
+                                    logEvent('navigate', {
+                                        fromScreen: 'guide', toScreen: 'new-expense', source: 'workflow',
+                                    })
+                                    navigate("/new-expense")
+                                }
+                            }}
                         />
                         <Workflow
                             title="Record a personal purchase"
@@ -209,7 +295,14 @@ const Guide = () => {
                                 "Tap a card → balances reveal for 5 seconds, then auto-blur.",
                                 "Add/adjust balances from the Payment Account page.",
                             ]}
-                            cta={{ label: "Open Dashboard", onClick: () => navigate("/") }}
+                            cta={{
+                                label: "Open Dashboard", onClick: () => {
+                                    logEvent('navigate', {
+                                        fromScreen: 'guide', toScreen: 'dashboard', source: 'workflow',
+                                    })
+                                    navigate("/dashboard")
+                                }
+                            }}
                         />
                     </Section>
 
@@ -255,8 +348,18 @@ const Guide = () => {
                                 <p className="text-[#B8C4A0] text-sm">Quick add for personal, or split with friends & groups.</p>
                             </div>
                             <div className="flex flex-col w-full gap-2">
-                                <Primary onClick={() => navigate("/new-expense")} icon={Plus}>Add Expense</Primary>
-                                <Ghost onClick={() => navigate("/paymentMethods")} icon={Wallet}>Manage Payment Accounts</Ghost>
+                                <Primary onClick={() => {
+                                    logEvent('navigate', {
+                                        fromScreen: 'guide', toScreen: 'new-expense', source: 'footer_cta',
+                                    })
+                                    navigate("/new-expense")
+                                }} icon={Plus}>Add Expense</Primary>
+                                <Ghost onClick={() => {
+                                    logEvent('navigate', {
+                                        fromScreen: 'guide', toScreen: 'paymentAccounts', source: 'footer_cta'
+                                    })
+                                    navigate("/paymentAccounts")
+                                }} icon={Wallet}>Manage Payment Accounts</Ghost>
                             </div>
                         </div>
                     </div>

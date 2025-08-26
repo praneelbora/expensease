@@ -121,7 +121,7 @@ export default function PaymentModal({
                         </button><button
                             onClick={() => {
                                 logEvent('navigate', {
-                                    screen: 'payment_modal', to: 'settle_modal', source: 'payment_modal'
+                                    fromScreen: 'payment_modal', toScreen: 'settle_modal', source: 'payment_modal'
                                 })
                                 onClose(editableAmount)
                             }}
