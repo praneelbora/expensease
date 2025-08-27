@@ -276,8 +276,6 @@ router.post('/remove', auth, async (req, res) => {
             $expr: { $eq: [{ $size: "$splits" }, 2] }, // exactly two splits
             "splits.oweAmount": { $gt: 0 } // at least one owes
         });
-        console.log(unsettledExpenses);
-        
         // 2. Check unsettled loans (status not 'closed' between the two)
         const unsettledLoans = await Loan.find({
             $or: [
@@ -285,8 +283,6 @@ router.post('/remove', auth, async (req, res) => {
                 { lenderId: friendId, borrowerId: userId, status: { $ne: 'closed' } }
             ]
         });
-        console.log(unsettledLoans);
-        
         if (unsettledExpenses.length > 0 || unsettledLoans.length > 0) {
             return res.status(400).json({
                 message: "Cannot remove friend until all shared expenses and loans are settled",

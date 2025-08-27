@@ -76,8 +76,6 @@ export function logScreenView(screenName) {
         return;
     }
     lastScreen = cleanName;
-    console.log(cleanName);
-    
     if (typeof window.gtag === "function") {
         window.gtag("event", "page_view", {
             'page_title': cleanName,

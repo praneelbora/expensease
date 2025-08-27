@@ -55,14 +55,14 @@ export const saveUserCategories = async (categories, userToken) => {
 };
 
 // services/UserService.js
-export const googleLogin = async (credential) => {
+export const googleLogin = async (access_token) => {
     try {
         const response = await fetch(`${BASE_URL}/v1/users/google-login`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ credential }),
+            body: JSON.stringify({ access_token }),
         });
 
         const data = await response.json();

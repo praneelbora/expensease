@@ -9,7 +9,8 @@ const jwt = require('jsonwebtoken');
 const auth = require('../../middleware/auth');
 const DefaultCategories = require('../../assets/Categories').default;
 const { OAuth2Client } = require("google-auth-library");
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const client = new OAuth2Client(process.env.VITE_GOOGLE_CLIENT_ID);
+
 const JWT_SECRET = process.env.JWT_SECRET;
 const PaymentMethod = require("../../models/PaymentMethod");
 const PaymentMethodTxn = require("../../models/PaymentMethodTransaction");
@@ -17,278 +18,267 @@ const PaymentMethodTxn = require("../../models/PaymentMethodTransaction");
 
 // // 👤 Authenticated User Info
 router.get('/', auth, async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id)
-        res.json(user);
-    } catch (error) {
-        console.error('/ GET user error:', error);
-        res.status(500).json({ error: 'Failed to fetch user' });
-    }
+  try {
+    const user = await User.findById(req.user.id)
+    res.json(user);
+  } catch (error) {
+    console.error('/ GET user error:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
 });
 
 // // 🔁 Ping
 router.get('/ping', (req, res) => {
-    console.log('ping');
-    res.send('🚀 Server is running!');
+  console.log('ping');
+  res.send('🚀 Server is running!');
 });
 
 // GET Categories
 router.get('/categories', auth, async (req, res) => {
-    try {
-        let user = await User.findById(req.user.id); // assume middleware added `req.user`
-        if (!user) return res.status(401).json({ error: 'Unauthorized' });
-        if (!user.customCategories || user.customCategories.length === 0) {
-            user.customCategories = DefaultCategories
-            await user.save();
-            return res.json(user.customCategories);
-        }
-
-        res.json(user.customCategories);
-    } catch (err) {
-        console.error('Error getting categories:', err);
-        res.status(500).json({ error: 'Server error' });
+  try {
+    let user = await User.findById(req.user.id); // assume middleware added `req.user`
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!user.customCategories || user.customCategories.length === 0) {
+      user.customCategories = DefaultCategories
+      await user.save();
+      return res.json(user.customCategories);
     }
+
+    res.json(user.customCategories);
+  } catch (err) {
+    console.error('Error getting categories:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // POST Categories
 router.post('/categories', auth, async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id);
-        const { categories } = req.body;
+  try {
+    const user = await User.findById(req.user.id);
+    const { categories } = req.body;
 
-        if (!Array.isArray(categories)) {
-            return res.status(400).json({ error: 'Invalid categories' });
-        }
-
-        user.customCategories = categories;
-        await user.save();
-        res.json({ success: true });
-    } catch (err) {
-        console.error('Error saving categories:', err);
-        res.status(500).json({ error: 'Server error' });
+    if (!Array.isArray(categories)) {
+      return res.status(400).json({ error: 'Invalid categories' });
     }
-});
 
+    user.customCategories = categories;
+    await user.save();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving categories:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 router.post("/google-login", async (req, res) => {
-    const { credential } = req.body;
+  const { access_token } = req.body;
+  if (!access_token) return res.status(400).json({ error: "Missing access token" });
+
+  try {
+    // Exchange code for tokens
+    const response = await fetch(
+      `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${access_token}`
+    );
+    const profile = await response.json();
+    const { email, name, picture, sub: googleId } = profile;
+
+    let user = await User.findOne({ email });
     let newUser = false;
-    if (!credential) {
-        return res.status(400).json({ error: "Missing Google ID token" });
+
+
+    if (!user) {
+      newUser = true;
+      user = await User.create({ email, name, picture, googleId });
+      await PaymentMethod.create({
+        userId: user._id,
+        label: "Cash",
+        type: "cash",
+        supportedCurrencies: [], // any currency
+        balances: {
+          INR: { available: 0, pending: 0 }
+        },
+        capabilities: ["send", "receive"],
+        isDefaultSend: true,       // optional: treat cash as default send
+        isDefaultReceive: true,    // optional: treat cash as default receive
+        provider: "manual",
+        status: "verified"         // cash doesn’t need verification
+      });
     }
 
-    try {
-        // 1. Verify Google Token
-        const ticket = await client.verifyIdToken({
-            idToken: credential,
-            audience: process.env.GOOGLE_CLIENT_ID,
-        });
+    // Issue JWT
+    const authToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "100d" });
 
-        const payload = ticket.getPayload();
-        const { email, name, picture, sub: googleId } = payload;
-        // 2. Find or Create User
-        let user = await User.findOne({ email });
-        if (!user) {
-            newUser = true;
-            user = await User.create({ email, name, picture, googleId });
-            // Create default Cash account for this new user
-            await PaymentMethod.create({
-                userId: user._id,
-                label: "Cash",
-                type: "cash",
-                supportedCurrencies: [], // any currency
-                balances: {
-                    INR: { available: 0, pending: 0 }
-                },
-                capabilities: ["send", "receive"],
-                isDefaultSend: true,       // optional: treat cash as default send
-                isDefaultReceive: true,    // optional: treat cash as default receive
-                provider: "manual",
-                status: "verified"         // cash doesn’t need verification
-            });
-        }
-
-        // 3. Issue your JWT
-        const authToken = jwt.sign({ id: user._id }, JWT_SECRET, {
-            expiresIn: "100d",
-        });
-
-        // 4. Respond with token and user info
-        res.status(200).json({
-            responseBody: { "x-auth-token": authToken },
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                picture: user.picture,
-            },
-            newUser
-        });
-    } catch (err) {
-        console.error("Google login failed:", err);
-        res.status(401).json({ error: "Invalid or expired Google token" });
-    }
+    res.status(200).json({
+      responseBody: { "x-auth-token": authToken },
+      user: { id: user._id, name: user.name, email: user.email, picture: user.picture },
+      newUser,
+    });
+  } catch (err) {
+    console.error("Google login failed:", err);
+    res.status(401).json({ error: "Invalid or expired Google code" });
+  }
 });
 
+
 router.patch('/profile', auth, async (req, res) => {
-    try {
-        const {
-            name,
-            profilePic,
-            upiId: rawUpiId,
-            vpa: rawVpa,
-            defaultCurrency,
-            preferredCurrencies,
-        } = req.body || {};
+  try {
+    const {
+      name,
+      profilePic,
+      upiId: rawUpiId,
+      vpa: rawVpa,
+      defaultCurrency,
+      preferredCurrencies,
+    } = req.body || {};
 
-        const update = {};
+    const update = {};
 
-        // --- Basic fields ---
-        if (typeof name === 'string') update.name = name.trim();
-        if (typeof profilePic === 'string') update.profilePic = profilePic.trim();
+    // --- Basic fields ---
+    if (typeof name === 'string') update.name = name.trim();
+    if (typeof profilePic === 'string') update.profilePic = profilePic.trim();
 
-        // --- UPI handling ---
-        const resolvedUpi = [rawUpiId, rawVpa].find(
-            (v) => typeof v === 'string' && v.trim().length
-        );
-        const upiRegex = /^[a-zA-Z0-9.\-_]{2,}@[a-zA-Z0-9.\-]{2,}$/;
+    // --- UPI handling ---
+    const resolvedUpi = [rawUpiId, rawVpa].find(
+      (v) => typeof v === 'string' && v.trim().length
+    );
+    const upiRegex = /^[a-zA-Z0-9.\-_]{2,}@[a-zA-Z0-9.\-]{2,}$/;
 
-        if (resolvedUpi !== undefined) {
-            const v = String(resolvedUpi).trim();
-            if (!upiRegex.test(v)) {
-                return res.status(400).json({ error: 'Invalid UPI ID format (e.g., name@bank).' });
-            }
-            update.upiId = v;
-        }
-
-        // --- Currency handling ---
-        if (typeof defaultCurrency === 'string') {
-            const cur = defaultCurrency.toUpperCase().trim();
-            if (!/^[A-Z]{3}$/.test(cur)) {
-                return res.status(400).json({ error: 'defaultCurrency must be a 3-letter ISO code (e.g., INR, USD).' });
-            }
-            update.defaultCurrency = cur;
-        }
-
-        if (Array.isArray(preferredCurrencies)) {
-            const cleaned = [...new Set(preferredCurrencies.map(c => String(c).toUpperCase().trim()))]
-                .filter(c => /^[A-Z]{3}$/.test(c));
-
-            // if (!cleaned.length) {
-            //   return res.status(400).json({ error: 'preferredCurrencies must contain valid ISO codes.' });
-            // }
-            update.preferredCurrencies = cleaned;
-        }
-
-        // --- Nothing to update? ---
-        if (!Object.keys(update).length) {
-            console.log('[PATCH /profile] nothing to update');
-            return res.status(200).json({
-                message: 'No changes',
-                user: await User.findById(req.user.id).lean(),
-            });
-        }
-
-        // --- Update ---
-        const user = await User.findByIdAndUpdate(
-            req.user.id,
-            { $set: update },
-            { new: true, runValidators: true, context: 'query' }
-        ).lean();
-
-        if (!user) {
-            console.warn('[PATCH /profile] user not found for id', req.user.id);
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        return res.json({
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                profilePic: user.profilePic,
-                upiId: user.upiId || null,
-                defaultCurrency: user.defaultCurrency || 'INR',
-                preferredCurrencies: user.preferredCurrencies || ['INR'],
-                customCategories: user.customCategories || [],
-            },
-        });
-    } catch (err) {
-        console.error('/profile PATCH error:', err);
-        return res.status(500).json({ error: 'Failed to update profile' });
+    if (resolvedUpi !== undefined) {
+      const v = String(resolvedUpi).trim();
+      if (!upiRegex.test(v)) {
+        return res.status(400).json({ error: 'Invalid UPI ID format (e.g., name@bank).' });
+      }
+      update.upiId = v;
     }
+
+    // --- Currency handling ---
+    if (typeof defaultCurrency === 'string') {
+      const cur = defaultCurrency.toUpperCase().trim();
+      if (!/^[A-Z]{3}$/.test(cur)) {
+        return res.status(400).json({ error: 'defaultCurrency must be a 3-letter ISO code (e.g., INR, USD).' });
+      }
+      update.defaultCurrency = cur;
+    }
+
+    if (Array.isArray(preferredCurrencies)) {
+      const cleaned = [...new Set(preferredCurrencies.map(c => String(c).toUpperCase().trim()))]
+        .filter(c => /^[A-Z]{3}$/.test(c));
+
+      // if (!cleaned.length) {
+      //   return res.status(400).json({ error: 'preferredCurrencies must contain valid ISO codes.' });
+      // }
+      update.preferredCurrencies = cleaned;
+    }
+
+    // --- Nothing to update? ---
+    if (!Object.keys(update).length) {
+      console.log('[PATCH /profile] nothing to update');
+      return res.status(200).json({
+        message: 'No changes',
+        user: await User.findById(req.user.id).lean(),
+      });
+    }
+
+    // --- Update ---
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: update },
+      { new: true, runValidators: true, context: 'query' }
+    ).lean();
+
+    if (!user) {
+      console.warn('[PATCH /profile] user not found for id', req.user.id);
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        profilePic: user.profilePic,
+        upiId: user.upiId || null,
+        defaultCurrency: user.defaultCurrency || 'INR',
+        preferredCurrencies: user.preferredCurrencies || ['INR'],
+        customCategories: user.customCategories || [],
+      },
+    });
+  } catch (err) {
+    console.error('/profile PATCH error:', err);
+    return res.status(500).json({ error: 'Failed to update profile' });
+  }
 });
 
 router.delete('/me', auth, async (req, res) => {
-    const session = await mongoose.startSession();
-    try {
-        const userId = req.user.id;
+  const session = await mongoose.startSession();
+  try {
+    const userId = req.user.id;
 
-        await session.withTransaction(async () => {
-            // 1) Collect this user's payment account IDs
-            const pmIds = await PaymentMethod
-                .find({ userId }, { _id: 1 })
-                .session(session)
-                .lean()
-                .then(rows => rows.map(r => r._id));
+    await session.withTransaction(async () => {
+      // 1) Collect this user's payment account IDs
+      const pmIds = await PaymentMethod
+        .find({ userId }, { _id: 1 })
+        .session(session)
+        .lean()
+        .then(rows => rows.map(r => r._id));
 
-            // 2) Delete PM transactions (journal)
-            if (pmIds.length) {
-                await PaymentMethodTxn.deleteMany(
-                    { userId, paymentMethodId: { $in: pmIds } },
-                    { session }
-                );
-            }
+      // 2) Delete PM transactions (journal)
+      if (pmIds.length) {
+        await PaymentMethodTxn.deleteMany(
+          { userId, paymentMethodId: { $in: pmIds } },
+          { session }
+        );
+      }
 
-            // 3) Delete payment accounts
-            await PaymentMethod.deleteMany({ userId }, { session });
+      // 3) Delete payment accounts
+      await PaymentMethod.deleteMany({ userId }, { session });
 
-            // 4) Delete expenses created by the user
-            await Expense.deleteMany({ createdBy: userId }, { session });
+      // 4) Delete expenses created by the user
+      await Expense.deleteMany({ createdBy: userId }, { session });
 
-            // 5) Remove the user from any splits in other peoples' expenses
-            await Expense.updateMany(
-                { 'splits.friendId': userId },
-                { $pull: { splits: { friendId: userId } } },
-                { session }
-            );
+      // 5) Remove the user from any splits in other peoples' expenses
+      await Expense.updateMany(
+        { 'splits.friendId': userId },
+        { $pull: { splits: { friendId: userId } } },
+        { session }
+      );
 
-            // 6) Remove the user from groups
-            await Group.updateMany(
-                { 'members._id': userId },
-                { $pull: { members: { _id: userId } } },
-                { session }
-            );
-            // (Optional) delete empty groups afterwards
-            await Group.deleteMany({ members: { $size: 0 } }, { session });
+      // 6) Remove the user from groups
+      await Group.updateMany(
+        { 'members._id': userId },
+        { $pull: { members: { _id: userId } } },
+        { session }
+      );
+      // (Optional) delete empty groups afterwards
+      await Group.deleteMany({ members: { $size: 0 } }, { session });
 
-            // 7) Delete friend requests involving this user (if model exists)
-            if (FriendRequest) {
-                await FriendRequest.deleteMany(
-                    {
-                        $or: [
-                            { from: userId },
-                            { to: userId },
-                            // common alt field names:
-                            { requester: userId },
-                            { recipient: userId }
-                        ]
-                    },
-                    { session }
-                );
-            }
+      // 7) Delete friend requests involving this user (if model exists)
+      if (FriendRequest) {
+        await FriendRequest.deleteMany(
+          {
+            $or: [
+              { from: userId },
+              { to: userId },
+              // common alt field names:
+              { requester: userId },
+              { recipient: userId }
+            ]
+          },
+          { session }
+        );
+      }
 
-            // 8) Finally, delete the user
-            await User.deleteOne({ _id: userId }, { session });
-        });
+      // 8) Finally, delete the user
+      await User.deleteOne({ _id: userId }, { session });
+    });
 
-        res.status(204).send(); // no content
-    } catch (err) {
-        console.error('Delete user error:', err);
-        res.status(500).json({ error: 'Failed to delete user' });
-    } finally {
-        session.endSession();
-    }
+    res.status(204).send(); // no content
+  } catch (err) {
+    console.error('Delete user error:', err);
+    res.status(500).json({ error: 'Failed to delete user' });
+  } finally {
+    session.endSession();
+  }
 });
 
 const getFriendSuggestions = async (userId, topN = 5) => {
