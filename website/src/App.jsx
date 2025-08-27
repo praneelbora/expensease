@@ -21,6 +21,12 @@ import LandingPage from "./pages/public/LandingPage";
 import About from "./pages/public/About";
 import FeaturesPage from "./pages/public/FeaturesPage";
 import FAQsPage from "./pages/public/FAQsPage";
+import BlogsPage from "./pages/public/BlogsPage";
+import Contact from "./pages/public/Contact";
+import Blog from "./pages/public/BlogPost";
+import Terms from "./pages/public/Terms";
+import PrivacyPolicy from "./pages/public/PrivacyPolicy";
+import NotFound from "./pages/public/NotFound";
 import { Loader } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
@@ -121,10 +127,26 @@ function App() {
                 element={<FAQsPage />}
             />
             <Route
-                path="/*"
-                element={<Navigate to={user ? "/dashboard" : "/login"} />}
+                path="/blogs"
+                element={<BlogsPage />}
             />
-
+            <Route
+                path="/blogs/:slug"
+                element={<Blog />}
+            />
+            <Route
+                path="/contact"
+                element={<Contact />}
+            />
+            <Route
+                path="/terms"
+                element={<Terms />}
+            />
+            <Route
+                path="/privacy"
+                element={<PrivacyPolicy />}
+            />
+            <Route path="*" element={<NotFound />} />
         </Routes>
     );
 }

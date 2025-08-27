@@ -18,7 +18,7 @@ const Navbar = () => {
         return <div>Loading...</div>;
     }
     return (
-        <nav className="fixed top-0 left-0 w-full bg-[#212121] text-white px-4 sm:px-6 py-4 flex items-center justify-between">
+        <nav className="fixed top-0 left-0 w-full bg-[#212121] text-white px-4 sm:px-6 py-4 flex items-center justify-between z-100">
             {/* Logo */}
             <Link to="/" className="text-2xl font-bold">
                 Expensease
@@ -54,6 +54,12 @@ const Navbar = () => {
                 </Link>
                 <Link to="/faqs" className="block px-4 py-2 hover:text-teal-400">
                     FAQs
+                </Link>
+                <Link to="/blogs" className="block px-4 py-2 hover:text-teal-400">
+                    Blogs
+                </Link>
+                <Link to="/contact" className="block px-4 py-2 hover:text-teal-400">
+                    Contact Us
                 </Link>
                 {userToken ? (
                     <Link
