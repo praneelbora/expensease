@@ -228,7 +228,7 @@ export default function LoginRegister() {
   }, []);
 
   return (
-    <div className="min-h-screen w-full bg-[#121212] text-[#EBF1D5]">
+    <div className="w-full bg-[#121212] text-[#EBF1D5]">
       <SEO
         title="Login | Expensease"
         description="Sign in with Google to start using Expensease — split bills, track group expenses, and settle easily."
@@ -245,25 +245,21 @@ export default function LoginRegister() {
       <NavBar />
 
       <main className="flex min-h-[calc(100vh-72px)] items-center justify-center px-4 py-12 mt-16">
-        <div className="w-full max-w-3xl grid gap-8 md:grid-cols-2 items-center">
+        <div className="w-full lg:max-w-[80%] grid gap-8 md:grid-cols-2 items-center">
           {/* Left: Product pitch (concise) */}
           <section className="rounded-2xl p-8 bg-[#0f0f0f] border border-[#1a1a1a] shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 p-2 flex items-center justify-center rounded-lg bg-teal-600 text-black">
-                <div>
-                  <LogIn size={18} />
-                </div>
-              </div>
               <div>
-                <h2 className="text-xl font-semibold">Welcome to Expensease</h2>
-                <div className="text-xs text-[#888]">Simple, honest expense splitting for friends, roommates, and trips.</div>
+                <h2 className="text-5xl text-white font-semibold">Expensease</h2>
+                <div className="text-xs text-[#888] mt-1">Simple, honest expense splitting for friends, roommates, and trips.</div>
               </div>
             </div>
 
             <div className="mt-5 space-y-3 text-sm text-[#ededed]">
-              <p>Sign in with Google — one click to create your account and start splitting. We only read your name and email to create a profile.</p>
+              <p>Sign in with Google - <u>one click</u> to create your account and start splitting.</p>
 
               <ul className="list-disc ml-5 space-y-1">
+                <li>Track personal expenses to stay on top of your budget.</li>
                 <li>Create groups and share expenses with friends.</li>
                 <li>Track who paid, who owes, and settle balances quickly.</li>
                 <li>Privacy-first: groups are private by default.</li>
@@ -293,8 +289,7 @@ export default function LoginRegister() {
           {/* Right: Auth card */}
           <section className="rounded-2xl p-6 bg-[#0f0f0f] border border-[#1a1a1a] shadow-lg">
             <div className="text-center">
-              <h3 className="text-lg font-semibold">Sign in with Google</h3>
-              <p className="text-xs text-[#ededed] mt-1">No password — quick, secure, and familiar.</p>
+              <h3 className="text-2xl font-semibold text-white">Login to Expensease</h3>
             </div>
 
             <div className="mt-6">
@@ -330,7 +325,7 @@ export default function LoginRegister() {
                 ) : (
                   <>
                     <svg width="20px" height="20px" viewBox="-3 0 262 262" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid"><path d="M255.878 133.451c0-10.734-.871-18.567-2.756-26.69H130.55v48.448h71.947c-1.45 12.04-9.283 30.172-26.69 42.356l-.244 1.622 38.755 30.023 2.685.268c24.659-22.774 38.875-56.282 38.875-96.027" fill="#4285F4" /><path d="M130.55 261.1c35.248 0 64.839-11.605 86.453-31.622l-41.196-31.913c-11.024 7.688-25.82 13.055-45.257 13.055-34.523 0-63.824-22.773-74.269-54.25l-1.531.13-40.298 31.187-.527 1.465C35.393 231.798 79.49 261.1 130.55 261.1" fill="#34A853" /><path d="M56.281 156.37c-2.756-8.123-4.351-16.827-4.351-25.82 0-8.994 1.595-17.697 4.206-25.82l-.073-1.73L15.26 71.312l-1.335.635C5.077 89.644 0 109.517 0 130.55s5.077 40.905 13.925 58.602l42.356-32.782" fill="#FBBC05" /><path d="M130.55 50.479c24.514 0 41.05 10.589 50.479 19.438l36.844-35.974C195.245 12.91 165.798 0 130.55 0 79.49 0 35.393 29.301 13.925 71.947l42.211 32.783c10.59-31.477 39.891-54.251 74.414-54.251" fill="#EB4335" /></svg>
-                    <span className="text-sm text-[#EBF1D5]">Continue with Google</span>
+                    <span className="text-sm text-[#fff]">Continue with Google</span>
                   </>
                 )}
               </button>
@@ -347,19 +342,10 @@ export default function LoginRegister() {
                     <AlertTriangle size={16} /> {error}
                   </div>
                 ) : (
-                  <div className="text-xs text-[#ededed]">Sign in with the Google account you'd like to use for Expensease.</div>
+                  <></>
                 )}
               </div>
 
-              {/* quick troubleshooting */}
-              <details className="mt-4 text-xs text-[#888]" aria-label="Troubleshooting">
-                <summary className="cursor-pointer">Troubleshooting & tips</summary>
-                <ul className="mt-2 ml-4 list-disc space-y-1">
-                  <li>If the popup is blocked, allow pop-ups for this site or try a different browser.</li>
-                  <li>Use a personal Google account (work accounts may restrict sign-in).</li>
-                  <li>If your sign-in hangs, try clearing cookies for this site and retry.</li>
-                </ul>
-              </details>
 
               {/* install / help row */}
               <div className="mt-6 flex items-center justify-between gap-3">
@@ -373,9 +359,9 @@ export default function LoginRegister() {
                 ) : showInstallTips ? (
                   <button
                     onClick={() => { setHelpOpen(true); recordClick('install_tips_opened'); }}
-                    className="px-3 py-2 rounded-md border border-white/8 text-slate-300 hover:bg-white/3"
+                    className="px-3 py-2 rounded-md border border-white/8 text-[#ededed] hover:bg-white/3"
                   >
-                    Install & tips
+                    Installation & Tips
                   </button>
                 ) : (
                   <div />
@@ -392,7 +378,7 @@ export default function LoginRegister() {
       <ModalWrapper
         show={helpOpen}
         onClose={() => setHelpOpen(false)}
-        title="Sign-in & Install help"
+        title="Sign-in & Installation guide"
         size="md"
         footer={
           <div className="flex justify-end">
@@ -400,9 +386,9 @@ export default function LoginRegister() {
           </div>
         }
       >
-        <div className="space-y-4 text-sm text-slate-300">
+        <div className="space-y-4 text-sm text-[#ededed]">
           <section>
-            <h4 className="font-semibold">Signing in with Google</h4>
+            <h2 className="font-semibold text-xl mb-2">Signing in with Google</h2>
             <p>We only request your name and email from Google to create a profile. If sign-in fails:</p>
             <ul className="list-disc ml-5 mt-2 space-y-1">
               <li>Allow pop-ups for this site — Google opens a small sign-in window.</li>
@@ -410,19 +396,19 @@ export default function LoginRegister() {
               <li>Prefer a private window? It can help if extensions interfere.</li>
             </ul>
           </section>
-
+        <hr />
           <section>
-            <h4 className="font-semibold">Install as an app</h4>
+            <h2 className="font-semibold text-xl mb-2">Install as an app</h2>
             <p>{installBody}</p>
-            <ol className="list-decimal ml-5 mt-2 space-y-1 text-slate-400">
+            <ol className="list-decimal ml-5 mt-2 space-y-1 text-[#aaa]">
               <li>Open this site in your browser (Safari / Chrome / Edge).</li>
               <li>Open the browser menu (or Share menu on mobile).</li>
               <li>Choose <strong>Add to Home Screen</strong> or <strong>Install</strong> and confirm.</li>
             </ol>
           </section>
-
+        <hr />
           <section>
-            <h4 className="font-semibold">Still stuck?</h4>
+            <h2 className="font-semibold text-xl mb-2">Still stuck?</h2>
             <p><a href="/contact" className="underline text-teal-400">Contact us</a> and include the browser name and a short description of the problem.</p>
           </section>
         </div>

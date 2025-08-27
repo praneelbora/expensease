@@ -974,13 +974,13 @@ const AddExpense = () => {
                         <h1 className="text-3xl font-bold capitalize">New Expense</h1>
                     </div>
                 </div>
-                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar">
+                <div className="flex flex-col flex-1 w-full overflow-y-auto pt-2 no-scrollbar pb-8">
 
-                    <div className="inline-flex border border-[#EBF1D5] rounded-full p-1 mb-2 bg-[#1f1f1f] self-center">
+                    <div className="inline-flex border border-[rgba(235,241,213,0.5)] rounded-full p-0.5 mb-2 bg-[#1f1f1f] self-center">
 
                         <button
                             onClick={() => setExpenseMode('personal')}
-                            className={`px-4 py-1.5 rounded-full text-sm transition-all duration-200 font-medium ${expenseMode === 'personal'
+                            className={`px-6 py-2 rounded-full text-sm transition-all  font-medium ${expenseMode === 'personal'
                                 ? 'bg-[#EBF1D5] text-[#121212]'
                                 : 'text-[#EBF1D5] hover:bg-[#2a2a2a]'
                                 }`}
@@ -989,7 +989,7 @@ const AddExpense = () => {
                         </button>
                         <button
                             onClick={() => setExpenseMode('split')}
-                            className={`px-4 py-1.5 rounded-full text-sm transition-all duration-200 font-medium ${expenseMode === 'split'
+                            className={`px-4 py-1.5 rounded-full text-sm transition-all  font-medium ${expenseMode === 'split'
                                 ? 'bg-[#EBF1D5] text-[#121212]'
                                 : 'text-[#EBF1D5] hover:bg-[#2a2a2a]'
                                 }`}
@@ -1005,12 +1005,22 @@ const AddExpense = () => {
                             <p className="text-[13px] text-[#81827C] mb-1">Select a group or a friend you want to split with.</p> :
                             <></>}</>
                         }
-                        {expenseMode == 'split' && !groupSelect && selectedFriends.length == 0 && <input
-                            className="w-full bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3"
-                            placeholder="Search For Friends / Groups"
-                            value={val}
-                            onChange={(e) => setVal(e.target.value)}
-                        />}
+                        {expenseMode === 'split' && !groupSelect && selectedFriends.length === 0 && (
+                            <label className="block ">
+                                <span className="sr-only">Search for friends or groups</span>
+                                <div className="relative">
+                                    <input
+                                        className="w-full h-11 px-3 rounded-xl bg-[#1f1f1f] border border-[#55554f] text-[15px] placeholder-[#81827C] focus:outline-none "
+                                        placeholder="Search friends or groups"
+                                        value={val}
+                                        onChange={(e) => setVal(e.target.value)}
+                                        autoCapitalize="none"
+                                        autoCorrect="off"
+                                        inputMode="search"
+                                    />
+                                </div>
+                            </label>
+                        )}
                     </>}
                     {expenseMode === 'split' && friends.length === 0 && groups.length === 0 && (
                         <div className="flex flex-col flex-1 justify-center">
@@ -1097,23 +1107,32 @@ const AddExpense = () => {
                             </div>}
                             {expenseMode == 'split' && (selectedFriends?.length === 0 || val?.length > 0) && (
                                 <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 mt-4`}>
-                                    {(val.length === 0 || selectedFriends?.length === 0) && visibleGroups?.length > 0 && (
-                                        <div>
+                                    {/* Groups */}
+                                    {(val.length === 0 || selectedFriends.length === 0) && visibleGroups?.length > 0 && (
+                                        <section className="">
                                             {groups.length > 0 && (
-                                                <p className="text-[14px] text-teal-500 uppercase w-full mb-1">{val.length == 0 && "SUGGESTED "}GROUPS</p>
+                                                <p className="text-[12px] tracking-wide text-teal-400/90 font-medium mb-2">
+                                                    {val.length === 0 && "SUGGESTED "}GROUPS
+                                                </p>
                                             )}
                                             <div className="flex flex-wrap gap-2">
                                                 {visibleGroups.map((group) => (
                                                     <button
                                                         key={group._id}
                                                         onClick={() => toggleGroupSelection(group)}
-                                                        className="px-3 py-2 rounded-lg border border-[#333] text-[#EBF1D5] flex flex-col items-start"
+                                                        aria-pressed={groupSelect?._id === group._id}
+                                                        className={`px-3 h-10 rounded-xl border text-sm flex items-center gap-2
+            ${groupSelect?._id === group._id
+                                                                ? 'bg-teal-300 text-black border-teal-300'
+                                                                : 'border-[#333] text-[#EBF1D5] hover:bg-white/5'
+                                                            }`}
                                                     >
-                                                        <span className="font-medium">{group.name}</span>
+                                                        <span className="font-medium line-clamp-1">{group.name}</span>
                                                         {val.length > 0 && (
-                                                            <span className="text-xs text-gray-400">
+                                                            <span className="text-[11px] text-[#a0a0a0] line-clamp-1">
                                                                 {group.members
-                                                                    .filter(m => m.name.toLowerCase().includes(val.toLowerCase())).slice(0, 2)
+                                                                    ?.filter(m => m.name.toLowerCase().includes(val.toLowerCase()))
+                                                                    .slice(0, 2)
                                                                     .map(m => m.name)
                                                                     .join(", ")}
                                                             </span>
@@ -1121,46 +1140,42 @@ const AddExpense = () => {
                                                     </button>
                                                 ))}
                                             </div>
-
-                                            {/* {filteredGroups.length > groupDisplayLimit && (
-                                                <button
-                                                    onClick={() => setShowAllGroups(!showAllGroups)}
-                                                    className="text-sm text-[#a0a0a0] mt-2 hover:underline"
-                                                >
-                                                    {showAllGroups ? 'Show Less' : 'Show More'}
-                                                </button>
-                                            )} */}
-                                        </div>
+                                        </section>
                                     )}
-                                    <div>
-                                        {filteredFriends.length > 0 && (
-                                            <p className={`text-[14px] text-teal-500 uppercase mb-1 ${(filteredGroups.length > 0 && selectedFriends.length === 0) && 'mt-2'}`}>
-                                                {val.length == 0 && "SUGGESTED "}FRIENDS
+
+                                    {/* Friends */}
+                                    {filteredFriends.length > 0 && (
+                                        <section className="mt-4">
+                                            <p className="text-[12px] tracking-wide text-teal-400/90 font-medium mb-2">
+                                                {val.length === 0 && "SUGGESTED "}FRIENDS
                                             </p>
-                                        )}
-                                        <div className="flex flex-wrap gap-2">
+                                            <div className="flex flex-wrap gap-2">
+                                                {visibleFriends.map(fr => {
+                                                    const isSel = selectedFriends.some(s => s._id === fr._id)
+                                                    return (
+                                                        <button
+                                                            key={fr._id}
+                                                            onClick={() => toggleFriendSelection(fr)}
+                                                            aria-pressed={isSel}
+                                                            className={`px-3 h-10 rounded-xl border text-sm flex items-center gap-2
+              ${isSel
+                                                                    ? 'bg-teal-300 text-black border-teal-300'
+                                                                    : 'border-[#333] text-[#EBF1D5] hover:bg-white/5'
+                                                                }`}
+                                                        >
+                                                            {/* Optional avatar initials for scannability */}
+                                                            {/* <span className="h-6 w-6 rounded-full bg-white/10 grid place-items-center text-[11px]">
+              {(fr.name || '?').slice(0,1).toUpperCase()}
+            </span> */}
+                                                            <span className="capitalize">{fr.name}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </section>
+                                    )}
 
-                                            {visibleFriends.map(fr => (
-                                                <button
-                                                    key={fr._id}
-                                                    onClick={() => toggleFriendSelection(fr)}
-                                                    className={`px-3 py-2 rounded-lg border ${selectedFriends.some(s => s._id === fr._id)
-                                                        ? 'bg-teal-600 text-white' : 'border-[#333] text-[#EBF1D5]'}`}
-                                                >
-                                                    {fr.name}
-                                                </button>
-                                            ))}
-                                        </div>
 
-                                        {/* {filteredFriends.length > friendDisplayLimit && (
-                                            <button
-                                                onClick={() => setShowAllFriends(!showAllFriends)}
-                                                className="text-sm text-[#a0a0a0] mt-2 hover:underline"
-                                            >
-                                                {showAllFriends ? 'Show Less' : 'Show More'}
-                                            </button>
-                                        )} */}
-                                    </div>
                                 </div>
                             )}
 
@@ -1519,63 +1534,57 @@ const AddExpense = () => {
                         </div>
                     )}
 
-                    <div className="w-full flex items-start justify-start align-middle mt-5">
+                    {desc.length == 0 && <div className="flex flex-col flex-1 justify-end mt-10">
+                        <div className="py-2 text-center text-sm text-[#a0a0a0]">
+                            Lent someone money?{" "}
+                            <button
+                                className="text-teal-400 underline"
+                                onClick={() => {
+                                    logEvent('navigate', {
+                                        fromScreen: 'new-expense', toScreen: 'new-loan', source: 'cta'
+                                    });
+                                    navigate('/new-loan')
+                                }}
+                            >
+                                Add a Loan
+                            </button>
+                        </div>
+                    </div>
+                    }
+                </div>
+                <footer className="sticky bottom-0 z-10 bg-[#121212]/95 backdrop-blur border-t border-white/10">
+
+                    <div className="mx-auto w-full max-w-screen-sm px-3 py-1 pb-[calc(12px]">
+                        <p
+                            className="mb-1 text-center text-xs text-[#a0a0a0] min-h-[16px]"
+                            aria-live="polite"
+                        >
+                            {message || (error ? <span className="text-rose-400">{error}</span> : '')}
+                        </p>
                         {shouldShowSubmitButton() ? (
                             <button
-                                type="submit"
-                                onClick={() => handleSubmitExpense()}
-                                className="w-full py-2 border border-1 bg-teal-300 border-teal-300 rounded text-[#000]"
+                                type="button"
+                                onClick={handleSubmitExpense}
+                                className="w-full h-12 rounded-xl bg-teal-300 text-black font-semibold active:scale-[0.99]"
                             >
                                 Save Expense
                             </button>
-                        ) : expenseMode == 'split' && isPaidAmountValid() && selectedFriends.filter(f => f.owing).length > 1 ? (
-                            <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
-                                <p>{getRemainingTop()}</p>
-                                <p className="text-[#a0a0a0]">{getRemainingBottom()}</p>
-                            </div>
-                        ) : <></>
-                        }
+                        ) : (
+                            <button
+                                type="button"
+                                disabled
+                                className="w-full h-12 rounded-xl bg-white/10 text-[#EBF1D5] font-semibold opacity-70"
+                            >
+                                Save Expense
+                            </button>
+                        )}
+
+                        {/* helper text / message */}
 
                     </div>
-                </div>
+                </footer>
 
-                {expenseMode == 'split' && (!groupSelect && selectedFriends.length > 0) ? <div className="py-2 text-center text-sm text-[#a0a0a0]">
-                    Split expense with multiple people?{" "}
-                    <button
-                        className="text-teal-400 underline"
-                        onClick={() => {
-                            logEvent('navigate', {
-                                fromScreen: 'new-expense', toScreen: 'groups', source: 'cta'
-                            });
-                            navigate('/groups')
-                        }}
-                    >
-                        Create a group
-                    </button>
-                </div> :
-                    <div className="py-2 text-center text-sm text-[#a0a0a0]">
-                        Lent someone money?{" "}
-                        <button
-                            className="text-teal-400 underline"
-                            onClick={() => {
-                                logEvent('navigate', {
-                                    fromScreen: 'new-expense', toScreen: 'new-loan', source: 'cta'
-                                });
-                                navigate('/new-loan')
-                            }}
-                        >
-                            Add a Loan
-                        </button>
-                    </div>
-                }
-                {message ? <div className="text-sm text-teal-500 bg-teal-900/20 border border-teal-700 rounded px-3 py-2 mb-2 text-center">
-                    {message}
-                </div> :
-                    error && (
-                        <div className="text-sm text-red-400 bg-red-900/20 border border-red-700 rounded px-3 py-2 mb-2 text-center">
-                            {error}
-                        </div>
-                    )}
+
             </div>
             <UnifiedPaymentModal
                 show={paymentModal.open}

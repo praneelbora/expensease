@@ -263,7 +263,7 @@ const AddLoan = () => {
                                 <ChevronLeft />
                             </button>
                         )}
-                        <h1 className="text-3xl font-bold capitalize">Add a Loan</h1>
+                        <h1 className="text-3xl font-bold capitalize">New Loan</h1>
                     </div>
                 </div>
 
@@ -282,12 +282,20 @@ const AddLoan = () => {
                                     <p className="text-[13px] text-[#81827C] mb-2">
                                         Select a friend (loan is strictly between two people).
                                     </p>
-                                    <input
-                                        className="w-full bg-[#1f1f1f] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3"
-                                        placeholder="Search friends"
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                    />
+                                    <label className="block ">
+                                        <span className="sr-only">Search for friends</span>
+                                        <div className="relative">
+                                            <input
+                                                className="w-full h-11 px-3 rounded-xl bg-[#1f1f1f] border border-[#55554f] text-[15px] placeholder-[#81827C] focus:outline-none "
+                                                placeholder="Search friends"
+                                                value={search}
+                                                onChange={(e) => setSearch(e.target.value)}
+                                                autoCapitalize="none"
+                                                autoCorrect="off"
+                                                inputMode="search"
+                                            />
+                                        </div>
+                                    </label>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 mt-3">
                                         {filteredFriends.map((friend) => (
                                             <div
@@ -302,7 +310,7 @@ const AddLoan = () => {
                                                 <h2 className="text-xl font-semibold capitalize">
                                                     {friend.name}
                                                 </h2>
-                                                <p className="text-[#81827C] lowercase">{friend.email}</p>
+                                                <p className="max-w-full break-words text-wrap text-[#81827C] lowercase">{friend.email}</p>
                                                 <hr className="border-[#333]" />
                                             </div>
                                         ))}

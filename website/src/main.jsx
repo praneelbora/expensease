@@ -37,7 +37,7 @@ ReactDOM.createRoot(root).render(
                             "applicationCategory": "FinanceApplication",
                             "operatingSystem": "iOS, Android, Web",
                             "description":
-                                "Expensease helps you split expenses effortlessly and track personal and group spending with ease.",
+                                "Expensease makes managing money simple by helping you split expenses fairly, track personal and group spending, and settle up with friends effortlessly. Perfect for roommates, trips, and everyday budgeting.",
                             "url": "https://www.expensease.in",
                             "offers": {
                                 "@type": "Offer",
