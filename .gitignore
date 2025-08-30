@@ -1,2 +1,3 @@
 .DS_Store
 googleOAuth.txt
+/app/node_modules

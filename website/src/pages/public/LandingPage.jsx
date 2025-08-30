@@ -49,15 +49,20 @@ const STEPS = [
 
 const testimonials = [
   {
-    name: "Ria",
-    role: "College friend",
-    text: "Expensease made splitting trips painless. Clear, fast, and beautiful UI.",
+    name: "Siddhant",
+    role: "College Student",
+    text: "At first I was unsure about this app, but after using it, managing expenses has become easier than ever."
   },
   {
-    name: "Aryan",
-    role: "Roommate",
-    text: "We settled 6 months of shared bills in 10 minutes. Love the reminders.",
+    name: "Rohan & Meera",
+    role: "Roommates",
+    text: "We used to argue over who paid for what. Now, everything is clear and transparent—no more awkward conversations."
   },
+  {
+    name: "Karan",
+    role: "Freelancer",
+    text: "I even use it for personal expense tracking—it keeps me accountable and helps me budget better every month."
+  }
 ];
 
 const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } };
@@ -221,11 +226,11 @@ export default function LandingPage() {
 
       {/* TESTIMONIALS */}
       <section className="py-12">
-        <div className="max-w-4xl mx-auto px-6">
-          <h3 className="text-xl font-semibold text-center mb-6">Loved by groups and roommates</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="mx-6 px-6">
+          <h3 className="text-xl font-semibold text-center mb-6">Loved by students, groups and roommates</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {testimonials.map((t, idx) => (
-              <motion.blockquote key={idx} className="bg-white p-6 rounded-xl shadow-sm">
+              <motion.blockquote key={idx} className="bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between">
                 <p className="text-slate-700">“{t.text}”</p>
                 <footer className="mt-4 text-sm text-slate-500">{t.name} • {t.role}</footer>
               </motion.blockquote>

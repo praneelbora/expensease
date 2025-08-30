@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Expensease",
+    "slug": "expensease",
+    "version": "1.0.0",
+    "scheme": "expensease",
+    "orientation": "portrait",
+    "icon": "./assets/default/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/default/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.praneelbora.expensease"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/default/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.praneelbora.expensease"
+    },
+    "web": {
+      "favicon": "./assets/default/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.755754243643-s1ju6pe90tmrstpf54vl4hkik8a33ne8"
+        }
+      ]
+    ]
+  }
+}

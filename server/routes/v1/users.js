@@ -418,4 +418,46 @@ router.get("/suggestions", auth, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+router.post("/login", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Missing email id" });
+
+  try {
+    if (email !== "praneelbora@gmail.com" && email !== "praneelbora9@gmail.com" && email !== "developerpraneel@gmail.com" && email !== 'testlogin@expensease.in')
+      if (!email) return res.status(400).json({ error: "Not a developer ACcount" });
+    let user = await User.findOne({ email });
+    let newUser = false;
+    if (!user) {
+      newUser = true;
+      user = await User.create({ email, name: "TEST USER" });
+      await PaymentMethod.create({
+        userId: user._id,
+        label: "Cash",
+        type: "cash",
+        supportedCurrencies: [], // any currency
+        balances: {
+          INR: { available: 0, pending: 0 }
+        },
+        capabilities: ["send", "receive"],
+        isDefaultSend: true,       // optional: treat cash as default send
+        isDefaultReceive: true,    // optional: treat cash as default receive
+        provider: "manual",
+        status: "verified"         // cash doesn’t need verification
+      });
+    }
+
+
+    const authToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "100d" });
+
+    res.status(200).json({
+      responseBody: { "x-auth-token": authToken },
+      user: { id: user._id, name: user.name, email: user.email, picture: user.picture },
+      newUser,
+    });
+  } catch (err) {
+    console.error("Google login failed:", err);
+    res.status(401).json({ error: "Invalid or expired Google code" });
+  }
+});
 module.exports = router;

@@ -244,13 +244,13 @@ export default function LoginRegister() {
 
       <NavBar />
 
-      <main className="flex min-h-[calc(100vh-72px)] items-center justify-center px-4 py-12 mt-16">
-        <div className="w-full lg:max-w-[80%] grid gap-8 md:grid-cols-2 items-center">
+      <main className="flex min-h-[calc(100vh-72px)] items-center justify-center px-4 py-6 md:py-12 mt-16">
+        <div className="w-full lg:max-w-[80%] grid gap-x-8 gap-y-4 md:grid-cols-2 items-center">
           {/* Left: Product pitch (concise) */}
           <section className="rounded-2xl p-8 bg-[#0f0f0f] border border-[#1a1a1a] shadow-sm">
             <div className="flex items-center gap-3">
               <div>
-                <h2 className="text-5xl text-white font-semibold">Expensease</h2>
+                <h2 className="text-3xl md:text-5xl text-white font-semibold">Expensease</h2>
                 <div className="text-xs text-[#888] mt-1">Simple, honest expense splitting for friends, roommates, and trips.</div>
               </div>
             </div>
@@ -270,7 +270,7 @@ export default function LoginRegister() {
               </div>
             </div>
 
-            <div className="mt-6 border-t border-[#161616] pt-4 text-xs text-[#ededed]">
+            <div className="hidden md:block mt-6 border-t border-[#161616] pt-4 text-xs text-[#ededed]">
               <div className="flex items-center gap-2">
                 <CheckCircle size={14} className="text-teal-400" />
                 <span>Only Google sign-in is supported right now</span>
@@ -336,15 +336,11 @@ export default function LoginRegister() {
               </div>
 
               {/* error / help */}
-              <div className="mt-4 min-h-[40px] flex items-center justify-center">
-                {error ? (
+              {error && <div className="mt-4 min-h-[40px] flex items-center justify-center">
                   <div className="flex items-center gap-2 text-sm text-rose-400">
                     <AlertTriangle size={16} /> {error}
                   </div>
-                ) : (
-                  <></>
-                )}
-              </div>
+              </div>}
 
 
               {/* install / help row */}
