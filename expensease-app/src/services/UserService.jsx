@@ -140,3 +140,51 @@ export async function fetchWhatsNew() {
     const data = await res.json();
     return Array.isArray(data.entries) ? data.entries : [];
 }
+
+
+function isVersionOutdated(current, minimum) {
+    const c = current.split(".").map(Number);
+    const m = minimum.split(".").map(Number);
+
+    for (let i = 0; i < Math.max(c.length, m.length); i++) {
+        const cVal = c[i] || 0;
+        const mVal = m[i] || 0;
+        if (cVal < mVal) return true;   // current is lower → outdated
+        if (cVal > mVal) return false;  // current is higher → fine
+    }
+    return false; // equal
+}
+
+export async function checkAppVersion(currentVersion, OS) {
+    try {
+        const res = await api.get(`${BASE_USERS}/version`);
+        const minVersion = OS == 'ios' ? res?.minimumIOSVersion : res?.minimumAndroidVersion || "0.0.0";
+        const outdated = isVersionOutdated(currentVersion, minVersion);
+        return {
+            outdated,
+            minimumVersion: minVersion,
+            currentVersion,
+        };
+    } catch (e) {
+        console.error("Version check failed:", e);
+        // If fail, return safe default (not outdated)
+        return {
+            outdated: false,
+            minimumVersion: "0.0.0",
+            currentVersion: Application.nativeApplicationVersion || "0.0.0",
+        };
+    }
+}
+
+// Save Expo push token with platform
+// src/services/UserService.js
+export async function savePushToken(token, platform, userToken = null) {
+  try {
+    const data = await api.post("/v1/users/push-token", { token, platform });
+    return data;
+  } catch (err) {
+    console.error("❌ Failed to save push token:", err);
+    throw err;
+  }
+}
+

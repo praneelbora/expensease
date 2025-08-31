@@ -83,7 +83,7 @@ Have questions, feedback, or ideas?
 
 | Group Overview | Expenses Overview | My Account |
 |----------------|---------------|----------------|
-|![Split Free](https://github.com/user-attachments/assets/8ec34366-86d1-481e-8b82-7a234a7b4c79)| ![Split Free 2](https://github.com/user-attachments/assets/0200232d-1e11-473e-85f4-12072f8bd696) | ![IMG_2596](https://github.com/user-attachments/assets/89aeb1ca-33d2-4788-aae5-d0f998c07b20)
+|![Expensease](https://github.com/user-attachments/assets/8ec34366-86d1-481e-8b82-7a234a7b4c79)| ![Expensease 2](https://github.com/user-attachments/assets/0200232d-1e11-473e-85f4-12072f8bd696) | ![IMG_2596](https://github.com/user-attachments/assets/89aeb1ca-33d2-4788-aae5-d0f998c07b20)
  |
 
 ---

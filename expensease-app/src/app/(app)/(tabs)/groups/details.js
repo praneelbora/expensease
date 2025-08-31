@@ -12,6 +12,7 @@ import {
   Share,
 } from "react-native";
 import Header from "~/header";
+import ExpenseRow from "~/expenseRow";
 
 import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,12 +24,7 @@ import { Feather } from "@expo/vector-icons";
 import { useAuth } from "context/AuthContext";
 import { getGroupDetails, getGroupExpenses } from "services/GroupService";
 import { settleExpense } from "services/ExpenseService";
-import { getAllCurrencyCodes, toCurrencyOptions } from "utils/currencies";
-// import { logEvent } from "utils/analytics";
-
-// quick symbol helper
-const SYMBOLS = { INR: "₹", USD: "$", EUR: "€", GBP: "£", JPY: "¥", AUD: "A$" };
-const getSymbol = (code = "INR") => SYMBOLS[code] || "";
+import { getSymbol, getDigits, formatMoney, allCurrencies } from "utils/currencies";
 
 /** Lightweight sheet to preview + confirm settlements.
  * Replace with your RN SettleModal when ready. */
@@ -78,7 +74,7 @@ function SettleSheet({ visible, onClose, transactions = [], onSubmit, currencyOp
 export default function GroupDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const { user, userToken, defaultCurrency } = useAuth() || {};
+  const { user, userToken, defaultCurrency, preferredCurrencies } = useAuth() || {};
 
   // UI
   const [loadingGroup, setLoadingGroup] = useState(true);
@@ -96,7 +92,14 @@ export default function GroupDetails() {
   const [privacy, setPrivacy] = useState(false);
 
   // currency options (used by your existing modals if you swap them in)
-  const currencyOptions = useMemo(() => toCurrencyOptions(getAllCurrencyCodes()), []);
+  const currencyOptions = useMemo(() => {
+    const base = new Set([defaultCurrency, ...(preferredCurrencies || [])]);
+    // ensure base ones are included + full list available
+    return allCurrencies
+      .filter(c => base.has(c.code))   // show preferred ones first
+      .concat(allCurrencies.filter(c => !base.has(c.code))) // then rest
+      .map(c => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
+  }, [defaultCurrency, preferredCurrencies]);
 
   // ===== helpers mirroring your web logic =====
   const currencyDigits = (code, locale = "en-IN") => {
@@ -131,9 +134,10 @@ export default function GroupDetails() {
 
     currencies.forEach(code => {
       let digits = 2;
-      try { const fmt = new Intl.NumberFormat(locale, { style: "currency", currency: code });
+      try {
+        const fmt = new Intl.NumberFormat(locale, { style: "currency", currency: code });
         digits = fmt.resolvedOptions().maximumFractionDigits ?? 2;
-      } catch {}
+      } catch { }
       const pow = 10 ** digits;
       const round = v => Math.round((Number(v) + Number.EPSILON) * pow) / pow;
       const minUnit = 1 / pow;
@@ -245,7 +249,7 @@ export default function GroupDetails() {
     if (!group?.code) return;
     const url = `${process.env.EXPO_PUBLIC_WEB_URL || "https://www.expensease.in"}/groups?join=${group.code}`;
     const message =
-`Use this code: ${group.code}
+      `Use this code: ${group.code}
 
 Or just tap the link to join directly:
 ${url}`;
@@ -340,9 +344,9 @@ ${url}`;
             <Text style={styles.sectionLabel}>Debt Summary</Text>
             <TouchableOpacity
               style={styles.outlineBtn}
-              onPress={() => { 
+              onPress={() => {
                 // logEvent("open_settle_modal", { screen: "group_detail" }); 
-                setShowSettle(true); 
+                setShowSettle(true);
               }}
             >
               <Text style={styles.outlineBtnText}>Settle</Text>
@@ -368,107 +372,86 @@ ${url}`;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <StatusBar style="light" /> 
-      
+      <StatusBar style="light" />
+
       <Header showBack title={group?.name} button={<TouchableOpacity
-                    onPress={() => {
-                      // logEvent?.("navigate", { fromScreen: "friend_detail", toScreen: "friend_setting", source: "setting" });
-                      router.push({ pathname: "/groups/settings", params: { id:group._id } });
-                    }}
-                  >
-                    <Feather name="settings" size={20} color="#EBF1D5" />
-                  </TouchableOpacity>
-            }
+        onPress={() => {
+          // logEvent?.("navigate", { fromScreen: "friend_detail", toScreen: "friend_setting", source: "setting" });
+          router.push({ pathname: "/groups/settings", params: { id: group._id } });
+        }}
+      >
+        <Feather name="settings" size={20} color="#EBF1D5" />
+      </TouchableOpacity>
+      }
+      />
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
+        <FlatList
+          data={loadingExpenses ? [] : filteredExpenses.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))}
+          keyExtractor={(it) => String(it._id)}
+          renderItem={({ item }) =>
+            <ExpenseRow
+              expense={item}
+              userId={userId}
+              onPress={(exp) => {
+                // open modal / navigate
+                console.log("Clicked", exp._id);
+              }}
             />
-      {/* Header */}
-      {/* <View style={styles.header}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+          }
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={
+            loadingGroup || loadingExpenses ? (
+              <View style={styles.emptyWrap}><Feather name="loader" size={22} color="#EBF1D5" /></View>
+            ) : (
+              <View style={styles.emptyWrap}>
+                {group?.members?.length === 1 ? (
+                  <>
+                    <Text style={styles.emptyTitle}>No Members Yet</Text>
+                    <Text style={styles.emptyText}>Invite friends to get started.</Text>
+                    <TouchableOpacity style={styles.outlineBtn} onPress={handleShareInvite}>
+                      <Text style={styles.outlineBtnText}>Share Invite</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.emptyTitle}>No Expenses Yet</Text>
+                    <Text style={styles.emptyText}>Add your first group expense to see it here.</Text>
+                    <TouchableOpacity
+                      style={styles.ctaBtn}
+                      onPress={() => router.push({ pathname: "/newExpense", params: { groupId: id } })}
+                    >
+                      <Text style={[styles.ctaBtnText, { color: "#121212" }]}>Add Expense</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            )
+          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
+          contentContainerStyle={{ paddingBottom: 100, flexGrow: 1, gap: 8 }}
+        />
+
+        {/* FAB */}
+        {!loadingExpenses && (expenses?.length || 0) > 0 && (
           <TouchableOpacity
-            onPress={() => {
-              logEvent("navigate", { fromScreen: "group_detail", toScreen: "groups", source: "back" });
-              router.push("/groups");
-            }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.fab}
+            onPress={() => router.push({ pathname: "/newExpense", params: { groupId: id } })}
           >
-            <Feather name="chevron-left" size={24} color="#EBF1D5" />
+            <Feather name="plus" size={22} color="#121212" />
+            <Text style={styles.fabText}>Add Expense</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {group?.name || "Loading"}
-          </Text>
+        )}
 
-          <View style={{ flex: 1, alignItems: "flex-end", flexDirection: "row", justifyContent: "flex-end", gap: 12 }}>
-            <TouchableOpacity onPress={handleShareInvite}>
-              <Feather name="share-2" size={20} color="#EBF1D5" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => {
-              logEvent("navigate", { fromScreen: "group_detail", toScreen: "group_settings", source: "setting" });
-              router.push(`/groups/settings/${group?._id}`);
-            }}>
-              <Feather name="settings" size={20} color="#EBF1D5" />
-            </TouchableOpacity>
-          </View>
-        </View>
-        {copiedHeader && <Text style={{ color: "#a0a0a0", fontSize: 10, marginTop: 2 }}>Copied invite to clipboard</Text>}
-      </View> */}
-
-      {/* Content */}
-      <FlatList
-        data={loadingExpenses ? [] : filteredExpenses.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))}
-        keyExtractor={(it) => String(it._id)}
-        renderItem={renderExpense}
-        ListHeaderComponent={listHeader}
-        ListEmptyComponent={
-          loadingGroup || loadingExpenses ? (
-            <View style={styles.emptyWrap}><Feather name="loader" size={22} color="#EBF1D5" /></View>
-          ) : (
-            <View style={styles.emptyWrap}>
-              {group?.members?.length === 1 ? (
-                <>
-                  <Text style={styles.emptyTitle}>No Members Yet</Text>
-                  <Text style={styles.emptyText}>Invite friends to get started.</Text>
-                  <TouchableOpacity style={styles.outlineBtn} onPress={handleShareInvite}>
-                    <Text style={styles.outlineBtnText}>Share Invite</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.emptyTitle}>No Expenses Yet</Text>
-                  <Text style={styles.emptyText}>Add your first group expense to see it here.</Text>
-                  <TouchableOpacity
-                    style={styles.ctaBtn}
-                    onPress={() => router.push({ pathname: "/newExpense", params: { groupId: id } })}
-                  >
-                    <Text style={[styles.ctaBtnText, { color: "#121212" }]}>Add Expense</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          )
-        }
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100, flexGrow: 1, gap: 8 }}
-      />
-
-      {/* FAB */}
-      {!loadingExpenses && (expenses?.length || 0) > 0 && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => router.push({ pathname: "/newExpense", params: { groupId: id } })}
-        >
-          <Feather name="plus" size={22} color="#121212" />
-          <Text style={styles.fabText}>Add Expense</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Settle Sheet */}
-      <SettleSheet
-        visible={showSettle}
-        onClose={() => setShowSettle(false)}
-        transactions={simplifiedTransactions}
-        currencyOptions={currencyOptions}
-        defaultCurrency={defaultCurrency}
-        onSubmit={recordAllSettlements}
-      />
+        {/* Settle Sheet */}
+        <SettleSheet
+          visible={showSettle}
+          onClose={() => setShowSettle(false)}
+          transactions={simplifiedTransactions}
+          currencyOptions={currencyOptions}
+          defaultCurrency={defaultCurrency}
+          onSubmit={recordAllSettlements}
+        />
+      </View>
     </SafeAreaView>
   );
 }

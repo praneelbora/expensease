@@ -243,7 +243,6 @@ const AddExpense = () => {
                 category: expenseData.category,
                 type: expenseData.mode,
                 splitMode: expenseData.splitMode,
-                currency: expenseData.currency,
             });
             console.log('Expense created successfully!');
             setDesc('');

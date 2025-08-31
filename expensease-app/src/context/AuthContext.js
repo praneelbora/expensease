@@ -24,7 +24,7 @@ async function getSecureItem(key) {
   try {
     const v = await SecureStore.getItemAsync(key);
     if (v != null) return v;
-  } catch {}
+  } catch { }
   return AsyncStorage.getItem(key);
 }
 async function deleteSecureItem(key) {
@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }) => {
 
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(true);
-
+  const version = '0.0.1'
   // --- public: set token + persist ---
   const setAndPersistUserToken = async (token) => {
     setUserToken(token);
@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     setUser(null);
     await setAndPersistUserToken(null);
-    router.replace("/login");
+    router.replace("/");
   };
 
   // derive currency prefs when user changes
@@ -157,6 +157,7 @@ export const AuthProvider = ({ children }) => {
   // memoize context value to avoid extra re-renders
   const value = useMemo(
     () => ({
+      version,
       user,
       setUser,
       loadUserData,

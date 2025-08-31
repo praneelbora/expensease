@@ -18,7 +18,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import Header from "~/header";
 import { getSymbol, getDigits, formatMoney, allCurrencies } from "utils/currencies";
-
+import { categoryMap } from "utils/categories";
 // ==== adjust these imports for your app structure ====
 import { useAuth } from "/context/AuthContext";
 import { getFriends } from "/services/FriendService";
@@ -27,7 +27,9 @@ import { getSuggestions } from "/services/UserService";
 import { createExpense } from "/services/ExpenseService";
 import { fetchFriendsPaymentMethods } from "/services/PaymentMethodService";
 // import { logEvent } from "/utils/analytics";
-// import CurrenciesPicker from "@/components/CurrenciesPicker";
+import SheetCurrencies from "~/shtCurrencies";
+import SheetCategories from "~/shtCategories";
+import SheetPayments from "~/shtPayments";
 
 const fmtMoney = formatMoney;
 const symbol = getSymbol;
@@ -40,88 +42,7 @@ const initials = (name = "") => {
   return (p[0][0] + p[1][0]).toUpperCase();
 };
 
-// ----- Simple option modals (Currency / Category / Payment) -----
-function SimplePickerModal({ visible, title = "", options = [], value, onSelect, onClose }) {
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          <ScrollView style={{ maxHeight: 400 }}>
-            {options.map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[
-                  styles.pickerRow,
-                  value === opt.value && { backgroundColor: "rgba(0,196,159,0.2)" },
-                ]}
-                onPress={() => {
-                  onSelect(opt.value);
-                  onClose?.();
-                }}
-              >
-                <Text style={styles.pickerText}>{opt.label || opt.value}</Text>
-                {value === opt.value ? <Feather name="check" size={18} color="#00C49F" /> : null}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <View style={{ alignItems: "flex-end", marginTop: 8 }}>
-            <TouchableOpacity style={styles.modalBtn} onPress={onClose}>
-              <Text style={styles.modalBtnText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function PaymentPickerModal({
-  visible,
-  title,
-  options = [], // array of {_id, label, type, ...}
-  value,
-  onSelect,
-  onClose,
-  onManage,
-}) {
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          <ScrollView style={{ maxHeight: 420 }}>
-            {options.map((opt) => (
-              <TouchableOpacity
-                key={opt._id}
-                style={[
-                  styles.pickerRow,
-                  value === opt._id && { backgroundColor: "rgba(0,196,159,0.2)" },
-                ]}
-                onPress={() => {
-                  onSelect?.(opt._id);
-                  onClose?.();
-                }}
-              >
-                <Text style={styles.pickerText}>{opt.label || opt.type || "Method"}</Text>
-                {value === opt._id ? <Feather name="check" size={18} color="#00C49F" /> : null}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 8 }}>
-            <TouchableOpacity style={styles.modalBtn} onPress={onManage}>
-              <Text style={[styles.modalBtnText, { color: "#00C49F" }]}>Manage Accounts</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalBtn} onPress={onClose}>
-              <Text style={styles.modalBtnText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
+const TEST_MODE = process.env.EXPO_PUBLIC_TEST_MODE
 // =================== Screen ===================
 export default function NewExpenseScreen() {
   const router = useRouter();
@@ -148,10 +69,10 @@ export default function NewExpenseScreen() {
   const [filteredGroups, setFilteredGroups] = useState([]);
 
   const [expenseMode, setExpenseMode] = useState("personal"); // 'personal' | 'split'
-  const [desc, setDesc] = useState("");
+  const [desc, setDesc] = useState(TEST_MODE ? "TEST_DESCRIPTION" : "");
   const [currency, setCurrency] = useState(defaultCurrency);
-  const [amount, setAmount] = useState(""); // keep string for controlled TextInput
-  const [category, setCategory] = useState("");
+  const [amount, setAmount] = useState(TEST_MODE ? 99 : ""); // keep string for controlled TextInput
+  const [category, setCategory] = useState(TEST_MODE ? 'TEST_CATEGORY' : "");
   const [expenseDate, setExpenseDate] = useState(todayISO());
 
   const [groupSelect, setGroupSelect] = useState(null);
@@ -162,35 +83,43 @@ export default function NewExpenseScreen() {
   const [search, setSearch] = useState("");
   const [banner, setBanner] = useState(null); // {type, text}
 
-  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentModalCtx, setPaymentModalCtx] = useState({ context: "personal", friendId: null });
-
   const [paymentMethod, setPaymentMethod] = useState(null); // personal
 
   const hasPreselectedGroup = useRef(false);
   const hasPreselectedFriend = useRef(false);
   const preselectedFriendId = useRef(null);
+  const currencySheetRef = useRef(null);
+  const categorySheetRef = useRef(null);
+  const paymentSheetRef = useRef(null);
+
+  const openCategorySheet = () => categorySheetRef.current?.present();
+  const openPaymentSheet = (ctx) => {
+    setPaymentModalCtx(ctx);
+    paymentSheetRef.current?.present();
+  }
+
+  const openCurrencySheet = () => currencySheetRef.current?.present();
 
   // currency options
-const currencyOptions = useMemo(() => {
-  const base = new Set([defaultCurrency, ...(preferredCurrencies || [])]);
-  // ensure base ones are included + full list available
-  return allCurrencies
-    .filter(c => base.has(c.code))   // show preferred ones first
-    .concat(allCurrencies.filter(c => !base.has(c.code))) // then rest
-    .map(c => ({ value: c.code, label: `${c.symbol} ${c.code} – ${c.name}` }));
-}, [defaultCurrency, preferredCurrencies]);
+  const currencyOptions = useMemo(() => {
+    const base = new Set([defaultCurrency, ...(preferredCurrencies || [])]);
+    // ensure base ones are included + full list available
+    return allCurrencies
+      .filter(c => base.has(c.code))   // show preferred ones first
+      .concat(allCurrencies.filter(c => !base.has(c.code))) // then rest
+      .map(c => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
+  }, [defaultCurrency, preferredCurrencies]);
 
-  useEffect(()=>{
-    console.log(currencyOptions);
-    
-  },[currencyOptions])
-  // category options
   const categoryOptions = useMemo(
-    () => (categories || []).map((c) => ({ value: c.name, label: `${c.emoji || ""} ${c.name}`.trim() })),
-    [categories]
+    () =>
+      Object.entries(categoryMap).map(([key, cfg]) => ({
+        value: key,
+        label: cfg.label,
+        icon: cfg.icon,
+        keywords: cfg.keywords
+      })),
+    []
   );
 
   // ---------- fetchers ----------
@@ -323,20 +252,41 @@ const currencyOptions = useMemo(() => {
 
   // ---------- selection handlers ----------
   const addMeIfNeeded = (list) => {
-    const hasNonMe = list.some((x) => x._id !== "me");
-    const meExists = list.some((x) => x._id === "me");
+    let updated = list.map((x) => {
+      if (x._id === user._id) {
+        return { ...x, name: `${user.name} (Me)` }; // ensure "(Me)" suffix
+      }
+      return x;
+    });
+
+    const hasNonMe = updated.some((x) => x._id !== user._id);
+    const meExists = updated.some((x) => x._id === user._id);
+
     if (hasNonMe && !meExists) {
-      return [{ _id: "me", name: "Me", paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }, ...list];
+      updated = [
+        {
+          _id: user._id,
+          name: `${user.name} (Me)`,
+          paying: false,
+          owing: false,
+          payAmount: 0,
+          oweAmount: 0,
+          owePercent: 0
+        },
+        ...updated
+      ];
     }
-    return list;
+
+    return updated;
   };
+
 
   const updateFriendsPaymentMethods = async (ids) => {
     try {
       const map = await fetchFriendsPaymentMethods(ids, userToken);
       setSelectedFriends((prev) =>
         prev.map((f) => {
-          const raw = map[f._id === "me" ? user._id : f._id] || [];
+          const raw = map[f._id] || [];
           let selectedPaymentMethodId = f.selectedPaymentMethodId;
           const stillValid = raw.some((m) => m.paymentMethodId === selectedPaymentMethodId);
           if (!stillValid) {
@@ -376,9 +326,11 @@ const currencyOptions = useMemo(() => {
       setGroupSelect(null);
     } else {
       const newMembers = (group.members || [])
-        .filter((gm) => !selectedFriends.some((f) => String(f._id) === String(gm._id)))
+        .filter((gm) => !selectedFriends.some((f) => String(f._id) === String(gm._id) && gm_.id !== user._id))
         .map((gm) => ({ ...gm, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }));
       const upd = addMeIfNeeded([...selectedFriends, ...newMembers]);
+      console.log(selectedFriends, newMembers, user._id);
+
       setSelectedFriends(upd);
       setGroupSelect(group);
       updateFriendsPaymentMethods(upd.map((f) => f._id));
@@ -387,9 +339,9 @@ const currencyOptions = useMemo(() => {
 
   const removeFriend = (friend) => {
     let upd = selectedFriends.filter((f) => f._id !== friend._id);
-    const onlyMeLeft = upd.length === 1 && upd[0]._id === "me";
+    const onlyMeLeft = upd.length === 1 && upd[0]._id === user._id;
     if (onlyMeLeft || upd.length === 0) {
-      upd = upd.filter((f) => f._id !== "me");
+      upd = upd.filter((f) => f._id !== user._id);
     }
     setSelectedFriends(upd);
   };
@@ -502,22 +454,18 @@ const currencyOptions = useMemo(() => {
 
   // ----- payment modal data -----
   const paymentOptions = useMemo(() => {
-    if (!showPaymentModal) return [];
+    console.log(paymentModalCtx);
+
     if (paymentModalCtx.context === "personal") return paymentMethods || [];
     const f = selectedFriends.find((x) => x._id === paymentModalCtx.friendId);
     return (f?.paymentMethods || []).map((m) => ({ _id: m.paymentMethodId, ...m }));
-  }, [showPaymentModal, paymentModalCtx, paymentMethods, selectedFriends]);
+  }, [paymentModalCtx, paymentMethods, selectedFriends]);
 
   const paymentValue = useMemo(() => {
     if (paymentModalCtx.context === "personal") return paymentMethod || null;
     const f = selectedFriends.find((x) => x._id === paymentModalCtx.friendId);
     return f?.selectedPaymentMethodId ?? null;
   }, [paymentModalCtx, paymentMethod, selectedFriends]);
-
-  const openPaymentModal = (ctx) => {
-    setPaymentModalCtx(ctx);
-    setShowPaymentModal(true);
-  };
 
   const handleSelectPayment = (id) => {
     if (paymentModalCtx.context === "personal") {
@@ -558,7 +506,7 @@ const currencyOptions = useMemo(() => {
     }
 
     // split:
-    const hasAny = groupSelect || selectedFriends.some((f) => f._id !== "me");
+    const hasAny = groupSelect || selectedFriends.some((f) => f._id !== user._id);
     if (!hasAny) return setHint("Select a friend or a group to split with.");
     if (!desc.trim()) return setHint("Add a short description for this expense.");
     if (!cur) return setHint("Pick a currency.");
@@ -610,7 +558,7 @@ const currencyOptions = useMemo(() => {
       return true;
     }
 
-    const hasAny = groupSelect || selectedFriends.some((f) => f._id !== "me");
+    const hasAny = groupSelect || selectedFriends.some((f) => f._id !== user._id);
     if (!hasAny) return false;
 
     if (!isPaidValid) return false;
@@ -711,45 +659,26 @@ const currencyOptions = useMemo(() => {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <StatusBar style="light" />
       <Header title="New Expense" />
-      {/* Header */}
-      {/* <View style={styles.header}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          {(hasPreselectedFriend.current && preselectedFriendId.current && selectedFriends.length === 2) || (hasPreselectedGroup.current && groupSelect?._id) ? (
-            <TouchableOpacity
-              onPress={() => {
-                if (hasPreselectedFriend.current && preselectedFriendId.current) router.push(`/friends/${preselectedFriendId.current}`);
-                if (hasPreselectedGroup.current && groupSelect?._id) router.push(`/groups/${groupSelect._id}`);
-              }}
-              style={{ padding: 6 }}
-            >
-              <Feather name="chevron-left" size={24} color="#EBF1D5" />
-            </TouchableOpacity>
-          ) : null}
-          <Text style={styles.headerTitle}>New Expense</Text>
-        </View>
-      </View> */}
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
 
-      {/* Mode toggle */}
-      <View style={{ flex: 1, paddingHorizontal: 16, }}>
-        <View style={{}}>
-          <View style={styles.modeToggle}>
-            <TouchableOpacity
-              onPress={() => setExpenseMode("personal")}
-              style={[styles.modeBtn, expenseMode === "personal" && styles.modeBtnActive]}
-            >
-              <Text style={[styles.modeText, expenseMode === "personal" && styles.modeTextActive]}>Personal Expense</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setExpenseMode("split")}
-              style={[styles.modeBtn, expenseMode === "split" && styles.modeBtnActive]}
-            >
-              <Text style={[styles.modeText, expenseMode === "split" && styles.modeTextActive]}>Split Expense</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.modeToggle}>
+          <TouchableOpacity
+            onPress={() => setExpenseMode("personal")}
+            style={[styles.modeBtn, expenseMode === "personal" && styles.modeBtnActive]}
+          >
+            <Text style={[styles.modeText, expenseMode === "personal" && styles.modeTextActive]}>Personal Expense</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setExpenseMode("split")}
+            style={[styles.modeBtn, expenseMode === "split" && styles.modeBtnActive]}
+          >
+            <Text style={[styles.modeText, expenseMode === "split" && styles.modeTextActive]}>Split Expense</Text>
+          </TouchableOpacity>
         </View>
+
 
         {/* Search (split, when nothing selected) */}
-        {expenseMode === "split" && !groupSelect && selectedFriends.filter((f) => f._id !== "me").length === 0 ? (
+        {expenseMode === "split" && !groupSelect && selectedFriends.filter((f) => f._id !== user._id).length === 0 ? (
           <View style={{ width: '100%', paddingTop: 10, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
             <TextInput
               placeholder="Search friends or groups"
@@ -760,7 +689,7 @@ const currencyOptions = useMemo(() => {
               autoCorrect={false}
               style={styles.input}
             />
-            {!groupSelect && selectedFriends.filter((x) => x._id !== "me").length === 0 ? (
+            {!groupSelect && selectedFriends.filter((x) => x._id !== user._id).length === 0 ? (
               <Text style={styles.helperSmall}>
                 Select a group or a friend you want to split with.
               </Text>
@@ -790,6 +719,7 @@ const currencyOptions = useMemo(() => {
           style={{ flex: 1 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor="#00d0b0" />}
           contentContainerStyle={{ paddingBottom: 24 }}
+          showsVerticalScrollIndicator={false}
         >
           {/* Split: suggestions + selection chips */}
           {expenseMode === "split" && (groups.length > 0 || friends.length > 0) ? (
@@ -797,13 +727,13 @@ const currencyOptions = useMemo(() => {
 
 
               {/* Selected summary */}
-              {(groupSelect || selectedFriends.length > 0) && (
+              {(groupSelect || selectedFriends.filter((f) => f._id !== user._id).length > 0) && (
                 <View style={{ marginTop: 8, gap: 8 }}>
                   {!groupSelect ? (
                     <View>
                       <Text style={styles.sectionLabel}>Friend Selected</Text>
                       {selectedFriends
-                        .filter((f) => f._id !== "me")
+                        .filter((f) => f._id !== user._id)
                         .map((fr) => (
                           <View key={`sel-${fr._id}`} style={styles.selRow}>
                             <Text style={styles.selText}>{fr.name}</Text>
@@ -828,7 +758,7 @@ const currencyOptions = useMemo(() => {
               )}
 
               {/* Suggestions / search results */}
-              {(selectedFriends.length === 0 || search.length > 0) && (
+              {!(groupSelect || selectedFriends.filter((f) => f._id !== user._id).length > 0) && (selectedFriends.filter((f) => f._id !== user._id).length === 0 || search.length > 0) && (
                 <View style={{ marginTop: 12, gap: 12 }}>
                   {filteredGroups.length > 0 && (
                     <View>
@@ -882,7 +812,7 @@ const currencyOptions = useMemo(() => {
           ) : null}
 
           {/* Create expense */}
-          {(expenseMode === "personal" || selectedFriends.length > 0) && (
+          {(expenseMode === "personal" || selectedFriends.filter((f) => f._id !== user._id).length > 0) && (
             <View style={{ marginTop: 10, gap: 10 }}>
               <Text style={styles.sectionLabel}>Create Expense</Text>
 
@@ -898,7 +828,7 @@ const currencyOptions = useMemo(() => {
               {/* Currency + Amount */}
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <TouchableOpacity
-                  onPress={() => setShowCurrencyModal(true)}
+                  onPress={openCurrencySheet}
                   style={[styles.input, styles.btnLike, { flex: 1 }]}
                 >
                   <Text style={[styles.btnLikeText, currency ? { color: "#EBF1D5" } : { color: "#828282" }]}>
@@ -923,7 +853,7 @@ const currencyOptions = useMemo(() => {
               {/* Category + Date */}
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <TouchableOpacity
-                  onPress={() => setShowCategoryModal(true)}
+                  onPress={openCategorySheet}
                   style={[styles.input, styles.btnLike, { flex: 1 }]}
                 >
                   <Text style={[styles.btnLikeText, category ? { color: "#EBF1D5" } : { color: "#828282" }]}>
@@ -943,7 +873,7 @@ const currencyOptions = useMemo(() => {
               {/* Personal: pick account */}
               {expenseMode === "personal" && (
                 <TouchableOpacity
-                  onPress={() => openPaymentModal({ context: "personal" })}
+                  onPress={() => openPaymentSheet({ context: "personal" })}
                   style={[styles.input, styles.btnLike]}
                 >
                   <Text style={[styles.btnLikeText, paymentMethod ? { color: "#EBF1D5" } : { color: "#828282" }]}>
@@ -989,6 +919,31 @@ const currencyOptions = useMemo(() => {
                             <View key={`pr-${f._id}`} style={styles.rowBetween}>
                               <Text style={{ color: "#EBF1D5", flex: 1 }} numberOfLines={1}>{f.name}</Text>
                               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                {many ? (
+                                  <TouchableOpacity
+                                    onPress={() => openPaymentSheet({ context: "split", friendId: f._id })}
+                                    style={[
+                                      styles.pmBtn,
+                                      sel
+                                        ? { borderColor: "#55554f", backgroundColor: "transparent" } // normal gray look
+                                        : { borderColor: "#f44336", backgroundColor: "rgba(244,67,54,0.1)" }, // error red
+                                    ]}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.pmBtnText,
+                                        {
+                                          color: sel ? "#EBF1D5" : "#f44336", // gray/white when ok, red when missing
+                                          fontWeight: sel ? "400" : "400",
+                                        },
+                                      ]}
+                                      numberOfLines={1}
+                                    >
+                                      {sel ? (sel.label || sel.type || "Payment Method") : "Select"}
+                                    </Text>
+                                  </TouchableOpacity>
+
+                                ) : null}
                                 {selectedFriends.filter((x) => x.paying).length > 1 ? (
                                   <TextInput
                                     placeholder="Amount"
@@ -998,16 +953,6 @@ const currencyOptions = useMemo(() => {
                                     onChangeText={(v) => setPayAmount(f._id, v)}
                                     style={[styles.input, { width: 100, textAlign: "right" }]}
                                   />
-                                ) : null}
-                                {many ? (
-                                  <TouchableOpacity
-                                    onPress={() => openPaymentModal({ context: "split", friendId: f._id })}
-                                    style={styles.pmBtn}
-                                  >
-                                    <Text style={styles.pmBtnText} numberOfLines={1}>
-                                      {sel ? (sel.label || sel.type || "Method") : "Pick account"}
-                                    </Text>
-                                  </TouchableOpacity>
                                 ) : null}
                               </View>
                             </View>
@@ -1108,7 +1053,7 @@ const currencyOptions = useMemo(() => {
                                       style={[styles.input, { width: 100, textAlign: "right" }]}
                                     />
                                   ) : (
-                                    <Text style={{ color: "#EBF1D5" }}>{f.oweAmount || 0}</Text>
+                                    <Text style={{ color: "#EBF1D5", marginVertical: 4 }}>{f.oweAmount || 0}</Text>
                                   )}
                                 </View>
                               ))}
@@ -1124,7 +1069,7 @@ const currencyOptions = useMemo(() => {
 
           {/* Loan CTA */}
         </ScrollView>
-        {!desc ? (
+        {/* {!desc ? (
           <View style={{ flex: 1, flexDirection: 'column', justifyContent: 'flex-end', marginBottom: 10, alignItems: "center" }}>
             <Text style={{ color: "#a0a0a0" }}>
               Lent someone money?{" "}
@@ -1139,52 +1084,45 @@ const currencyOptions = useMemo(() => {
               </Text>
             </Text>
           </View>
-        ) : null}
+        ) : null} */}
 
-        {/* Footer */}
-
-
-        {/* Modals */}
-        <SimplePickerModal
-          visible={showCurrencyModal}
-          title="Select Currency"
+        <SheetCurrencies
+          innerRef={currencySheetRef}
           value={currency}
           options={currencyOptions}
           onSelect={setCurrency}
-          onClose={() => setShowCurrencyModal(false)}
+          onClose={() => console.log("Currency sheet closed")}
         />
-        <SimplePickerModal
-          visible={showCategoryModal}
-          title="Select Category"
+
+        <SheetCategories
+          innerRef={categorySheetRef}
           value={category}
           options={categoryOptions}
           onSelect={setCategory}
-          onClose={() => setShowCategoryModal(false)}
+          onClose={() => console.log("Category closed")}
         />
-        <PaymentPickerModal
-          visible={showPaymentModal}
-          title={paymentModalCtx.context === "personal" ? "Select Payment Account" : "Select Payer's Account"}
-          options={paymentOptions}
+
+        <SheetPayments
+          innerRef={paymentSheetRef}
           value={paymentValue}
+          options={paymentOptions}
           onSelect={(id) => handleSelectPayment(id)}
-          onClose={() => setShowPaymentModal(false)}
-          onManage={() => {
-            setShowPaymentModal(false);
-            router.push("/account?section=paymentMethod");
-          }}
+          onClose={() => console.log("Payment closed")}
         />
-      </View>
-      <View style={styles.footer}>
-        <Text style={styles.hint} numberOfLines={2}>{hint}</Text>
-        <TouchableOpacity
-          onPress={handleSubmit}
-          disabled={!canSubmit || loading}
-          style={[styles.submitBtn, (!canSubmit || loading) ? styles.submitDisabled : null]}
-        >
-          <Text style={[styles.submitText, (!canSubmit || loading) && { opacity: 0.9 }]}>
-            {loading ? "Saving…" : "Save Expense"}
-          </Text>
-        </TouchableOpacity>
+
+
+        <View style={styles.footer}>
+          <Text style={styles.hint} numberOfLines={2}>{hint}</Text>
+          <TouchableOpacity
+            onPress={handleSubmit}
+            disabled={!canSubmit || loading}
+            style={[styles.submitBtn, (!canSubmit || loading) ? styles.submitDisabled : null]}
+          >
+            <Text style={[styles.submitText, (!canSubmit || loading) && { opacity: 0.9 }]}>
+              {loading ? "Saving…" : "Save Expense"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -1244,9 +1182,9 @@ const styles = StyleSheet.create({
   chipTextActive: { color: "#EBF1D5", fontWeight: "700" },
 
   chip2: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 2, borderColor: "#81827C" },
-  chip2Active: { backgroundColor: "#DFF3E8", borderColor: "#DFF3E8" },
+  chip2Active: { backgroundColor: "#00C49F33", borderColor: "#00C49F33", },
   chip2Text: { color: "#EBF1D5" },
-  chip2TextActive: { color: "#121212", fontWeight: "700" },
+  chip2TextActive: { color: "#EBF1D5", fontWeight: "700" },
 
   suggestHeader: { color: "#60DFC9", fontSize: 12, letterSpacing: 1, marginBottom: 5 },
 
@@ -1255,8 +1193,20 @@ const styles = StyleSheet.create({
 
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
 
-  pmBtn: { borderWidth: 2, borderColor: "#55554f", paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, maxWidth: 160 },
-  pmBtnText: { color: "#EBF1D5" },
+  pmBtn: {
+    borderWidth: 1,
+    borderColor: "#55554f",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    maxWidth: 180,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pmBtnText: {
+    fontSize: 14,
+    color: "#EBF1D5",
+  },
 
   banner: {
     marginHorizontal: 12,
@@ -1297,4 +1247,30 @@ const styles = StyleSheet.create({
   modalBtnText: { color: "#EBF1D5", fontWeight: "600" },
   pickerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 10, borderRadius: 8, marginBottom: 6, backgroundColor: "rgba(255,255,255,0.05)" },
   pickerText: { color: "#EBF1D5", fontSize: 16 },
+  // mini mode toggle buttons (=, %, 1.23)
+  modeMini: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#55554f",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 6,
+    backgroundColor: "#1f1f1f",
+  },
+  modeMiniActive: {
+    backgroundColor: "#00C49F33", // soft green tint
+    borderColor: "#00C49F",
+  },
+  modeMiniText: {
+    color: "#EBF1D5",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  modeMiniTextActive: {
+    color: "#00C49F",
+    fontWeight: "700",
+  },
+
 });

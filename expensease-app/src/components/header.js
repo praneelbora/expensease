@@ -69,7 +69,8 @@ export default function Header({
   rightExtras,
   containerStyle,
   leftSlot,
-  button
+  button,
+  filterBtnActive = false
 }) {
   const router = useRouter();
 
@@ -148,9 +149,23 @@ export default function Header({
           <Pressable
             onPress={onFilterPress}
             hitSlop={10}
-            style={styles.iconBtn}
+            style={[
+              styles.iconBtn,
+              {
+                padding: 8,
+                borderRadius: 8,
+                borderWidth: filterBtnActive ? 1 : 0,
+                borderColor: filterBtnActive ? "#rgba(0,196,159,0.4)" : "transparent",
+                backgroundColor: filterBtnActive ? "transparent" : "transparent",
+              },
+            ]}
+
           >
-            <Filter size={18} color="#B8C4A0" />
+            <Filter
+              size={18}
+              color={filterBtnActive ? "#00C49F" : "#B8C4A0"}
+            />
+
           </Pressable>
         )}
 
@@ -169,7 +184,7 @@ export default function Header({
             <Bell size={18} color="#B8C4A0" />
           </Pressable>
         )}
-        {button?button:null}
+        {button ? button : null}
       </View>
     </View>
   );

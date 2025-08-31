@@ -168,7 +168,6 @@ const AddLoan = () => {
             logEvent('new-loan', {
                 currency: currency,
                 amount: principal,
-                currency: currency,
             })
             await createLoan(payload, userToken);
             await fetchPaymentMethods()

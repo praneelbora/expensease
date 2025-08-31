@@ -372,7 +372,6 @@ export default function Groups() {
                                 {filteredGroups.map((group) => {
                                     const list = group?.totalOweList || [];
                                     const dominant = list[0]; // biggest by absolute value
-                                    console.log(list);
 
                                     const otherCount = Math.max(list.length - 1, 0);
 

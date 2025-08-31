@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { AuthContext } from "context/AuthContext";
-import { mobileLogin } from "services/UserService";
+import { mobileLogin, checkAppVersion } from "services/UserService";
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 // Change this to your actual dev endpoint path:
@@ -28,6 +28,7 @@ export default function Login() {
     setUserToken,
     isLoading,
     setIsLoading,
+    version,
     logout, // in case you want to clear on error
   } = useContext(AuthContext);
 
@@ -43,7 +44,9 @@ export default function Login() {
   }, [email]);
 
   useEffect(() => {
-    if (isValidEmail) handleSubmit();
+    // if (isValidEmail) 
+    // router.replace('/updateScreen')
+    // handleSubmit();
   }, [email]);
 
   const handleSubmit = async () => {
@@ -65,7 +68,12 @@ export default function Login() {
       // if (res.newUser) router.replace("/onboarding");
       // else
       // router.replace("/dashboard");
-      router.replace({ pathname: 'dashboard'});
+      const response = await checkAppVersion(version, Platform.OS)
+      if (response.outdated)
+        router.replace({ pathname: 'updateScreen' });
+      else
+        router.replace({ pathname: 'dashboard' });
+
     } catch (e) {
       console.error(e);
       setError(e?.message || "Could not sign in with that email. Please try again.");
@@ -95,7 +103,11 @@ export default function Login() {
         >
           <View style={{ width: "100%", alignItems: "center" }}>
             <Text style={styles.logoFallback}>Expensease</Text>
+            <View style={{width: "100%", alignItems: "center"}}>
             <Text style={styles.tagline}>Dev login — enter your email</Text>
+            <Text style={styles.tagline}>Backend Server: {process.env.EXPO_PUBLIC_BACKEND_URL}</Text>
+            <Text style={styles.tagline}>Version: {version}</Text>
+            </View>
           </View>
 
           <View style={styles.form}>
@@ -139,9 +151,9 @@ export default function Login() {
               </Text>
             </TouchableOpacity>
 
-            {(submitting || isLoading) && (
+            {/* {(submitting || isLoading) && (
               <ActivityIndicator size="small" style={{ marginTop: 10 }} />
-            )}
+            )} */}
           </View>
         </KeyboardAvoidingView>
       </ScrollView>
@@ -179,7 +191,6 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     fontSize: 16,
     paddingTop: 8,
-    paddingBottom: 24,
   },
   form: {
     width: "90%",

@@ -15,93 +15,18 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import Header from "~/header";
+import BottomSheetFilters from "~/btmShtFilters";
+import ExpenseRow from "~/expenseRow";
+import { categoryMap } from "utils/categories";
 
 // ===== adjust these paths to your project =====
 import { useAuth } from "context/AuthContext";
 import { getAllExpenses } from "services/ExpenseService";
 // import { logEvent } from "utils/analytics";
-import { getAllCurrencyCodes, toCurrencyOptions } from "utils/currencies";
 
-// ---- tiny symbol helper (use your own getSymbol if you prefer)
-const SYMBOLS = { INR: "₹", USD: "$", EUR: "€", GBP: "£", JPY: "¥", AUD: "A$" };
-const getSymbol = (code = "INR") => SYMBOLS[code] || "";
-
-// ======= Placeholder Filter Modal (swap with your RN component later) =======
-function FilterSheet({ visible, onClose, onApply, selected, filters, categories }) {
-  const [local, setLocal] = useState(selected);
-  useEffect(() => setLocal(selected), [selected]);
-
-  const setKey = (k, v) => setLocal((s) => ({ ...s, [k]: v }));
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Filters</Text>
-
-          <Text style={styles.modalSection}>Type</Text>
-          <View style={styles.chipsRow}>
-            {filters.map((f) => (
-              <TouchableOpacity
-                key={f.key}
-                style={[styles.chip, local.type === f.key && styles.chipActive]}
-                onPress={() => setKey("type", f.key)}
-              >
-                <Text style={[styles.chipText, local.type === f.key && styles.chipTextActive]}>{f.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.modalSection}>Category</Text>
-          <View style={styles.chipsRow}>
-            {categories.slice(0, 12).map((c) => (
-              <TouchableOpacity
-                key={String(c)}
-                style={[styles.chip, local.category === c && styles.chipActive]}
-                onPress={() => setKey("category", c)}
-              >
-                <Text style={[styles.chipText, local.category === c && styles.chipTextActive]}>
-                  {c === "all" ? "All" : c}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.modalSection}>Sort</Text>
-          <View style={styles.chipsRow}>
-            {[
-              { k: "newest", label: "Newest" },
-              { k: "oldest", label: "Oldest" },
-            ].map(({ k, label }) => (
-              <TouchableOpacity
-                key={k}
-                style={[styles.chip, local.sort === k && styles.chipActive]}
-                onPress={() => setKey("sort", k)}
-              >
-                <Text style={[styles.chipText, local.sort === k && styles.chipTextActive]}>{label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
-            <TouchableOpacity style={styles.modalBtnSecondary} onPress={onClose}>
-              <Text style={styles.modalBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalBtnPrimary}
-              onPress={() => {
-                onApply(local);
-                onClose();
-              }}
-            >
-              <Text style={[styles.modalBtnText, { color: "#121212", fontWeight: "700" }]}>Apply</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
+import { getSymbol, getDigits, formatMoney, allCurrencies } from "utils/currencies";
+import SearchBar from "~/searchBar";
 
 // ====== Screen ======
 export default function ExpensesScreen() {
@@ -123,11 +48,18 @@ export default function ExpensesScreen() {
 
   const [query, setQuery] = useState("");
   const [showFilter, setShowFilter] = useState(false);
+  const filterSheetRef = useRef(null);
 
-  const currencyOptions = useMemo(
-    () => toCurrencyOptions(getAllCurrencyCodes()),
-    []
-  );
+
+  const currencyOptions = useMemo(() => {
+    const base = new Set([defaultCurrency, ...(preferredCurrencies || [])]);
+    // ensure base ones are included + full list available
+    return allCurrencies
+      .filter(c => base.has(c.code))   // show preferred ones first
+      .concat(allCurrencies.filter(c => !base.has(c.code))) // then rest
+      .map(c => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
+  }, [defaultCurrency, preferredCurrencies]);
+
 
   // URL-style initial state (type/category/sort) via router params
   const initialType = (params?.type || params?.filter || "all").toString();
@@ -135,11 +67,20 @@ export default function ExpensesScreen() {
   const initialSort = (params?.sort || "newest").toString();
 
   const [appliedFilter, setAppliedFilter] = useState({
-    type: initialType,         // 'all' | 'personal' | 'settle' | 'group' | 'friend'
-    category: initialCategory, // 'all' | <categoryName>
-    currency: "",              // optional
-    sort: initialSort,         // 'newest' | 'oldest'
-  });
+  type: initialType,
+  category: initialCategory,
+  currency: "",
+  sort: initialSort,
+  mode: "split",   // 👈 default mode
+});
+const defaultFitler = {
+  type: initialType,
+  category: initialCategory,
+  currency: "",
+  sort: initialSort,
+  mode: "split",   // 👈 default mode
+};
+
 
   // keep route in sync when filters change
   useEffect(() => {
@@ -217,15 +158,21 @@ export default function ExpensesScreen() {
     { key: "friend", label: "Friend Expenses" },
   ];
 
-  // categories list from data
   const categoryOptions = useMemo(() => {
     const s = new Set();
+
+    // ✅ Only add categories that appear in expenses
     (expenses || []).forEach((e) => {
-      if (e?.typeOf !== "settle" && e?.category) s.add(e.category);
+      if (e?.typeOf !== "settle" && e?.category) {
+        const label = categoryMap[e.category]?.label || e.category;
+        s.add(label);
+      }
     });
-    const arr = Array.from(s).sort();
+
+    const arr = Array.from(s).sort((a, b) => a.localeCompare(b));
     return ["all", ...arr];
   }, [expenses]);
+
 
   // main filterer
   const filteredExpenses = useMemo(() => {
@@ -251,7 +198,12 @@ export default function ExpensesScreen() {
       }
 
       // category
-      if (category !== "all") out = out.filter((e) => (e?.category || "") === category);
+      if (category !== "all") {
+        out = out.filter((e) => {
+          const catLabel = categoryMap[e?.category]?.label || e?.category;
+          return catLabel === category;
+        });
+      }
 
       // currency
       if (currency) out = out.filter((e) => e.currency === currency);
@@ -334,122 +286,95 @@ export default function ExpensesScreen() {
     );
   };
 
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <StatusBar style="light" />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <TouchableOpacity
-            onPress={() => {
-              // logEvent?.("navigate", { fromScreen: "expenses", toScreen: "dashboard", source: "back" });
-              router.push("/dashboard");
-            }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Feather name="chevron-left" size={24} color="#EBF1D5" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>All Expenses</Text>
-        </View>
-
-        {/* Filter button */}
-        <TouchableOpacity
-          onPress={() => {
-            // logEvent?.("open_filter_modal", { screen: "expenses" });
-            setShowFilter(true);
-          }}
-          style={[
-            styles.filterBtn,
-            (appliedFilter.category !== "all" ||
-              appliedFilter.type !== "all" ||
-              appliedFilter.sort !== "newest") && styles.filterBtnActive,
-          ]}
-        >
-          <Feather name="sliders" size={18} color="#EBF1D5" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Search */}
-      {expenses.length > 0 && (
-        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-          <View style={{ position: "relative" }}>
-            <Feather name="search" size={16} color="#888" style={{ position: "absolute", left: 12, top: 14 }} />
-            <TextInput
-              placeholder="Search Descriptions / Names / Amounts / Currencies"
-              placeholderTextColor="#81827C"
-              value={query}
-              onChangeText={setQuery}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={[styles.input, { paddingLeft: 32 }]}
+      <Header title="Expenses" showFilter onFilterPress={() => filterSheetRef.current?.present()} filterBtnActive={JSON.stringify(appliedFilter) !== JSON.stringify(defaultFitler)}/>
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
+        {/* Search */}
+        {expenses.length > 0 && (
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search Descriptions / Names / Amounts / Currencies"
+          />
+        )}
+        {/* List */}
+        <FlatList
+          data={loading ? [] : filteredExpenses}
+          keyExtractor={(item) => String(item._id)}
+          renderItem={({ item }) => (
+            <ExpenseRow
+              expense={item}
+              userId={userId}
+              showExpense={appliedFilter.mode === "expense"}
+              onPress={(exp) => {
+                // open modal / navigate
+                console.log("Clicked", exp._id);
+              }}
             />
-          </View>
-        </View>
-      )}
-
-      {/* List */}
-      <FlatList
-        data={loading ? [] : filteredExpenses}
-        keyExtractor={(item) => String(item._id)}
-        renderItem={renderItem}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, flexGrow: 1 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
-        ListEmptyComponent={
-          loading ? (
-            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-              <Feather name="loader" size={22} color="#EBF1D5" />
-            </View>
-          ) : expenses.length === 0 ? (
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyTitle}>No expenses found.</Text>
-              <Text style={styles.emptyText}>Add your first expense to see it here.</Text>
-            </View>
-          ) : (
-            <View style={styles.emptyWrap}>
-              <Text style={[styles.emptyTitle, { marginBottom: 6 }]}>No results.</Text>
-              <Text style={styles.emptyText}>
-                Clear filters to view more.
+          )}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
+          ListEmptyComponent={
+            loading ? (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+                <Feather name="loader" size={22} color="#EBF1D5" />
+              </View>
+            ) : expenses.length === 0 ? (
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyTitle}>No expenses found.</Text>
+                <Text style={styles.emptyText}>Add your first expense to see it here.</Text>
+              </View>
+            ) : (
+              <View style={styles.emptyWrap}>
+                <Text style={[styles.emptyTitle, { marginBottom: 6 }]}>No results.</Text>
+                <Text style={styles.emptyText}>
+                  Clear filters to view more.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.ctaBtn, { marginTop: 10 }]}
+                  onPress={() =>
+                    setAppliedFilter({ type: "all", category: "all", currency: "", sort: "newest" })
+                  }
+                >
+                  <Text style={styles.ctaBtnText}>Clear Filters</Text>
+                </TouchableOpacity>
+              </View>
+            )
+          }
+          ListFooterComponent={
+            !loading && filteredExpenses.length > 0 &&
+              (appliedFilter.type !== "all" || appliedFilter.category !== "all") ? (
+              <Text style={styles.footerHint}>
+                End of Results.{" "}
+                <Text
+                  onPress={() =>
+                    setAppliedFilter({ type: "all", category: "all", currency: "", sort: "newest" })
+                  }
+                  style={{ color: "#60DFC9", textDecorationLine: "underline" }}
+                >
+                  Clear Filters
+                </Text>{" "}
+                to view more.
               </Text>
-              <TouchableOpacity
-                style={[styles.ctaBtn, { marginTop: 10 }]}
-                onPress={() =>
-                  setAppliedFilter({ type: "all", category: "all", currency: "", sort: "newest" })
-                }
-              >
-                <Text style={styles.ctaBtnText}>Clear Filters</Text>
-              </TouchableOpacity>
-            </View>
-          )
-        }
-        ListFooterComponent={
-          !loading && filteredExpenses.length > 0 &&
-          (appliedFilter.type !== "all" || appliedFilter.category !== "all") ? (
-            <Text style={styles.footerHint}>
-              End of Results.{" "}
-              <Text
-                onPress={() =>
-                  setAppliedFilter({ type: "all", category: "all", currency: "", sort: "newest" })
-                }
-                style={{ color: "#60DFC9", textDecorationLine: "underline" }}
-              >
-                Clear Filters
-              </Text>{" "}
-              to view more.
-            </Text>
-          ) : null
-        }
-      />
+            ) : null
+          }
+        />
 
-      {/* Filters sheet */}
-      <FilterSheet
-        visible={showFilter}
-        onClose={() => setShowFilter(false)}
-        onApply={(f) => setAppliedFilter(f)}
-        selected={appliedFilter}
-        filters={FILTERS}
-        categories={categoryOptions}
-      />
+        {/* Filters sheet */}
+
+        <BottomSheetFilters
+          innerRef={filterSheetRef}
+          selected={appliedFilter}                 // ✅ pass appliedFilter
+          filters={FILTERS}                        // ✅ use correct expense filters
+          categories={categoryOptions}             // ✅ use dynamic categories
+          onApply={(newFilters) => setAppliedFilter(newFilters)}   // ✅ update appliedFilter
+          onClose={() => console.log("Filter sheet closed")}
+        />
+      </View>
     </SafeAreaView>
   );
 }

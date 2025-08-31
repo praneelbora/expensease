@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import Header from "~/header";
+import SearchBar from "~/searchBar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -21,10 +22,7 @@ import { Feather } from "@expo/vector-icons";
 import { useAuth } from "/context/AuthContext";
 import { getAllGroups, getGroupExpenses, joinGroup, createGroup } from "/services/GroupService";
 // import { logEvent } from "/utils/analytics";
-
-// ===== small utils (match your web logic) =====
-const SYMBOLS = { INR: "₹", USD: "$", EUR: "€", GBP: "£", JPY: "¥", AUD: "A$" };
-const getSymbol = (code = "INR") => SYMBOLS[code] || "";
+import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "utils/currencies";
 
 const currencyDigits = (code, locale = "en-IN") => {
   try {
@@ -314,7 +312,7 @@ export default function GroupsScreen() {
         onPress={() => {
           // logEvent?.("navigate", { fromScreen: "groups", toScreen: "group_detail", source: "group_list" });
           // router.push(`/c/${group._id}`);
-          router.push({ pathname: "/groups/details", params: { id:group._id } });
+          router.push({ pathname: "/groups/details", params: { id: group._id } });
         }}
         activeOpacity={0.8}
         style={styles.row}
@@ -368,25 +366,13 @@ export default function GroupsScreen() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <StatusBar style="light" />
       <Header title="Groups" />
-      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
         <View style={{ gap: 8 }}>
-          <View style={{ position: "relative" }}>
-            <Feather
-              name="search"
-              size={16}
-              color="#888"
-              style={{ position: "absolute", left: 12, top: 14 }}
-            />
-            <TextInput
-              placeholder="Search groups or members"
-              placeholderTextColor="#81827C"
-              value={query}
-              onChangeText={setQuery}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={[styles.input, { paddingLeft: 32 }]}
-            />
-          </View>
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search groups or members"
+          />
 
           <View style={styles.filters}>
             {[
@@ -422,6 +408,7 @@ export default function GroupsScreen() {
           renderItem={renderItem}
           contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             loading ? (
               <View style={{ gap: 10 }}>

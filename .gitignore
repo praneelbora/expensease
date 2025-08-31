@@ -1,3 +1,4 @@
 .DS_Store
 googleOAuth.txt
 /app/node_modules
+/expensease-app/android

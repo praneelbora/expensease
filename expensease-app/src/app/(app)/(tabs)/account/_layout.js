@@ -7,6 +7,14 @@ export default function AccountLayout() {
         name="index"
         options={{ title: "Account", animationTypeForReplace: "pop", unmountOnBlur: true }}
       />
+      <Stack.Screen
+        name="guide"
+        options={{ title: "Guide" }}
+      />
+      <Stack.Screen
+        name="paymentAccounts"
+        options={{ title: "Payment Accounts" }}
+      />
     </Stack>
   );
 }

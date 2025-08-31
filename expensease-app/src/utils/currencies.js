@@ -10,7 +10,7 @@ currencies.forEach(c => {
 export const getCurrency = (code = "INR") => currencyMap[code];
 
 export const getSymbol = (code = "INR") =>
-  currencyMap[code]?.symbolNative || currencyMap[code]?.symbol || "";
+  currencyMap[code]?.symbol || currencyMap[code]?.symbolNative || "";
 
 export const getDigits = (code = "INR") =>
   currencyMap[code]?.decimalDigits ?? 2;

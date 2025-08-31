@@ -13,7 +13,7 @@ export default function TabsLayout() {
         headerShown: false,
         sceneContainerStyle: { backgroundColor: '#121212' },
         tabBarShowLabel: true,
-        tabBarBackground: () => <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(18, 18, 18, 1)', borderTopWidth: Platform.OS == 'android' ? 1 : 0.5, borderTopColor: 'rgba(255,255,255,0.15)', marginTop: -5 }]} />,
+        tabBarBackground: () => <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#121212', borderTopWidth: Platform.OS == 'android' ? 1 : 0.5, borderTopColor: 'rgba(255,255,255,0.15)', marginTop: -5 }]} />,
         tabBarStyle: { borderTopWidth: 0, backgroundColor: 'rgba(18,18,18,1)' },
         tabBarLabelStyle: { textAlign: 'center', fontSize: 12, fontFramily: 'SwitzerRegular' },
         tabBarInactiveTintColor: '#81827C',
@@ -103,8 +103,9 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/* <Tabs.Screen name="guide" options={{ href: null, title: "Guide" }} /> */}
+      {/* <Tabs.Screen name="paymentAccounts" options={{ href: null, title: "Payment Accounts" }} /> */}
       <Tabs.Screen name="expenses" options={{ href: null, title: "Expenses" }} />
-      <Tabs.Screen name="paymentAccounts" options={{ href: null, title: "Payment Accounts" }} />
       {/* <Tabs.Screen name="expenses" options={{ title: "Expenses" }} /> */}
     </Tabs>
   );

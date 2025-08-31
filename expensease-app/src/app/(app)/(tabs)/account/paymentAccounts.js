@@ -24,12 +24,7 @@ import {
   holdBalance,
   releaseBalance,
 } from "services/PaymentMethodService";
-import { getAllCurrencyCodes, toCurrencyOptions } from "utils/currencies";
-// import { logEvent } from "utils/analytics";
-
-// quick symbol map; feel free to use your getSymbol instead
-const SYMBOLS = { INR:"₹", USD:"$", EUR:"€", GBP:"£", JPY:"¥", AUD:"A$" };
-const getSymbol = (code="INR") => SYMBOLS[code] || "";
+import { getSymbol, getDigits, formatMoney, allCurrencies } from "utils/currencies";
 
 function SectionHeader({ title, right }) {
   return (
@@ -72,7 +67,7 @@ function EditPaymentMethodModal({ visible, onClose, submitting, initialValues, o
 
           <Text style={styles.modalLabel}>Type</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-            {["upi","bank","card","cash","wallet","other"].map(t => {
+            {["upi", "bank", "card", "cash", "wallet", "other"].map(t => {
               const active = type === t;
               return (
                 <TouchableOpacity key={t} onPress={() => setType(t)}
@@ -119,7 +114,7 @@ function EditPaymentMethodModal({ visible, onClose, submitting, initialValues, o
                 })}
                 style={[styles.modalBtn, { backgroundColor: "#60DFC9", opacity: submitting || !label ? 0.7 : 1 }]}
               >
-                <Text style={{ color: "#121212", fontWeight: "800" }}>{editing ? "Save" : "Add"}</Text>
+                <Text style={{ color: "#999999", fontWeight: "800" }}>{editing ? "Save" : "Add"}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -149,7 +144,7 @@ function AddBalanceModal({ visible, onClose, method, currencyOptions, onSubmit }
 
           <Text style={styles.modalLabel}>Action</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-            {["credit","debit","hold","release"].map(a => {
+            {["credit", "debit", "hold", "release"].map(a => {
               const active = action === a;
               return (
                 <TouchableOpacity key={a} onPress={() => setAction(a)} style={[styles.chip, active && styles.chipActive]}>
@@ -163,7 +158,7 @@ function AddBalanceModal({ visible, onClose, method, currencyOptions, onSubmit }
             <>
               <Text style={styles.modalLabel}>Bucket</Text>
               <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
-                {["available","pending"].map(b => {
+                {["available", "pending"].map(b => {
                   const active = bucket === b;
                   return (
                     <TouchableOpacity key={b} onPress={() => setBucket(b)} style={[styles.chip, active && styles.chipActive]}>
@@ -210,7 +205,7 @@ function AddBalanceModal({ visible, onClose, method, currencyOptions, onSubmit }
               })}
               style={[styles.modalBtn, { backgroundColor: "#60DFC9" }]}
             >
-              <Text style={{ color: "#121212", fontWeight: "800" }}>Update</Text>
+              <Text style={{ color: "#999999", fontWeight: "800" }}>Update</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -228,7 +223,7 @@ function PaymentMethodCard({
 
   return (
     <View style={styles.card}>
-      <View style={{ flexDirection:"row", justifyContent:"space-between", gap: 12 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
         <View style={{ flex: 1 }}>
           <Text style={styles.cardTitle} numberOfLines={1}>
             {method.label || "Payment Account"}
@@ -237,22 +232,22 @@ function PaymentMethodCard({
             {method.type?.toUpperCase()} • {caps.join(" / ").toUpperCase() || "—"}
           </Text>
           {(method.isDefaultSend || method.isDefaultReceive) && (
-            <Text style={{ color:"#60DFC9", marginTop: 2, fontSize: 12 }}>
+            <Text style={{ color: "#60DFC9", marginTop: 2, fontSize: 12 }}>
               {method.isDefaultSend ? "Default SEND" : ""}{method.isDefaultSend && method.isDefaultReceive ? " • " : ""}
               {method.isDefaultReceive ? "Default RECEIVE" : ""}
             </Text>
           )}
         </View>
 
-        <View style={{ alignItems:"flex-end", gap: 8 }}>
-          <View style={{ flexDirection:"row", gap: 8 }}>
+        <View style={{ alignItems: "flex-end", gap: 8 }}>
+          <View style={{ flexDirection: "row", gap: 8 }}>
             <TouchableOpacity onPress={() => onEdit(method)} style={styles.iconBtn}><Feather name="edit-2" size={16} color="#EBF1D5" /></TouchableOpacity>
             {method.status !== "verified" && (
               <TouchableOpacity onPress={() => onVerify(method._id)} style={styles.iconBtn}><Feather name="check-circle" size={16} color="#60DFC9" /></TouchableOpacity>
             )}
           </View>
 
-          <View style={{ flexDirection:"row", gap: 8 }}>
+          <View style={{ flexDirection: "row", gap: 8 }}>
             {caps.includes("send") && (
               <TouchableOpacity onPress={() => onSetDefault(method._id, "send")} style={styles.smallPill}>
                 <Text style={styles.smallPillText}>Set Default SEND</Text>
@@ -268,7 +263,7 @@ function PaymentMethodCard({
       </View>
 
       {/* balances row */}
-      <View style={{ flexDirection:"row", marginTop: 12, gap: 8, flexWrap:"wrap" }}>
+      <View style={{ flexDirection: "row", marginTop: 12, gap: 8, flexWrap: "wrap" }}>
         <TouchableOpacity onPress={() => onPeekBalances(method._id)} style={styles.outlineBtn}>
           <Text style={styles.outlineBtnText}>View Balances</Text>
         </TouchableOpacity>
@@ -282,8 +277,8 @@ function PaymentMethodCard({
         <View style={{ marginTop: 10, gap: 4 }}>
           {Object.entries(b || {}).map(([bucket, curMap]) => (
             <View key={bucket} style={{ gap: 2 }}>
-              <Text style={{ color:"#a0a0a0", fontSize: 12 }}>{bucket.toUpperCase()}</Text>
-              <View style={{ flexDirection:"row", flexWrap:"wrap", gap: 6 }}>
+              <Text style={{ color: "#a0a0a0", fontSize: 12 }}>{bucket.toUpperCase()}</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                 {Object.entries(curMap || {}).map(([ccy, amt]) => (
                   <View key={ccy} style={styles.balanceTag}>
                     <Text style={styles.balanceTagText}>
@@ -323,7 +318,14 @@ export default function PaymentAccountsScreen() {
   const [showAddBalance, setShowAddBalance] = useState(false);
   const [selectedPM, setSelectedPM] = useState(null);
 
-  const currencyOptions = useMemo(() => toCurrencyOptions(getAllCurrencyCodes()), []);
+  const currencyOptions = useMemo(() => {
+    const base = new Set([defaultCurrency, ...(preferredCurrencies || [])]);
+    // ensure base ones are included + full list available
+    return allCurrencies
+      .filter(c => base.has(c.code))   // show preferred ones first
+      .concat(allCurrencies.filter(c => !base.has(c.code))) // then rest
+      .map(c => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
+  }, [defaultCurrency, preferredCurrencies]);
 
   // Pull-to-refresh
   const onRefresh = useCallback(async () => {
@@ -335,7 +337,7 @@ export default function PaymentAccountsScreen() {
     let list = [...(paymentMethods || [])];
     if (filter === "send") list = list.filter(a => (a.capabilities || []).includes("send"));
     else if (filter === "receive") list = list.filter(a => (a.capabilities || []).includes("receive"));
-    else if (["upi","bank","card","cash","wallet","other"].includes(filter)) list = list.filter(a => a.type === filter);
+    else if (["upi", "bank", "card", "cash", "wallet", "other"].includes(filter)) list = list.filter(a => a.type === filter);
 
     // prioritize defaults on top
     return list.sort((a, b) => {
@@ -442,83 +444,79 @@ export default function PaymentAccountsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView style={styles.safe}>
       <StatusBar style="light" />
       {/* Header */}
-<Header showBack title="Payment Accounts" />
+      <Header showBack title="Payment Accounts" />
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
 
+        <View style={{ }}>
 
-      {/* Filters row */}
-      <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 }}>
-        <SectionHeader
-          title="Filter"
-          right={
-            <TouchableOpacity
-              onPress={() => { 
-                setEditing(null); setShowEdit(true); 
-                // logEvent("open_add_payment_method_modal", { screen:"payment_accounts" }); 
-              }}
-              style={styles.addBtn}
-            >
-              <Feather name="plus" size={18} color="#121212" />
-              <Text style={{ color:"#121212", fontWeight:"700" }}>Add Account</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setEditing(null); setShowEdit(true);
+                  // logEvent("open_add_payment_method_modal", { screen:"payment_accounts" }); 
+                }}
+                style={styles.addBtn}
+              >
+                <Feather name="plus" size={18} color="#000" />
+                <Text style={{ color: "#000", fontWeight: "700" }}>Add Account</Text>
+              </TouchableOpacity>
+          {/* <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {["all", "send", "receive", "upi", "bank", "card", "cash", "wallet", "other"].map(k => {
+              const active = filter === k;
+              return (
+                <TouchableOpacity key={k} onPress={() => setFilter(k)} style={[styles.chip, active && styles.chipActive]}>
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{k.toUpperCase()}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View> */}
+        </View>
+
+        {/* List */}
+        <FlatList
+          data={loadingPaymentMethods ? [] : filtered}
+          contentContainerStyle={{ gap: 12 }}
+          keyExtractor={(it) => String(it._id)}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
+          renderItem={({ item, index }) => (
+            <PaymentMethodCard
+              method={item}
+              balancesPeek={balancesPeek}
+              onPeekBalances={peekBalances}
+              onSetDefault={onSetDefault}
+              onVerify={onVerify}
+              onEdit={(acc) => { setEditing(acc); setShowEdit(true); }}
+              onAddBalance={() => onAddBalance(item)}
+            />
+          )}
+          ListEmptyComponent={
+            loadingPaymentMethods ? (
+              <View style={styles.empty}><Feather name="loader" size={20} color="#EBF1D5" /></View>
+            ) : (
+              <View style={styles.empty}><Text style={{ color: "#B8C4A0" }}>No payment accounts yet.</Text></View>
+            )
           }
         />
-        <View style={{ flexDirection:"row", flexWrap:"wrap", gap: 8 }}>
-          {["all","send","receive","upi","bank","card","cash","wallet","other"].map(k => {
-            const active = filter === k;
-            return (
-              <TouchableOpacity key={k} onPress={() => setFilter(k)} style={[styles.chip, active && styles.chipActive]}>
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{k.toUpperCase()}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+
+        {/* Modals */}
+        <EditPaymentMethodModal
+          visible={showEdit}
+          onClose={() => { setShowEdit(false); setEditing(null); }}
+          submitting={submitting}
+          initialValues={editing || undefined}
+          onSave={onSave}
+          onDelete={onDelete}
+        />
+        <AddBalanceModal
+          visible={showAddBalance}
+          onClose={() => { setShowAddBalance(false); setSelectedPM(null); }}
+          method={selectedPM}
+          currencyOptions={currencyOptions}
+          onSubmit={submitAddBalance}
+        />
       </View>
-
-      {/* List */}
-      <FlatList
-        data={loadingPaymentMethods ? [] : filtered}
-        contentContainerStyle={{ padding: 16, paddingBottom: 120, gap: 12, flexGrow: 1 }}
-        keyExtractor={(it) => String(it._id)}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
-        renderItem={({ item, index }) => (
-          <PaymentMethodCard
-            method={item}
-            balancesPeek={balancesPeek}
-            onPeekBalances={peekBalances}
-            onSetDefault={onSetDefault}
-            onVerify={onVerify}
-            onEdit={(acc) => { setEditing(acc); setShowEdit(true); }}
-            onAddBalance={() => onAddBalance(item)}
-          />
-        )}
-        ListEmptyComponent={
-          loadingPaymentMethods ? (
-            <View style={styles.empty}><Feather name="loader" size={20} color="#EBF1D5" /></View>
-          ) : (
-            <View style={styles.empty}><Text style={{ color:"#B8C4A0" }}>No payment accounts yet.</Text></View>
-          )
-        }
-      />
-
-      {/* Modals */}
-      <EditPaymentMethodModal
-        visible={showEdit}
-        onClose={() => { setShowEdit(false); setEditing(null); }}
-        submitting={submitting}
-        initialValues={editing || undefined}
-        onSave={onSave}
-        onDelete={onDelete}
-      />
-      <AddBalanceModal
-        visible={showAddBalance}
-        onClose={() => { setShowAddBalance(false); setSelectedPM(null); }}
-        method={selectedPM}
-        currencyOptions={currencyOptions}
-        onSubmit={submitAddBalance}
-      />
     </SafeAreaView>
   );
 }
@@ -538,7 +536,7 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: "#EBF1D5" },
   chipActive: { backgroundColor: "#60DFC9", borderColor: "#60DFC9" },
   chipText: { color: "#EBF1D5", fontSize: 12, fontWeight: "600" },
-  chipTextActive: { color: "#121212", fontWeight: "800" },
+  chipTextActive: { color: "#999999", fontWeight: "800" },
 
   addBtn: { backgroundColor: "#60DFC9", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8 },
 
@@ -559,16 +557,16 @@ const styles = StyleSheet.create({
   empty: { marginTop: 40, alignItems: "center" },
 
   // modal shared
-  modalBackdrop: { flex:1, backgroundColor:"rgba(0,0,0,0.5)", justifyContent:"center", alignItems:"center", padding:16 },
-  modalCard: { backgroundColor:"#1f1f1f", borderRadius:12, padding:16, width:"100%" },
-  modalTitle: { color:"#EBF1D5", fontSize:18, fontWeight:"800", marginBottom:8 },
-  modalLabel: { color:"#a0a0a0", marginTop:8, marginBottom:6 },
-  input: { backgroundColor:"#2a2a2a", color:"#EBF1D5", borderRadius:8, paddingHorizontal:12, paddingVertical:10 },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
+  modalCard: { backgroundColor: "#1f1f1f", borderRadius: 12, padding: 16, width: "100%" },
+  modalTitle: { color: "#EBF1D5", fontSize: 18, fontWeight: "800", marginBottom: 8 },
+  modalLabel: { color: "#a0a0a0", marginTop: 8, marginBottom: 6 },
+  input: { backgroundColor: "#2a2a2a", color: "#EBF1D5", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
 
-  toggle: { borderWidth:1, borderColor:"#EBF1D5", paddingHorizontal:10, paddingVertical:6, borderRadius:8 },
-  toggleActive: { backgroundColor:"#60DFC9", borderColor:"#60DFC9" },
-  toggleText: { color:"#EBF1D5", fontWeight:"700" },
-  toggleTextActive: { color:"#121212", fontWeight:"800" },
+  toggle: { borderWidth: 1, borderColor: "#EBF1D5", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  toggleActive: { backgroundColor: "#60DFC9", borderColor: "#60DFC9" },
+  toggleText: { color: "#EBF1D5", fontWeight: "700" },
+  toggleTextActive: { color: "#999999", fontWeight: "800" },
 
-  modalBtn: { borderRadius:8, paddingHorizontal:12, paddingVertical:10, alignItems:"center", justifyContent:"center" },
+  modalBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, alignItems: "center", justifyContent: "center" },
 });

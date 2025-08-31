@@ -297,8 +297,6 @@ const Friends = () => {
                 if (activeFilter === "all") return true;
 
                 const cat = friendCategory(String(f._id));
-                console.log(cat);
-
                 if (activeFilter === "settled") return cat === "settled";
                 if (activeFilter === "owes_me") return cat === "owes_me";
                 if (activeFilter === "i_owe") return cat === "i_owe";
@@ -533,8 +531,6 @@ const Friends = () => {
                             <div className="divide-y divide-[#212121]">
                                 {filteredFriends.map((friend) => {
                                     const list = friendBalances[String(friend._id)] || [];
-                                    console.log(list);
-
                                     const dominant = list[0]; // largest absolute
                                     const otherCount = Math.max(list.length - 1, 0);
 

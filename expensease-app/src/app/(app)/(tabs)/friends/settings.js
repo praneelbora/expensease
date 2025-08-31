@@ -23,7 +23,7 @@ import Header from "~/header";
 
 // ---------- small helpers ----------
 const Section = ({ title, children, right }) => (
-  <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+  <View style={{ }}>
     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {right}
@@ -181,20 +181,7 @@ export default function FriendSettings() {
       <StatusBar style="light" />
       {/* Header */}
       <Header showBack title="Friend settings" />
-      {/* <View style={styles.header}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <TouchableOpacity
-            onPress={() => {
-              // logEvent?.("navigate", { fromScreen: "friend_settings", toScreen: "friend_detail", source: "back" });
-              router.back();
-            }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Feather name="chevron-left" size={24} color="#EBF1D5" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Friend Settings</Text>
-        </View>
-      </View> */}
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
 
       {/* Content */}
       {loading ? (
@@ -208,7 +195,7 @@ export default function FriendSettings() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
           contentContainerStyle={{ paddingBottom: 28 }}
           renderItem={() => (
-            <View>
+            <View style={{gap: 16}}>
               {/* Friend Banner / status */}
               <Section title="Friend">
                 <View style={styles.card}>
@@ -256,7 +243,7 @@ export default function FriendSettings() {
                   <View style={styles.card}>
                     {Object.keys(totals.balance).map((code) => {
                       const bal = totals.balance[code] || 0;
-                      const sym = getSymbol("en-IN", code);
+                      const sym = getSymbol(code);
                       const pos = bal >= 0;
                       return (
                         <View key={code} style={{ paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#2a2a2a" }}>
@@ -306,21 +293,13 @@ export default function FriendSettings() {
         onClose={() => setConfirmOpen(false)}
         onConfirm={handleRemoveFriend}
       />
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#121212" },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === "android" ? 6 : 0,
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#EBF1D5",
-  },
-  headerTitle: { color: "#EBF1D5", fontSize: 24, fontWeight: "700" },
-
   sectionTitle: { color: "#60DFC9", fontSize: 12, textTransform: "uppercase", fontWeight: "700" },
 
   card: { backgroundColor: "#1f1f1f", borderRadius: 12, borderWidth: 1, borderColor: "#333", padding: 12 },

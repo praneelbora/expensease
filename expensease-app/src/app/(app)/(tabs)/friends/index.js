@@ -19,6 +19,7 @@ import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import Header from "~/header";
+import SearchBar from "~/searchBar";
 
 // ==== adjust these paths for your app structure ====
 import { useAuth } from "context/AuthContext";
@@ -33,12 +34,8 @@ import {
 import { getAllExpenses } from "services/ExpenseService";
 import { getLoans } from "services/LoanService";
 // import { logEvent } from "utils/analytics";
+import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "utils/currencies";
 
-// ---------- small currency helpers (safe fallbacks) ----------
-const SYMBOL_MAP = { INR: "₹", USD: "$", EUR: "€", GBP: "£", JPY: "¥", AUD: "A$" };
-function getSymbolSafe(code = "INR") {
-  return SYMBOL_MAP[code] || "";
-}
 function currencyDigits(code, locale = "en-IN") {
   try {
     const fmt = new Intl.NumberFormat(locale, { style: "currency", currency: code });
@@ -352,7 +349,7 @@ export default function FriendsScreen() {
         activeOpacity={0.7}
         onPress={() => {
           // logEvent?.("navigate", { fromScreen: "friends", toScreen: "friend_detail", source: "friend_list" });
-          router.push({ pathname: "/friends/details", params: { id:friend._id } });
+          router.push({ pathname: "/friends/details", params: { id: friend._id } });
           // router.push(`/friends/${encodeURIComponent(String(friend._id))}`);
 
         }}
@@ -371,32 +368,35 @@ export default function FriendsScreen() {
           </Text>
         </View>
 
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {dominant ? (
-            <View
-              style={[
-                styles.chip,
-                dominant.amount < 0 ? styles.chipOwe : styles.chipOwed,
-              ]}
-            >
-              <Text style={styles.chipText}>
-                {dominant.amount < 0 ? "you owe · " : "you’re owed · "}
-                {getSymbolSafe(dominant.code)}
-                {Math.abs(dominant.amount).toFixed(currencyDigits(dominant.code))}
-              </Text>
-            </View>
-          ) : list.length > 0 ? (
-            <View style={[styles.chip, styles.chipNeutral]}>
-              <Text style={styles.chipText}>Settled</Text>
-            </View>
-          ) : null}
-
-          {otherCount > 0 ? (
-            <View style={[styles.chip, styles.chipNeutral]}>
-              <Text style={styles.chipText}>+{otherCount}</Text>
-            </View>
-          ) : null}
-        </View>
+        {list.length > 0 ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    {dominant ? (
+                      <View
+                        style={[
+                          styles.badge,
+                          dominant.amount < 0 ? styles.badgeOwed : styles.badgeOwe,
+                        ]}
+                      >
+                        <Text
+                          style={dominant.amount < 0 ? styles.badgeOwedText : styles.badgeOweText}
+                        >
+                          {dominant.amount < 0 ? "you’re owed · " : "you owe · "}
+                          {getSymbol(dominant.code)}
+                          {Math.abs(dominant.amount).toFixed(currencyDigits(dominant.code))}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeNeutralText}>Settled</Text>
+                      </View>
+                    )}
+                    {otherCount > 0 ? (
+                      <View style={styles.badgeNeutral}>
+                        <Text style={styles.badgeNeutralText}>+{otherCount}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
       </TouchableOpacity>
     );
   };
@@ -434,150 +434,147 @@ export default function FriendsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <StatusBar style="light" />
-
       <Header title="Friends" />
-      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16}}>
-        
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
 
-      {/* Search + Filter */}
-      <View style={{ gap: 8, }}>
-        <View style={{ position: "relative" }}>
-          <Feather name="search" size={16} color="#888" style={{ position: "absolute", left: 10, top: 12 }} />
-          <TextInput
-            placeholder="Search friends"
-            placeholderTextColor="#81827C"
+
+        {/* Search + Filter */}
+        <View style={{ gap: 8, }}>
+          <SearchBar
             value={query}
             onChangeText={setQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[styles.input, { paddingLeft: 30 }]}
+            placeholder="Search friends"
           />
+
+          <ScrollView horizontal 
+          showsHorizontalScrollIndicator={false} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8 }}
+          >
+            {[
+              { k: "all", label: "All" },
+              { k: "owes_me", label: "Owes me" },
+              { k: "i_owe", label: "I owe" },
+              { k: "settled", label: "Settled" },
+            ].map(({ k, label }) => {
+              const active = activeFilter === k;
+              return (
+                <TouchableOpacity
+                  key={k}
+                  onPress={() => setActiveFilter(k)}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                >
+                  <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-          {[
-            { k: "all", label: "All" },
-            { k: "owes_me", label: "Owes me" },
-            { k: "i_owe", label: "I owe" },
-            { k: "settled", label: "Settled" },
-          ].map(({ k, label }) => {
-            const active = activeFilter === k;
-            return (
-              <TouchableOpacity
-                key={k}
-                onPress={() => setActiveFilter(k)}
-                style={[styles.filterChip, active && styles.filterChipActive]}
-              >
-                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Banner */}
-      {banner ? (
-        <View
-          style={[
-            styles.banner,
-            banner.type === "success" && styles.bannerSuccess,
-            banner.type === "error" && styles.bannerError,
-            banner.type === "info" && styles.bannerInfo,
-          ]}
-        >
-          <Text style={styles.bannerText}>{banner.text}</Text>
-          <TouchableOpacity onPress={() => setBanner(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={{ color: "#ccc" }}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {/* Content */}
-      <ScrollView
-        style={{ flex: 1 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor="#00d0b0" />}
-        contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}
-      >
-        {/* Requests */}
-        {receivedRequests.length > 0 && (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.sectionLabel}>Friend Requests</Text>
-            </View>
-            <View style={{ padding: 12, paddingTop: 8 }}>
-              {receivedRequests.map((req) => (
-                <RequestRow key={req._id} req={req} />
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Empty state */}
-        {!loading && friends.length === 0 && receivedRequests.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No friends yet!</Text>
-            <Text style={styles.emptyText}>To split expenses, add friends.</Text>
-            <TouchableOpacity onPress={() => setShowModal(true)} style={styles.ctaBtn}>
-              <Text style={styles.ctaBtnText}>Add Friend</Text>
+        {/* Banner */}
+        {banner ? (
+          <View
+            style={[
+              styles.banner,
+              banner.type === "success" && styles.bannerSuccess,
+              banner.type === "error" && styles.bannerError,
+              banner.type === "info" && styles.bannerInfo,
+            ]}
+          >
+            <Text style={styles.bannerText}>{banner.text}</Text>
+            <TouchableOpacity onPress={() => setBanner(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ color: "#ccc" }}>✕</Text>
             </TouchableOpacity>
           </View>
         ) : null}
 
-        {/* Loading skeletons */}
-        {loading ? (
-          <View style={{ gap: 10, marginTop: 12 }}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <View key={i} style={styles.skelRow}>
-                <View style={styles.skelAvatar} />
-                <View style={{ flex: 1, gap: 6 }}>
-                  <View style={[styles.skelLine, { width: "40%" }]} />
-                  <View style={[styles.skelLine, { width: "60%" }]} />
-                </View>
-                <View style={[styles.skelLine, { width: 80, height: 24, borderRadius: 8 }]} />
+        {/* Content */}
+        <ScrollView
+          style={{ flex: 1 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor="#00d0b0" />}
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Requests */}
+          {receivedRequests.length > 0 && (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.sectionLabel}>Friend Requests</Text>
               </View>
-            ))}
-          </View>
-        ) : null}
+              <View style={{ padding: 12, paddingTop: 8 }}>
+                {receivedRequests.map((req) => (
+                  <RequestRow key={req._id} req={req} />
+                ))}
+              </View>
+            </View>
+          )}
 
-        {/* Friends list */}
-        {!loading && friends.length > 0 && (
-          <View style={{ marginTop: receivedRequests.length > 0 ? 8 : 0 }}>
-            {receivedRequests.length > 0 ? (
-              <Text style={[styles.sectionLabel, { marginBottom: 6 }]}>Friends</Text>
-            ) : null}
-            <View style={{ borderTopColor: "#212121", borderTopWidth: StyleSheet.hairlineWidth }}>
-              {filteredFriends.map((f) => (
-                <View key={f._id} style={{ borderBottomColor: "#212121", borderBottomWidth: StyleSheet.hairlineWidth }}>
-                  <FriendRow friend={f} />
+          {/* Empty state */}
+          {!loading && friends.length === 0 && receivedRequests.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No friends yet!</Text>
+              <Text style={styles.emptyText}>To split expenses, add friends.</Text>
+              <TouchableOpacity onPress={() => setShowModal(true)} style={styles.ctaBtn}>
+                <Text style={styles.ctaBtnText}>Add Friend</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {/* Loading skeletons */}
+          {loading ? (
+            <View style={{ gap: 10, marginTop: 12 }}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <View key={i} style={styles.skelRow}>
+                  <View style={styles.skelAvatar} />
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <View style={[styles.skelLine, { width: "40%" }]} />
+                    <View style={[styles.skelLine, { width: "60%" }]} />
+                  </View>
+                  <View style={[styles.skelLine, { width: 80, height: 24, borderRadius: 8 }]} />
                 </View>
               ))}
             </View>
-            <Text style={{ color: "#00C49F", textAlign: "center", marginTop: 10 }}>
-              {filteredFriends.length} Friend{filteredFriends.length === 1 ? "" : "s"}
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+          ) : null}
 
-      {/* Floating Add button for smaller screens */}
-      <TouchableOpacity
-        onPress={() => setShowModal(true)}
-        style={styles.fab}
-        accessibilityLabel="Add friend"
-      >
-        <Feather name="plus" size={24} color="#121212" />
-      </TouchableOpacity>
+          {/* Friends list */}
+          {!loading && friends.length > 0 && (
+            <View style={{ marginTop: receivedRequests.length > 0 ? 8 : 0 }}>
+              {receivedRequests.length > 0 ? (
+                <Text style={[styles.sectionLabel, { marginBottom: 6 }]}>Friends</Text>
+              ) : null}
+              <View style={{ borderTopColor: "#212121", borderTopWidth: StyleSheet.hairlineWidth }}>
+                {filteredFriends.map((f) => (
+                  <View key={f._id} style={{ borderBottomColor: "#212121", borderBottomWidth: StyleSheet.hairlineWidth }}>
+                    <FriendRow friend={f} />
+                  </View>
+                ))}
+              </View>
+              <Text style={{ color: "#00C49F", textAlign: "center", marginTop: 10 }}>
+                {filteredFriends.length} Friend{filteredFriends.length === 1 ? "" : "s"}
+              </Text>
+            </View>
+          )}
+        </ScrollView>
 
-      {/* Add Friend Modal */}
-      <AddFriendModal
-        visible={showModal}
-        onClose={() => setShowModal(false)}
-        onAdded={async () => {
-          // logEvent?.("open_add_friends_modal", { screen: "friends" });
-          await pullReceived();
-        }}
-        userToken={userToken}
-      />
+        {/* Floating Add button for smaller screens */}
+        <TouchableOpacity
+          onPress={() => setShowModal(true)}
+          style={styles.fab}
+          accessibilityLabel="Add friend"
+        >
+          <Feather name="plus" size={24} color="#121212" />
+        </TouchableOpacity>
+
+        {/* Add Friend Modal */}
+        <AddFriendModal
+          visible={showModal}
+          onClose={() => setShowModal(false)}
+          onAdded={async () => {
+            // logEvent?.("open_add_friends_modal", { screen: "friends" });
+            await pullReceived();
+          }}
+          userToken={userToken}
+        />
       </View>
     </SafeAreaView>
   );
@@ -656,6 +653,13 @@ const styles = StyleSheet.create({
   chipOwe: { borderColor: "rgba(234,67,53,0.6)" },
   chipOwed: { borderColor: "rgba(0,196,159,0.6)" },
   chipNeutral: { borderColor: "rgba(255,255,255,0.2)" },
+  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  badgeOwe: { borderColor: "rgba(244,67,54,0.4)", backgroundColor: "rgba(244,67,54,0.1)" },
+  badgeOwed: { borderColor: "rgba(0,196,159,0.4)", backgroundColor: "rgba(0,196,159,0.1)" },
+  badgeOweText: { color: "#f28b82", fontSize: 12 },
+  badgeOwedText: { color: "#60DFC9", fontSize: 12 },
+  badgeNeutral: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  badgeNeutralText: { color: "#bbb", fontSize: 12 },
 
   // requests
   requestRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },

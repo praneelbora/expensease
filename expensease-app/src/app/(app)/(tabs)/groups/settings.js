@@ -271,6 +271,7 @@ export default function GroupSettingsScreen() {
 
       {/* Header */}
       <Header showBack title="Group Settings" />
+
       {/* <View style={{ padding: 16, borderBottomColor: "#EBF1D5", borderBottomWidth: 0.5, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <TouchableOpacity
@@ -284,10 +285,9 @@ export default function GroupSettingsScreen() {
           <Text style={{ color: "#EBF1D5", fontSize: 24, fontWeight: "800" }}>Group Settings</Text>
         </View>
       </View> */}
-
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#60DFC9" />}
-        contentContainerStyle={{ padding: 16 }}
       >
         {loading ? (
           <View style={{ paddingVertical: 48, alignItems: "center" }}>
@@ -343,7 +343,7 @@ export default function GroupSettingsScreen() {
                   const bal = totals.balance[code] || 0;
                   const yourExp = totals.yourExpense?.[code] || 0;
                   const groupExp = totals.groupExpense?.[code] || 0;
-                  const sym = getSymbol("en-IN", code);
+                  const sym = getSymbol(code);
                   const d = currencyDigits(code);
                   return (
                     <View key={code} style={{ borderTopColor: "#2A2A2A", borderTopWidth: 1, paddingTop: 12, marginTop: 12 }}>
@@ -563,6 +563,7 @@ export default function GroupSettingsScreen() {
           }
         }}
       />
+      </View>
     </SafeAreaView>
   );
 }

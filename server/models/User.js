@@ -40,6 +40,10 @@ const userSchema = new mongoose.Schema({
         of: Number,
         default: {},
     },
+    pushTokens: {
+      ios: { type: [String], default: [] },
+      android: { type: [String], default: [] },
+    },
 
 }, { timestamps: true });
 userSchema.index({ phone: 1 }, { unique: true, sparse: true });

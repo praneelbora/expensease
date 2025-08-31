@@ -14,6 +14,7 @@ const client = new OAuth2Client(process.env.VITE_GOOGLE_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET;
 const PaymentMethod = require("../../models/PaymentMethod");
 const PaymentMethodTxn = require("../../models/PaymentMethodTransaction");
+const Admin = require('../../models/Admin');
 
 
 // // 👤 Authenticated User Info
@@ -421,6 +422,8 @@ router.get("/suggestions", auth, async (req, res) => {
 
 router.post("/login", async (req, res) => {
   const { email } = req.body;
+  console.log(req.body);
+  
   if (!email) return res.status(400).json({ error: "Missing email id" });
 
   try {
@@ -460,4 +463,70 @@ router.post("/login", async (req, res) => {
     res.status(401).json({ error: "Invalid or expired Google code" });
   }
 });
+
+router.get("/version", async (req, res) => {
+  try {
+    let adminDoc = await Admin.findOne().lean();
+
+    if (!adminDoc) {
+      // 👇 create default version document if none exists
+      const defaultDoc = await Admin.create({
+        minimumVersion: "1.0.0",
+        minimumIOSVersion: "1.0.0",
+        minimumAndroidVersion: "1.0.0",
+      });
+      adminDoc = defaultDoc.toObject();
+    }
+    
+    res.json({
+      minimumIOSVersion: adminDoc.minimumIOSVersion,
+      minimumAndroidVersion: adminDoc.minimumAndroidVersion,
+    });
+  } catch (e) {
+    console.error("Error fetching version:", e);
+    res.status(500).json({ error: "Could not fetch version info" });
+  }
+});
+
+router.post("/push-token", async (req, res) => {
+  try {
+    const { token, platform } = req.body;
+    const userId = req.user?.id; // optional, only if logged in
+
+    if (!token || !["ios", "android"].includes(platform)) {
+      return res.status(400).json({ error: "Valid token and platform are required" });
+    }
+
+    // --- Save to Admin ---
+    const admin = await Admin.findOne() || await Admin.create({});
+    
+    // Ensure array exists
+    if (!admin.pushTokens) {
+      admin.pushTokens = { ios: [], android: [] };
+    }
+
+    // Remove duplicate & push
+    admin.pushTokens[platform] = admin.pushTokens[platform].filter(t => t !== token);
+    admin.pushTokens[platform].push(token);
+    await admin.save();
+
+    // --- Save to User if logged in ---
+    if (userId) {
+      const pullQuery = {};
+      pullQuery[`pushTokens.${platform}`] = token;
+      await User.findByIdAndUpdate(userId, { $pull: pullQuery });
+
+      const pushQuery = {};
+      pushQuery[`pushTokens.${platform}`] = token;
+      await User.findByIdAndUpdate(userId, { $push: pushQuery });
+    }
+
+    res.json({ success: true, message: "Push token saved" });
+  } catch (err) {
+    console.error("Save push token error:", err);
+    res.status(500).json({ error: "Failed to save push token" });
+  }
+});
+
+
 module.exports = router;
