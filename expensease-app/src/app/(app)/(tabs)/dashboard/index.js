@@ -220,7 +220,7 @@ export default function DashboardScreen() {
         const arrow = pct >= 0 ? "▲" : "▼";
         return `${arrow} ${Math.abs(pct).toFixed(0)}% vs previous`;
     }, [stats.total, trendChart]);
-    
+
 
     useEffect(() => {
         // router.push('newExpense')
@@ -229,7 +229,7 @@ export default function DashboardScreen() {
         <SafeAreaView style={styles.safe}>
             <Header
                 main
-                // showBell
+            // showBell
             // onBellPress={() => router.push("/notifications")} 
             />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
@@ -381,13 +381,13 @@ export default function DashboardScreen() {
                                                 data={(list || []).slice(0, 3)}
                                                 keyExtractor={(item) => item._id}
                                                 scrollEnabled={false}
-                                                renderItem={({ item }) => 
+                                                renderItem={({ item }) =>
                                                     <ExpenseRow
                                                         expense={item}
                                                         userId={userId}
                                                         onPress={(exp) => {
-                                                        // open modal / navigate
-                                                        console.log("Clicked", exp._id);
+                                                            // open modal / navigate
+                                                            console.log("Clicked", exp._id);
                                                         }}
                                                     />
                                                 }

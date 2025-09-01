@@ -193,7 +193,7 @@ export default function SettleModal({
                     <div className="flex flex-col h-[180px] items-center justify-center gap-2">
                         <p className="text-lg text-center font-medium">{getConfirmationText()}</p>
                         <p className="text-2xl text-teal-400">
-                            {getSymbol('en-IN', currency)} {Number(amount || 0).toFixed(2)}
+                            {getSymbol(currency)} {Number(amount || 0).toFixed(2)}
                         </p>
                         {description && (
                             <p className="text-sm text-[#c9c9c9] mt-1">{description}</p>
@@ -222,7 +222,7 @@ export default function SettleModal({
                                             : "bg-[#121212] border-[rgba(255,255,255,0.1)]"
                                             }`}
                                     >
-                                        {from} owes {to} {getSymbol('en-IN', curr)} {amt}
+                                        {from} owes {to} {getSymbol(curr)} {amt}
                                     </button>
                                 );
                             })

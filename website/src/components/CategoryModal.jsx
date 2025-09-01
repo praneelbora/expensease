@@ -1,7 +1,16 @@
+// components/CategoryModal.jsx
 import { useEffect, useMemo, useState } from "react";
 import ModalWrapper from "./ModalWrapper";
+import CategoryIcon from "./CategoryIcon";
 
-export default function CategoryModal({ show, onClose, options = [], value, onSelect, categoryRedirect }) {
+export default function CategoryModal({
+    show,
+    onClose,
+    options = [],
+    value,
+    onSelect,
+    categoryRedirect,
+}) {
     const [query, setQuery] = useState("");
 
     useEffect(() => {
@@ -11,8 +20,8 @@ export default function CategoryModal({ show, onClose, options = [], value, onSe
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         if (!q) return options;
-        return options.filter(opt =>
-            `${opt.label} ${opt.value}`.toLowerCase().includes(q)
+        return options.filter((opt) =>
+            `${opt.label} ${opt.value} ${(opt.keywords || []).join(" ")}`.toLowerCase().includes(q)
         );
     }, [options, query]);
 
@@ -23,20 +32,26 @@ export default function CategoryModal({ show, onClose, options = [], value, onSe
         }
     };
 
+    if (!show) return null;
+
     return (
         <ModalWrapper
             show={show}
             onClose={onClose}
             title="Select Category"
-            footer={categoryRedirect && <div className="w-full text-center text-sm text-[#a0a0a0]">
-                Want to Add / Rearrange?{" "}
-                <button
-                    className="text-teal-400 underline"
-                    onClick={categoryRedirect}
-                >
-                    Customise Categories
-                </button>
-            </div>}
+            footer={
+                categoryRedirect && (
+                    <div className="w-full text-center text-sm text-[#a0a0a0]">
+                        Want to Add / Rearrange?{" "}
+                        <button
+                            className="text-teal-400 underline"
+                            onClick={categoryRedirect}
+                        >
+                            Customise Categories
+                        </button>
+                    </div>
+                )
+            }
         >
             <div className="space-y-3">
                 <input
@@ -55,18 +70,21 @@ export default function CategoryModal({ show, onClose, options = [], value, onSe
                     {filtered.map((opt) => (
                         <button
                             key={opt.value}
-                            onClick={() => { onSelect(opt.value); onClose?.(); }}
-                            className={`w-full text-left px-3 py-2 rounded border transition ${value === opt.value
-                                ? "bg-teal-500 text-black border-teal-500"
-                                : "border-[#333] text-[#EBF1D5] hover:border-teal-600"
+                            onClick={() => {
+                                onSelect(opt.value);
+                                onClose?.();
+                            }}
+                            className={`w-full flex items-center gap-2 px-3 py-2 rounded border transition ${value === opt.value
+                                    ? "bg-teal-500 text-black border-teal-500"
+                                    : "border-[#333] text-[#EBF1D5] hover:border-teal-600"
                                 }`}
                         >
-                            {opt.label}
+                            <CategoryIcon category={opt.value} size={18} />
+                            <span>{opt.label}</span>
                         </button>
                     ))}
                 </div>
             </div>
-
         </ModalWrapper>
     );
 }

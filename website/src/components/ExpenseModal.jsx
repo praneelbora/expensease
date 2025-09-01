@@ -5,10 +5,12 @@ import ModalWrapper from "./ModalWrapper";
 import { deleteExpense, updateExpense } from "../services/ExpenseService";
 import { logEvent } from "../utils/analytics";
 import { getGroupDetails } from "../services/GroupService";
-import { getSymbol } from "../utils/currencies";
+import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies";
+import { getCategoryOptions, getCategoryLabel } from "../utils/categoryOptions";
 import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
 import CurrencyModal from "./CurrencyModal";
 import UnifiedPaymentModal from "./UnifiedPaymentModal";
+import CategoryModal from "./CategoryModal"
 const TEST_MODE = import.meta.env.VITE_TEST_MODE
 const fmtMoney = (n) => `${Number(n || 0).toFixed(2)}`;
 const fmtDate = (d) =>
@@ -62,8 +64,13 @@ export default function ExpenseModal({
         splits = [],
         auditLog
     } = showModal || {};
+    useEffect(() => {
+        console.log(showModal);
+    }, [showModal])
 
     const [loading, setLoading] = useState(false);
+    const [showCategoryModal, setShowCategoryModal] = useState(false);
+    const categoryOptions = getCategoryOptions();
     const [confirmDelete, setConfirmDelete] = useState(false);
     const close = () => !loading && setShowModal(false);
     // Split UI state (matches your create flow concepts)
@@ -157,7 +164,7 @@ export default function ExpenseModal({
                     return;
                 }
 
-                const group = await getGroupDetails(showModal.groupId, userToken);
+                const group = await getGroupDetails(showModal?.groupId?._id?showModal?.groupId?._id:showModal?.groupId, userToken);
                 const members = Array.isArray(group?.members) ? group.members : [];
 
                 if (alive) {
@@ -184,6 +191,22 @@ export default function ExpenseModal({
     const isPaidAmountValid = () => {
         const totalPaid = selectedFriends.filter(f => f.paying).reduce((a, b) => a + Number(b.payAmount || 0), 0);
         return Number(totalPaid.toFixed(2)) === Number(amountNum.toFixed(2));
+    };
+    const getPaymentMethodLabel = (paymentMethod) => {
+        if (!id) return null;
+        const match = (paymentMethods || []).find(pm => pm._id === id);
+        console.log(match);
+
+        if (match) return match.label;
+
+        // If split friend paymentMethods are available
+        for (const f of selectedFriends) {
+            const m = f.paymentMethods?.find(pm => pm.paymentMethodId === id);
+            if (m) return m.label;
+        }
+
+        // Fallback: show raw id
+        return id;
     };
 
     const getPaidAmountInfoTop = () => {
@@ -364,7 +387,7 @@ export default function ExpenseModal({
 
         if (form.splitMode === 'value') {
             const totalValue = owingFriends.reduce((sum, f) => sum + parseFloat(f.oweAmount || 0), 0);
-            return `${getSymbol('en-IN', currency)} ${totalValue.toFixed(2)} / ${getSymbol('en-IN', currency)} ${form?.amount?.toFixed(2)}`;
+            return `${getSymbol(currency)} ${totalValue.toFixed(2)} / ${getSymbol(currency)} ${form?.amount?.toFixed(2)}`;
         }
 
         return '';
@@ -381,7 +404,7 @@ export default function ExpenseModal({
         if (form.splitMode === 'value') {
             const totalValue = owingFriends.reduce((sum, f) => sum + (f.oweAmount || 0), 0);
             const remaining = form.amount - totalValue;
-            return `${getSymbol('en-IN', currency)} ${remaining.toFixed(2)} left`;
+            return `${getSymbol(currency)} ${remaining.toFixed(2)} left`;
         }
 
         return '';
@@ -765,7 +788,7 @@ export default function ExpenseModal({
                 {/* Top row */}
                 {!isEditing ? (
                     <div className="flex items-start justify-between gap-3">
-                        <p className="text-2xl font-semibold text-teal-500">{getSymbol('en-IN', currency)} {fmtMoney(amount)}</p>
+                        <p className="text-2xl font-semibold text-teal-500">{getSymbol(currency)} {fmtMoney(amount)}</p>
                         {date && <p className="text-sm text-[#c9c9c9]">{fmtDate(date)}</p>}
                     </div>
                 ) : (
@@ -840,19 +863,19 @@ export default function ExpenseModal({
                             {form.typeOf == 'expense' && <div className="flex flex-row w-full gap-2">
                                 <div className="flex-1">
                                     <label className="block text-sm text-[#9aa08e] mb-1">Category</label>
-                                    <select
-                                        className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left"
-                                        value={form.category}
-                                        onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                                    <button
+                                        onClick={() => setShowCategoryModal(true)}
+                                        className={`w-full ${category ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
                                     >
-                                        <option value="">Select Category</option>
-                                        {categories.map((cat) => (
-                                            <option key={cat.name} value={cat.name}>
-                                                {cat.emoji} {cat.name}
-                                            </option>
-                                        ))}
-
-                                    </select>
+                                        {category ? getCategoryLabel(category) : "Category"}
+                                    </button>
+                                    <CategoryModal
+                                        show={showCategoryModal}
+                                        onClose={() => setShowCategoryModal(false)}
+                                        value={category}
+                                        options={categoryOptions}
+                                        onSelect={(n) => setForm((f) => ({ ...f, category: n }))}
+                                    />
                                 </div><div className="flex-1">
                                     <label className="block text-sm text-[#9aa08e] mb-1">Date</label>
                                     <input
@@ -948,8 +971,8 @@ export default function ExpenseModal({
 
                                     {selectedFriends.filter(f => f.paying).length > 1 && !isPaidAmountValid() && (
                                         <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col">
-                                            <p>{getSymbol('en-IN', currency)} {getPaidAmountInfoTop()} / {getSymbol('en-IN', currency)} {amountNum.toFixed(2)}</p>
-                                            <p className="text-[#a0a0a0]">{getSymbol('en-IN', currency)} {getPaidAmountInfoBottom()} left</p>
+                                            <p>{getSymbol(currency)} {getPaidAmountInfoTop()} / {getSymbol(currency)} {amountNum.toFixed(2)}</p>
+                                            <p className="text-[#a0a0a0]">{getSymbol(currency)} {getPaidAmountInfoBottom()} left</p>
                                         </div>
                                     )}
                                 </div>
@@ -1046,12 +1069,31 @@ export default function ExpenseModal({
                 )}
 
                 {!isEditing && description && <p className="text-base capitalize">{description}</p>}
+                {!isEditing && (
+                    <p className="text-sm text-[#9aa08e]">
+                        {showModal?.typeOf == 'expense' &&
+                        <>
+                        {category? getCategoryLabel(category) : "Uncategorized"}
+                        </>
+                        }
+                        {form.mode === "personal" && showModal?.paidFromPaymentMethodId && (
+                            <> · {showModal?.paidFromPaymentMethodId?.label}</>
+                        )}
+                        {form.mode === "split" && (() => {
+                            const mySplit = splits.find(
+                                s => (s?.friendId?._id || s?.friendId) === userId && s?.paidFromPaymentMethodId
+                            );
+                            return mySplit ? <> · {mySplit.paidFromPaymentMethodId?.label}</> : null;
+                        })()}
+                    </p>
+                )}
+
 
                 {!isEditing && mode === "split" && (
                     <>
                         <hr className="border-[#2a2a2a]" />
                         <p className="text-base text-teal-500">
-                            {payerInfo} {amount ? ` ${getSymbol('en-IN', currency)} ${fmtMoney(amount)}` : ""}
+                            {payerInfo} {amount ? ` ${getSymbol(currency)} ${fmtMoney(amount)}` : ""}
                         </p>
                         <div className="ms-1">
                             <div className="flex flex-col gap-1 text-sm">
@@ -1061,10 +1103,10 @@ export default function ExpenseModal({
 
                                         const name = s?.friendId?.name || "Member";
                                         const payTxt =
-                                            (s.payAmount || 0) > 0 ? `paid ${getSymbol('en-IN', currency)} ${fmtMoney(s.payAmount)}` : "";
+                                            (s.payAmount || 0) > 0 ? `paid ${getSymbol(currency)} ${fmtMoney(s.payAmount)}` : "";
                                         const andTxt =
                                             ((s.payAmount || 0) > 0 && (parseFloat(s.oweAmount) || 0) > 0) ? " and " : "";
-                                        const oweTxt = parseFloat(s.oweAmount) > 0 ? `owes ${getSymbol('en-IN', currency)} ${fmtMoney(parseFloat(s.oweAmount) || 0)}` : '';
+                                        const oweTxt = parseFloat(s.oweAmount) > 0 ? `owes ${getSymbol(currency)} ${fmtMoney(parseFloat(s.oweAmount) || 0)}` : '';
                                         return (
                                             <div key={idx} className="flex">
                                                 <p>
@@ -1074,7 +1116,10 @@ export default function ExpenseModal({
                                                 </p>
                                             </div>
                                         );
-                                    })}
+                                    })
+                                }
+
+
                             </div>
                         </div>
                     </>

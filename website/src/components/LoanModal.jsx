@@ -86,7 +86,7 @@ export default function LoanViewModal({
             return;
         }
         if (amt > outstanding) {
-            setError(`Amount exceeds outstanding (${getSymbol('en-IN', loan?.currency)} ${fmt(outstanding)})`);
+            setError(`Amount exceeds outstanding (${getSymbol(loan?.currency)} ${fmt(outstanding)})`);
             return;
         }
 
@@ -245,7 +245,7 @@ export default function LoanViewModal({
 
                 <div className="text-md">
                     <div className="text-xl text-teal-500 mb-4">
-                        {youAreLender ? "You lent" : "You borrowed"} {getSymbol('en-IN', loan?.currency)} {fmt(localLoan?.principal)}{" "}
+                        {youAreLender ? "You lent" : "You borrowed"} {getSymbol(loan?.currency)} {fmt(localLoan?.principal)}{" "}
                         {youAreLender ? "to" : "from"} {counterpartyName}
                     </div>
 
@@ -286,7 +286,7 @@ export default function LoanViewModal({
                         <span className="text-sm font-medium mb-1 text-teal-500 uppercase">
                             Outstanding
                         </span>
-                        <span className="text-[#EBF1D5]">{getSymbol('en-IN', loan?.currency)} {fmt(outstanding)}</span>
+                        <span className="text-[#EBF1D5]">{getSymbol(loan?.currency)} {fmt(outstanding)}</span>
                     </div>
                 </div>
                 {/* Repayments */}

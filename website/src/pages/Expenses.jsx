@@ -40,8 +40,10 @@ const Expenses = () => {
         category: initialFilter ? initialFilter : 'all',
         type: initialCategory ? initialCategory : 'all',
         currency: '',
-        sort: 'newest'
+        sort: 'newest',
+        paymentMethod: ''   // new
     });
+
     const [filter, setFilter] = useState(initialFilter);        // 'all','personal','settle','group','friend'
     const [category, setCategory] = useState(initialCategory);  // category name or 'all'
 
@@ -59,7 +61,7 @@ const Expenses = () => {
         const qt = searchParams.get("type") || "all";
         const qc = searchParams.get("category") || "all";
         const qs = searchParams.get("sort") || "newest";
-        if (qt !== appliedFilter.type) setAppliedFilter(f => ({ ...f, type: qf }));
+        if (qt !== appliedFilter.type) setAppliedFilter(f => ({ ...f, type: qt }));
         if (qc !== appliedFilter.category) setAppliedFilter(f => ({ ...f, category: qc }));
         if (qs !== appliedFilter.sort) setAppliedFilter(f => ({ ...f, sort: qs }));
     }, [searchParams]);
@@ -116,7 +118,7 @@ const Expenses = () => {
     const filteredExpenses = useMemo(() => {
         const filterExpenses = (
             expenses,
-            { type = "all", category = "all", currency = "", sort = "newest" },
+            { type = "all", category = "all", currency = "", sort = "newest", paymentMethod = '' },
             query
         ) => {
             let filtered = [...expenses];
@@ -148,6 +150,22 @@ const Expenses = () => {
             if (currency) {
                 filtered = filtered.filter(exp => exp.currency === currency);
             }
+            // 4️⃣ Payment method filter
+            if (paymentMethod) {
+                filtered = filtered.filter(exp => {
+                    if (exp.mode === "personal") {
+                        return exp.paidFromPaymentMethodId === paymentMethod
+                            || exp?.paidFromPaymentMethodId?._id === paymentMethod;
+                    } else if (exp.mode === "split") {
+                        return exp.splits?.some(
+                            s => s?.paidFromPaymentMethodId === paymentMethod
+                                || s?.paidFromPaymentMethodId?._id === paymentMethod
+                        );
+                    }
+                    return false;
+                });
+            }
+
 
             // 4️⃣ Search / Query filter
             if (query && query.trim() !== "") {
@@ -200,12 +218,11 @@ const Expenses = () => {
 
 
             // 5️⃣ Sort
-            if (sort === "newest") {
-                filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
-            } else if (sort === "oldest") {
-                filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
+            if (sort === "oldest") {
+                filtered.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
             }
-
+            else
+                filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             return filtered;
         };
 
@@ -484,7 +501,8 @@ const Expenses = () => {
                     onApply={(f) => setAppliedFilter(f)}
                     selectedFilters={appliedFilter}
                     filters={FILTERS}
-                    categories={categoryOptions}
+                    categoriesProp={categoryOptions}
+                    paymentMethodsProp={paymentMethods}
                     defaultCurrency=""
                 />
             )}

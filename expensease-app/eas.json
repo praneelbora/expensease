@@ -1,30 +1,30 @@
 {
-  "cli": {
-    "version": ">= 16.13.4",
-    "appVersionSource": "remote"
-  },
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api"
-      }
+    "cli": {
+        "version": ">= 16.13.4",
+        "appVersionSource": "remote"
     },
-    "preview": {
-      "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api"
-      }
+    "build": {
+        "development": {
+            "developmentClient": true,
+            "distribution": "internal",
+            "env": {
+                "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api"
+            }
+        },
+        "preview": {
+            "distribution": "internal",
+            "env": {
+                "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api"
+            }
+        },
+        "production": {
+            "autoIncrement": true,
+            "env": {
+                "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api"
+            }
+        }
     },
-    "production": {
-      "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api"
-      }
+    "submit": {
+        "production": {}
     }
-  },
-  "submit": {
-    "production": {}
-  }
 }

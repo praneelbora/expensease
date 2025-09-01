@@ -179,12 +179,12 @@ export async function checkAppVersion(currentVersion, OS) {
 // Save Expo push token with platform
 // src/services/UserService.js
 export async function savePushToken(token, platform, userToken = null) {
-  try {
-    const data = await api.post("/v1/users/push-token", { token, platform });
-    return data;
-  } catch (err) {
-    console.error("❌ Failed to save push token:", err);
-    throw err;
-  }
+    try {
+        const data = await api.post("/v1/users/push-token", { token, platform });
+        return data;
+    } catch (err) {
+        console.error("❌ Failed to save push token:", err);
+        throw err;
+    }
 }
 

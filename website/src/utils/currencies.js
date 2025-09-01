@@ -1,64 +1,53 @@
 // utils/currencies.js
-const FALLBACK_CODES = [
-    "INR", "USD", "EUR", "GBP", "JPY", "AUD", "CAD", "SGD", "CHF", "CNY", "HKD", "AED", "SAR", "NZD", "SEK", "NOK", "DKK", "ZAR", "THB", "MYR", "PHP", "IDR", "KRW", "BRL", "MXN"
-];
+import currencies from "../assets/currencies.json"; // adjust path
 
-export function getAllCurrencyCodes() {
-    try {
-        if (typeof Intl?.supportedValuesOf === "function") {
-            return Intl.supportedValuesOf("currency"); // active ISO-4217 codes
-        }
-    } catch { }
-    return FALLBACK_CODES;
-}
+// quick lookup by code
+const currencyMap = {};
+currencies.forEach(c => {
+    currencyMap[c.code] = c;
+});
 
-export function getSymbol(locale, code) {
-    try {
-        const parts = new Intl.NumberFormat(locale, {
-            style: "currency",
-            currency: code,
-            currencyDisplay: "symbol",
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-        }).formatToParts(0);
-        return parts.find(p => p.type === "currency")?.value ?? code;
-    } catch {
-        return code;
-    }
-}
+export const getCurrency = (code = "INR") => currencyMap[code];
 
-// utils/currencies.js (add this)
-export function formatCurrency(amount, code, locale = (typeof navigator !== "undefined" ? navigator.language : "en-IN")) {
-    try {
-        return new Intl.NumberFormat(locale, {
-            style: "currency",
-            currency: code,
-            currencyDisplay: "symbol", // 'symbol' || 'narrowSymbol'
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-        }).format(Number(amount) || 0);
-    } catch {
-        const symbol = getSymbol(locale, code);
-        const n = (Number(amount) || 0).toFixed(2);
-        return `${symbol} ${" "} ${n}`;
-    }
-}
+export const getSymbol = (code = "INR") =>
+    currencyMap[code]?.symbol || currencyMap[code]?.symbolNative || "";
 
-export function toCurrencyOptions(codes, locale = (typeof navigator !== "undefined" ? navigator.language : "en-IN")) {
-    const dn = (() => {
-        try { return new Intl.DisplayNames([locale], { type: "currency" }); }
-        catch { return null; }
-    })();
+export const getDigits = (code = "INR") =>
+    currencyMap[code]?.decimalDigits ?? 2;
 
-    return codes.map(code => {
-        const symbol = getSymbol(locale, code);
-        const name = (dn?.of?.(code)) || code;
-        return {
-            value: code,
-            label: `${symbol} — ${name} (${code})`, // shown in the OPEN menu
-            symbol,
-            name,
-            trigger: `${symbol} ${code}`,        // for the CLOSED trigger
-        };
-    });
-}
+export const formatMoney = (code, v = 0) => {
+    const c = currencyMap[code];
+    const symbol = c?.symbolNative || c?.symbol || "";
+    const digits = c?.decimalDigits ?? 2;
+    return `${symbol} ${Number(v || 0).toFixed(digits)}`;
+};
+
+export const allCurrencies = currencies;
+
+/**
+ * Returns all ISO currency codes.
+ */
+export const getAllCurrencyCodes = () =>
+    currencies.map(c => c.code);
+
+/**
+ * Convert currency codes into nice Select options.
+ * Each option: { value, label, symbol, name, trigger }
+ */
+export const toCurrencyOptions = (codes, locale = "en-IN") => {
+    return codes
+        .map(code => {
+            const c = currencyMap[code];
+            if (!c) return null;
+            return {
+                value: code,
+                symbol: c.symbolNative || c.symbol || "",
+                name: c.name,
+                // long label in menu: "₹ INR — Indian Rupee"
+                label: `${c.name} (${c.symbol || c.symbolNative || ""})`,
+                // short trigger label: "₹ INR"
+                trigger: `${c.symbolNative || c.symbol || ""} ${code}`,
+            };
+        })
+        .filter(Boolean);
+};

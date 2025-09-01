@@ -86,7 +86,7 @@ export default function PaymentMethodModal({
     }, [show, isEdit, editing]);
 
 
-    const sym = getSymbol("en-IN", form.currency || "INR");
+    const sym = getSymbol(form.currency || "INR");
 
     const onChange = (path, val) => {
         setForm(prev => {

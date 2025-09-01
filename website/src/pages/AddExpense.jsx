@@ -16,10 +16,12 @@ import { logEvent } from '../utils/analytics';
 import CustomSelect from "../components/CustomSelect";
 import CurrencySelect from "../components/CurrencySelect";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/currencies";
+import { getCategoryOptions, getCategoryLabel } from "../utils/categoryOptions";
 import CategoryModal from "../components/CategoryModal";
 import CurrencyModal from "../components/CurrencyModal";
 import UnifiedPaymentModal from "../components/UnifiedPaymentModal"
 import SEO from "../components/SEO";
+import { categoryMap } from "../utils/categories";
 
 const TEST_MODE = import.meta.env.VITE_TEST_MODE
 const AddExpense = () => {
@@ -50,7 +52,7 @@ const AddExpense = () => {
     const [showCurrencyModal, setShowCurrencyModal] = useState();
     const [showPaymentMethodModal, setShowPaymentMethodModal] = useState();
     const [suggestions, setSuggestions] = useState();
-
+    const categoryOptions = getCategoryOptions();
     useEffect(() => {
         setCurrency(defaultCurrency)
     }, [defaultCurrency]);
@@ -515,7 +517,7 @@ const AddExpense = () => {
 
         if (mode === 'value') {
             const totalValue = owingFriends.reduce((sum, f) => sum + parseFloat(f.oweAmount || 0), 0);
-            return `${getSymbol('en-IN', currency)} ${totalValue.toFixed(2)} / ${getSymbol('en-IN', currency)} ${parseFloat(amount).toFixed(2)}`;
+            return `${getSymbol(currency)} ${totalValue.toFixed(2)} / ${getSymbol(currency)} ${parseFloat(amount).toFixed(2)}`;
         }
 
         return '';
@@ -533,7 +535,7 @@ const AddExpense = () => {
         if (mode === 'value') {
             const totalValue = owingFriends.reduce((sum, f) => sum + (f.oweAmount || 0), 0);
             const remaining = amount - totalValue;
-            return `${getSymbol('en-IN', currency)} ${remaining.toFixed(2)} left`;
+            return `${getSymbol(currency)} ${remaining.toFixed(2)} left`;
         }
 
         return '';
@@ -695,7 +697,7 @@ const AddExpense = () => {
     const percentTotals = (friends = []) =>
         friends.filter(f => f.owing).reduce((n, f) => n + (Number(f.owePercent) || 0), 0);
 
-    const money = (ccy, v = 0) => `${getSymbol('en-IN', ccy)} ${Number(v || 0).toFixed(2)}`;
+    const money = (ccy, v = 0) => `${getSymbol(ccy)} ${Number(v || 0).toFixed(2)}`;
 
 
     // state
@@ -822,7 +824,7 @@ const AddExpense = () => {
         if (error) return;
 
         const amt = Number(amount || 0);
-        const sym = getSymbol('en-IN', currency);
+        const sym = getSymbol(currency);
 
         // reset message by default; we’ll set one below
         setMessage("");
@@ -1228,18 +1230,14 @@ const AddExpense = () => {
                                                 onClick={() => setShowCategoryModal(true)}
                                                 className={`w-full ${category ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
                                             >
-                                                {category || "Category"}
+                                                {category ? getCategoryLabel(category) : "Category"}
                                             </button>
                                             <CategoryModal
                                                 show={showCategoryModal}
                                                 onClose={() => setShowCategoryModal(false)}
                                                 value={category}
-                                                options={categories.map(cat => ({
-                                                    value: cat.name,
-                                                    label: `${cat.emoji} ${cat.name}`,
-                                                }))}
+                                                options={categoryOptions}
                                                 onSelect={setCategory}
-                                                categoryRedirect={categoryRedirect}
                                             />
                                         </div>
 
@@ -1377,8 +1375,8 @@ const AddExpense = () => {
 
 
                                             {expenseMode == 'split' && selectedFriends.filter(f => f.paying).length > 1 && !isPaidAmountValid() && <div className="text-[#EBF1D5] text-sm gap-[2px] text-center font-mono w-full flex flex-col justify-center">
-                                                <p>{getSymbol('en-IN', currency)} {getPaidAmountInfoTop()} / {getSymbol('en-IN', currency)} {parseFloat(amount).toFixed(2)}</p>
-                                                <p className="text-[#a0a0a0]">{getSymbol('en-IN', currency)} {getPaidAmountInfoBottom()} left</p>
+                                                <p>{getSymbol(currency)} {getPaidAmountInfoTop()} / {getSymbol(currency)} {parseFloat(amount).toFixed(2)}</p>
+                                                <p className="text-[#a0a0a0]">{getSymbol(currency)} {getPaidAmountInfoBottom()} left</p>
                                             </div>}
                                             {expenseMode == 'split' && isPaidAmountValid() && payersNeedingPM.length == 0 && (
                                                 <>

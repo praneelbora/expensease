@@ -474,7 +474,7 @@ const FriendDetails = () => {
                                         {Object.keys(netLoanBalanceMap || {}).length > 0 ? (
                                             <div className="flex flex-col gap-1">
                                                 {Object.entries(netLoanBalanceMap).map(([code, amt]) => {
-                                                    const sym = getSymbol("en-IN", code);
+                                                    const sym = getSymbol(code);
                                                     const d = currencyDigits(code);
                                                     const cls = amt > 0 ? "text-teal-500" : amt < 0 ? "text-red-400" : "text-white";
                                                     return (
@@ -524,12 +524,12 @@ const FriendDetails = () => {
                                     {loans.map((loan) => {
                                         // principal currency fallback
                                         const loanCode = loan.currency || loan.principalCurrency || "INR";
-                                        const sym = getSymbol("en-IN", loanCode);
+                                        const sym = getSymbol(loanCode);
                                         const d = currencyDigits(loanCode);
 
                                         // outstanding for this loan
                                         const { code: outCode, amount: outstanding } = getOutstandingByCurrency(loan); // <- use your currency-aware helper
-                                        const outSym = getSymbol("en-IN", outCode);
+                                        const outSym = getSymbol(outCode);
                                         const outD = currencyDigits(outCode);
 
                                         const youAreLender = loan.lenderId?._id === userId;
@@ -563,7 +563,7 @@ const FriendDetails = () => {
                                                         <p>Repayments:</p>
                                                         {loan.repayments.slice().reverse().map((r, idx) => {
                                                             const rCode = r.currency || loanCode;
-                                                            const rSym = getSymbol("en-IN", rCode);
+                                                            const rSym = getSymbol(rCode);
                                                             const rD = currencyDigits(rCode);
                                                             return (
                                                                 <p key={idx} className="mr-2">
@@ -593,7 +593,7 @@ const FriendDetails = () => {
                                             {Object.keys(netExpenseBalanceMap || {}).length > 0 ? (
                                                 <div className="flex flex-col gap-1">
                                                     {Object.entries(netExpenseBalanceMap).map(([code, amt]) => {
-                                                        const sym = getSymbol("en-IN", code);
+                                                        const sym = getSymbol(code);
                                                         const d = currencyDigits(code);
                                                         const cls = amt > 0 ? "text-teal-500" : amt < 0 ? "text-red-400" : "text-white";
                                                         return (

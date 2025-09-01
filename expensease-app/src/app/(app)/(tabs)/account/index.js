@@ -86,16 +86,16 @@ export default function AccountScreen() {
     const [highlighted, setHighlighted] = useState(null);
     const currencySheetRef = useRef(null);
     // currency options (fallback to small list)
-      // currency options
-      const currencyOptions = useMemo(() => {
+    // currency options
+    const currencyOptions = useMemo(() => {
         const base = new Set([defaultCurrency, ...(preferredCurrencies || [])]);
         // ensure base ones are included + full list available
         return allCurrencies
-          .filter(c => base.has(c.code))   // show preferred ones first
-          .concat(allCurrencies.filter(c => !base.has(c.code))) // then rest
-          .map(c => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
-      }, [defaultCurrency, preferredCurrencies]);
-    
+            .filter(c => base.has(c.code))   // show preferred ones first
+            .concat(allCurrencies.filter(c => !base.has(c.code))) // then rest
+            .map(c => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
+    }, [defaultCurrency, preferredCurrencies]);
+
 
     useEffect(() => setDc(defaultCurrency || ""), [defaultCurrency]);
 
@@ -141,7 +141,7 @@ export default function AccountScreen() {
     // save currency
     const saveCurrencyPrefs = async (curr) => {
         console.log(curr);
-        if(curr){
+        if (curr) {
 
             setDcStatus("saving");
             setDcError("");
@@ -238,59 +238,59 @@ export default function AccountScreen() {
             <StatusBar style="light" />
             <Header title="Account" />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
-            {/* Inline banner */}
-            {banner && (
-                <View
-                    style={[
-                        styles.banner,
-                        banner.type === "success" && styles.bannerSuccess,
-                        banner.type === "error" && styles.bannerError,
-                        banner.type === "info" && styles.bannerInfo,
-                    ]}
-                >
-                    <Text style={styles.bannerText}>{banner.text}</Text>
-                </View>
-            )}
-
-            {/* Content */}
-            <ScrollView ref={scrollerRef} style={styles.scroller} contentContainerStyle={{ paddingBottom: 24 }}>
-                {loading ? (
-                    <View style={{ paddingTop: 16 }}>
-                        <View style={styles.skeletonLine} />
-                        <View style={[styles.skeletonLine, { width: "60%" }]} />
-                        <View style={[styles.skeletonLine, { width: "40%" }]} />
+                {/* Inline banner */}
+                {banner && (
+                    <View
+                        style={[
+                            styles.banner,
+                            banner.type === "success" && styles.bannerSuccess,
+                            banner.type === "error" && styles.bannerError,
+                            banner.type === "info" && styles.bannerInfo,
+                        ]}
+                    >
+                        <Text style={styles.bannerText}>{banner.text}</Text>
                     </View>
-                ) : user || userToken ? (
-                    <View style={{ gap: 12 }}>
-                        {/* Account card */}
-                        <View style={styles.cardBox}>
-                            <View style={styles.rowBetween}>
-                                <Text style={styles.sectionLabel}>Account</Text>
-                                <View style={styles.dividerV} />
-                            </View>
-                            <View style={{ gap: 6 }}>
-                                <View>
-                                    <Text style={styles.hintText}>Name</Text>
-                                    <Text style={styles.strongText}>{user?.name || "—"}</Text>
-                                </View>
-                                <View style={styles.rowBetween}>
-                                    <View style={{ flex: 1, paddingRight: 8 }}>
-                                        <Text style={styles.hintText}>Email</Text>
-                                        <Text style={[styles.strongText, { textTransform: "lowercase" }]} numberOfLines={1}>
-                                            {user?.email || "—"}
-                                        </Text>
-                                    </View>
-                                    {user?.email ? (
-                                        <TouchableOpacity onPress={onCopyEmail} activeOpacity={0.7}>
-                                            <Text style={{ color: "#86e1d8" }}>Copy</Text>
-                                        </TouchableOpacity>
-                                    ) : null}
-                                </View>
-                            </View>
-                        </View>
+                )}
 
-                        {/* UPI */}
-                        {/* <View
+                {/* Content */}
+                <ScrollView ref={scrollerRef} style={styles.scroller} contentContainerStyle={{ paddingBottom: 24 }}>
+                    {loading ? (
+                        <View style={{ paddingTop: 16 }}>
+                            <View style={styles.skeletonLine} />
+                            <View style={[styles.skeletonLine, { width: "60%" }]} />
+                            <View style={[styles.skeletonLine, { width: "40%" }]} />
+                        </View>
+                    ) : user || userToken ? (
+                        <View style={{ gap: 12 }}>
+                            {/* Account card */}
+                            <View style={styles.cardBox}>
+                                <View style={styles.rowBetween}>
+                                    <Text style={styles.sectionLabel}>Account</Text>
+                                    <View style={styles.dividerV} />
+                                </View>
+                                <View style={{ gap: 6 }}>
+                                    <View>
+                                        <Text style={styles.hintText}>Name</Text>
+                                        <Text style={styles.strongText}>{user?.name || "—"}</Text>
+                                    </View>
+                                    <View style={styles.rowBetween}>
+                                        <View style={{ flex: 1, paddingRight: 8 }}>
+                                            <Text style={styles.hintText}>Email</Text>
+                                            <Text style={[styles.strongText, { textTransform: "lowercase" }]} numberOfLines={1}>
+                                                {user?.email || "—"}
+                                            </Text>
+                                        </View>
+                                        {user?.email ? (
+                                            <TouchableOpacity onPress={onCopyEmail} activeOpacity={0.7}>
+                                                <Text style={{ color: "#86e1d8" }}>Copy</Text>
+                                            </TouchableOpacity>
+                                        ) : null}
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* UPI */}
+                            {/* <View
                             ref={upiRef}
                             style={[
                                 styles.cardBox,
@@ -327,8 +327,8 @@ export default function AccountScreen() {
                             ) : null}
                         </View> */}
 
-                        {/* Payment Accounts (navigate) */}
-                        {/* <TouchableOpacity
+                            {/* Payment Accounts (navigate) */}
+                            {/* <TouchableOpacity
                             ref={paymentRef}
                             activeOpacity={0.8}
                             onPress={() => {
@@ -347,60 +347,60 @@ export default function AccountScreen() {
                             <Text style={styles.mutedText}>Manage UPI, bank accounts, and cards for better expense tracking.</Text>
                         </TouchableOpacity> */}
 
-                        {/* Guide (navigate) */}
-                        <TouchableOpacity
-                            ref={guideRef}
-                            activeOpacity={0.8}
-                            onPress={() => {
-                                // logEvent?.("navigate", { fromScreen: "account", toScreen: "guide", source: "guide_section" });
-                                router.push("account/guide");
-                            }}
-                            style={[
-                                styles.cardBox,
-                                highlighted === "guide" && styles.highlight,
-                            ]}
-                        >
-                            <View style={styles.rowBetween}>
-                                <Text style={styles.sectionLabel}>Guide</Text>
-                                <View style={styles.dividerV} />
-                            </View>
-                            <Text style={styles.mutedText}>Quick tour: add expenses, split fairly, create groups, and settle up.</Text>
-                        </TouchableOpacity>
-
-                        {/* Default Currency */}
-                        <View
-                            ref={currencyRef}
-                            style={[
-                                styles.cardBox,
-                                highlighted === "currency" && styles.highlight,
-                            ]}
-                        >
-                            <View style={styles.rowBetween}>
-                                <Text style={styles.sectionLabel}>Default Currency</Text>
-                                <View style={styles.dividerV} />
-                            </View>
-
+                            {/* Guide (navigate) */}
                             <TouchableOpacity
-                                onPress={() => currencySheetRef.current?.present()}
-                                activeOpacity={0.7}
-                                style={styles.selectBtn}
+                                ref={guideRef}
+                                activeOpacity={0.8}
+                                onPress={() => {
+                                    // logEvent?.("navigate", { fromScreen: "account", toScreen: "guide", source: "guide_section" });
+                                    router.push("account/guide");
+                                }}
+                                style={[
+                                    styles.cardBox,
+                                    highlighted === "guide" && styles.highlight,
+                                ]}
                             >
-                                <Text style={styles.selectBtnText}>{dc || "Select"}</Text>
-                                <Feather name="chevron-down" size={18} color="#EBF1D5" />
+                                <View style={styles.rowBetween}>
+                                    <Text style={styles.sectionLabel}>Guide</Text>
+                                    <View style={styles.dividerV} />
+                                </View>
+                                <Text style={styles.mutedText}>Quick tour: add expenses, split fairly, create groups, and settle up.</Text>
                             </TouchableOpacity>
 
-                            {dcStatus === "saved" ? (
-                                <Text style={{ color: "#6be7cf", marginTop: 6 }}>Saved ✓</Text>
-                            ) : dcStatus === "error" ? (
-                                <Text style={{ color: "#ff8a8a", marginTop: 6 }}>{dcError}</Text>
-                            ) : null}
+                            {/* Default Currency */}
+                            <View
+                                ref={currencyRef}
+                                style={[
+                                    styles.cardBox,
+                                    highlighted === "currency" && styles.highlight,
+                                ]}
+                            >
+                                <View style={styles.rowBetween}>
+                                    <Text style={styles.sectionLabel}>Default Currency</Text>
+                                    <View style={styles.dividerV} />
+                                </View>
 
-                            <Text style={[styles.mutedText, { marginTop: 6 }]}>
-                                Used for summaries. New expenses default to this currency so totals align.
-                            </Text>
-                        </View>
-                        {/* Support the developer */}
-                        {/* <TouchableOpacity
+                                <TouchableOpacity
+                                    onPress={() => currencySheetRef.current?.present()}
+                                    activeOpacity={0.7}
+                                    style={styles.selectBtn}
+                                >
+                                    <Text style={styles.selectBtnText}>{dc || "Select"}</Text>
+                                    <Feather name="chevron-down" size={18} color="#EBF1D5" />
+                                </TouchableOpacity>
+
+                                {dcStatus === "saved" ? (
+                                    <Text style={{ color: "#6be7cf", marginTop: 6 }}>Saved ✓</Text>
+                                ) : dcStatus === "error" ? (
+                                    <Text style={{ color: "#ff8a8a", marginTop: 6 }}>{dcError}</Text>
+                                ) : null}
+
+                                <Text style={[styles.mutedText, { marginTop: 6 }]}>
+                                    Used for summaries. New expenses default to this currency so totals align.
+                                </Text>
+                            </View>
+                            {/* Support the developer */}
+                            {/* <TouchableOpacity
                             activeOpacity={0.8}
                             onPress={() => {
                                 // logEvent?.("navigate", { fromScreen: "account", toScreen: "supportdeveloper", source: "support_developer_section" });
@@ -415,41 +415,41 @@ export default function AccountScreen() {
                             <Text style={styles.mutedText}>If you find this platform helpful, consider supporting its development!</Text>
                         </TouchableOpacity> */}
 
-                        {/* Danger Zone */}
-                        <View style={styles.dangerBox}>
-                            <View style={styles.dangerHeader}>
-                                <Text style={[styles.sectionLabel, { color: "#ff6b6b" }]}>Danger Zone</Text>
-                            </View>
-                            <View style={{ padding: 12 }}>
-                                <TouchableOpacity onPress={onLogout} style={styles.dangerBtn} activeOpacity={0.8}>
-                                    <Text style={styles.dangerBtnText}>Logout</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-
-                        {TEST_MODE ? (
-                            <View style={[styles.cardBox, { borderColor: "#7a1f1f", borderWidth: 1, backgroundColor: "rgba(122,31,31,0.1)" }]}>
-                                <View style={styles.rowBetween}>
+                            {/* Danger Zone */}
+                            <View style={styles.dangerBox}>
+                                <View style={styles.dangerHeader}>
                                     <Text style={[styles.sectionLabel, { color: "#ff6b6b" }]}>Danger Zone</Text>
-                                    <View style={[styles.dividerV, { backgroundColor: "#3a0e0e" }]} />
                                 </View>
-                                <TouchableOpacity onPress={onDeleteAccount} style={[styles.modalBtn, { borderColor: "#ff6b6b" }]} activeOpacity={0.8}>
-                                    <Text style={[styles.modalBtnText, { color: "#ff6b6b" }]}>Delete Account</Text>
-                                </TouchableOpacity>
+                                <View style={{ padding: 12 }}>
+                                    <TouchableOpacity onPress={onLogout} style={styles.dangerBtn} activeOpacity={0.8}>
+                                        <Text style={styles.dangerBtnText}>Logout</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
-                        ) : null}
-                    </View>
-                ) : (
-                    <Text style={[styles.mutedText, { padding: 16, color: "#ff8a8a" }]}>User not logged in.</Text>
-                )}
-                <SheetCurrencies
-                    innerRef={currencySheetRef}
-                    value={dc}
-                    options={currencyOptions}
-                    onSelect={setDc}
-                    onClose={(val) => saveCurrencyPrefs(val)}
-                />
-            </ScrollView>
+
+                            {TEST_MODE ? (
+                                <View style={[styles.cardBox, { borderColor: "#7a1f1f", borderWidth: 1, backgroundColor: "rgba(122,31,31,0.1)" }]}>
+                                    <View style={styles.rowBetween}>
+                                        <Text style={[styles.sectionLabel, { color: "#ff6b6b" }]}>Danger Zone</Text>
+                                        <View style={[styles.dividerV, { backgroundColor: "#3a0e0e" }]} />
+                                    </View>
+                                    <TouchableOpacity onPress={onDeleteAccount} style={[styles.modalBtn, { borderColor: "#ff6b6b" }]} activeOpacity={0.8}>
+                                        <Text style={[styles.modalBtnText, { color: "#ff6b6b" }]}>Delete Account</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : null}
+                        </View>
+                    ) : (
+                        <Text style={[styles.mutedText, { padding: 16, color: "#ff8a8a" }]}>User not logged in.</Text>
+                    )}
+                    <SheetCurrencies
+                        innerRef={currencySheetRef}
+                        value={dc}
+                        options={currencyOptions}
+                        onSelect={setDc}
+                        onClose={(val) => saveCurrencyPrefs(val)}
+                    />
+                </ScrollView>
             </View>
         </SafeAreaView>
     );

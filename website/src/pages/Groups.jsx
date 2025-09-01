@@ -252,7 +252,7 @@ export default function Groups() {
                         </h1>
                         <button
                             aria-label="Create group"
-                            className="hidden sm:flex items-center justify-center bg-teal-500 text-black w-8 h-8 rounded-full shadow-md"
+                            className="flex items-center justify-center bg-teal-500 text-black w-8 h-8 rounded-full shadow-md"
                             onClick={() => {
                                 logEvent("open_add_group_modal", { screen: "groups", source: "plus" });
                                 setShowModal(true);
@@ -423,7 +423,7 @@ export default function Groups() {
                                                     >
                                                         {dominant.amount < 0 ? "you’re owed " : "you owe "}
                                                         ·{" "}
-                                                        {getSymbol("en-IN", dominant.code)}
+                                                        {getSymbol(dominant.code)}
                                                         {Math.abs(dominant.amount).toFixed(
                                                             currencyDigits(dominant.code)
                                                         )}
@@ -458,7 +458,7 @@ export default function Groups() {
             </div>
 
             {/* Mobile FAB */}
-            <button
+            {/* <button
                 aria-label="Create group"
                 className="sm:hidden fixed bottom-5 right-5 bg-teal-500 text-black w-12 h-12 rounded-full shadow-lg flex items-center justify-center"
                 onClick={() => {
@@ -467,7 +467,7 @@ export default function Groups() {
                 }}
             >
                 <Plus strokeWidth={3} size={24} />
-            </button>
+            </button> */}
 
             <Modal
                 setShowModal={setShowModal}

@@ -345,8 +345,10 @@ router.get('/', auth, async (req, res) => {
             .sort({ createdAt: -1 })
             .populate('createdBy', 'name email')
             .populate('splits.friendId', 'name email')
+            .populate('splits.paidFromPaymentMethodId', '_id label')
             .populate('auditLog.updatedBy', 'name email')
-            .populate('groupId', 'name');
+            .populate('groupId', 'name')
+            .populate('paidFromPaymentMethodId');
 
         res.json({ expenses, id: req.user.id });
     } catch (error) {

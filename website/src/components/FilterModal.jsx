@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import ModalWrapper from "./ModalWrapper";
 import CustomSelect from "./CustomSelect";
 import { getAllCurrencyCodes, toCurrencyOptions } from "../utils/currencies";
+import CategoryIcon from "./CategoryIcon";
+import { getCategoryOptions, getCategoryLabel } from "../utils/categoryOptions";
 
 const SORT_OPTIONS = [
     { value: "newest", label: "Newest First" },
@@ -13,22 +15,33 @@ export default function FilterModal({
     onClose,
     onApply,
     filters = [],          // type filters [{key,label}]
-    categories = [],       // category filters ["all","food","travel",...]
+    categoriesProp = [],       // category filters ["all","food","travel",...]
+    paymentMethodsProp = [],
     selectedFilters = {}, // { type, category, currency, sort }
     defaultCurrency = "",
     appliedFilter = {},    // { type, category, currency, sort }
 }) {
-
+    const categories = [
+        ...(Array.isArray(categoriesProp)
+            ? categoriesProp.map(c => ({ value: c, label: getCategoryLabel(c) }))
+            : [])
+    ];
     const [selectedType, setSelectedType] = useState(appliedFilter.type || "all");
     const [selectedCategory, setSelectedCategory] = useState(appliedFilter.category || "all");
     const [selectedCurrency, setSelectedCurrency] = useState(appliedFilter.currency || "");
     const [sort, setSort] = useState(appliedFilter.sort || "newest");
+    const [paymentMethod, setPaymentMethod] = useState(appliedFilter.paymentMethod || "");
     useEffect(() => {
         setSelectedType(selectedFilters.type || "all");
         setSelectedCategory(selectedFilters.category || "all");
         setSelectedCurrency(selectedFilters.currency || "");
         setSort(selectedFilters.sort || "newest");
+        setPaymentMethod(selectedFilters.paymentMethod || '')
     }, [selectedFilters, show]);
+    useEffect(() => {
+        console.log(selectedCategory);
+
+    }, [selectedCategory]);
     // all currencies
     const currencyOptions = useMemo(() => {
         const codes = getAllCurrencyCodes();
@@ -46,6 +59,7 @@ export default function FilterModal({
             category: "all",
             currency: "",
             sort: "newest",
+            paymentMethod: ""
         });
         onClose();
     };
@@ -55,6 +69,7 @@ export default function FilterModal({
             category: selectedCategory,
             currency: selectedCurrency,
             sort,
+            paymentMethod
         });
         onClose?.();
     };
@@ -82,7 +97,7 @@ export default function FilterModal({
                         </button>
                         <button
                             onClick={applyFilters}
-                            className="px-3 py-1.5 rounded-md bg-teal-600 text-black font-semibold"
+                            className="px-3 py-1.5 rounded-md bg-teal-600 text-black"
                         >
                             Apply
                         </button>
@@ -103,7 +118,7 @@ export default function FilterModal({
                                     key={key}
                                     onClick={() => setSelectedType(key === selectedType ? "all" : key)}
                                     className={`px-3 py-1 rounded-full text-sm transition ${selectedType === key
-                                        ? "bg-teal-400 text-black font-semibold"
+                                        ? "bg-teal-400 text-black"
                                         : "bg-[#1f1f1f] text-[#EBF1D5] hover:bg-[#2a2a2a]"
                                         }`}
                                 >
@@ -119,21 +134,42 @@ export default function FilterModal({
                     <div>
                         <label className="text-xs text-[#9aa19a] mb-1 block">Category</label>
                         <div className="flex flex-wrap gap-2">
-                            {categories.map((cat) => (
+                            {categories.map((cat, i) => (
                                 <button
-                                    key={cat}
-                                    onClick={() => setSelectedCategory(cat === selectedCategory ? "all" : cat)}
-                                    className={`px-3 py-1 rounded-full text-sm transition ${selectedCategory === cat
-                                        ? "bg-teal-400 text-black font-semibold"
+                                    key={cat.value + i}
+                                    onClick={() =>
+                                        setSelectedCategory(cat.value === selectedCategory ? "all" : cat.value)
+                                    }
+                                    className={`flex gap-2 px-3 py-1 rounded-full text-sm transition ${selectedCategory === cat.value
+                                        ? "bg-teal-400 text-black"
                                         : "bg-[#1f1f1f] text-[#EBF1D5] hover:bg-[#2a2a2a]"
                                         }`}
                                 >
-                                    {cat === "all" ? "All Categories" : cat}
+                                    {cat.value !== "all" && <CategoryIcon category={cat.value} className={selectedCategory === cat.value ? "text-black" : ""} />}
+                                    {cat.value === "all" ? "All Categories" : cat.label}
                                 </button>
                             ))}
                         </div>
                     </div>
                 )}
+                {paymentMethodsProp && paymentMethodsProp.length > 0 && (<div>
+                    {console.log(paymentMethodsProp)}
+                    <label className="text-xs text-[#9aa19a] mb-1 block">Payment Method</label>
+                    <CustomSelect
+                        value={paymentMethod || ""}
+                        onChange={(e) => {
+                            console.log(e);
+                            setPaymentMethod(e)
+                        }}
+                        options={[{ value: '', label: 'View All' }, ...paymentMethodsProp.map(p => {
+                            return { value: p._id, label: p.label };
+                        })]}
+                    />
+
+                </div>
+
+                )}
+
 
                 {/* Currency filter */}
                 {/* <div>

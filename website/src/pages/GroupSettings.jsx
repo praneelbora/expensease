@@ -238,7 +238,7 @@ export default function GroupSettings() {
                                         const bal = totals.balance[code] || 0;
                                         const yourExp = totals.yourExpense[code] || 0;
                                         const groupExp = totals.groupExpense[code] || 0;
-                                        const sym = getSymbol("en-IN", code);
+                                        const sym = getSymbol(code);
 
                                         return (
                                             <div

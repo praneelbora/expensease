@@ -523,7 +523,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups?join=${group.code}`;
                                     </button>
                                 </div>
                                 {simplifiedTransactions?.map((transaction, index) => {
-                                    const sym = getSymbol("en-IN", transaction.currency);
+                                    const sym = getSymbol(transaction.currency);
                                     const name1 = getMemberName(transaction.from);
                                     const name2 = getMemberName(transaction.to);
                                     const amt = transaction.amount.toFixed(2);
@@ -540,7 +540,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups?join=${group.code}`;
                                     return (
                                         <div key={index} className={textColor}>
                                             {`${name1} ${isYouPaying ? "owe" : "owes"} ${name2} `}
-                                            <span className={amountColor}>{getSymbol('en-IN', transaction?.currency)} {amt}</span>
+                                            <span className={amountColor}>{getSymbol(transaction?.currency)} {amt}</span>
                                         </div>
                                     );
                                 })}

@@ -286,7 +286,7 @@ const Dashboard = () => {
             const { name, value } = payload[0];
             return (
                 <div className="bg-black text-[#EBF1D5] text-sm px-2 py-1 rounded shadow-md">
-                    <strong>{name}</strong>: {getSymbol("en-IN", defaultCurrency)}{Number(value || 0).toFixed(2)}
+                    <strong>{name}</strong>: {getSymbol(defaultCurrency)}{Number(value || 0).toFixed(2)}
                 </div>
             );
         }
@@ -462,7 +462,7 @@ const Dashboard = () => {
                                       key={code}
                                       className="px-2 py-0.5 rounded-md text-xs bg-white/5 border border-white/10"
                                     >
-                                      {getSymbol("en-IN", code)} {formatAmount(val, code)}
+                                      {getSymbol(code)} {formatAmount(val, code)}
                                     </span>
                                   );
                                 })}
@@ -536,7 +536,7 @@ const Dashboard = () => {
                                                     className="px-2 py-0.5 rounded-md text-[11px] bg-white/5 border border-white/10"
                                                     title={code}
                                                 >
-                                                    {code} {getSymbol("en-IN", code)}
+                                                    {code} {getSymbol(code)}
                                                 </span>
                                             ))}
                                         </div>
@@ -558,7 +558,7 @@ const Dashboard = () => {
                                         <div className="text-xl font-bold break-words space-y-1">
                                             {Object.entries(stats.total).map(([code, amt]) => (
                                                 <div key={`total-${code}`}>
-                                                    {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                                    {getSymbol(code)} {formatAmount(amt, code)}
                                                 </div>
                                             ))}
                                             {Object.keys(stats.total).length === 0 && <span>—</span>}
@@ -586,7 +586,7 @@ const Dashboard = () => {
                                             <div className="text-xl break-words space-y-1">
                                                 {Object.entries(stats.personal.amount).map(([code, amt]) => (
                                                     <div key={`personal-${code}`}>
-                                                        {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                                        {getSymbol(code)} {formatAmount(amt, code)}
                                                     </div>
                                                 ))}
                                             </div>
@@ -609,7 +609,7 @@ const Dashboard = () => {
                                             <div className="text-xl break-words space-y-1">
                                                 {Object.entries(stats.group.amount).map(([code, amt]) => (
                                                     <div key={`group-${code}`}>
-                                                        {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                                        {getSymbol(code)} {formatAmount(amt, code)}
                                                     </div>
                                                 ))}
                                             </div>
@@ -629,7 +629,7 @@ const Dashboard = () => {
                                             <div className="text-xl break-words space-y-1">
                                                 {Object.entries(stats.friend.amount).map(([code, amt]) => (
                                                     <div key={`friend-${code}`}>
-                                                        {getSymbol("en-IN", code)} {formatAmount(amt, code)}
+                                                        {getSymbol(code)} {formatAmount(amt, code)}
                                                     </div>
                                                 ))}
                                             </div>
@@ -713,7 +713,7 @@ const Dashboard = () => {
                                             {categoryChart.map((c, i) => (
                                                 <div key={c.name} className="flex items-center justify-between">
                                                     <span className="truncate">{c.name}</span>
-                                                    <span className="text-[#ededed]">{getSymbol("en-IN", defaultCurrency)}{Number(c.value || 0).toFixed(2)}</span>
+                                                    <span className="text-[#ededed]">{getSymbol(defaultCurrency)}{Number(c.value || 0).toFixed(2)}</span>
                                                 </div>
                                             ))}
                                         </div>

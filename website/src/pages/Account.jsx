@@ -46,7 +46,7 @@ export default function Account() {
     const paymentMethodRef = useRef(null);
     const guideRef = useRef(null);
     const currencyRef = useRef(null);
-    const categoryRef = useRef(null);
+    // const categoryRef = useRef(null);
 
     // computed
     useEffect(() => { setAllCodes(getAllCurrencyCodes()); }, []);
@@ -108,7 +108,7 @@ export default function Account() {
         if (section === 'paymentMethod') scrollFocusAndHighlight(paymentMethodRef, 'paymentMethod');
         if (section === 'guide') scrollFocusAndHighlight(guideRef, 'guide');
         if (section === 'currency') scrollFocusAndHighlight(currencyRef, 'currency');
-        if (section === 'category') scrollFocusAndHighlight(categoryRef, 'category');
+        // if (section === 'category') scrollFocusAndHighlight(categoryRef, 'category');
         return () => { if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.search]);
@@ -416,9 +416,9 @@ export default function Account() {
                             />
 
                             {/* Categories manage */}
-                            <section ref={categoryRef} id="category-section" className={`transition-all ${highlightCls('category')}`}>
+                            {/* <section ref={categoryRef} id="category-section" className={`transition-all ${highlightCls('category')}`}>
                                 <CategoriesManage userToken={userToken} highlightCls={highlightCls} />
-                            </section>
+                            </section> */}
 
                             {/* Support the developer (navigates) */}
                             <section

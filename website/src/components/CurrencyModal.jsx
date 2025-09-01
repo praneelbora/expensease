@@ -1,6 +1,7 @@
 // components/CurrencyModal.jsx
 import { useEffect, useMemo, useState } from "react";
 import ModalWrapper from "./ModalWrapper";
+import CategoryIcon from "./CategoryIcon";
 
 export default function CurrencyModal({
     show,
@@ -78,6 +79,8 @@ export default function CurrencyModal({
     );
 
     const Row = ({ opt }) => {
+        console.log(opt);
+
         const isSelected = value === opt.value;
         const isDefault = opt.value.toUpperCase() === defaultCode;
         const isPreferred = preferredSet.has(opt.value.toUpperCase());
@@ -94,8 +97,8 @@ export default function CurrencyModal({
             >
                 <span className="font-medium">{opt.label}</span>
                 <div className="flex items-center gap-2">
-                    {isDefault && <Badge>Default</Badge>}
-                    {isPreferred && !isDefault && <Badge>Preferred</Badge>}
+                    {/* {isDefault && <Badge>Default</Badge>}
+                    {isPreferred && !isDefault && <Badge>Preferred</Badge>} */}
                     {typeof onTogglePreferred === "function" && (
                         <button
                             type="button"
@@ -113,6 +116,7 @@ export default function CurrencyModal({
                             {isPreferred ? "Remove" : "Add"}
                         </button>
                     )}
+                    <span className="font-medium">{opt.value}</span>
                 </div>
             </button>
         );

@@ -347,7 +347,7 @@ const Friends = () => {
                         {/* Desktop add button (we also have a FAB on mobile) */}
                         <button
                             aria-label="Add friend"
-                            className={`hidden sm:flex items-center justify-center bg-teal-500 text-black w-8 h-8 rounded-full shadow-md`}
+                            className={`flex items-center justify-center bg-teal-500 text-black w-8 h-8 rounded-full shadow-md`}
                             onClick={() => {
                                 logEvent("open_add_friends_modal", { screen: "friends" });
                                 setShowModal(true);
@@ -386,8 +386,8 @@ const Friends = () => {
                                     key={k}
                                     onClick={() => setActiveFilter(k)}
                                     className={`px-3 rounded-full border text-xs ${touchMin} ${activeFilter === k
-                                            ? "bg-[#EBF1D5] text-[#121212] border-[#EBF1D5]"
-                                            : "bg-transparent text-[#EBF1D5] border-[#2a2a2a]"
+                                        ? "bg-[#EBF1D5] text-[#121212] border-[#EBF1D5]"
+                                        : "bg-transparent text-[#EBF1D5] border-[#2a2a2a]"
                                         }`}
                                     aria-pressed={activeFilter === k}
                                 >
@@ -408,10 +408,10 @@ const Friends = () => {
                 {banner && (
                     <div
                         className={`mt-2 mb-2 rounded-md px-3 py-2 text-sm border ${banner.type === "success"
-                                ? "bg-teal-900/30 border-teal-500 text-teal-200"
-                                : banner.type === "error"
-                                    ? "bg-red-900/30 border-red-500 text-red-200"
-                                    : "bg-zinc-800 border-zinc-600 text-zinc-200"
+                            ? "bg-teal-900/30 border-teal-500 text-teal-200"
+                            : banner.type === "error"
+                                ? "bg-red-900/30 border-red-500 text-red-200"
+                                : "bg-zinc-800 border-zinc-600 text-zinc-200"
                             }`}
                     >
                         <div className="flex items-start justify-between gap-4">
@@ -569,13 +569,13 @@ const Friends = () => {
                                                 {dominant ? (
                                                     <span
                                                         className={`px-2 py-1 rounded-md border text-xs bg-white/5 border-white/10 ${dominant.amount < 0
-                                                                ? "text-red-400"
-                                                                : "text-teal-400"
+                                                            ? "text-red-400"
+                                                            : "text-teal-400"
                                                             }`}
                                                     >
                                                         {dominant.amount < 0 ? "you owe " : "you’re owed "}
                                                         ·{" "}
-                                                        {getSymbol("en-IN", dominant.code)}
+                                                        {getSymbol(dominant.code)}
                                                         {Math.abs(dominant.amount).toFixed(
                                                             currencyDigits(dominant.code)
                                                         )}
@@ -607,16 +607,16 @@ const Friends = () => {
             </div>
 
             {/* Mobile FAB */}
-            <button
+            {/* <button
                 aria-label="Add friend"
-                className="sm:hidden fixed bottom-5 right-5 bg-teal-500 text-black w-12 h-12 rounded-full shadow-lg flex items-center justify-center"
+                className="md:hidden fixed bottom-20 right-5 bg-teal-500 text-black w-12 h-12 rounded-full shadow-lg flex items-center justify-center"
                 onClick={() => {
                     logEvent("open_add_friends_modal", { screen: "friends" });
                     setShowModal(true);
                 }}
             >
                 <Plus strokeWidth={3} size={24} />
-            </button>
+            </button> */}
 
             <Modal
                 setShowModal={setShowModal}

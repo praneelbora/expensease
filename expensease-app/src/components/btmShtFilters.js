@@ -46,8 +46,7 @@ const FilterSheet = ({ innerRef, selected, filters, categories, onApply, onClose
                             key={f.key}
                             style={[styles.chip, local.type === f.key && styles.chipActive]}
                             onPress={() => {
-                                if (f.key == 'settle')
-                                {
+                                if (f.key == 'settle') {
                                     setKey("category", 'all')
                                     setKey("mode", 'splits')
                                 }

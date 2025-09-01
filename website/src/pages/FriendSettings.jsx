@@ -171,7 +171,7 @@ export default function FriendSettings() {
                                 <h2 className="text-xl font-semibold mb-2">Summary</h2>
                                 {Object.keys(totals?.balance)?.map((code) => {
                                     const bal = totals?.balance[code] || 0;
-                                    const sym = getSymbol("en-IN", code);
+                                    const sym = getSymbol(code);
 
                                     return (
                                         <div key={code} className="pt-3 border-t border-[#2A2A2A]">
