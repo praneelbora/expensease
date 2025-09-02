@@ -265,74 +265,74 @@ const Dashboard = () => {
     }, [expenses, userId]);
 
     // --- monthly trend with range selector ---
-// --- monthly trend with range selector ---
-const [trendRange, setTrendRange] = useState("thisMonth"); // default: This Month
+    // --- monthly trend with range selector ---
+    const [trendRange, setTrendRange] = useState("thisMonth"); // default: This Month
 
-const trendChartRaw = React.useMemo(() => {
-  const monthly = {};
+    const trendChartRaw = React.useMemo(() => {
+        const monthly = {};
 
-  (expenses || []).forEach((exp) => {
-    if (exp.typeOf !== "expense") return;
+        (expenses || []).forEach((exp) => {
+            if (exp.typeOf !== "expense") return;
 
-    const d = new Date(exp.date);
-    const monthKey = d.toLocaleString("default", {
-      month: "short",
-      year: "2-digit",
-    });
+            const d = new Date(exp.date);
+            const monthKey = d.toLocaleString("default", {
+                month: "short",
+                year: "2-digit",
+            });
 
-    const split = exp.splits?.find((s) => s.friendId?._id === userId);
-    const share = Number(split?.oweAmount) || 0;
+            const split = exp.splits?.find((s) => s.friendId?._id === userId);
+            const share = Number(split?.oweAmount) || 0;
 
-    if (exp.groupId) {
-      if (split?.owing) {
-        monthly[monthKey] = (monthly[monthKey] || 0) + share;
-      }
-    } else if (exp.splits?.length > 0) {
-      if (split?.owing) {
-        monthly[monthKey] = (monthly[monthKey] || 0) + share;
-      }
-    } else {
-      monthly[monthKey] = (monthly[monthKey] || 0) + (exp.amount || 0);
-    }
-  });
+            if (exp.groupId) {
+                if (split?.owing) {
+                    monthly[monthKey] = (monthly[monthKey] || 0) + share;
+                }
+            } else if (exp.splits?.length > 0) {
+                if (split?.owing) {
+                    monthly[monthKey] = (monthly[monthKey] || 0) + share;
+                }
+            } else {
+                monthly[monthKey] = (monthly[monthKey] || 0) + (exp.amount || 0);
+            }
+        });
 
-  const entries = Object.entries(monthly).map(([name, value]) => {
-    const [mon, yr] = name.split(" ");
-    const date = new Date(`${mon} 01, 20${yr.replace("'", "")}`);
-    return { name, value, date };
-  });
+        const entries = Object.entries(monthly).map(([name, value]) => {
+            const [mon, yr] = name.split(" ");
+            const date = new Date(`${mon} 01, 20${yr.replace("'", "")}`);
+            return { name, value, date };
+        });
 
-  return entries.sort((a, b) => a.date - b.date);
-}, [expenses, userId]);
+        return entries.sort((a, b) => a.date - b.date);
+    }, [expenses, userId]);
 
-const trendChart = React.useMemo(() => {
-  if (!trendChartRaw.length) return [];
+    const trendChart = React.useMemo(() => {
+        if (!trendChartRaw.length) return [];
 
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
 
-  if (trendRange === "thisMonth") {
-    return trendChartRaw.filter(
-      (d) =>
-        new Date(d.date).getMonth() === currentMonth &&
-        new Date(d.date).getFullYear() === currentYear
-    );
-  }
+        if (trendRange === "thisMonth") {
+            return trendChartRaw.filter(
+                (d) =>
+                    new Date(d.date).getMonth() === currentMonth &&
+                    new Date(d.date).getFullYear() === currentYear
+            );
+        }
 
-  if (trendRange === "last3m") {
-    const threeMonthsAgo = new Date(currentYear, currentMonth - 2, 1);
-    return trendChartRaw.filter((d) => d.date >= threeMonthsAgo);
-  }
+        if (trendRange === "last3m") {
+            const threeMonthsAgo = new Date(currentYear, currentMonth - 2, 1);
+            return trendChartRaw.filter((d) => d.date >= threeMonthsAgo);
+        }
 
-  if (trendRange === "thisYear") {
-    return trendChartRaw.filter(
-      (d) => new Date(d.date).getFullYear() === currentYear
-    );
-  }
+        if (trendRange === "thisYear") {
+            return trendChartRaw.filter(
+                (d) => new Date(d.date).getFullYear() === currentYear
+            );
+        }
 
-  return trendChartRaw;
-}, [trendChartRaw, trendRange]);
+        return trendChartRaw;
+    }, [trendChartRaw, trendRange]);
 
 
 
@@ -468,7 +468,7 @@ const trendChart = React.useMemo(() => {
                             </div>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-3 pb-[75px]">
+                        <div className="flex flex-col gap-3 pb-[15px]">
                             {/* Payment accounts carousel */}
                             {paymentMethods.length >= 1 && (
                                 <div className="flex flex-col gap-2">
@@ -478,7 +478,7 @@ const trendChart = React.useMemo(() => {
                                     <div
                                         ref={scrollRef2}
                                         onScroll={handleScroll}
-                                        className="flex gap-4 overflow-x-auto snap-x snap-mandatory snap-always scroll-smooth no-scrollbar"
+                                        className="flex gap-3 overflow-x-auto snap-x snap-mandatory snap-always scroll-smooth no-scrollbar"
                                         aria-label="Payment accounts carousel"
                                     >
                                         {paymentMethods.map((pay) => (
@@ -601,7 +601,7 @@ const trendChart = React.useMemo(() => {
                                     )}
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
                                     {/* Total */}
                                     <div
                                         className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
@@ -699,8 +699,8 @@ const trendChart = React.useMemo(() => {
 
                             {/* Recent Expenses (date grouped) */}
                             {expenses.length > 0 && (
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between mt-2">
+                                <div className="">
+                                    <div className="flex items-center justify-between">
                                         <h2 className="text-sm text-teal-500 uppercase">Recent Expenses</h2>
                                         <div className="flex items-center gap-3">
                                             <button
@@ -708,7 +708,7 @@ const trendChart = React.useMemo(() => {
                                                     logEvent('navigate', { fromScreen: 'dashboard', toScreen: 'expenses', source: 'view_all' });
                                                     navigate('/expenses');
                                                 }}
-                                                className="text-sm text-teal-500 hover:underline"
+                                                className="text-sm text-teal-500 hover:underline py-2"
                                             >
                                                 View All
                                             </button>
@@ -718,7 +718,7 @@ const trendChart = React.useMemo(() => {
                                     {Object.entries(recentByDay).map(([day, list]) => (
                                         <div key={day}>
                                             <div className="flex items-center gap-3">
-                                                <p className="mt-3 mb-2 text-[11px] uppercase tracking-wide text-teal-500">{day}</p>
+                                                <p className="mt-2 mb-1 text-[11px] uppercase tracking-wide text-teal-500">{day}</p>
                                                 {/* full-height thin separator beside header */}
                                                 {/* <div className="w-[1px] self-stretch bg-[#212121]" aria-hidden="true" /> */}
                                             </div>
@@ -742,7 +742,7 @@ const trendChart = React.useMemo(() => {
 
                             {/* Charts */}
                             {expenses.length > 0 && (
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                     <CategoryDistribution
                                         expenses={expenses}
                                         userId={userId}
