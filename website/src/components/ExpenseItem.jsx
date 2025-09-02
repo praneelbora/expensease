@@ -20,12 +20,21 @@ const ExpenseItem = ({
         const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
         if (!userSplit) return 'not involved';
         if (payers.length === 1) {
-            return `${payers[0].friendId.name} paid`;
+            return `${payers[0].friendId?._id==userId? 'You':payers[0].friendId.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         } else {
             return `No one paid`;
         }
+    };
+    const didIPay = (splits) => {
+        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
+        
+        if (!userSplit || !userSplit?.paidFromPaymentMethodId || !userSplit?.paidFromPaymentMethodId?.label || Math.abs(userSplit.payAmount) == 0) return '';
+        return `· ${userSplit?.paidFromPaymentMethodId?.label}`
+        // console.log(userSplit);
+        // // if(expense.typeOf=='split')
+        // console.log(userSplit);
     };
     const getSettleDirectionText = (splits) => {
         const payer = splits.find(s => s.paying && s.payAmount > 0);
@@ -77,10 +86,10 @@ const ExpenseItem = ({
                     {!isSettle ? (
                         <>
                             <p className="text-[18px] capitalize truncate">{expense.description}</p>
-                            <p className="text-[13px] text-[#81827C] -mt-[6px]">
+                            <p className="text-[13px] text-[#81827C] -mt-[6px] truncate">
                                 {isSplit
-                                    ? `${getPayerInfo(expense.splits)} ${getPayerInfo(expense.splits) !== 'not involved' ? `${getSymbol(expense.currency)} ${expense.amount.toFixed(2)}` : ''}`
-                                    : `${getCategoryLabel(expense.category)} · ${expense?.paidFromPaymentMethodId?.label}`}
+                                    ? `${getPayerInfo(expense.splits)} ${getPayerInfo(expense.splits) !== 'not involved' ? `${getSymbol(expense.currency)} ${expense.amount.toFixed(2)} ${didIPay(expense.splits)}` : ''}`
+                                    : `${getCategoryLabel(expense.category)} ${expense?.paidFromPaymentMethodId?.label?`· ${expense?.paidFromPaymentMethodId?.label}`:''}`}
                             </p>
                         </>
                     ) : (

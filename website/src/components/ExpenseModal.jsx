@@ -11,6 +11,7 @@ import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
 import CurrencyModal from "./CurrencyModal";
 import UnifiedPaymentModal from "./UnifiedPaymentModal";
 import CategoryModal from "./CategoryModal"
+import CategoryIcon from "./CategoryIcon";
 const TEST_MODE = import.meta.env.VITE_TEST_MODE
 const fmtMoney = (n) => `${Number(n || 0).toFixed(2)}`;
 const fmtDate = (d) =>
@@ -72,6 +73,7 @@ export default function ExpenseModal({
     const [showCategoryModal, setShowCategoryModal] = useState(false);
     const categoryOptions = getCategoryOptions();
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [viewSplits, setViewSplits] = useState(false);
     const close = () => !loading && setShowModal(false);
     // Split UI state (matches your create flow concepts)
     const [selectedFriends, setSelectedFriends] = useState([]); // [{_id, name, paying, payAmount, owing, oweAmount, owePercent}]
@@ -164,7 +166,7 @@ export default function ExpenseModal({
                     return;
                 }
 
-                const group = await getGroupDetails(showModal?.groupId?._id?showModal?.groupId?._id:showModal?.groupId, userToken);
+                const group = await getGroupDetails(showModal?.groupId?._id ? showModal?.groupId?._id : showModal?.groupId, userToken);
                 const members = Array.isArray(group?.members) ? group.members : [];
 
                 if (alive) {
@@ -675,6 +677,21 @@ export default function ExpenseModal({
             })
         );
     };
+    // Compute summary for current user
+const myExpenseSummary = useMemo(() => {
+  if (!Array.isArray(splits)) return { paid: 0, owed: 0, net: 0 };
+
+  const mine = splits.filter(s => (s?.friendId?._id || s?.friendId) === userId);
+
+  const paid = mine.reduce((sum, s) => sum + Number(s.payAmount || 0), 0);
+  const owed = mine.reduce((sum, s) => sum + Number(s.oweAmount || 0), 0);
+
+  return {
+    paid,
+    owed,
+    net: paid - owed // >0 = others owe you, <0 = you owe others
+  };
+}, [splits, userId]);
 
     useEffect(() => {
         if (isEditing) updateFriendsPaymentMethods(selectedFriends.map((f) => f._id))
@@ -786,12 +803,116 @@ export default function ExpenseModal({
             {/* Body */}
             <div className="w-full flex flex-col gap-3">
                 {/* Top row */}
-                {!isEditing ? (
-                    <div className="flex items-start justify-between gap-3">
-                        <p className="text-2xl font-semibold text-teal-500">{getSymbol(currency)} {fmtMoney(amount)}</p>
-                        {date && <p className="text-sm text-[#c9c9c9]">{fmtDate(date)}</p>}
+                {!isEditing && description &&
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-start justify-between">
+                            <p className="text-xl capitalize">{description}</p>
+
+                        </div>
+                        <div className="flex items-start justify-between">
+                            <p className="text-2xl font-semibold text-teal-500">{getSymbol(currency)} {fmtMoney(amount)}</p>
+                            {form.mode === "personal" && showModal?.paidFromPaymentMethodId && (
+                                <> {showModal?.paidFromPaymentMethodId?.label}</>
+                            )}
+                            {form.mode === "split" && (() => {
+                                const mySplit = splits.find(
+                                    s => (s?.friendId?._id || s?.friendId) === userId && s?.paidFromPaymentMethodId
+                                );
+                                return mySplit ? <> {mySplit.paidFromPaymentMethodId?.label}</> : null;
+                            })()}
+                        </div>
+                        <div className="flex justify-between mt-1">
+                        <div className="text-md">
+                            {showModal?.typeOf == 'expense' &&
+                                <div className="flex gap-2">
+                                    <CategoryIcon category={showModal?.category} /> {category ? getCategoryLabel(category) : "Uncategorized"}
+                                </div>
+                            }
+                        </div>
+                            {date && <p className="text-sm">{fmtDate(date)}</p>}
+                            </div>
+                        {mode === "split" && (
+                            <>
+                                <hr className="border-[#2a2a2a] mt-2 mb-1" />
+                                <div className="flex justify-between text-sm">
+  {(() => {
+    const mine = splits.find(
+      (s) => (s?.friendId?._id || s?.friendId) === userId
+    );
+    const myExpense = Math.abs(Number(mine?.oweAmount || 0))
+    return (
+        <div>
+      {myExpense>0?
+        <p className="flex text-red-500">Your share: {getSymbol(showModal?.currency)} {fmtMoney(myExpense)}</p>:
+        <p className="flex text-[#888]">Not Involved</p>
+    }
+    </div>
+    );
+  })()}
+  <button
+    onClick={() => setViewSplits((prev) => !prev)}
+    className="text-teal-500 border-b border-teal-500 "
+  >
+    {viewSplits ? "Hide Details" : "View Details"}
+  </button>
+</div>
+
+                                {/* <p className="text-base text-teal-500">
+                                    {payerInfo} {amount ? ` ${getSymbol(currency)} ${fmtMoney(amount)}` : ""}
+                                </p> */}
+                                {viewSplits && <div className="">
+                                    <div className="flex flex-col gap-1 text-sm">
+                                        {splits
+                                            .filter((s) => (s.payAmount || 0) > 0 || (s.oweAmount || 0) > 0)
+                                            .map((s, idx) => {
+
+                                                const name = s?.friendId?._id==userId?'You' : s?.friendId?.name || "Member";
+                                                const payTxt =
+                                                    (s.payAmount || 0) > 0 ? `paid ${getSymbol(currency)} ${fmtMoney(s.payAmount)}` : "";
+                                                const andTxt =
+                                                    ((s.payAmount || 0) > 0 && (parseFloat(s.oweAmount) || 0) > 0) ? " and " : "";
+                                                const oweTxt = parseFloat(s.oweAmount) > 0 ? `owe${s?.friendId?._id!==userId?'s':''} ${getSymbol(currency)} ${fmtMoney(parseFloat(s.oweAmount) || 0)}` : '';
+                                                return (
+                                                    <div key={idx} className="flex">
+                                                        <p>
+                                                            {name} {payTxt}
+                                                            {andTxt}
+                                                            {oweTxt}
+                                                        </p>
+                                                    </div>
+                                                );
+                                            })
+                                        }
+
+
+                                    </div>
+                                    <hr className="border-[#2a2a2a] mt-3" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mt-2">
+                    {/* Created */}
+                    {(createdBy?.name || createdAt) && (
+                        <p className="capitalize">
+                            <span className="text-[#9aa08e]">Created:</span>{" "}
+                            {createdBy?.name ? `${createdBy.name} ` : ""}
+                            {createdAt ? `on ${fmtDateTimeNoSecs(createdAt)}` : ""}
+                        </p>
+                    )}
+
+                    {/* Updated */}
+                    {lastAudit && (
+                        <p className="capitalize">
+                            <span className="text-[#9aa08e]">Last Updated:</span>{' '}
+                            {displayUser(lastAudit.updatedBy)}{' '}
+                            {lastAudit.at ? `on ${fmtDateTimeNoSecs(lastAudit.at)}` : ''}
+                        </p>
+                    )}
+
+                </div>
+                                </div>}
+                            </>
+                        )}
                     </div>
-                ) : (
+                }
+                {isEditing && (
                     <div className="flex flex-col overflow-scroll">{/* Basic fields: Description, Amount, Date */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             {/* Description */}
@@ -1068,84 +1189,9 @@ export default function ExpenseModal({
                     </div>
                 )}
 
-                {!isEditing && description && <p className="text-base capitalize">{description}</p>}
-                {!isEditing && (
-                    <p className="text-sm text-[#9aa08e]">
-                        {showModal?.typeOf == 'expense' &&
-                        <>
-                        {category? getCategoryLabel(category) : "Uncategorized"}
-                        </>
-                        }
-                        {form.mode === "personal" && showModal?.paidFromPaymentMethodId && (
-                            <> · {showModal?.paidFromPaymentMethodId?.label}</>
-                        )}
-                        {form.mode === "split" && (() => {
-                            const mySplit = splits.find(
-                                s => (s?.friendId?._id || s?.friendId) === userId && s?.paidFromPaymentMethodId
-                            );
-                            return mySplit ? <> · {mySplit.paidFromPaymentMethodId?.label}</> : null;
-                        })()}
-                    </p>
-                )}
 
 
-                {!isEditing && mode === "split" && (
-                    <>
-                        <hr className="border-[#2a2a2a]" />
-                        <p className="text-base text-teal-500">
-                            {payerInfo} {amount ? ` ${getSymbol(currency)} ${fmtMoney(amount)}` : ""}
-                        </p>
-                        <div className="ms-1">
-                            <div className="flex flex-col gap-1 text-sm">
-                                {splits
-                                    .filter((s) => (s.payAmount || 0) > 0 || (s.oweAmount || 0) > 0)
-                                    .map((s, idx) => {
-
-                                        const name = s?.friendId?.name || "Member";
-                                        const payTxt =
-                                            (s.payAmount || 0) > 0 ? `paid ${getSymbol(currency)} ${fmtMoney(s.payAmount)}` : "";
-                                        const andTxt =
-                                            ((s.payAmount || 0) > 0 && (parseFloat(s.oweAmount) || 0) > 0) ? " and " : "";
-                                        const oweTxt = parseFloat(s.oweAmount) > 0 ? `owes ${getSymbol(currency)} ${fmtMoney(parseFloat(s.oweAmount) || 0)}` : '';
-                                        return (
-                                            <div key={idx} className="flex">
-                                                <p>
-                                                    {name} {payTxt}
-                                                    {andTxt}
-                                                    {oweTxt}
-                                                </p>
-                                            </div>
-                                        );
-                                    })
-                                }
-
-
-                            </div>
-                        </div>
-                    </>
-                )}
-
-                <hr className="border-[#2a2a2a]" />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    {/* Created */}
-                    {(createdBy?.name || createdAt) && (
-                        <p className="capitalize">
-                            <span className="text-[#9aa08e]">Created:</span>{" "}
-                            {createdBy?.name ? `${createdBy.name} ` : ""}
-                            {createdAt ? `on ${fmtDateTimeNoSecs(createdAt)}` : ""}
-                        </p>
-                    )}
-
-                    {/* Updated */}
-                    {lastAudit && (
-                        <p className="capitalize">
-                            <span className="text-[#9aa08e]">Last Updated:</span>{' '}
-                            {displayUser(lastAudit.updatedBy)}{' '}
-                            {lastAudit.at ? `on ${fmtDateTimeNoSecs(lastAudit.at)}` : ''}
-                        </p>
-                    )}
-
-                </div>
+                
                 <UnifiedPaymentModal
                     show={paymentModal.open}
                     onClose={closePaymentModal}

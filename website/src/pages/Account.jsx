@@ -440,13 +440,18 @@ export default function Account() {
                             </section>
 
                             {/* Danger Zone */}
-                            <div className="border border-[#2C2C2C] rounded-xl ">
-                                <div className="bg-[#201f1f] px-4 py-3 border-b border-[#2C2C2C]">
+                            {/* <div className="border border-[#2C2C2C] rounded-xl "> */}
+                                {/* <div className="bg-[#201f1f] px-4 py-3 border-b border-[#2C2C2C]">
                                     <h3 className="text-sm tracking-wide uppercase text-red-400">Danger Zone</h3>
-                                </div>
+                                </div> */}
 
-                                <hr className="border-[#2C2C2C]" />
-                                <div className="p-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                                {/* <hr className="border-[#2C2C2C]" /> */}
+                                <section
+                                role="button"
+                                aria-label="Logout"
+                                className="bg-[#1E1E1E] p-4 mb-8 rounded-xl shadow flex flex-col gap-2 justify-between cursor-pointer transition-colors hover:bg-white/5 active:bg-white/10"
+                            >
+                                    {/* <h2 className="text-sm text-teal-500 uppercase tracking-wide">Logout</h2> */}
                                     <button
                                         onClick={() => {
                                             logEvent('logout', { fromScreen: 'account' });
@@ -457,9 +462,10 @@ export default function Account() {
                                     >
                                         Logout
                                     </button>
-                                </div>
+                             </section>
 
-                            </div>
+
+                            {/* </div> */}
 
                             {TEST_MODE && (<section className="p-4 rounded-xl border border-red-900 bg-red-900/10">
                                 <header className="flex items-center justify-between mb-2">
