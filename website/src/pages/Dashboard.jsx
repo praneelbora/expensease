@@ -4,11 +4,13 @@ import MainLayout from "../layouts/MainLayout";
 import { getAllExpenses } from "../services/ExpenseService";
 import { useAuth } from "../context/AuthContext";
 import ExpenseItem from "../components/ExpenseItem";
-import ExpenseModal from "../components/ExpenseModal";
-import {
-    PieChart, Pie, Cell, Tooltip,
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer
-} from "recharts";
+import ExpenseModal from "@/components/ExpenseModal";
+import MonthlyTrends from "@/components/ui/MonthlyTrends";
+import CategoryDistribution from "@/components/ui/CategoryDistribution";
+import WeeklyExpenseTrends from "@/components/ui/WeeklyTrends"
+
+import { getCategoryOptions, getCategoryLabel } from "../utils/categoryOptions";
+
 import { useNavigate } from "react-router-dom";
 import { Loader, Menu, Plus } from "lucide-react";
 import PullToRefresh from "pulltorefreshjs";
@@ -222,63 +224,118 @@ const Dashboard = () => {
     }, [expenses, userId]);
 
     // --- category chart: top N + other ---
-    const MAX_CATS = 6;
     const categoryChart = useMemo(() => {
         const totals = {};
-        (expenses || []).forEach(exp => {
+
+        (expenses || []).forEach((exp) => {
             if (exp.typeOf !== "expense") return;
-            const cat = exp.category || "Uncategorized";
-            const userSplit = exp.splits?.find(s => s.friendId?._id === userId);
+
+            const cat = getCategoryLabel(exp.category) || "Uncategorized";
+            const userSplit = exp.splits?.find((s) => s.friendId?._id === userId);
+
             if (userSplit?.owing) {
                 totals[cat] = (totals[cat] || 0) + (userSplit.oweAmount || 0);
             }
+
             if (!exp.groupId && (!exp.splits || exp.splits.length === 0)) {
                 totals[cat] = (totals[cat] || 0) + (exp.amount || 0);
             }
         });
+
         const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-        const top = entries.slice(0, MAX_CATS);
-        const rest = entries.slice(MAX_CATS);
-        const other = rest.reduce((s, [, v]) => s + v, 0);
-        return other > 0
-            ? [...top, ["Other", other]].map(([name, value]) => ({ name, value }))
-            : top.map(([name, value]) => ({ name, value }));
+        const totalValue = entries.reduce((sum, [, v]) => sum + v, 0);
+
+        const big = [];
+        let otherSum = 0;
+
+        for (const [name, value] of entries) {
+            const pct = (value / totalValue) * 100;
+            if (pct >= 7) {
+                big.push({ name, value });
+            } else {
+                otherSum += value;
+            }
+        }
+
+        if (otherSum > 0) {
+            big.push({ name: "Other", value: otherSum });
+        }
+
+        return big;
     }, [expenses, userId]);
 
     // --- monthly trend with range selector ---
-    const [trendRange, setTrendRange] = useState("90d");
-    const trendChartRaw = useMemo(() => {
-        const monthly = {};
-        (expenses || []).forEach(exp => {
-            if (exp.typeOf !== "expense") return;
-            const month = new Date(exp.createdAt).toLocaleString("default", { month: "short", year: "2-digit" });
-            const split = exp.splits?.find(s => s.friendId?._id === userId);
-            if (split?.owing) {
-                monthly[month] = (monthly[month] || 0) + (split.oweAmount || 0);
-            }
-            if (!exp.groupId && (!exp.splits || exp.splits.length === 0)) {
-                monthly[month] = (monthly[month] || 0) + (exp.amount || 0);
-            }
-        });
-        return Object.entries(monthly).map(([name, value]) => ({ name, value }));
-    }, [expenses, userId]);
+// --- monthly trend with range selector ---
+const [trendRange, setTrendRange] = useState("thisMonth"); // default: This Month
 
-    const trendChart = useMemo(() => {
-        // simple range filter: approximate by last N labels
-        const N = trendRange === "30d" ? 3 : trendRange === "90d" ? 6 : 12;
-        return trendChartRaw.slice(-N);
-    }, [trendChartRaw, trendRange]);
+const trendChartRaw = React.useMemo(() => {
+  const monthly = {};
 
-    // --- dynamic chart colors (keeps theme intact) ---
-    const generateColors = (count) => {
-        const colors = [];
-        for (let i = 0; i < count; i++) {
-            const hue = Math.floor((360 / count) * i);
-            colors.push(`hsl(${hue}, 70%, 60%)`);
-        }
-        return colors;
-    };
-    const COLORS = useMemo(() => generateColors(categoryChart.length), [categoryChart.length]);
+  (expenses || []).forEach((exp) => {
+    if (exp.typeOf !== "expense") return;
+
+    const d = new Date(exp.date);
+    const monthKey = d.toLocaleString("default", {
+      month: "short",
+      year: "2-digit",
+    });
+
+    const split = exp.splits?.find((s) => s.friendId?._id === userId);
+    const share = Number(split?.oweAmount) || 0;
+
+    if (exp.groupId) {
+      if (split?.owing) {
+        monthly[monthKey] = (monthly[monthKey] || 0) + share;
+      }
+    } else if (exp.splits?.length > 0) {
+      if (split?.owing) {
+        monthly[monthKey] = (monthly[monthKey] || 0) + share;
+      }
+    } else {
+      monthly[monthKey] = (monthly[monthKey] || 0) + (exp.amount || 0);
+    }
+  });
+
+  const entries = Object.entries(monthly).map(([name, value]) => {
+    const [mon, yr] = name.split(" ");
+    const date = new Date(`${mon} 01, 20${yr.replace("'", "")}`);
+    return { name, value, date };
+  });
+
+  return entries.sort((a, b) => a.date - b.date);
+}, [expenses, userId]);
+
+const trendChart = React.useMemo(() => {
+  if (!trendChartRaw.length) return [];
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  if (trendRange === "thisMonth") {
+    return trendChartRaw.filter(
+      (d) =>
+        new Date(d.date).getMonth() === currentMonth &&
+        new Date(d.date).getFullYear() === currentYear
+    );
+  }
+
+  if (trendRange === "last3m") {
+    const threeMonthsAgo = new Date(currentYear, currentMonth - 2, 1);
+    return trendChartRaw.filter((d) => d.date >= threeMonthsAgo);
+  }
+
+  if (trendRange === "thisYear") {
+    return trendChartRaw.filter(
+      (d) => new Date(d.date).getFullYear() === currentYear
+    );
+  }
+
+  return trendChartRaw;
+}, [trendChartRaw, trendRange]);
+
+
+
 
     // --- Custom tooltip for Pie (preserves your hues) ---
     const CustomTooltip = ({ active, payload }) => {
@@ -341,6 +398,7 @@ const Dashboard = () => {
         if (!dotsAnnounceRef.current) return;
         dotsAnnounceRef.current.textContent = `Page ${page + 1} of ${Math.max(totalPages, 1)}`;
     }, [page, totalPages]);
+
 
     return (
         <MainLayout>
@@ -684,72 +742,26 @@ const Dashboard = () => {
 
                             {/* Charts */}
                             {expenses.length > 0 && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-                                    {/* Category Distribution */}
-                                    <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md overflow-hidden">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h3 className="text-lg font-semibold">Category Distribution</h3>
-                                        </div>
-                                        <ResponsiveContainer width="100%" height={250}>
-                                            <PieChart>
-                                                <Pie
-                                                    data={categoryChart}
-                                                    dataKey="value"
-                                                    nameKey="name"
-                                                    outerRadius={90}
-                                                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                                    labelLine={false}
-                                                >
-                                                    {categoryChart.map((_, index) => (
-                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                    ))}
-                                                </Pie>
-                                                <Tooltip content={<CustomTooltip />} />
-                                            </PieChart>
-                                        </ResponsiveContainer>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <CategoryDistribution
+                                        expenses={expenses}
+                                        userId={userId}
+                                        defaultCurrency={defaultCurrency}
+                                    />
 
-                                        {/* Legend list below for readability */}
-                                        <div className="mt-3 grid md:grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                            {categoryChart.map((c, i) => (
-                                                <div key={c.name} className="flex items-center justify-between">
-                                                    <span className="truncate">{c.name}</span>
-                                                    <span className="text-[#ededed]">{getSymbol(defaultCurrency)}{Number(c.value || 0).toFixed(2)}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+                                    <MonthlyTrends
+                                        trendChart={trendChart}
+                                        trendRange={trendRange}
+                                        setTrendRange={setTrendRange}
+                                    />
 
-                                    {/* Monthly Trends */}
-                                    <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h3 className="text-lg font-semibold">Monthly Trends</h3>
-                                            <div className="flex gap-2 text-xs text-[#bbb]">
-                                                {["30d", "90d", "365d"].map((r) => (
-                                                    <button
-                                                        key={r}
-                                                        onClick={() => setTrendRange(r)}
-                                                        aria-pressed={trendRange === r}
-                                                        className={`px-2 py-1 rounded-md border ${trendRange === r
-                                                            ? "bg-[#EBF1D5] text-[#121212] border-[#EBF1D5]"
-                                                            : "bg-transparent text-[#EBF1D5] border-[#2a2a2a]"
-                                                            }`}
-                                                    >
-                                                        {r}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <ResponsiveContainer width="100%" height={250}>
-                                            <BarChart data={trendChart}>
-                                                <CartesianGrid stroke="#1e1e1e" vertical={false} />
-                                                <XAxis dataKey="name" />
-                                                <YAxis />
-                                                <Tooltip />
-                                                <Bar dataKey="value" fill="#00C49F" />
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </div>
+                                    <WeeklyExpenseTrends
+                                        expenses={expenses}
+                                        userId={userId}
+                                        defaultCurrency={defaultCurrency}
+                                    />
                                 </div>
+
                             )}
                         </div>
                     )}
