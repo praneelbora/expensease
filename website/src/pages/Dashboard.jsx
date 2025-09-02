@@ -349,8 +349,6 @@ const Dashboard = () => {
                     : exp.splits?.length > 0
                         ? (userSplit?.owing ? Number(userSplit?.oweAmount) || 0 : 0)
                         : Number(exp.amount) || 0;
-                console.log(range, share);
-
                 if (share <= 0) continue;
 
                 let bucketKey, bucketDate;
@@ -373,21 +371,14 @@ const Dashboard = () => {
 
             // ----- delta logic -----
             if (range === "thisMonth") {
-                console.log(arr);
-
                 const last = arr[arr.length - 1];
                 const prev = arr[arr.length - 2]; // now this exists!
-                console.log(last, prev);
 
                 if (!last || !prev || prev.days.size === 0) return null;
-
                 const lastAvg = last[typeKey] / last.days.size;
                 const prevAvg = prev[typeKey] / prev.days.size;
                 if (prevAvg === 0) return null;
-
                 const pct = ((lastAvg - prevAvg) / prevAvg) * 100;
-                console.log(typeKey, pct);
-
                 return {
                     text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% from last month`,
                     color: pct <= 0 ? "text-teal-500" : "text-red-500"
@@ -719,7 +710,7 @@ const Dashboard = () => {
                                             ))}
                                             {Object.keys(stats.total).length === 0 && <span>—</span>}
                                         </div>
-                                        <p className={`text-[11px] ${deltas.total.color?deltas.total.color:'text-[#888]'} mt-1`}>
+                                        <p className={`text-[11px] ${deltas?.total?.color?deltas.total.color:'text-[#888]'} mt-1`}>
                                             {deltas.total ? <> {deltas.total.text}</> : null}
                                         </p>
                                         {(stats.personal.count + stats.group.count + stats.friend.count) > 0 && (<>
@@ -749,7 +740,7 @@ const Dashboard = () => {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <p className={`text-[11px] ${deltas.personal.color?deltas.personal.color:'text-[#888]'} mt-1`}>
+                                            <p className={`text-[11px] ${deltas?.personal?.color?deltas.personal.color:'text-[#888]'} mt-1`}>
                                                 {deltas.personal ? <> {deltas.personal.text}</> : null}
                                             </p>
                                             <p className="text-[11px] text-[#888]">{stats.personal.count} transactions</p>
@@ -775,7 +766,7 @@ const Dashboard = () => {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <p className={`text-[11px] ${deltas.group.color?deltas.group.color:'text-[#888]'} mt-1`}>
+                                            <p className={`text-[11px] ${deltas?.group?.color?deltas.group.color:'text-[#888]'} mt-1`}>
                                                 {deltas.group ? <> {deltas.group.text}</> : null}
                                             </p>
                                             <p className="text-[11px] text-[#888]">{stats.group.count} transactions</p>
@@ -798,7 +789,7 @@ const Dashboard = () => {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <p className={`text-[11px] ${deltas.friend.color?deltas.friend.color:'text-[#888]'} mt-1`}>
+                                            <p className={`text-[11px] ${deltas?.friend?.color?deltas.friend.color:'text-[#888]'} mt-1`}>
                                                 {deltas.friend ? <> {deltas.friend.text}</> : null}
                                             </p>
                                             <p className="text-[11px] text-[#888]">{stats.friend.count} transactions</p>

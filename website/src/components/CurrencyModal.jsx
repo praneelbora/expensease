@@ -79,8 +79,6 @@ export default function CurrencyModal({
     );
 
     const Row = ({ opt }) => {
-        console.log(opt);
-
         const isSelected = value === opt.value;
         const isDefault = opt.value.toUpperCase() === defaultCode;
         const isPreferred = preferredSet.has(opt.value.toUpperCase());

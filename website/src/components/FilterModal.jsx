@@ -38,11 +38,6 @@ export default function FilterModal({
         setSort(selectedFilters.sort || "newest");
         setPaymentMethod(selectedFilters.paymentMethod || '')
     }, [selectedFilters, show]);
-    useEffect(() => {
-        console.log(selectedCategory);
-
-    }, [selectedCategory]);
-    // all currencies
     const currencyOptions = useMemo(() => {
         const codes = getAllCurrencyCodes();
         return toCurrencyOptions(codes, "en-IN");
@@ -153,12 +148,11 @@ export default function FilterModal({
                     </div>
                 )}
                 {paymentMethodsProp && paymentMethodsProp.length > 0 && (<div>
-                    {console.log(paymentMethodsProp)}
                     <label className="text-xs text-[#9aa19a] mb-1 block">Payment Method</label>
                     <CustomSelect
                         value={paymentMethod || ""}
                         onChange={(e) => {
-                            console.log(e);
+
                             setPaymentMethod(e)
                         }}
                         options={[{ value: '', label: 'View All' }, ...paymentMethodsProp.map(p => {

@@ -65,9 +65,7 @@ export default function ExpenseModal({
         splits = [],
         auditLog
     } = showModal || {};
-    useEffect(() => {
-        console.log(showModal);
-    }, [showModal])
+
 
     const [loading, setLoading] = useState(false);
     const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -197,7 +195,6 @@ export default function ExpenseModal({
     const getPaymentMethodLabel = (paymentMethod) => {
         if (!id) return null;
         const match = (paymentMethods || []).find(pm => pm._id === id);
-        console.log(match);
 
         if (match) return match.label;
 

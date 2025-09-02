@@ -596,8 +596,6 @@ const AddExpense = () => {
                 return aName.localeCompare(bName);
             });
         }
-
-        console.log("Final filtered friends:", filtered);
         setFilteredFriends(filtered);
     };
     const groupFilter = (val) => {
@@ -647,8 +645,6 @@ const AddExpense = () => {
                 return aName.localeCompare(bName);
             });
         }
-
-        console.log("Final filtered groups:", filtered);
         setFilteredGroups(filtered);
     };
 
