@@ -10,6 +10,8 @@ import { getAllCurrencyCodes, toCurrencyOptions } from "../utils/currencies";
 import CurrencyModal from '../components/CurrencyModal';
 import { Check, Loader2 } from "lucide-react";
 import SEO from '../components/SEO';
+import { exportExpensesToExcel } from "@/utils/exportExpenses";
+import { Download } from "lucide-react";
 
 const TEST_MODE = import.meta.env.VITE_TEST_MODE;
 
@@ -19,6 +21,9 @@ export default function Account() {
     const navigate = useNavigate();
 
     // --- state
+    const [userId, setUserId] = useState(user._id);
+    const [expenses, setExpenses] = useState(user._id);
+
     const [dc, setDc] = useState(defaultCurrency || '');
     const [allCodes, setAllCodes] = useState([]);
     const [showDefaultModal, setShowDefaultModal] = useState(false);
@@ -69,6 +74,7 @@ export default function Account() {
     const fetchExpenses = async () => {
         try {
             const data = await getAllExpenses(userToken);
+            setExpenses(data?.expenses)
             setTotals(calculateTotals(data?.expenses || [], data?.id));
         } catch (error) {
             // non-blocking
@@ -414,7 +420,25 @@ export default function Account() {
                                 options={currencyOptions}
                                 onSelect={(cur) => { setDc(cur); saveCurrencyPrefs(cur); setShowDefaultModal(false); }}
                             />
-
+                            <section
+  role="button"
+  aria-label="Download expenses"
+  onClick={() => exportExpensesToExcel(expenses, userId)}
+  className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-between cursor-pointer transition-colors hover:bg-white/5"
+>
+  <header className="flex items-center justify-between mb-2">
+    <h2 className="text-sm text-teal-500 uppercase tracking-wide">
+      Download Expenses ⬇️
+    </h2>
+    <div
+      className="w-[1px] self-stretch bg-[#212121]"
+      aria-hidden="true"
+    />
+  </header>
+  <p className="text-[#888] text-sm">
+    Export all your personal, group & split expenses to an Excel sheet 📊
+  </p>
+</section>
                             {/* Categories manage */}
                             {/* <section ref={categoryRef} id="category-section" className={`transition-all ${highlightCls('category')}`}>
                                 <CategoriesManage userToken={userToken} highlightCls={highlightCls} />
@@ -441,28 +465,28 @@ export default function Account() {
 
                             {/* Danger Zone */}
                             {/* <div className="border border-[#2C2C2C] rounded-xl "> */}
-                                {/* <div className="bg-[#201f1f] px-4 py-3 border-b border-[#2C2C2C]">
+                            {/* <div className="bg-[#201f1f] px-4 py-3 border-b border-[#2C2C2C]">
                                     <h3 className="text-sm tracking-wide uppercase text-red-400">Danger Zone</h3>
                                 </div> */}
 
-                                {/* <hr className="border-[#2C2C2C]" /> */}
-                                <section
+                            {/* <hr className="border-[#2C2C2C]" /> */}
+                            <section
                                 role="button"
                                 aria-label="Logout"
                                 className="bg-[#1E1E1E] p-4 mb-8 rounded-xl shadow flex flex-col gap-2 justify-between cursor-pointer transition-colors hover:bg-white/5 active:bg-white/10"
                             >
-                                    {/* <h2 className="text-sm text-teal-500 uppercase tracking-wide">Logout</h2> */}
-                                    <button
-                                        onClick={() => {
-                                            logEvent('logout', { fromScreen: 'account' });
-                                            if (confirm('Log out of Expensease?')) logout();
-                                        }}
-                                        className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm"
+                                {/* <h2 className="text-sm text-teal-500 uppercase tracking-wide">Logout</h2> */}
+                                <button
+                                    onClick={() => {
+                                        logEvent('logout', { fromScreen: 'account' });
+                                        if (confirm('Log out of Expensease?')) logout();
+                                    }}
+                                    className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm"
 
-                                    >
-                                        Logout
-                                    </button>
-                             </section>
+                                >
+                                    Logout
+                                </button>
+                            </section>
 
 
                             {/* </div> */}
