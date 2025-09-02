@@ -40,9 +40,6 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
             if (exp.typeOf !== "expense") return false;
 
             const d = new Date(exp.date || exp.createdAt);
-            console.log(d);
-            console.log(start);
-            
             if (d < start) return false;
 
             // type filter
@@ -142,16 +139,16 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
                         </SelectTrigger>
                         <SelectContent className="border-[#EBF1D5] bg-[#212121]">
                             <SelectItem className="text-[#EBF1D5]" value="all">
-                                All
+                                All Expenses
                             </SelectItem>
                             <SelectItem className="text-[#EBF1D5]" value="personal">
-                                Personal
+                                Personal Expenses
                             </SelectItem>
                             <SelectItem className="text-[#EBF1D5]" value="group">
-                                Group
+                                Group Expenses
                             </SelectItem>
                             <SelectItem className="text-[#EBF1D5]" value="friend">
-                                Friend
+                                Friend Expenses
                             </SelectItem>
                         </SelectContent>
                     </Select>

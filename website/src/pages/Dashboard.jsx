@@ -21,6 +21,7 @@ import BalancesModal from "../components/BalancesModal";
 import PaymentMethodModal from "../components/PaymentMethodModal";
 import { createPaymentMethod } from "../services/PaymentMethodService";
 import SEO from "../components/SEO";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Utility: format currency safely
 function safeFormatMoney(ccy, value = 0) {
@@ -52,6 +53,7 @@ const Dashboard = () => {
     const [selectedPM, setSelectedPM] = useState(null);
     const [showBalances, setShowBalances] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [summaryRange, setSummaryRange] = useState("thisMonth"); // default
 
     const didRedirect = useRef(false);
     const pmJustAddedRef = useRef(false);
@@ -178,8 +180,50 @@ const Dashboard = () => {
             maximumFractionDigits: d,
         });
     };
+    //     const filteredExpenses = useMemo(() => {
+    //   const now = new Date();
+    //   const start = new Date(now);
 
-    // --- stats (same logic, memoized) ---
+    //   if (summaryRange === "thisMonth") {
+    //     start.setMonth(now.getMonth(), 1);
+    //   } else if (summaryRange === "last3m") {
+    //     start.setMonth(now.getMonth() - 2, 1); // includes this + 2 prev months
+    //   } else if (summaryRange === "thisYear") {
+    //     start.setMonth(0, 1);
+    //   }
+
+    //   start.setHours(0, 0, 0, 0);
+
+    //   return (expenses || []).filter((exp) => new Date(exp.date) >= start);
+    // }, [expenses, summaryRange]);
+
+    function getRangeStart(range) {
+        const now = new Date();
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+
+        if (range === "thisMonth") {
+            start.setMonth(now.getMonth(), 1);
+        } else if (range === "last3m") {
+            start.setMonth(now.getMonth() - 2, 1);
+        } else if (range === "thisYear") {
+            start.setMonth(0, 1);
+        }
+        start.setHours(0, 0, 0, 0);
+        return start;
+    }
+
+
+    const filteredExpenses = useMemo(() => {
+        const start = getRangeStart(summaryRange);
+        return (expenses || []).filter((exp) => {
+            if (exp.typeOf !== "expense") return false;
+            const d = new Date(exp.date);
+            return d >= start;
+        });
+    }, [expenses, summaryRange]);
+
+
     const stats = useMemo(() => {
         const acc = {
             total: {},
@@ -189,12 +233,12 @@ const Dashboard = () => {
             settle: { amount: {}, count: 0 },
         };
 
-        for (const exp of expenses || []) {
+        for (const exp of filteredExpenses || []) {
             const code = exp?.currency || "INR";
 
             if (exp.typeOf === "expense") {
                 const amt = Number(exp?.amount) || 0;
-                const userSplit = exp.splits?.find(s => s.friendId?._id === userId);
+                const userSplit = exp.splits?.find((s) => s.friendId?._id === userId);
                 const share = Number(userSplit?.oweAmount);
 
                 if (exp.groupId) {
@@ -220,135 +264,181 @@ const Dashboard = () => {
                 acc.settle.count += 1;
             }
         }
+
         return acc;
-    }, [expenses, userId]);
+    }, [filteredExpenses, userId]);
+    function computeAverage(expenses, userId, filter) {
+        const totalsByPeriod = {};
 
-    // --- category chart: top N + other ---
-    const categoryChart = useMemo(() => {
-        const totals = {};
-
-        (expenses || []).forEach((exp) => {
-            if (exp.typeOf !== "expense") return;
-
-            const cat = getCategoryLabel(exp.category) || "Uncategorized";
-            const userSplit = exp.splits?.find((s) => s.friendId?._id === userId);
-
-            if (userSplit?.owing) {
-                totals[cat] = (totals[cat] || 0) + (userSplit.oweAmount || 0);
-            }
-
-            if (!exp.groupId && (!exp.splits || exp.splits.length === 0)) {
-                totals[cat] = (totals[cat] || 0) + (exp.amount || 0);
-            }
-        });
-
-        const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-        const totalValue = entries.reduce((sum, [, v]) => sum + v, 0);
-
-        const big = [];
-        let otherSum = 0;
-
-        for (const [name, value] of entries) {
-            const pct = (value / totalValue) * 100;
-            if (pct >= 7) {
-                big.push({ name, value });
-            } else {
-                otherSum += value;
-            }
-        }
-
-        if (otherSum > 0) {
-            big.push({ name: "Other", value: otherSum });
-        }
-
-        return big;
-    }, [expenses, userId]);
-
-    // --- monthly trend with range selector ---
-    // --- monthly trend with range selector ---
-    const [trendRange, setTrendRange] = useState("thisMonth"); // default: This Month
-
-    const trendChartRaw = React.useMemo(() => {
-        const monthly = {};
-
-        (expenses || []).forEach((exp) => {
-            if (exp.typeOf !== "expense") return;
+        for (const exp of expenses || []) {
+            if (exp.typeOf !== "expense") continue;
 
             const d = new Date(exp.date);
-            const monthKey = d.toLocaleString("default", {
-                month: "short",
-                year: "2-digit",
-            });
+            const code = exp.currency || "INR";
+            const userSplit = exp.splits?.find((s) => s.friendId?._id === userId);
+            const share = exp.groupId
+                ? (userSplit?.owing ? Number(userSplit?.oweAmount) || 0 : 0)
+                : exp.splits?.length > 0
+                    ? (userSplit?.owing ? Number(userSplit?.oweAmount) || 0 : 0)
+                    : Number(exp.amount) || 0;
 
-            const split = exp.splits?.find((s) => s.friendId?._id === userId);
-            const share = Number(split?.oweAmount) || 0;
+            if (share <= 0) continue;
 
-            if (exp.groupId) {
-                if (split?.owing) {
-                    monthly[monthKey] = (monthly[monthKey] || 0) + share;
-                }
-            } else if (exp.splits?.length > 0) {
-                if (split?.owing) {
-                    monthly[monthKey] = (monthly[monthKey] || 0) + share;
-                }
-            } else {
-                monthly[monthKey] = (monthly[monthKey] || 0) + (exp.amount || 0);
+            let key;
+            if (filter === "thisMonth" || filter === "last3m") {
+                // group by month
+                key = `${d.getFullYear()}-${d.getMonth()}`;
+            } else if (filter === "thisYear") {
+                // group by year
+                key = d.getFullYear();
             }
-        });
 
-        const entries = Object.entries(monthly).map(([name, value]) => {
-            const [mon, yr] = name.split(" ");
-            const date = new Date(`${mon} 01, 20${yr.replace("'", "")}`);
-            return { name, value, date };
-        });
+            if (!totalsByPeriod[key]) totalsByPeriod[key] = { total: 0, days: new Set() };
+            totalsByPeriod[key].total += share;
+            totalsByPeriod[key].days.add(d.toDateString());
+        }
 
-        return entries.sort((a, b) => a.date - b.date);
-    }, [expenses, userId]);
+        // convert to array with averages
+        return Object.entries(totalsByPeriod).map(([k, v]) => {
+            const avg =
+                filter === "thisMonth"
+                    ? v.total / v.days.size // daily average
+                    : v.total / (filter === "last3m" ? 3 : 12); // monthly average
+            return { key: k, avg };
+        }).sort((a, b) => a.key > b.key ? 1 : -1);
+    }
 
-    const trendChart = React.useMemo(() => {
-        if (!trendChartRaw.length) return [];
+
+    const deltas = useMemo(() => {
+        if (!expenses?.length) return { total: null, personal: null, group: null, friend: null };
 
         const now = new Date();
         const currentMonth = now.getMonth();
         const currentYear = now.getFullYear();
 
-        if (trendRange === "thisMonth") {
-            return trendChartRaw.filter(
-                (d) =>
-                    new Date(d.date).getMonth() === currentMonth &&
-                    new Date(d.date).getFullYear() === currentYear
-            );
+        function avgForRange(range, typeKey) {
+            const now = new Date();
+
+            // always include at least 6 months of data for month-based ranges
+            const start = new Date(now);
+            if (range === "thisMonth" || range === "last3m") {
+                start.setMonth(now.getMonth() - 6, 1);
+            } else if (range === "thisYear") {
+                start.setFullYear(now.getFullYear() - 1, 0, 1);
+            }
+            start.setHours(0, 0, 0, 0);
+
+            const data = (expenses || []).filter((exp) => {
+                if (exp.typeOf !== "expense") return false;
+                const d = new Date(exp.date);
+                if (d < start) return false;
+
+                // --- filter by typeKey ---
+                if (typeKey === "group") return !!exp.groupId;
+                if (typeKey === "friend") return !exp.groupId && exp.splits?.length > 0;
+                if (typeKey === "personal") return !exp.groupId && (!exp.splits || exp.splits.length === 0);
+                return true; // total
+            });
+
+            const totalsByPeriod = {};
+            for (const exp of data) {
+                const d = new Date(exp.date);
+                const userSplit = exp.splits?.find((s) => s.friendId?._id === userId);
+                let share = exp.groupId
+                    ? (userSplit?.owing ? Number(userSplit?.oweAmount) || 0 : 0)
+                    : exp.splits?.length > 0
+                        ? (userSplit?.owing ? Number(userSplit?.oweAmount) || 0 : 0)
+                        : Number(exp.amount) || 0;
+                console.log(range, share);
+
+                if (share <= 0) continue;
+
+                let bucketKey, bucketDate;
+                if (range === "thisMonth" || range === "last3m") {
+                    bucketKey = `${d.getFullYear()}-${d.getMonth()}`;
+                    bucketDate = new Date(d.getFullYear(), d.getMonth(), 1);
+                } else {
+                    bucketKey = `${d.getFullYear()}`;
+                    bucketDate = new Date(d.getFullYear(), 0, 1);
+                }
+
+                if (!totalsByPeriod[bucketKey]) {
+                    totalsByPeriod[bucketKey] = { key: bucketKey, date: bucketDate, total: 0, personal: 0, group: 0, friend: 0, days: new Set() };
+                }
+                totalsByPeriod[bucketKey][typeKey] += share;
+                totalsByPeriod[bucketKey].total += share;
+                totalsByPeriod[bucketKey].days.add(d.toDateString());
+            }
+            const arr = Object.values(totalsByPeriod).sort((a, b) => a.date - b.date);
+
+            // ----- delta logic -----
+            if (range === "thisMonth") {
+                console.log(arr);
+
+                const last = arr[arr.length - 1];
+                const prev = arr[arr.length - 2]; // now this exists!
+                console.log(last, prev);
+
+                if (!last || !prev || prev.days.size === 0) return null;
+
+                const lastAvg = last[typeKey] / last.days.size;
+                const prevAvg = prev[typeKey] / prev.days.size;
+                if (prevAvg === 0) return null;
+
+                const pct = ((lastAvg - prevAvg) / prevAvg) * 100;
+                console.log(typeKey, pct);
+
+                return {
+                    text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% from last month`,
+                    color: pct <= 0 ? "text-teal-500" : "text-red-500"
+                }
+            }
+
+            if (range === "last3m") {
+                const last3 = arr.slice(-3);
+                const prev2 = arr.slice(-5, -3);
+                if (last3.length < 3 || prev2.length < 2) return null;
+
+                const lastAvg = last3.reduce((s, x) => s + x[typeKey], 0) / 3;
+                const prevAvg = prev2.reduce((s, x) => s + x[typeKey], 0) / 2;
+                if (prevAvg === 0) return null;
+
+                const pct = ((lastAvg - prevAvg) / prevAvg) * 100;
+                
+                return {
+                    text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% from last 3 months`,
+                    color: pct >= 0 ? "text-green-500" : "text-red-500"
+                };
+            }
+
+            if (range === "thisYear") {
+                const thisYear = arr.filter((a) => a.date.getFullYear() === currentYear);
+                const prevYear = arr.filter((a) => a.date.getFullYear() === currentYear - 1);
+                if (!thisYear.length || !prevYear.length) return null;
+
+                const thisAvg = thisYear.reduce((s, x) => s + x[typeKey], 0) / thisYear.length;
+                const prevAvg = prevYear.reduce((s, x) => s + x[typeKey], 0) / prevYear.length;
+                if (prevAvg === 0) return null;
+
+                const pct = ((thisAvg - prevAvg) / prevAvg) * 100;
+                return {
+                    text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% vs last year`,
+                    color: pct >= 0 ? "text-green-500" : "text-red-500"
+                };
+            }
+
+            return null;
         }
 
-        if (trendRange === "last3m") {
-            const threeMonthsAgo = new Date(currentYear, currentMonth - 2, 1);
-            return trendChartRaw.filter((d) => d.date >= threeMonthsAgo);
-        }
-
-        if (trendRange === "thisYear") {
-            return trendChartRaw.filter(
-                (d) => new Date(d.date).getFullYear() === currentYear
-            );
-        }
-
-        return trendChartRaw;
-    }, [trendChartRaw, trendRange]);
 
 
-
-
-    // --- Custom tooltip for Pie (preserves your hues) ---
-    const CustomTooltip = ({ active, payload }) => {
-        if (active && payload && payload.length) {
-            const { name, value } = payload[0];
-            return (
-                <div className="bg-black text-[#EBF1D5] text-sm px-2 py-1 rounded shadow-md">
-                    <strong>{name}</strong>: {getSymbol(defaultCurrency)}{Number(value || 0).toFixed(2)}
-                </div>
-            );
-        }
-        return null;
-    };
+        return {
+            total: avgForRange(summaryRange, "total"),
+            personal: avgForRange(summaryRange, "personal"),
+            group: avgForRange(summaryRange, "group"),
+            friend: avgForRange(summaryRange, "friend"),
+        };
+    }, [expenses, userId, summaryRange]);
 
     // --- date-grouped recent expenses ---
     const recentByDay = useMemo(() => {
@@ -365,11 +455,7 @@ const Dashboard = () => {
         return bucket;
     }, [expenses]);
 
-    // --- mini helpers ---
-    function openBalances(pm) {
-        setSelectedPM(pm);
-        setShowBalances(true);
-    }
+
     function manageRedirect() {
         setShowBalances(false);
         logEvent('navigate', {
@@ -377,20 +463,22 @@ const Dashboard = () => {
         });
         navigate('/account?section=paymentMethod');
     }
+    // --- micro trend chart (per month, per type) ---
+
 
     // micro trend (very lightweight): change vs previous bucket
-    const totalDeltaText = useMemo(() => {
-        const vals = Object.values(stats.total || {});
-        if (!vals.length) return null;
-        // compute a naive month delta from trendChart
-        if (!trendChart || trendChart.length < 2) return null;
-        const last = trendChart[trendChart.length - 1]?.value || 0;
-        const prev = trendChart[trendChart.length - 2]?.value || 0;
-        if (prev <= 0) return null;
-        const pct = ((last - prev) / prev) * 100;
-        const arrow = pct >= 0 ? "▲" : "▼";
-        return `${arrow} ${Math.abs(pct).toFixed(0)}% vs previous`;
-    }, [stats.total, trendChart]);
+    // const totalDeltaText = useMemo(() => {
+    //     const vals = Object.values(stats.total || {});
+    //     if (!vals.length) return null;
+    //     // compute a naive month delta from trendChart
+    //     if (!trendChart || trendChart.length < 2) return null;
+    //     const last = trendChart[trendChart.length - 1]?.value || 0;
+    //     const prev = trendChart[trendChart.length - 2]?.value || 0;
+    //     if (prev <= 0) return null;
+    //     const pct = ((last - prev) / prev) * 100;
+    //     const arrow = pct >= 0 ? "▲" : "▼";
+    //     return `${arrow} ${Math.abs(pct).toFixed(0)}% vs previous`;
+    // }, [stats.total, trendChart]);
 
     // --- accessible page dots ---
     const dotsAnnounceRef = useRef(null);
@@ -600,6 +688,16 @@ const Dashboard = () => {
                                         </div>
                                     )}
                                 </div>
+                                <Select value={summaryRange} onValueChange={setSummaryRange}>
+                                    <SelectTrigger className="w-[160px] h-8 text-xs">
+                                        <SelectValue placeholder="Select range" />
+                                    </SelectTrigger>
+                                    <SelectContent className="border-[#EBF1D5] bg-[#212121]">
+                                        <SelectItem className="text-[#EBF1D5]" value="thisMonth">This Month</SelectItem>
+                                        <SelectItem className="text-[#EBF1D5]" value="last3m">Last 3 Months</SelectItem>
+                                        <SelectItem className="text-[#EBF1D5]" value="thisYear">This Year</SelectItem>
+                                    </SelectContent>
+                                </Select>
 
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
                                     {/* Total */}
@@ -621,11 +719,14 @@ const Dashboard = () => {
                                             ))}
                                             {Object.keys(stats.total).length === 0 && <span>—</span>}
                                         </div>
-                                        {(stats.personal.count + stats.group.count + stats.friend.count) > 0 && (
-                                            <p className="text-[11px] text-[#888] mt-1">
+                                        <p className={`text-[11px] ${deltas.total.color?deltas.total.color:'text-[#888]'} mt-1`}>
+                                            {deltas.total ? <> {deltas.total.text}</> : null}
+                                        </p>
+                                        {(stats.personal.count + stats.group.count + stats.friend.count) > 0 && (<>
+                                            <p className="text-[11px] text-[#888]">
                                                 {stats.personal.count + stats.group.count + stats.friend.count} transactions
-                                                {totalDeltaText ? <> · {totalDeltaText}</> : null}
                                             </p>
+                                        </>
                                         )}
                                     </div>
 
@@ -648,7 +749,10 @@ const Dashboard = () => {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <p className="text-[11px] text-[#888] mt-1">{stats.personal.count} transactions</p>
+                                            <p className={`text-[11px] ${deltas.personal.color?deltas.personal.color:'text-[#888]'} mt-1`}>
+                                                {deltas.personal ? <> {deltas.personal.text}</> : null}
+                                            </p>
+                                            <p className="text-[11px] text-[#888]">{stats.personal.count} transactions</p>
                                         </div>
                                     )}
 
@@ -671,7 +775,10 @@ const Dashboard = () => {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <p className="text-[11px] text-[#888] mt-1">{stats.group.count} transactions</p>
+                                            <p className={`text-[11px] ${deltas.group.color?deltas.group.color:'text-[#888]'} mt-1`}>
+                                                {deltas.group ? <> {deltas.group.text}</> : null}
+                                            </p>
+                                            <p className="text-[11px] text-[#888]">{stats.group.count} transactions</p>
                                         </div>
                                     )}
 
@@ -691,7 +798,10 @@ const Dashboard = () => {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <p className="text-[11px] text-[#888] mt-1">{stats.friend.count} transactions</p>
+                                            <p className={`text-[11px] ${deltas.friend.color?deltas.friend.color:'text-[#888]'} mt-1`}>
+                                                {deltas.friend ? <> {deltas.friend.text}</> : null}
+                                            </p>
+                                            <p className="text-[11px] text-[#888]">{stats.friend.count} transactions</p>
                                         </div>
                                     )}
                                 </div>
@@ -750,9 +860,9 @@ const Dashboard = () => {
                                     />
 
                                     <MonthlyTrends
-                                        trendChart={trendChart}
-                                        trendRange={trendRange}
-                                        setTrendRange={setTrendRange}
+                                        expenses={expenses}
+                                        userId={userId}
+                                        defaultCurrency={defaultCurrency}
                                     />
 
                                     <WeeklyExpenseTrends
