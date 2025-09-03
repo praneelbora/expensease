@@ -34,18 +34,15 @@ const Expenses = () => {
         return `${payerName} paid ${receiverName}`;
     };
     const [searchParams, setSearchParams] = useSearchParams();
-    const initialFilter = searchParams.get("filter") || "all";
+    const initialType = searchParams.get("type") || "all";
     const initialCategory = searchParams.get("category") || "all";
     const [appliedFilter, setAppliedFilter] = useState({
-        category: initialFilter ? initialFilter : 'all',
-        type: initialCategory ? initialCategory : 'all',
+        type: initialType ? initialType : 'all',
+        category: initialCategory ? initialCategory : 'all',
         currency: '',
         sort: 'newest',
         paymentMethod: ''   // new
     });
-
-    const [filter, setFilter] = useState(initialFilter);        // 'all','personal','settle','group','friend'
-    const [category, setCategory] = useState(initialCategory);  // category name or 'all'
 
     // keep URL in sync when state changes
     useEffect(() => {
@@ -110,11 +107,6 @@ const Expenses = () => {
     }, [expenses]);
 
 
-    const orderedFilters = useMemo(() => {
-        const sel = FILTERS.find(f => f.key === filter) || FILTERS[0];
-        const rest = FILTERS.filter(f => f.key !== sel.key);
-        return [sel, ...rest];
-    }, [filter]);
     const filteredExpenses = useMemo(() => {
         const filterExpenses = (
             expenses,
@@ -228,7 +220,7 @@ const Expenses = () => {
 
         // ✅ Call it with current props/state
         return filterExpenses(expenses, appliedFilter, query);
-    }, [expenses, filter, category, appliedFilter, query]);
+    }, [expenses, appliedFilter, query]);
 
 
     const categoryOptions = useMemo(() => {
@@ -240,11 +232,6 @@ const Expenses = () => {
         return ["all", ...arr];
     }, [expenses]);
 
-    const orderedCategories = useMemo(() => {
-        if (!categoryOptions.length) return ["all"];
-        const sel = categoryOptions.includes(category) ? category : "all";
-        return [sel, ...categoryOptions.filter(c => c !== sel)];
-    }, [category, categoryOptions]);
 
     const getPayerInfo = (splits) => {
         const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
@@ -346,7 +333,7 @@ const Expenses = () => {
                         }}>
                             <ChevronLeft />
                         </button>
-                        <h1 className="text-3xl font-bold capitalize">All Expenses</h1>
+                        <h1 className="text-3xl font-bold capitalize">Expenses</h1>
                     </div>
 
                     {/* <button
@@ -393,7 +380,7 @@ const Expenses = () => {
                 {expenses.length > 0 && <div className="w-full flex flex-ro gap-2 items-center mt-2 mb-2">
 
                     <input
-                        className={`flex-1 bg-[#121212] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3`}
+                        className={`flex-1 text-[14px] bg-[#121212] text-[#EBF1D5] border border-[#55554f] rounded-md p-2 text-base min-h-[40px] pl-3`}
                         placeholder="Search Descriptions / Names / Amounts / Currencies"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
@@ -403,7 +390,7 @@ const Expenses = () => {
                             screen: 'expenses'
                         });
                         setShowFilterModal(true)
-                    }} className={`p-2 rounded-md bg-[#212121] ${(appliedFilter.category !== "all" || appliedFilter.type !== "all" || appliedFilter.sort !== "newest") ? 'text-teal-600 ring-1 ring-inset ring-teal-500' : ' text-[#EBF1D5]'}`}>
+                    }} className={`h-[40px] p-2 rounded-md bg-[#212121] ${(appliedFilter.category !== "all" || appliedFilter.type !== "all" || appliedFilter.sort !== "newest") ? 'text-teal-600 ring-1 ring-inset ring-teal-500' : ' text-[#EBF1D5]'}`}>
 
                         <SlidersHorizontal />
                     </button>

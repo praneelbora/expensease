@@ -20,7 +20,7 @@ const ExpenseItem = ({
         const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
         if (!userSplit) return 'not involved';
         if (payers.length === 1) {
-            return `${payers[0].friendId?._id==userId? 'You':payers[0].friendId.name} paid`;
+            return `${payers[0].friendId?._id == userId ? 'You' : payers[0].friendId.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         } else {
@@ -29,7 +29,7 @@ const ExpenseItem = ({
     };
     const didIPay = (splits) => {
         const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
-        
+
         if (!userSplit || !userSplit?.paidFromPaymentMethodId || !userSplit?.paidFromPaymentMethodId?.label || Math.abs(userSplit.payAmount) == 0) return '';
         return `· ${userSplit?.paidFromPaymentMethodId?.label}`
         // console.log(userSplit);
@@ -70,8 +70,8 @@ const ExpenseItem = ({
         >
             {/* Date */}
             <div className="flex flex-col justify-center items-center text-[#81827C]">
-                <p className="text-[11px] uppercase">{month}</p>
-                <p className="text-[18px] -mt-[6px]">{day}</p>
+                <p className="text-[10px] uppercase">{month}</p>
+                <p className="text-[16px] -mt-[4px]">{day}</p>
             </div>
 
             {/* Vertical bar */}
@@ -85,15 +85,15 @@ const ExpenseItem = ({
                 <div className="flex flex-col justify-center min-w-0">
                     {!isSettle ? (
                         <>
-                            <p className="text-[18px] capitalize truncate">{expense.description}</p>
-                            <p className="text-[13px] text-[#81827C] -mt-[6px] truncate">
+                            <p className="text-[16px] capitalize truncate">{expense.description}</p>
+                            <p className="text-[12px] text-[#81827C] -mt-[4px] truncate">
                                 {isSplit
                                     ? `${getPayerInfo(expense.splits)} ${getPayerInfo(expense.splits) !== 'not involved' ? `${getSymbol(expense.currency)} ${expense.amount.toFixed(2)} ${didIPay(expense.splits)}` : ''}`
-                                    : `${getCategoryLabel(expense.category)} ${expense?.paidFromPaymentMethodId?.label?`· ${expense?.paidFromPaymentMethodId?.label}`:''}`}
+                                    : `${getCategoryLabel(expense.category)} ${expense?.paidFromPaymentMethodId?.label ? `· ${expense?.paidFromPaymentMethodId?.label}` : ''}`}
                             </p>
                         </>
                     ) : (
-                        <p className="text-[13px] text-[#81827C]">
+                        <p className="text-[12px] text-[#81827C]">
                             {getSettleDirectionText(expense.splits)} {getSymbol(expense.currency)} {expense.amount.toFixed(2)}
                         </p>
                     )}
@@ -103,11 +103,11 @@ const ExpenseItem = ({
                 {!isSettle && <div className="flex flex-col justify-center items-end text-right shrink-0">
                     {!isSettle && isSplit ? (
                         <>
-                            <p className={`text-[12px] whitespace-nowrap ${getOweInfo(expense.splits)?.text == 'no balance' && 'text-[#888]'}`}>{getOweInfo(expense.splits)?.text}</p>
-                            <p className="text-[18px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(expense.splits)?.amount}</p>
+                            <p className={`text-[11px] whitespace-nowrap ${getOweInfo(expense.splits)?.text == 'no balance' && 'text-[#888]'}`}>{getOweInfo(expense.splits)?.text}</p>
+                            <p className="text-[16px] capitalize -mt-[6px] whitespace-nowrap">{getOweInfo(expense.splits)?.amount}</p>
                         </>
                     ) : (
-                        <p className="text-[18px] capitalize -mt-[6px] whitespace-nowrap">
+                        <p className="text-[16px] capitalize -mt-[6px] whitespace-nowrap">
                             {getSymbol(expense.currency)} {Math.abs(expense.amount).toFixed(2)}
                         </p>
                     )}

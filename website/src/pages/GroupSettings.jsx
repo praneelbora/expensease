@@ -27,8 +27,9 @@ export default function GroupSettings() {
     const [confirmAction, setConfirmAction] = useState(null);
     // 'leave' | 'delete' | null
     const [busyAction, setBusyAction] = useState(false);
-    const [receivedRequests, setReceivedRequests] = useState([]);
-    const [sentRequests, setSentRequests] = useState([]);
+    const [receivedRequests, setReceivedRequests] = useState(new Map());
+    const [sentRequests, setSentRequests] = useState(new Map());
+
 
 
     // ...
@@ -126,7 +127,7 @@ export default function GroupSettings() {
             const map = new Map();
             data.forEach((req) => {
                 map.set(req.receiver._id, req._id); // store requestId
-            });
+            })
             setSentRequests(map);
         } catch (err) {
             console.error("Error fetching sent requests:", err);
@@ -296,7 +297,7 @@ export default function GroupSettings() {
                                                 <div className="space-x-2">
                                                     {(!isMe && !isFriend) && (<>
 
-                                                        {!sentRequests?.has(member._id) && !receivedRequests?.has(member._id) ? (
+                                                        {sentRequests && !sentRequests?.has(member._id) && !receivedRequests?.has(member._id) ? (
                                                             <button
                                                                 onClick={() => {
                                                                     logEvent('friend_request_sent', {
@@ -308,7 +309,7 @@ export default function GroupSettings() {
                                                             >
                                                                 Add Friend
                                                             </button>
-                                                        ) : sentRequests?.has(member._id) ? (
+                                                        ) : sentRequests && sentRequests?.has(member._id) ? (
                                                             <button
                                                                 disabled
                                                                 className="text-sm text-gray-500 cursor-not-allowed"

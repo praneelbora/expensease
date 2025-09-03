@@ -729,7 +729,7 @@ const Dashboard = () => {
                                             aria-label="Open personal expenses"
                                             onClick={() => {
                                                 logEvent('navigate', { fromScreen: 'dashboard', toScreen: 'personal_expenses', source: 'personal_expenses' });
-                                                navigate('/expenses?filter=personal');
+                                                navigate('/expenses?type=personal');
                                             }}
                                         >
                                             <p className="text-[15px] text-[#888]">Personal Expenses</p>
@@ -755,7 +755,7 @@ const Dashboard = () => {
                                             aria-label="Open group expenses"
                                             onClick={() => {
                                                 logEvent('navigate', { fromScreen: 'dashboard', toScreen: 'expenses', source: 'group_expenses' });
-                                                navigate('/expenses?filter=group');
+                                                navigate('/expenses?type=group');
                                             }}
                                         >
                                             <p className="text-[15px] text-[#888]">Group Expenses</p>
@@ -779,7 +779,7 @@ const Dashboard = () => {
                                             className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
                                             role="button"
                                             aria-label="Open friend expenses"
-                                            onClick={() => navigate('/expenses?filter=friend')}
+                                            onClick={() => navigate('/expenses?type=friend')}
                                         >
                                             <p className="text-[15px] text-[#888]">Friend Expenses</p>
                                             <div className="text-xl break-words space-y-1">

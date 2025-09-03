@@ -21,12 +21,10 @@ const fmtDate = (d) =>
         year: "numeric",
     });
 const fmtDateTimeNoSecs = (d) =>
-    new Date(d).toLocaleString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
+    new Date(d).toLocaleDateString("en-IN", {
+        year: "2-digit",
+        month: "2-digit",
+        day: "2-digit"
     });
 
 // For <input type="date">
@@ -72,6 +70,8 @@ export default function ExpenseModal({
     const categoryOptions = getCategoryOptions();
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [viewSplits, setViewSplits] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
+
     const close = () => !loading && setShowModal(false);
     // Split UI state (matches your create flow concepts)
     const [selectedFriends, setSelectedFriends] = useState([]); // [{_id, name, paying, payAmount, owing, oweAmount, owePercent}]
@@ -674,21 +674,97 @@ export default function ExpenseModal({
             })
         );
     };
+    // --- 🔧 NEW HELPERS ---
+    function diffExpense(before, after, getUserNameById, currency) {
+        const changes = [];
+
+        for (const key of Object.keys(after || {})) {
+            if (["auditLog", "__v", "_id", "updatedAt", "createdAt"].includes(key)) continue;
+
+            const beforeVal = before?.[key];
+            const afterVal = after?.[key];
+
+            // Special case: amount
+            if (key === "amount" && beforeVal !== afterVal) {
+                changes.push({
+                    label: "Cost",
+                    before: beforeVal,
+                    after: afterVal,
+                });
+                continue;
+            }
+
+            // Special case: splits array
+            if (key === "splits" && Array.isArray(beforeVal) && Array.isArray(afterVal)) {
+                afterVal.forEach((splitAfter, idx) => {
+                    const splitBefore = beforeVal[idx];
+                    if (!splitBefore) return; // new split, can ignore or show "added"
+
+                    const friendName = getUserNameById(splitAfter.friendId) || "Someone";
+
+                    // Owe changes
+                    if (splitBefore.oweAmount !== splitAfter.oweAmount) {
+                        changes.push({
+                            label: friendName.toLowerCase() == "you" ? 'Your share' : `${friendName}'s share`,
+                            before: splitBefore.oweAmount,
+                            after: splitAfter.oweAmount,
+                        });
+                    }
+
+                    // Paid changes
+                    if (splitBefore.payAmount !== splitAfter.payAmount) {
+                        changes.push({
+                            label: friendName.toLowerCase() == "you" ? 'Your payment amount' : `${friendName} payment amount`,
+                            before: splitBefore.payAmount,
+                            after: splitAfter.payAmount,
+                        });
+                    }
+                });
+                continue;
+            }
+
+            // Generic shallow diff
+            if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
+                changes.push({ label: key, before: beforeVal, after: afterVal });
+            }
+        }
+
+        return changes;
+    }
+
+    function fmtCurrency(val, currency = "INR") {
+        if (val == null) return "—";
+        return new Intl.NumberFormat("en-IN", {
+            style: "currency",
+            currency,
+            minimumFractionDigits: 2,
+        }).format(val);
+    }
+
+
+    function formatValue(val) {
+        if (Array.isArray(val)) return `[${val.length} items]`;
+        if (typeof val === "object" && val !== null) return JSON.stringify(val);
+        return String(val);
+    }
+    // --- END HELPERS ---
+
+
     // Compute summary for current user
-const myExpenseSummary = useMemo(() => {
-  if (!Array.isArray(splits)) return { paid: 0, owed: 0, net: 0 };
+    const myExpenseSummary = useMemo(() => {
+        if (!Array.isArray(splits)) return { paid: 0, owed: 0, net: 0 };
 
-  const mine = splits.filter(s => (s?.friendId?._id || s?.friendId) === userId);
+        const mine = splits.filter(s => (s?.friendId?._id || s?.friendId) === userId);
 
-  const paid = mine.reduce((sum, s) => sum + Number(s.payAmount || 0), 0);
-  const owed = mine.reduce((sum, s) => sum + Number(s.oweAmount || 0), 0);
+        const paid = mine.reduce((sum, s) => sum + Number(s.payAmount || 0), 0);
+        const owed = mine.reduce((sum, s) => sum + Number(s.oweAmount || 0), 0);
 
-  return {
-    paid,
-    owed,
-    net: paid - owed // >0 = others owe you, <0 = you owe others
-  };
-}, [splits, userId]);
+        return {
+            paid,
+            owed,
+            net: paid - owed // >0 = others owe you, <0 = you owe others
+        };
+    }, [splits, userId]);
 
     useEffect(() => {
         if (isEditing) updateFriendsPaymentMethods(selectedFriends.map((f) => f._id))
@@ -819,40 +895,40 @@ const myExpenseSummary = useMemo(() => {
                             })()}
                         </div>
                         <div className="flex justify-between mt-1">
-                        <div className="text-md">
-                            {showModal?.typeOf == 'expense' &&
-                                <div className="flex gap-2">
-                                    <CategoryIcon category={showModal?.category} /> {category ? getCategoryLabel(category) : "Uncategorized"}
-                                </div>
-                            }
-                        </div>
-                            {date && <p className="text-sm">{fmtDate(date)}</p>}
+                            <div className="text-md">
+                                {showModal?.typeOf == 'expense' &&
+                                    <div className="flex gap-2">
+                                        <CategoryIcon category={showModal?.category} /> {category ? getCategoryLabel(category) : "Uncategorized"}
+                                    </div>
+                                }
                             </div>
+                            {date && <p className="text-sm">{fmtDate(date)}</p>}
+                        </div>
                         {mode === "split" && (
                             <>
                                 <hr className="border-[#2a2a2a] mt-2 mb-1" />
                                 <div className="flex justify-between text-sm">
-  {(() => {
-    const mine = splits.find(
-      (s) => (s?.friendId?._id || s?.friendId) === userId
-    );
-    const myExpense = Math.abs(Number(mine?.oweAmount || 0))
-    return (
-        <div>
-      {myExpense>0?
-        <p className="flex text-red-500">Your share: {getSymbol(showModal?.currency)} {fmtMoney(myExpense)}</p>:
-        <p className="flex text-[#888]">Not Involved</p>
-    }
-    </div>
-    );
-  })()}
-  <button
-    onClick={() => setViewSplits((prev) => !prev)}
-    className="text-teal-500 border-b border-teal-500 "
-  >
-    {viewSplits ? "Hide Details" : "View Details"}
-  </button>
-</div>
+                                    {(() => {
+                                        const mine = splits.find(
+                                            (s) => (s?.friendId?._id || s?.friendId) === userId
+                                        );
+                                        const myExpense = Math.abs(Number(mine?.oweAmount || 0))
+                                        return (
+                                            <div>
+                                                {myExpense > 0 ?
+                                                    <p className="flex text-red-500">Your share: {getSymbol(showModal?.currency)} {fmtMoney(myExpense)}</p> :
+                                                    <p className="flex text-[#888]">Not Involved</p>
+                                                }
+                                            </div>
+                                        );
+                                    })()}
+                                    <button
+                                        onClick={() => setViewSplits((prev) => !prev)}
+                                        className="text-teal-500 border-b border-teal-500 "
+                                    >
+                                        {viewSplits ? "Hide Details" : "View Details"}
+                                    </button>
+                                </div>
 
                                 {/* <p className="text-base text-teal-500">
                                     {payerInfo} {amount ? ` ${getSymbol(currency)} ${fmtMoney(amount)}` : ""}
@@ -862,15 +938,16 @@ const myExpenseSummary = useMemo(() => {
                                         {splits
                                             .filter((s) => (s.payAmount || 0) > 0 || (s.oweAmount || 0) > 0)
                                             .map((s, idx) => {
+                                                console.log(splits);
 
-                                                const name = s?.friendId?._id==userId?'You' : s?.friendId?.name || "Member";
+                                                const name = s?.friendId?._id == userId ? 'You' : s?.friendId?.name || "Member";
                                                 const payTxt =
                                                     (s.payAmount || 0) > 0 ? `paid ${getSymbol(currency)} ${fmtMoney(s.payAmount)}` : "";
                                                 const andTxt =
                                                     ((s.payAmount || 0) > 0 && (parseFloat(s.oweAmount) || 0) > 0) ? " and " : "";
-                                                const oweTxt = parseFloat(s.oweAmount) > 0 ? `owe${s?.friendId?._id!==userId?'s':''} ${getSymbol(currency)} ${fmtMoney(parseFloat(s.oweAmount) || 0)}` : '';
+                                                const oweTxt = parseFloat(s.oweAmount) > 0 ? `owe${s?.friendId?._id !== userId ? 's' : ''} ${getSymbol(currency)} ${fmtMoney(parseFloat(s.oweAmount) || 0)}` : '';
                                                 return (
-                                                    <div key={idx} className="flex">
+                                                    <div key={idx} className={`flex ${s?.friendId?._id == userId ? '' : 'text-[#888]'}`}>
                                                         <p>
                                                             {name} {payTxt}
                                                             {andTxt}
@@ -884,26 +961,80 @@ const myExpenseSummary = useMemo(() => {
 
                                     </div>
                                     <hr className="border-[#2a2a2a] mt-3" />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mt-2">
-                    {/* Created */}
-                    {(createdBy?.name || createdAt) && (
-                        <p className="capitalize">
-                            <span className="text-[#9aa08e]">Created:</span>{" "}
-                            {createdBy?.name ? `${createdBy.name} ` : ""}
-                            {createdAt ? `on ${fmtDateTimeNoSecs(createdAt)}` : ""}
-                        </p>
-                    )}
+                                    <div className="flex flex-col gap-1 text-sm mt-2">
+                                        {/* Created */}
+                                        {(createdBy?.name || createdAt) && (
+                                            <p className="text-[#888] flex justify-between">
+                                                <span className="text-[#888]">Created by {createdBy?.name ? `${createdBy.name} ` : ""}</span>
+                                                <span>{createdAt ? `${fmtDateTimeNoSecs(createdAt)}` : ""}</span>
+                                            </p>
+                                        )}
+                                        {/* Full Edit History */}
+                                        {/* Audit Log Summary + Toggle */}
+                                        {Array.isArray(auditLog) && auditLog.length > 0 && (
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex justify-between">
+                                                    {/* Summary */}
+                                                    {(() => {
+                                                        const editors = auditLog.map(e => displayUser(e.updatedBy)).filter(Boolean);
+                                                        const uniqueEditors = [...new Set(editors)];
+                                                        const firstTwo = uniqueEditors.slice(0, 1).join(", ");
+                                                        const remaining = uniqueEditors.length - 1;
 
-                    {/* Updated */}
-                    {lastAudit && (
-                        <p className="capitalize">
-                            <span className="text-[#9aa08e]">Last Updated:</span>{' '}
-                            {displayUser(lastAudit.updatedBy)}{' '}
-                            {lastAudit.at ? `on ${fmtDateTimeNoSecs(lastAudit.at)}` : ''}
-                        </p>
-                    )}
+                                                        return (
+                                                            <p className="text-sm text-[#888]">
+                                                                Edited by {firstTwo}{remaining > 0 ? ` and ${remaining} more` : ""}
+                                                            </p>
+                                                        );
+                                                    })()}
 
-                </div>
+                                                    {/* Toggle Button */}
+                                                    <button
+                                                        onClick={() => setShowHistory(!showHistory)}
+                                                        className="text-teal-500 text-sm underline self-start"
+                                                    >
+                                                        {showHistory ? "Hide Edit History" : "View Edit History"}
+                                                    </button>
+                                                </div>
+                                                {/* Full History */}
+                                                {showHistory && (
+                                                    <div className="flex flex-col gap-2">
+                                                        {auditLog.map((entry, idx) => {
+                                                            const changes = diffExpense(entry.before, entry.after, getUserNameById, currency);
+                                                            return (
+                                                                <div key={idx} className="p-2 border border-[#2a2a2a] rounded-md text-sm">
+                                                                    <div className="flex justify-between text-[#888]">
+                                                                        <span>{displayUser(entry.updatedBy)} updated this transaction</span>
+                                                                        <span>{fmtDateTimeNoSecs(entry.at)}</span>
+                                                                    </div>
+                                                                    {changes.length > 0 && (
+                                                                        <ul className="mt-1 ml-3 list-disc text-[#ddd]">
+                                                                            {changes.map((c, i) => (
+                                                                                <li key={i}>
+                                                                                    <span>{c.label}{" : "} </span>
+                                                                                    <span>
+                                                                                        <span className="text-red-400">{fmtCurrency(c.before, currency)}</span>{" "}
+                                                                                        {" → "}
+                                                                                        <span className="text-green-400">{fmtCurrency(c.after, currency)}</span>
+                                                                                    </span>
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+
+
+
+
+
+                                    </div>
                                 </div>}
                             </>
                         )}
@@ -914,7 +1045,7 @@ const myExpenseSummary = useMemo(() => {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             {/* Description */}
                             <div className="sm:col-span-2">
-                                <label className="block text-sm text-[#9aa08e] mb-1">Description</label>
+                                <label className="block text-sm text-[#888] mb-1">Description</label>
                                 <input
                                     className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left"
                                     value={form.description}
@@ -929,7 +1060,7 @@ const myExpenseSummary = useMemo(() => {
                             {/* Amount */}
                             <div className="flex flex-row gap-2">
                                 <div className="flex-1">
-                                    <label className="block text-sm text-[#9aa08e] mb-1">Currency</label>
+                                    <label className="block text-sm text-[#888] mb-1">Currency</label>
                                     <button
                                         onClick={() => setShowCurrencyModal(true)}
                                         className={`w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left`}
@@ -950,7 +1081,7 @@ const myExpenseSummary = useMemo(() => {
                                 </div>
 
                                 <div className="flex-1 flex flex-col gap-1">
-                                    <label className="block text-sm text-[#9aa08e] mb-1">Amount</label>
+                                    <label className="block text-sm text-[#888] mb-1">Amount</label>
                                     <input
                                         type="number"
                                         step="0.01"
@@ -980,7 +1111,7 @@ const myExpenseSummary = useMemo(() => {
                             {/* Date */}
                             {form.typeOf == 'expense' && <div className="flex flex-row w-full gap-2">
                                 <div className="flex-1">
-                                    <label className="block text-sm text-[#9aa08e] mb-1">Category</label>
+                                    <label className="block text-sm text-[#888] mb-1">Category</label>
                                     <button
                                         onClick={() => setShowCategoryModal(true)}
                                         className={`w-full ${category ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
@@ -995,7 +1126,7 @@ const myExpenseSummary = useMemo(() => {
                                         onSelect={(n) => setForm((f) => ({ ...f, category: n }))}
                                     />
                                 </div><div className="flex-1">
-                                    <label className="block text-sm text-[#9aa08e] mb-1">Date</label>
+                                    <label className="block text-sm text-[#888] mb-1">Date</label>
                                     <input
                                         type="date"
                                         className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left"
@@ -1006,7 +1137,7 @@ const myExpenseSummary = useMemo(() => {
                                 </div>
                             </div>}
                             {form.mode == "personal" && <div className="w-full flex flex-col">
-                                <label className="block text-sm text-[#9aa08e] mb-1">Payment Account</label>
+                                <label className="block text-sm text-[#888] mb-1">Payment Account</label>
 
                                 <button
                                     onClick={() => openPaymentModal({ context: 'personal' })}
@@ -1188,7 +1319,7 @@ const myExpenseSummary = useMemo(() => {
 
 
 
-                
+
                 <UnifiedPaymentModal
                     show={paymentModal.open}
                     onClose={closePaymentModal}
