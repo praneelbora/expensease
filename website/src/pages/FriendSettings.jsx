@@ -206,7 +206,7 @@ export default function FriendSettings() {
                                     onClick={() => {
                                         handleRemoveFriend()
                                     }}
-                                    className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm"
+                                    className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-[#EBF1D5] text-sm"
                                 >
                                     Remove Friend
                                 </button>

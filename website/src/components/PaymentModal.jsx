@@ -125,7 +125,7 @@ export default function PaymentModal({
                                 })
                                 onClose(editableAmount)
                             }}
-                            className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded font-semibold"
+                            className="bg-teal-500 hover:bg-teal-600 text-[#EBF1D5] px-4 py-2 rounded font-semibold"
                         >
                             Settle
                         </button>

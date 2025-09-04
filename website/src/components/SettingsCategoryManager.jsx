@@ -38,7 +38,7 @@ const DraggableCategory = ({ category, index, moveCategory, removeCategory }) =>
                 <span className="select-none touch-none">{category.emoji} {category.name}</span>
                 <button
                     ref={dragRef}
-                    className="cursor-grab active:cursor-grabbing text-white hover:opacity-80 px-2 py-1"
+                    className="cursor-grab active:cursor-grabbing text-[#EBF1D5] hover:opacity-80 px-2 py-1"
                     style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
                 >
                     <ArrowUpDown size={20} />
@@ -140,13 +140,13 @@ const SettingsCategoryManager = ({ userToken, highlightCls }) => {
 
                     <div className="flex items-center gap-2 mt-2">
                         <input
-                            className="flex-2/3 bg-[#2A2A2A] text-white px-2 py-1 rounded w-1/2"
+                            className="flex-2/3 bg-[#2A2A2A] text-[#EBF1D5] px-2 py-1 rounded w-1/2"
                             placeholder="Name"
                             value={newCategory.name}
                             onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
                         />
                         <input
-                            className="flex-1/3 bg-[#2A2A2A] text-white px-2 py-1 rounded w-1/2"
+                            className="flex-1/3 bg-[#2A2A2A] text-[#EBF1D5] px-2 py-1 rounded w-1/2"
                             placeholder="Emoji"
                             value={newCategory.emoji}
                             onChange={(e) => setNewCategory({ ...newCategory, emoji: e.target.value })}
@@ -158,13 +158,13 @@ const SettingsCategoryManager = ({ userToken, highlightCls }) => {
                         <div className="flex flex-1 w-full gap-2 mt-4">
                             <button
                                 onClick={handleUndo}
-                                className="flex-1 bg-red-500 px-4 py-2 rounded text-white"
+                                className="flex-1 bg-red-500 px-4 py-2 rounded text-[#EBF1D5]"
                             >
                                 Undo all changes
                             </button>
                             <button
                                 onClick={handleSave}
-                                className="flex-1 bg-teal-600 px-4 py-2 rounded text-white"
+                                className="flex-1 bg-teal-600 px-4 py-2 rounded text-[#EBF1D5]"
                             >
                                 Save Changes
                             </button>

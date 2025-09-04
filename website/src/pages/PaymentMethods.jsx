@@ -233,7 +233,7 @@ const PaymentMethods = () => {
                                     setShowModal(true);
                                 }}
                                 aria-label="Add Payment Account"
-                                className="z-50 rounded-sm bg-teal-500 hover:bg-teal-600 active:scale-95 transition text-white px-3 py-2 flex items-center gap-2"
+                                className="z-50 rounded-sm bg-teal-500 hover:bg-teal-600 active:scale-95 transition text-[#EBF1D5] px-3 py-2 flex items-center gap-2"
                             >
                                 <Plus size={18} />
                                 <span className="text-sm font-semibold">Add Account</span>

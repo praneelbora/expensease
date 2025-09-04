@@ -60,13 +60,14 @@ export const getAllExpenses = async (userToken) => {
     }
 };
 
-export const settleExpense = async ({ payerId, receiverId, amount, description, groupId, currency }, userToken) => {
+export const settleExpense = async ({ payerId, receiverId, amount, description, currency, meta, groupId }, userToken) => {
     if (!payerId || !receiverId || !amount) {
         throw new Error("Please fill all required fields.");
     }
+    console.log(meta.ids);
 
     try {
-        const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/settle`, {
+        const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v2/expenses/settle`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -77,8 +78,13 @@ export const settleExpense = async ({ payerId, receiverId, amount, description, 
                 toUserId: receiverId,
                 amount: parseFloat(amount),
                 description,
+                note: description,
                 currency,
                 ...(groupId ? { groupId } : {}),
+                ...(meta?.type ? { type: meta.type } : {}),
+                ...(meta?.ids ? { groupIds: meta.ids } : {}),
+                ...(meta?.groupId ? { groupId: meta.groupId } : {}),
+                ...(meta ? { meta: meta } : {})
             })
         });
 
@@ -98,7 +104,27 @@ export const settleExpense = async ({ payerId, receiverId, amount, description, 
 
 export const getFriendExpense = async (friendId, userToken) => {
     try {
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/expenses/friend/${friendId}`, {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v2/expenses/friend/${friendId}`, {
+            headers: {
+                "Content-Type": "application/json",
+                "x-auth-token": userToken,
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to get friend expense");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("get friend expense error:", error);
+        throw error;
+    }
+};
+
+export const getFriendsExpense = async (userToken) => {
+    try {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v2/expenses/friends`, {
             headers: {
                 "Content-Type": "application/json",
                 "x-auth-token": userToken,

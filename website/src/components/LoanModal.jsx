@@ -166,7 +166,7 @@ export default function LoanViewModal({
                                     })
                                     doDelete()
                                 }}
-                                className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm inline-flex items-center gap-1 disabled:opacity-60"
+                                className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-[#EBF1D5] text-sm inline-flex items-center gap-1 disabled:opacity-60"
                                 disabled={busy}
                             >
                                 <Trash2 size={16} /> Confirm

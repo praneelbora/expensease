@@ -46,7 +46,7 @@ const FriendDetails = () => {
     const round = (val) => Math.round(val * 100) / 100;
     const [friend, setFriend] = useState(null);
     const [expenses, setExpenses] = useState([]);
-    const [netBalance, setNetBalance] = useState(0);
+    const [simplifiedTransactions, setSimplifiedTransactions] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [showSettleModal, setShowSettleModal] = useState(false);
     const [settleType, setSettleType] = useState('partial');
@@ -228,7 +228,8 @@ const FriendDetails = () => {
         return totals; // e.g., { INR: 1200, USD: -50 }
     };
     const [netLoanBalanceMap, setNetLoanBalanceMap] = useState({}); // new state
-    const [netExpenseBalanceMap, setNetExpenseBalanceMap] = useState({}); // new state
+    const [personalExpenseBalanceMap, setPersonalExpenseBalanceMap] = useState({}); // new state
+    // const [netExpenseBalanceMap, setNetExpenseBalanceMap] = useState({}); // new state
 
 
     const fetchLoansForFriend = async (meId, frId) => {
@@ -261,10 +262,12 @@ const FriendDetails = () => {
         setUserId(data.id);
 
         const expenseData = await getFriendExpense(id, userToken);
-        setExpenses(expenseData);
+        console.log(expenseData);
 
-        const net = calculateFriendBalanceByCurrency(expenseData, data.id, data.friend._id);
-        setNetExpenseBalanceMap(net);
+        setExpenses(expenseData.expenses);
+        setSimplifiedTransactions(expenseData.simplifiedTransactions)
+        const personal = calculateFriendBalanceByCurrency(expenseData.expenses, data.id, data.friend._id);
+        setPersonalExpenseBalanceMap(personal);
 
         // 🔹 fetch loans tied to this friend
         await fetchLoansForFriend(data.id, data.friend._id);
@@ -301,8 +304,8 @@ const FriendDetails = () => {
         }
     };
 
-    const handleSettle = async ({ payerId, receiverId, amount, description, currency }) => {
-        const responseJson = await settleExpense({ payerId, receiverId, amount, description, currency }, userToken);
+    const handleSettle = async ({ payerId, receiverId, amount, description, currency, meta }) => {
+        const responseJson = await settleExpense({ payerId, receiverId, amount, description, currency, meta }, userToken);
         if (responseJson.allSettled) {
 
         }
@@ -316,7 +319,6 @@ const FriendDetails = () => {
 
     const calculateFriendBalanceByCurrency = (expenses, userId, friendId) => {
         const totals = {}; // { [code]: number }
-
         // consider only expenses where one is paying and the other is owing
         const filtered = (expenses || []).filter(exp => {
             let youPay = false, frPay = false, youOwe = false, frOwe = false;
@@ -383,6 +385,356 @@ const FriendDetails = () => {
             return null;
         }
     };
+    const groupBalanceMap = useMemo(() => {
+        const totals = {}; // { [code]: number }
+        if (!userId || !counterParty?._id) return totals;
+
+        for (const tx of simplifiedTransactions || []) {
+            const code = tx?.currency || "INR";
+            const amt = Number(tx?.amount) || 0;
+            if (!amt) continue;
+
+            // only tx between you and this friend
+            const involvesFriend =
+                (tx.from === String(userId) && tx.to === String(counterParty._id)) ||
+                (tx.to === String(userId) && tx.from === String(counterParty._id));
+
+            if (!involvesFriend) continue;
+
+            if (tx.to === String(userId)) {
+                // friend -> you
+                totals[code] = (totals[code] || 0) + amt;
+            } else if (tx.from === String(userId)) {
+                // you -> friend
+                totals[code] = (totals[code] || 0) - amt;
+            }
+        }
+
+        // round & drop dust
+        for (const code of Object.keys(totals)) {
+            const rounded = roundCurrency(totals[code], code);
+            const minUnit = 1 / (10 ** currencyDigits(code));
+            totals[code] = Math.abs(rounded) >= minUnit ? rounded : 0;
+            if (totals[code] === 0) delete totals[code];
+        }
+
+        return totals;
+    }, [simplifiedTransactions, userId, counterParty?._id]);
+
+    const mergeCurrencyMaps = (a = {}, b = {}) => {
+        const out = { ...a };
+        for (const [code, amt] of Object.entries(b)) {
+            out[code] = roundCurrency((out[code] || 0) + (amt || 0), code);
+            const minUnit = 1 / (10 ** currencyDigits(code));
+            if (Math.abs(out[code]) < minUnit) delete out[code];
+        }
+        return out;
+    };
+    const netExpenseBalanceMap = useMemo(() => {
+        return mergeCurrencyMaps(personalExpenseBalanceMap, groupBalanceMap);
+    }, [personalExpenseBalanceMap, groupBalanceMap]);
+    const collectGroupPartiesByCurrency = (
+        simplifiedTransactions,
+        userId,
+        friendId,
+        roundCurrency,
+        currencyDigits
+    ) => {
+        const uid = String(userId || "");
+        const fid = String(friendId || "");
+        const byCode = {}; // { [code]: { [groupId]: { net:number, name?:string } } }
+
+        for (const tx of simplifiedTransactions || []) {
+            const from = String(tx?.from || "");
+            const to = String(tx?.to || "");
+            if (!from || !to) continue;
+
+            // only the selected pair
+            const isPair = (from === uid && to === fid) || (from === fid && to === uid);
+            if (!isPair) continue;
+
+            const code = tx?.currency || "INR";
+            const gid = String(tx?.groupId || tx?.group?._id || "");
+            if (!gid) continue;
+
+            const amt = Number(tx?.amount || 0);
+            if (!amt) continue;
+
+            // net sign from *your* perspective: + means they owe you; - means you owe them
+            const sign = (to === uid) ? +1 : -1;
+
+            (byCode[code] ||= {});
+            (byCode[code][gid] ||= { net: 0, name: tx?.name || tx?.group?.name || "Unnamed Group" });
+            byCode[code][gid].net += sign * amt;
+        }
+
+        // Convert to final shape with from/to and rounded amount
+        const out = {}; // { [code]: { [gid]: { from,to,amount,currency,groupId,name } } }
+        for (const [code, groups] of Object.entries(byCode)) {
+            const resPerCode = {};
+            const minUnit = 1 / (10 ** currencyDigits(code));
+
+            for (const [gid, info] of Object.entries(groups)) {
+                const rounded = roundCurrency(info.net, code);
+                if (Math.abs(rounded) < minUnit) continue; // drop dust/settled
+
+                const from = rounded < 0 ? uid : fid; // negative -> you owe friend
+                const to = rounded < 0 ? fid : uid;
+
+                resPerCode[gid] = {
+                    from,
+                    to,
+                    amount: Math.abs(rounded),
+                    currency: code,
+                    groupId: gid,
+                    name: info.name
+                };
+            }
+
+            if (Object.keys(resPerCode).length) out[code] = resPerCode;
+        }
+
+        return out;
+    };
+    const collectGroupIdsByCurrency = (simplifiedTransactions, userId, friendId) => {
+        const uid = String(userId || "");
+        const fid = String(friendId || "");
+        const byCode = {}; // { [code]: Set<groupId> }
+        for (const tx of simplifiedTransactions || []) {
+            const from = String(tx?.from || "");
+            const to = String(tx?.to || "");
+            const isPair = (from === uid && to === fid) || (from === fid && to === uid);
+            if (!isPair) continue;
+
+            const code = tx?.currency || "INR";
+            const gid = tx?.group?._id;
+            if (!gid) continue;
+
+            (byCode[code] ||= new Set()).add(String(gid));
+        }
+
+        // convert Set -> Array
+        const out = {};
+        for (const [code, set] of Object.entries(byCode)) out[code] = Array.from(set);
+        return out; // { INR: ["g1","g2"], AED: ["g3"], ... }
+    };
+
+
+    // 0) Small helper — same direction/signs as your UI
+    // byCode -> list of tx; `idsByCode` can be undefined or { [code]: string[] }
+    const txFromCurrencyMap = (byCode = {}, userId, friendId, roundCurrency, currencyDigits, type, idsByCode) => {
+        const out = [];
+        for (const [code, amtRaw] of Object.entries(byCode)) {
+            const amt = roundCurrency(amtRaw, code);
+            const minUnit = 1 / (10 ** currencyDigits(code));
+            if (Math.abs(amt) < minUnit) continue;
+
+            const from = amt < 0 ? userId : friendId;
+            const to = amt < 0 ? friendId : userId;
+
+            out.push({
+                from: String(from),
+                to: String(to),
+                amount: Math.abs(amt),
+                currency: code,
+                type,
+                ids: idsByCode?.[code] || null
+            });
+        }
+        return out;
+    };
+
+
+
+    const computeGroupAggregateMap = (simplifiedTransactions, userId, friendId) => {
+        const totals = {}; // { [code]: number } (+ you’re owed, - you owe)
+        for (const tx of simplifiedTransactions || []) {
+            const code = tx?.currency || "INR";
+            const amt = Number(tx?.amount) || 0;
+            const from = String(tx?.from || "");
+            const to = String(tx?.to || "");
+            const uid = String(userId);
+            const fid = String(friendId);
+
+            // only the pair you <-> friend
+            const pair = (from === uid && to === fid) || (from === fid && to === uid);
+            if (!pair || !amt) continue;
+
+            if (to === uid) totals[code] = (totals[code] || 0) + amt;      // friend -> you
+            if (from === uid) totals[code] = (totals[code] || 0) - amt;    // you -> friend
+        }
+        return totals;
+    };
+    // +ve means they owe *you*; -ve means you owe *them*
+    const signedForUser = (from, to, amount, userId) => {
+        return to === String(userId) ? +Number(amount || 0) : -Number(amount || 0);
+    };
+
+    const minUnitFor = (code, currencyDigits) => 1 / (10 ** currencyDigits(code));
+
+    // Build NET rows with detailed breakdown:
+    // returns array of tx like:
+    // { from, to, amount, currency, type: 'net', groups: {...}, ids: [...], personal: {from,to,amount,currency} | null }
+    const buildNetWithBreakdown = (
+        netByCode,                 // your netExpenseBalanceMap (signed, +ve => you’re owed)
+        groupsByCur,               // from collectGroupPartiesByCurrency
+        userId,
+        friendId,
+        roundCurrency,
+        currencyDigits
+    ) => {
+        const out = [];
+        for (const [code, netSignedRaw] of Object.entries(netByCode || {})) {
+            const netSigned = roundCurrency(netSignedRaw, code);
+            const minUnit = minUnitFor(code, currencyDigits);
+            if (Math.abs(netSigned) < minUnit) continue;
+
+            // direction for the *net* row
+            const netFrom = netSigned < 0 ? userId : friendId;
+            const netTo = netSigned < 0 ? friendId : userId;
+
+            // sum groups (signed from user's perspective)
+            const perCodeGroups = groupsByCur?.[code] || {};
+            let groupSignedSum = 0;
+            for (const g of Object.values(perCodeGroups)) {
+                groupSignedSum += signedForUser(String(g.from), String(g.to), Number(g.amount || 0), String(userId));
+            }
+
+            // personalSigned = netSigned - sum(groups)
+            const personalSigned = roundCurrency(netSigned - groupSignedSum, code);
+            const hasPersonal = Math.abs(personalSigned) >= minUnit;
+
+            const personal = hasPersonal
+                ? {
+                    from: personalSigned < 0 ? String(userId) : String(friendId),
+                    to: personalSigned < 0 ? String(friendId) : String(userId),
+                    amount: Math.abs(personalSigned),
+                    currency: code
+                }
+                : null;
+
+            out.push({
+                from: String(netFrom),
+                to: String(netTo),
+                amount: Math.abs(netSigned),
+                currency: code,
+                type: "net",
+                // detailed groups + quick ids
+                groups: perCodeGroups,
+                ids: Object.keys(perCodeGroups),
+                // NEW: personal component inside NET
+                personal
+            });
+        }
+        return out;
+    };
+
+
+    const generateSettleAllNet = (
+        netExpenseBalanceMap,
+        userId,
+        friendId,
+        simplifiedTransactions
+    ) => {
+        const groupsByCur = collectGroupPartiesByCurrency(
+            simplifiedTransactions, userId, friendId, roundCurrency, currencyDigits
+        );
+        console.log(buildNetWithBreakdown(
+            netExpenseBalanceMap,
+            groupsByCur,
+            userId,
+            friendId,
+            roundCurrency,
+            currencyDigits
+        ));
+
+        // Build NET rows with both groups + personal parts
+        return buildNetWithBreakdown(
+            netExpenseBalanceMap,
+            groupsByCur,
+            userId,
+            friendId,
+            roundCurrency,
+            currencyDigits
+        );
+    };
+
+    const generateSettleGroupAggregate = (simplifiedTransactions, userId, friendId) => {
+        const totalsByCode = computeGroupAggregateMap(simplifiedTransactions, userId, friendId);
+        const groupsByCur = collectGroupPartiesByCurrency(
+            simplifiedTransactions, userId, friendId, roundCurrency, currencyDigits
+        );
+        // Reuse txFromCurrencyMap but pass groupsByCur so each currency row gets its groups attached
+        return txFromCurrencyMap(
+            totalsByCode, userId, friendId, roundCurrency, currencyDigits, "all_groups", groupsByCur
+        );
+    };
+
+    // Personal stays simple (no groups)
+    const generateSettlePersonal = (personalExpenseBalanceMap, userId, friendId) => {
+        return txFromCurrencyMap(
+            personalExpenseBalanceMap, userId, friendId, roundCurrency, currencyDigits, "all_personal"
+        );
+    };
+
+    // const generateSettleGroupAggregate = (simplifiedTransactions, userId, friendId) => {
+    //     const map = computeGroupAggregateMap(simplifiedTransactions, userId, friendId);
+    //     const idsByCode = collectGroupIdsByCurrency(simplifiedTransactions, userId, friendId);
+    //     const groupsByCur = collectGroupPartiesByCurrency(
+    //     simplifiedTransactions, userId, friendId, roundCurrency, currencyDigits
+    //     );  
+    //     console.log(groupsByCur);
+
+    //     return txFromCurrencyMap(map, userId, friendId, roundCurrency, currencyDigits, "all_groups", groupsByCur);
+    // };
+
+    // // Personal: no groupIds
+    // const generateSettlePersonal = (personalExpenseBalanceMap, userId, friendId) => {
+    //     return txFromCurrencyMap(personalExpenseBalanceMap, userId, friendId, roundCurrency, currencyDigits, "all_personal");
+    // };
+
+    // Returns: [{ group: { _id, name }, items: [{from,to,amount,currency}], totals: { [code]: number }}]
+    const listPerGroupSimplifiedWithFriend = (simplifiedTransactions, userId, friendId) => {
+        const uid = String(userId || "");
+        const fid = String(friendId || "");
+        const out = [];
+
+        for (const tx of simplifiedTransactions || []) {
+            const from = String(tx?.from || "");
+            const to = String(tx?.to || "");
+            if (!from || !to) continue;
+
+            const isPair =
+                (from === uid && to === fid) ||
+                (from === fid && to === uid);
+            if (!isPair) continue;
+
+            out.push({
+                from,
+                to,
+                amount: Number(tx?.amount) || 0,
+                currency: tx?.currency || "INR",
+                type: 'group',
+                groupId: tx?.group?._id,
+                name: tx?.group?.name || "Unnamed Group"
+            });
+        }
+
+        return out;
+    };
+
+    const settlementLists = useMemo(() => {
+        if (!userId || !friend?._id) return [];
+        console.log(netExpenseBalanceMap);
+
+        const net = generateSettleAllNet(netExpenseBalanceMap, userId, friend._id, simplifiedTransactions);
+        const personal = generateSettlePersonal(personalExpenseBalanceMap, userId, friend._id);
+        const allGrp = generateSettleGroupAggregate(simplifiedTransactions, userId, friend._id);
+        const perGrp = listPerGroupSimplifiedWithFriend(simplifiedTransactions, userId, friend._id);
+
+        return [...net, ...personal, ...allGrp, ...perGrp];
+    }, [userId, friend?._id, netExpenseBalanceMap, personalExpenseBalanceMap, simplifiedTransactions]);
+
     return (
         <MainLayout>
             <SEO
@@ -398,9 +750,9 @@ const FriendDetails = () => {
                 }}
             />
 
-            <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
-                <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
-                    <div className="flex flex-1 flex-row gap-2">
+            <div className="max-w-full h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
+                <div className="max-w-full bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row justify-between">
+                    <div className="max-w-full flex flex-1 flex-row gap-2">
                         <button onClick={() => {
                             logEvent('navigate', {
                                 fromScreen: 'friend_detail', toScreen: 'friends', source: 'back'
@@ -410,8 +762,8 @@ const FriendDetails = () => {
                         }>
                             <ChevronLeft />
                         </button>
-                        <h1 className={`${friend?.name ? 'text-[#EBF1D5]' : 'text-[#121212]'} text-3xl font-bold capitalize`}>{friend?.name ? friend?.name : "Loading"}</h1>
-                        <div className="flex flex-1 justify-end flex-row items-end">
+                        <h1 className={`${friend?.name ? 'text-[#EBF1D5]' : 'text-[#121212]'} text-3xl font-bold capitalize text-wrap break-words max-w-[80%]`}>{friend?.name ? friend?.name : "Loading"}</h1>
+                        <div className="flex flex-1 justify-end flex-row items-center">
                             <button
                                 className="flex flex-col items-center justify-center z-10 w-8 h-8 rounded-full shadow-md text-2xl"
                                 onClick={() => {
@@ -460,7 +812,7 @@ const FriendDetails = () => {
 
                         </div>
                     </div>
-                    <div className="flex flex-col flex-1 w-full overflow-y-auto pt-1 no-scrollbar gap-3">
+                    <div className="flex flex-col flex-1 w-full overflow-y-auto pt-1 no-scrollbar gap-3  pb-16">
 
                         {/* ---- LOANS SECTION ---- */}
                         {activeSection === "loans" && (<>
@@ -468,7 +820,7 @@ const FriendDetails = () => {
                             {loans.length !== 0 && (
                                 <div className="pt-2">
                                     <div className="mb-3">
-                                        <p className="text-sm text-gray-400">Net Loan Balance</p>
+                                        <p className="text-sm text-[#888]">Net Loan Balance</p>
 
                                         {/* Per-currency lines */}
                                         {Object.keys(netLoanBalanceMap || {}).length > 0 ? (
@@ -476,7 +828,7 @@ const FriendDetails = () => {
                                                 {Object.entries(netLoanBalanceMap).map(([code, amt]) => {
                                                     const sym = getSymbol(code);
                                                     const d = currencyDigits(code);
-                                                    const cls = amt > 0 ? "text-teal-500" : amt < 0 ? "text-red-400" : "text-white";
+                                                    const cls = amt > 0 ? "text-teal-500" : amt < 0 ? "text-red-400" : "text-[#EBF1D5]";
                                                     return (
                                                         <p key={code} className={`text-2xl font-semibold ${cls}`}>
                                                             {amt > 0 ? "they owe you" : amt < 0 ? "you owe them" : "All Settled"}{" "}
@@ -486,7 +838,7 @@ const FriendDetails = () => {
                                                 })}
                                             </div>
                                         ) : (
-                                            <p className="text-2xl font-semibold text-white">All Settled</p>
+                                            <p className="text-2xl font-semibold text-[#EBF1D5]">All Settled</p>
                                         )}
                                     </div>
                                 </div>
@@ -587,7 +939,7 @@ const FriendDetails = () => {
                                 {expenses.length !== 0 && (
                                     <div className="pb-2 pt-2">
                                         <div>
-                                            <p className="text-sm text-gray-400">Net Expenses Balance</p>
+                                            <p className="text-sm text-[#888]">Net Expenses Balance</p>
 
                                             {/* Per-currency lines */}
                                             {Object.keys(netExpenseBalanceMap || {}).length > 0 ? (
@@ -595,7 +947,7 @@ const FriendDetails = () => {
                                                     {Object.entries(netExpenseBalanceMap).map(([code, amt]) => {
                                                         const sym = getSymbol(code);
                                                         const d = currencyDigits(code);
-                                                        const cls = amt > 0 ? "text-teal-500" : amt < 0 ? "text-red-400" : "text-white";
+                                                        const cls = amt > 0 ? "text-teal-500" : amt < 0 ? "text-red-400" : "text-[#EBF1D5]";
                                                         return (
                                                             <p key={code} className={`text-2xl font-semibold ${cls}`}>
                                                                 {amt > 0 ? "you are owed" : amt < 0 ? "you owe" : "All Settled"}{" "}
@@ -605,9 +957,64 @@ const FriendDetails = () => {
                                                     })}
                                                 </div>
                                             ) : (
-                                                <p className="text-2xl font-semibold text-white">All Settled</p>
+                                                <p className="text-2xl font-semibold text-[#EBF1D5]">All Settled</p>
                                             )}
                                         </div>
+                                        {Object.keys(netExpenseBalanceMap || {}).length > 0 && <div>
+                                            <p className="text-sm text-[#888] mt-2">Personal Expenses Balance</p>
+                                            {Object.keys(personalExpenseBalanceMap || {}).length > 0 ? (
+                                                <div className="flex flex-col gap-1">
+                                                    {Object.entries(personalExpenseBalanceMap).map(([code, amt]) => {
+                                                        const sym = getSymbol(code);
+                                                        const d = currencyDigits(code);
+                                                        const cls = amt > 0 ? "text-teal-500" : amt < 0 ? "text-red-400" : "text-[#EBF1D5]";
+                                                        return (
+                                                            <p key={code} className={`text-lg font-semibold`}>
+                                                                {amt > 0 ? "you are owed" : amt < 0 ? "you owe" : "All Settled"}{" "}
+                                                                {sym} {Math.abs(amt).toFixed(d)}
+                                                            </p>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <p className="text-2xl font-semibold text-[#EBF1D5]">All Settled</p>
+                                            )}
+                                        </div>}
+                                        {/* Simplified Transactions from Groups */}
+                                        {simplifiedTransactions?.length > 0 && (
+                                            <div className="mt-1">
+                                                <p className="text-sm text-[#888] mb-1">Group Settlements</p>
+                                                <div className="flex flex-col gap-2">
+                                                    {simplifiedTransactions.map((tx, idx) => {
+                                                        const sym = getSymbol(tx.currency);
+                                                        const d = currencyDigits(tx.currency);
+
+                                                        const fromName = tx.from === userId ? "You" : friend?.name;
+                                                        const toName = tx.to === userId ? "You" : friend?.name;
+
+                                                        return (
+                                                            <div
+                                                                key={idx}
+                                                                onClick={() => navigate(`/groups/${tx?.group?._id}`)}
+                                                                className="p-2 rounded-lg bg-[#1f1f1f] border border-[#2a2a2a] text-sm"
+                                                            >
+                                                                <p>
+                                                                    <span className="font-semibold">{fromName}</span> owes{" "}
+                                                                    <span className="font-semibold">{toName}</span>{" "}
+                                                                    {sym} {tx.amount.toFixed(d)}
+                                                                </p>
+                                                                {tx.group?.name && (
+                                                                    <p className="text-xs text-[#888]">
+                                                                        From group: {tx.group.name}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
 
                                         {/* Actions (gate UPI to INR only) */}
                                         <div>
@@ -624,7 +1031,7 @@ const FriendDetails = () => {
                                                                 logEvent("open_payment_modal", { screen: "friend_detail" });
                                                                 setShowPaymentModal(true);
                                                             }}
-                                                            className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
+                                                            className="bg-teal-600 text-[#EBF1D5] px-4 py-2 rounded-md text-sm"
                                                         >
                                                             Make Payment
                                                         </button>
@@ -662,7 +1069,7 @@ const FriendDetails = () => {
                                                             setSettleType("full");
                                                             setShowSettleModal(true);
                                                         }}
-                                                        className="bg-teal-600 text-white px-4 py-2 rounded-md text-sm"
+                                                        className="bg-teal-600 text-[#EBF1D5] px-4 py-2 rounded-md text-sm"
                                                     >
                                                         Settle
                                                     </button>
@@ -776,7 +1183,10 @@ const FriendDetails = () => {
                 <SettleModal
                     showModal={showSettleModal}
                     setShowModal={setShowSettleModal}
-                    simplifiedTransactions={generateSimplifiedTransactionsByCurrency(netExpenseBalanceMap, userId, friend._id)}
+                    // simplifiedTransactions={generateSimplifiedTransactionsByCurrency(netExpenseBalanceMap, userId, friend._id)}
+                    simplifiedTransactions={settlementLists}
+                    settlementLists={settlementLists}
+                    defaultSettleMode="net"
                     friends={[{ id: userId, name: 'You' }, { id: friend._id, name: friend.name, upiId: friend?.upiId }]}
                     onSubmit={handleSettle}
                     prefill={prefillSettle}
@@ -851,7 +1261,7 @@ const FriendDetails = () => {
                             }
                             }
                             aria-label="Add Expense"
-                            className="fixed right-4 bottom-22 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition text-white px-5 py-4 flex items-center gap-2"
+                            className="fixed right-4 bottom-22 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition text-[#EBF1D5] px-5 py-4 flex items-center gap-2"
                         >
                             <Plus size={18} />
                             <span className="text-sm font-semibold">Add Expense</span>
@@ -869,7 +1279,7 @@ const FriendDetails = () => {
                             }
                             }
                             aria-label="Add a Loan"
-                            className="fixed right-4 bottom-22 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition text-white px-5 py-4 flex items-center gap-2"
+                            className="fixed right-4 bottom-22 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition text-[#EBF1D5] px-5 py-4 flex items-center gap-2"
                         >
                             <Plus size={18} />
                             <span className="text-sm font-semibold">New Loan</span>

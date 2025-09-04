@@ -18,7 +18,7 @@ const Navbar = () => {
         return <div>Loading...</div>;
     }
     return (
-        <nav className="fixed top-0 left-0 w-full bg-[#212121] text-white px-4 sm:px-6 py-4 flex items-center justify-between z-100">
+        <nav className="fixed top-0 left-0 w-full bg-[#212121] text-[#EBF1D5] px-4 sm:px-6 py-4 flex items-center justify-between z-100">
             {/* Logo */}
             <Link to="/" className="text-2xl font-bold">
                 Expensease

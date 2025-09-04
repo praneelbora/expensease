@@ -225,7 +225,7 @@ export default function GroupSettings() {
                                 />
                                 {newGroupName != group?.name && <button
                                     onClick={handleGroupRename}
-                                    className="mt-2 px-4 py-2 bg-teal-500 text-white rounded"
+                                    className="mt-2 px-4 py-2 bg-teal-500 text-[#EBF1D5] rounded"
                                 >
                                     Save
                                 </button>}
@@ -420,7 +420,7 @@ export default function GroupSettings() {
                                     logEvent('group_delete')
                                     setConfirmAction('delete')
                                 }}
-                                className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm"
+                                className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-[#EBF1D5] text-sm"
                                 disabled={busyAction}
                             >
                                 Delete Group
@@ -482,7 +482,7 @@ export default function GroupSettings() {
                                         }
                                     }}
                                     disabled={busyAction}
-                                    className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm"
+                                    className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-[#EBF1D5] text-sm"
                                 >
                                     {busyAction ? "Deleting..." : "Delete Group"}
                                 </button>

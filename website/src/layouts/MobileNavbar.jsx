@@ -47,7 +47,7 @@ const MobileNavbar = ({ groupId }) => {
                             key={index}
                             state={item.state}
                             className={`flex flex-col items-center justify-center text-xl ${isActive ? "text-teal-300" : "text-[#EBF1D5]"
-                                } ${item.isCenter ? "relative z-10 -mt-6  bg-teal-500 text-white w-16 h-16 mx-1 rounded-full shadow-md" : "flex-1"}`}
+                                } ${item.isCenter ? "relative z-10 -mt-6  bg-teal-500 text-[#EBF1D5] w-16 h-16 mx-1 rounded-full shadow-md" : "flex-1"}`}
                         >
                             {item.icon}
                             {!item.isCenter && (

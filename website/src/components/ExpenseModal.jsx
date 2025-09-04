@@ -64,7 +64,6 @@ export default function ExpenseModal({
         auditLog
     } = showModal || {};
 
-
     const [loading, setLoading] = useState(false);
     const [showCategoryModal, setShowCategoryModal] = useState(false);
     const categoryOptions = getCategoryOptions();
@@ -647,16 +646,14 @@ export default function ExpenseModal({
                 // Use either .friendId._id or .friendId if it's an ID, depending on how your data is structured
                 const fid = s.friendId._id || s.friendId;
                 if (s?.paidFromPaymentMethodId) { // adjust name if needed
-                    oldSelections[fid] = s?.paidFromPaymentMethodId;
+                    oldSelections[fid] = s?.paidFromPaymentMethodId?._id ? s?.paidFromPaymentMethodId?._id : null;
                 }
             });
         }
-
         setSelectedFriends((prev) =>
             prev.map((f) => {
                 const raw = map[f._id === 'me' ? user._id : f._id] || [];
                 let selectedPaymentMethodId = f.selectedPaymentMethodId;
-
                 // If editing (showModal), set from old if present & valid
                 const oldSelected = oldSelections[f._id];
                 if (oldSelected && raw.some(m => m.paymentMethodId === oldSelected)) {
@@ -806,7 +803,7 @@ export default function ExpenseModal({
                             <button
                                 onClick={handleSave}
                                 disabled={loading || !shouldShowSubmitButton()}
-                                className={`px-4 py-2 rounded-md ${shouldShowSubmitButton() ? 'bg-teal-500' : 'bg-gray-500'} text-white text-sm inline-flex items-center gap-1`}
+                                className={`px-4 py-2 rounded-md ${shouldShowSubmitButton() ? 'bg-teal-500' : 'bg-gray-500'} text-[#EBF1D5] text-sm inline-flex items-center gap-1`}
                             >
                                 <Save size={16} /> Save
                             </button>
@@ -815,10 +812,23 @@ export default function ExpenseModal({
                                     setIsEditing(false);
                                     setForm({
                                         description: description || "",
+                                        category: category || "",
                                         amount: amount ?? 0,
                                         date: toInputDate(date) || "",
+                                        typeOf: showModal?.typeOf || "expense",     // 'expense' | 'settle'
+                                        mode: showModal?.mode || "personal",        // 'personal' | 'split'
+                                        splitMode: showModal?.splitMode || "equal", // 'equal' | 'value' | 'percent'
+                                        // keep only ids for friendId (backend expects ids)
+                                        splits: (splits || []).map(s => ({
+                                            ...s,
+                                            friendId: s?.friendId?._id || s?.friendId, // normalize
+                                            payAmount: s?.payAmount ?? 0,
+                                            oweAmount: s?.oweAmount ?? 0,
+                                            paying: !!s?.paying,
+                                            owing: !!s?.owing,
+                                        })),
+                                        currency: showModal?.currency || 'INR'
                                     });
-                                    setReSplit(false);
                                 }}
                                 disabled={loading}
                                 className="px-4 py-2 rounded-md border border-[#55554f] hover:bg-[#2a2a2a] text-sm inline-flex items-center gap-1"
@@ -844,7 +854,7 @@ export default function ExpenseModal({
                             handleDelete();
                         }}
                         disabled={loading}
-                        className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm inline-flex items-center gap-1"
+                        className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-[#EBF1D5] text-sm inline-flex items-center gap-1"
                     >
                         <Trash2 size={16} /> Confirm
                     </button>
@@ -938,8 +948,6 @@ export default function ExpenseModal({
                                         {splits
                                             .filter((s) => (s.payAmount || 0) > 0 || (s.oweAmount || 0) > 0)
                                             .map((s, idx) => {
-                                                console.log(splits);
-
                                                 const name = s?.friendId?._id == userId ? 'You' : s?.friendId?.name || "Member";
                                                 const payTxt =
                                                     (s.payAmount || 0) > 0 ? `paid ${getSymbol(currency)} ${fmtMoney(s.payAmount)}` : "";
@@ -1197,7 +1205,7 @@ export default function ExpenseModal({
                                                             onChange={(e) => {
                                                                 const val = parseFloat(e.target.value || 0);
                                                                 setSelectedFriends((prev) =>
-                                                                    prev.map((f) => (f._id === friend._id ? { ...f, payAmount: val } : f))
+                                                                    prev.map((prevF) => (f._id === prevF._id ? { ...prevF, payAmount: val } : f))
                                                                 );
                                                             }}
                                                             placeholder="Amount"

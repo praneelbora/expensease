@@ -385,7 +385,7 @@ export default function Account() {
                                 <div className="mt-1 relative">
                                     <button
                                         onClick={() => setShowDefaultModal(true)}
-                                        className="w-full bg-[#2A2A2A] text-white px-3 py-2 rounded border border-transparent text-left pr-10"
+                                        className="w-full bg-[#2A2A2A] text-[#EBF1D5] px-3 py-2 rounded border border-transparent text-left pr-10"
                                         aria-haspopup="dialog"
                                         aria-expanded={showDefaultModal ? 'true' : 'false'}
                                     >
@@ -421,24 +421,24 @@ export default function Account() {
                                 onSelect={(cur) => { setDc(cur); saveCurrencyPrefs(cur); setShowDefaultModal(false); }}
                             />
                             <section
-  role="button"
-  aria-label="Download expenses"
-  onClick={() => exportExpensesToExcel(expenses, userId)}
-  className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-between cursor-pointer transition-colors hover:bg-white/5"
->
-  <header className="flex items-center justify-between mb-2">
-    <h2 className="text-sm text-teal-500 uppercase tracking-wide">
-      Download Expenses ⬇️
-    </h2>
-    <div
-      className="w-[1px] self-stretch bg-[#212121]"
-      aria-hidden="true"
-    />
-  </header>
-  <p className="text-[#888] text-sm">
-    Export all your personal, group & split expenses to an Excel sheet 📊
-  </p>
-</section>
+                                role="button"
+                                aria-label="Download expenses"
+                                onClick={() => exportExpensesToExcel(expenses, userId)}
+                                className="bg-[#1E1E1E] p-4 rounded-xl shadow flex flex-col justify-between cursor-pointer transition-colors hover:bg-white/5"
+                            >
+                                <header className="flex items-center justify-between mb-2">
+                                    <h2 className="text-sm text-teal-500 uppercase tracking-wide">
+                                        Download Expenses ⬇️
+                                    </h2>
+                                    <div
+                                        className="w-[1px] self-stretch bg-[#212121]"
+                                        aria-hidden="true"
+                                    />
+                                </header>
+                                <p className="text-[#888] text-sm">
+                                    Export all your personal, group & split expenses to an Excel sheet 📊
+                                </p>
+                            </section>
                             {/* Categories manage */}
                             {/* <section ref={categoryRef} id="category-section" className={`transition-all ${highlightCls('category')}`}>
                                 <CategoriesManage userToken={userToken} highlightCls={highlightCls} />
@@ -481,7 +481,7 @@ export default function Account() {
                                         logEvent('logout', { fromScreen: 'account' });
                                         if (confirm('Log out of Expensease?')) logout();
                                     }}
-                                    className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm"
+                                    className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-[#EBF1D5] text-sm"
 
                                 >
                                     Logout

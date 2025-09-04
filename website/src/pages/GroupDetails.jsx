@@ -668,7 +668,7 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups?join=${group.code}`;
 
                             aria-label="Add Expense"
                             className="fixed right-4 bottom-22 z-50 rounded-full bg-teal-500 hover:bg-teal-600 active:scale-95 transition 
-                           text-white px-5 py-4 flex items-center gap-2"
+                           text-[#EBF1D5] px-5 py-4 flex items-center gap-2"
                         >
                             <Plus size={18} />
                             <span className="text-sm font-semibold">Add Expense</span>

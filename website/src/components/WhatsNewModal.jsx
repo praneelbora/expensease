@@ -8,7 +8,7 @@ export default function WhatsNewModal({ open, onClose, entries = [], loading }) 
             <div className="relative w-full sm:max-w-lg bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-4 sm:p-5 m-2">
                 <div className="flex items-center justify-between mb-2">
                     <h3 className="text-xl font-semibold">What’s New</h3>
-                    <button onClick={onClose} className="text-sm text-[#a0a0a0] hover:text-white">Close</button>
+                    <button onClick={onClose} className="text-sm text-[#a0a0a0] hover:text-[#EBF1D5]">Close</button>
                 </div>
 
                 {loading ? (
