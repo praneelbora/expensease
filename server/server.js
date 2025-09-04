@@ -10,6 +10,8 @@ const expenses = require('./routes/v1/expenses');
 const loans = require('./routes/v1/loans');
 const paymentMethods = require('./routes/v1/paymentMethods');
 
+const expenses2 = require('./routes/v2/expenses');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -33,6 +35,7 @@ app.use('/api/v1/expenses', expenses);
 app.use('/api/v1/loans', loans);
 app.use('/api/v1/paymentMethods', paymentMethods);
 
+app.use('/api/v2/expenses', expenses2);
 module.exports = app;
 // const PORT = process.env.PORT || 3000;
 // app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

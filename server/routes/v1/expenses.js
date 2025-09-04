@@ -359,7 +359,7 @@ router.get('/', auth, async (req, res) => {
 
 router.post('/settle', auth, async (req, res) => {
     try {
-        const { fromUserId, toUserId, amount, note, groupId, currency } = req.body;
+        const { fromUserId, toUserId, amount, note, groupId, groupIds, currency, type } = req.body;
 
         if (!fromUserId || !toUserId || !amount) {
             return res.status(400).json({ error: "Missing required fields." });

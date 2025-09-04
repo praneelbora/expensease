@@ -172,4 +172,30 @@ router.delete("/:groupId", auth, async (req, res) => {
     }
 });
 
+router.post('/:groupId/addMembers', auth, async (req, res) => {
+    const { members } = req.body; // array of userIds
+
+    try {
+        const group = await Group.findById(req.params.groupId);
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        let added = [];
+        for (const memberId of members || []) {
+            if (!group.members.includes(memberId)) {
+                group.members.push(memberId);
+                added.push(memberId);
+            }
+        }
+
+        await group.save();
+        const populated = await Group.findById(group._id)
+            .populate("members", "name email")
+            .populate("createdBy", "name email");
+
+        res.json({ group: populated, added });
+    } catch (error) {
+        console.error("addMembers error:", error);
+        res.status(400).json({ error: error.message });
+    }
+});
 module.exports = router;
