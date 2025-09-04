@@ -186,9 +186,9 @@ export default function Transactions() {
                 {/* List */}
                 <div className="flex-1">
                     {loading ? (
-                        <div className="text-sm text-[#B8C4A0]">Loading…</div>
+                        <div className="text-sm ">Loading…</div>
                     ) : txns.length === 0 ? (
-                        <div className="text-sm text-[#B8C4A0]">No transactions found.</div>
+                        <div className="text-sm ">No transactions found.</div>
                     ) : (
                         <ul className="space-y-2">
                             {txns.map(t => {

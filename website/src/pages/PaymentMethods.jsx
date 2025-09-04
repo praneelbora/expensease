@@ -219,9 +219,9 @@ const PaymentMethods = () => {
                 <div ref={scrollRef} className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar scroll-touch gap-3 pb-[15px]">
 
                     {loadingPaymentMethods ? (
-                        <div className="text-sm text-[#B8C4A0]">Loading…</div>
+                        <div className="text-sm ">Loading…</div>
                     ) : filtered.length === 0 ? (
-                        <div className="text-sm text-[#B8C4A0]">No payment accounts yet.</div>
+                        <div className="text-sm ">No payment accounts yet.</div>
                     ) : (
                         <ul className="space-y-3"><div className="flex w-full justify-end">
                             <button

@@ -298,7 +298,14 @@ const GroupDetails = () => {
 
     useEffect(() => {
         if (totalDebt) {
-            const tx = simplifyDebts(totalDebt, group.members);
+            let tx = simplifyDebts(totalDebt, group.members);
+            tx = tx.map(t => ({
+                ...t,
+                type: "group",
+                groupId: group?._id,
+                name: group?.name
+            }));
+
             if (group?.settings?.enforcePrivacy) {
                 setSimplifiedTransactions(tx.filter(t => t.from === userId || t.to === userId));
             } else {

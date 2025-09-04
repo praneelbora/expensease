@@ -1,3 +1,4 @@
+// src/components/CategoryDistribution.jsx
 "use client";
 
 import { PieChart, Pie, LabelList } from "recharts";
@@ -17,24 +18,32 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 
-export default function CategoryDistribution({ expenses, userId, defaultCurrency }) {
+// Try to be robust about where currency lives
+const getCurrencyCode = (exp) =>
+    exp?.currencyCode ||
+    exp?.currency?.code ||
+    exp?.currency ||
+    exp?.meta?.currency ||
+    "INR";
+
+export default function CategoryDistribution({ expenses, userId, defaultCurrency = "INR" }) {
     const [timeRange, setTimeRange] = useState("thisMonth");
     const [expenseType, setExpenseType] = useState("all");
+    const [currency, setCurrency] = useState(defaultCurrency); // no ALL; default only
 
-    // --- filter expenses by time + type ---
-    const filteredExpenses = useMemo(() => {
+    // --- filter by time + type (currency-agnostic for discovering currencies) ---
+    const baseFiltered = useMemo(() => {
         const now = new Date();
         const start = new Date();
 
         if (timeRange === "thisMonth") {
             start.setMonth(now.getMonth(), 1);
         } else if (timeRange === "last3m") {
-            start.setMonth(now.getMonth() - 2, 1); // includes this + 2 prev months
+            start.setMonth(now.getMonth() - 2, 1); // includes this + 2 previous months
         } else if (timeRange === "thisYear") {
             start.setMonth(0, 1);
         }
         start.setHours(0, 0, 0, 0);
-
 
         return (expenses || []).filter((exp) => {
             if (exp.typeOf !== "expense") return false;
@@ -42,7 +51,6 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
             const d = new Date(exp.date || exp.createdAt);
             if (d < start) return false;
 
-            // type filter
             if (expenseType === "personal") {
                 return !exp.groupId && (!exp.splits || exp.splits.length === 0);
             }
@@ -56,7 +64,27 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
         });
     }, [expenses, timeRange, expenseType]);
 
-    // --- build chart data ---
+    // --- available currencies within current time/type scope ---
+    const availableCurrencies = useMemo(() => {
+        const set = new Set(baseFiltered.map(getCurrencyCode));
+        const list = Array.from(set).filter(Boolean).sort();
+        // keep selected currency in sync if it disappears (e.g., filters changed)
+        if (list.length && !list.includes(currency)) {
+            // pick defaultCurrency if present else first available
+            const next = list.includes(defaultCurrency) ? defaultCurrency : list[0];
+            setCurrency(next);
+        }
+        return list;
+    }, [baseFiltered, currency, defaultCurrency]);
+
+    const showCurrencySelect = availableCurrencies.length > 1;
+
+    // --- final filtered list by chosen currency ---
+    const filteredExpenses = useMemo(() => {
+        return baseFiltered.filter((exp) => getCurrencyCode(exp) === currency);
+    }, [baseFiltered, currency]);
+
+    // --- build chart data in selected currency ---
     const categoryChart = useMemo(() => {
         const totals = {};
 
@@ -65,11 +93,12 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
             const userSplit = exp.splits?.find((s) => s.friendId?._id === userId);
 
             if (userSplit?.owing) {
-                totals[cat] = (totals[cat] || 0) + (userSplit.oweAmount || 0);
+                totals[cat] = (totals[cat] || 0) + Number(userSplit.oweAmount || 0);
             }
 
+            // personal (non-split, non-group) expense
             if (!exp.groupId && (!exp.splits || exp.splits.length === 0)) {
-                totals[cat] = (totals[cat] || 0) + (exp.amount || 0);
+                totals[cat] = (totals[cat] || 0) + Number(exp.amount || 0);
             }
         });
 
@@ -80,20 +109,15 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
         let otherSum = 0;
 
         for (const [name, value] of entries) {
-            const pct = (value / totalValue) * 100;
-            if (pct >= 7) {
-                big.push({ name, value });
-            } else {
-                otherSum += value;
-            }
+            const pct = totalValue ? (value / totalValue) * 100 : 0;
+            if (pct >= 7 || big.length <= 4) big.push({ name, value });
+            else otherSum += value;
         }
-
-        if (otherSum > 0) {
-            big.push({ name: "Other", value: otherSum });
-        }
+        // big.push({ name: "Other", value: otherSum });
 
         return big;
     }, [filteredExpenses, userId]);
+
 
     const chartConfig = categoryChart.reduce((acc, c, i) => {
         acc[c.name] = {
@@ -108,12 +132,14 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
         fill: `var(--chart-${(i % 9) + 1})`,
     }));
 
+    const symbol = getSymbol(currency) || "";
+
     return (
         <div className="bg-[#1f1f1f] p-4 rounded-xl shadow-md overflow-hidden">
             <div className="flex flex-col mb-2 gap-2">
                 <h3 className="text-lg font-semibold">Category Distribution</h3>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                     {/* Time Range */}
                     <Select value={timeRange} onValueChange={setTimeRange}>
                         <SelectTrigger className="w-[140px] border-[#EBF1D5] bg-[#212121] text-[#EBF1D5] text-xs">
@@ -133,8 +159,14 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
                     </Select>
 
                     {/* Expense Type */}
-                    <Select value={expenseType} onValueChange={setExpenseType}>
-                        <SelectTrigger className="w-[120px] border-[#EBF1D5] bg-[#212121] text-[#EBF1D5] text-xs">
+                    <Select
+                        value={expenseType}
+                        onValueChange={(v) => {
+                            setExpenseType(v);
+                            // keep currency stable if still available; else reset in availableCurrencies effect
+                        }}
+                    >
+                        <SelectTrigger className="w-[140px] border-[#EBF1D5] bg-[#212121] text-[#EBF1D5] text-xs">
                             <SelectValue placeholder="Type" />
                         </SelectTrigger>
                         <SelectContent className="border-[#EBF1D5] bg-[#212121]">
@@ -142,16 +174,32 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
                                 All Expenses
                             </SelectItem>
                             <SelectItem className="text-[#EBF1D5]" value="personal">
-                                Personal Expenses
+                                Personal
                             </SelectItem>
                             <SelectItem className="text-[#EBF1D5]" value="group">
-                                Group Expenses
+                                Group
                             </SelectItem>
                             <SelectItem className="text-[#EBF1D5]" value="friend">
-                                Friend Expenses
+                                Friend
                             </SelectItem>
                         </SelectContent>
                     </Select>
+
+                    {/* Currency (only when >1 available) */}
+                    {showCurrencySelect && (
+                        <Select value={currency} onValueChange={setCurrency}>
+                            <SelectTrigger className="w-[120px] border-[#EBF1D5] bg-[#212121] text-[#EBF1D5] text-xs">
+                                <SelectValue placeholder="Currency" />
+                            </SelectTrigger>
+                            <SelectContent className="border-[#EBF1D5] bg-[#212121]">
+                                {availableCurrencies.map((code) => (
+                                    <SelectItem key={code} value={code} className="text-[#EBF1D5]">
+                                        {getSymbol(code) ? `${getSymbol(code)} • ${code}` : code}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
                 </div>
             </div>
 
@@ -160,19 +208,37 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
                 className="mx-auto aspect-square h-[300px]"
             >
                 <PieChart>
-                    <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                    <ChartTooltip
+                        content={
+                            <ChartTooltipContent
+                                hideLabel
+                                className={"bg-[#212121]"}
+                                // currency formatting in tooltip
+                                formatter={(value, name) => (
+                                    <span className="text-foreground font-mono font-medium tabular-nums">
+                                        {name}: {symbol} {Number(value || 0).toFixed(2)}
+                                    </span>
+                                )}
+                            />
+                        }
+                    />
                     <Pie
                         data={categoryChartWithColors}
                         dataKey="value"
                         nameKey="name"
                         outerRadius={140}
                     >
-                        <LabelList
-                            dataKey="name"
-                            fill="#ffffff"
-                            stroke="none"
-                            fontSize={12}
-                        />
+                        {/* Category names around the pie */}
+                        <LabelList dataKey="name" fill="#ffffff" stroke="none" fontSize={12} />
+                        {/* Optional: value labels on slices; uncomment if you want amounts on the chart
+            <LabelList
+              dataKey="value"
+              position="outside"
+              formatter={(val) => `${symbol}${Number(val||0).toFixed(2)}`}
+              fill="#ffffff"
+              stroke="none"
+              fontSize={11}
+            /> */}
                     </Pie>
                 </PieChart>
             </ChartContainer>
@@ -182,8 +248,7 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
                     <div key={c.name} className="flex items-center justify-between">
                         <span className="truncate">{c.name}</span>
                         <span className="text-[#ededed]">
-                            {getSymbol(defaultCurrency)}
-                            {Number(c.value || 0).toFixed(2)}
+                            {symbol} {Number(c.value || 0).toFixed(2)}
                         </span>
                     </div>
                 ))}

@@ -59,7 +59,7 @@ export default function WhatsNew({ variant = "fab" }) {
                 }
             >
                 {loading ? (
-                    <div className="text-sm text-[#B8C4A0]">Loading…</div>
+                    <div className="text-sm ">Loading…</div>
                 ) : sorted.length === 0 ? (
                     <div className="text-sm text-[#888]">No updates yet.</div>
                 ) : (

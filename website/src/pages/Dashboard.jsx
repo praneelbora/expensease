@@ -629,7 +629,7 @@ const Dashboard = () => {
                                                 });
                                                 setShowPaymentModal(true);
                                             }}
-                                            className="bg-[#1f1f1f] p-4 rounded-xl shadow-md min-w-[calc(50%-8px)] snap-start"
+                                            className="bg-[#1f1f1f] p-4 rounded-xl  min-w-[calc(50%-8px)] snap-start"
                                         >
                                             <div className="w-full flex flex-col justify-center items-center">
                                                 <Plus strokeWidth={4} width={30} height={30} />
@@ -698,7 +698,7 @@ const Dashboard = () => {
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
                                     {/* Total */}
                                     <div
-                                        className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                        className="bg-[#1f1f1f] p-4 rounded-xl  w-full cursor-pointer"
                                         role="button"
                                         aria-label="Open all expenses"
                                         onClick={() => {
@@ -729,7 +729,7 @@ const Dashboard = () => {
                                     {/* Personal */}
                                     {Object.keys(stats.personal.amount).length > 0 && (
                                         <div
-                                            className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                            className="bg-[#1f1f1f] p-4 rounded-xl  w-full cursor-pointer"
                                             role="button"
                                             aria-label="Open personal expenses"
                                             onClick={() => {
@@ -755,7 +755,7 @@ const Dashboard = () => {
                                     {/* Group */}
                                     {Object.keys(stats.group.amount).length > 0 && (
                                         <div
-                                            className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                            className="bg-[#1f1f1f] p-4 rounded-xl  w-full cursor-pointer"
                                             role="button"
                                             aria-label="Open group expenses"
                                             onClick={() => {
@@ -781,7 +781,7 @@ const Dashboard = () => {
                                     {/* Friend */}
                                     {Object.keys(stats.friend.amount).length > 0 && (
                                         <div
-                                            className="bg-[#1f1f1f] p-4 rounded-xl shadow-md w-full cursor-pointer"
+                                            className="bg-[#1f1f1f] p-4 rounded-xl  w-full cursor-pointer"
                                             role="button"
                                             aria-label="Open friend expenses"
                                             onClick={() => navigate('/expenses?type=friend')}
@@ -806,7 +806,11 @@ const Dashboard = () => {
                             {/* Recent Expenses (date grouped) */}
                             {expenses.length > 0 && (
                                 <div className="">
-                                    <div className="flex items-center justify-between">
+                                    <div onClick={() => {
+                                        logEvent('navigate', { fromScreen: 'dashboard', toScreen: 'expenses', source: 'view_all' });
+                                        navigate('/expenses');
+                                    }}
+                                        className="flex items-center justify-between">
                                         <h2 className="text-sm text-teal-500 uppercase">Recent Expenses</h2>
                                         <div className="flex items-center gap-3">
                                             <button

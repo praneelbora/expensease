@@ -87,7 +87,7 @@ const Guide = () => {
 
                     {/* Overview */}
                     <Section ref={refs.overview} id="overview" title="Overview" icon={Info}>
-                        <p className="text-[#B8C4A0]">
+                        <p className="">
                             Track personal and shared expenses, split fairly, and keep balances tidy. Privacy is built-in:
                             balances are blurred by default and revealed only when you choose.
                         </p>
@@ -231,6 +231,16 @@ const Guide = () => {
                                 ]}
                             />
                             <Feature
+                                icon={PieChart}
+                                title="Simplify Debts & Settle Up"
+                                points={[
+                                    "One-tap 'Settle All' for clean slates.",
+                                    "Suggests minimal transfers between friends.",
+                                    "Supports partial settlements and audit trail."
+                                ]}
+                            />
+
+                            <Feature
                                 icon={ShieldCheck}
                                 title="Privacy & Safety"
                                 points={[
@@ -329,7 +339,7 @@ const Guide = () => {
                         <div className="bg-[#1f1f1f] border border-[#2a2a2a] rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <h3 className="text-xl font-semibold">Ready to add your next expense?</h3>
-                                <p className="text-[#B8C4A0] text-sm">Quick add for personal, or split with friends & groups.</p>
+                                <p className=" text-sm">Quick add for personal, or split with friends & groups.</p>
                             </div>
                             <div className="flex flex-col w-full gap-2">
                                 <Primary onClick={() => {
@@ -372,7 +382,7 @@ const StatCard = ({ icon: Icon, title, desc }) => (
             <Icon size={18} className="opacity-80" />
             <h3 className="font-semibold">{title}</h3>
         </div>
-        <p className="text-sm text-[#B8C4A0]">{desc}</p>
+        <p className="text-sm ">{desc}</p>
     </div>
 );
 
