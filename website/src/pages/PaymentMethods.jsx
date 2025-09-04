@@ -42,6 +42,7 @@ const PaymentMethods = () => {
     const [selectedPM, setSelectedPM] = useState(null);
     const scrollRef = useRef(null);
     const [refreshing, setRefreshing] = useState(false);
+    console.log(paymentMethods);
 
     const doRefresh = async () => {
         setRefreshing(true);

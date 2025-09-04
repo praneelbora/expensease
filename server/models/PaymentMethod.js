@@ -39,6 +39,7 @@ const PaymentMethodSchema = new mongoose.Schema({
     status: { type: String, enum: ["unverified", "pending", "verified"], default: "unverified" },
     iconKey: { type: String, default: 'string' },
     notes: { type: String },
+    visibleForOthers: { type: Boolean, default: true },
     // meta
     usageCount: { type: Number, default: 0 },
 }, { timestamps: true });

@@ -129,7 +129,6 @@ router.post('/', auth, async (req, res) => {
 });
 
 
-
 // ───────────────────────────────────────────────────────────────────────────────
 // List paymentMethods (optionally filter by type/status)
 // ───────────────────────────────────────────────────────────────────────────────
@@ -177,7 +176,7 @@ router.patch('/:paymentMethodId', auth, async (req, res) => {
             'provider',
             'providerRef',
             'status',
-            // nested identifiers
+            'visibleForOthers',
             'upi',
             'bank',
             'card',
@@ -538,7 +537,13 @@ router.post('/public/friends', auth, async (req, res) => {
         // Only fetch paymentMethods that can RECEIVE (no sensitive projection here; we sanitize below)
         const paymentMethods = await PaymentMethod.find({
             userId: { $in: validIds },
+            $or: [
+                { visibleForOthers: { $exists: false } }, // legacy docs with no field
+                { visibleForOthers: true }                // explicitly set true
+            ]
         }).sort({ createdAt: -1 });
+
+        console.log(paymentMethods);
 
         // Group by friendId
         const grouped = Object.fromEntries(validIds.map((id) => [id, []]));

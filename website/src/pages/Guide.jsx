@@ -20,6 +20,7 @@ import {
     ChevronLeft,
 } from "lucide-react";
 import SEO from "../components/SEO";
+import { logEvent } from "../utils/analytics";
 
 const Guide = () => {
     const navigate = useNavigate();
@@ -217,23 +218,6 @@ const Guide = () => {
                                             fromScreen: 'guide', toScreen: 'account', source: 'key_features', section: 'currency',
                                         })
                                         navigate("/account?section=currency")
-                                    }
-                                }}
-                            />
-                            <Feature
-                                icon={PieChart}
-                                title="Categories & Insights"
-                                points={[
-                                    "Create your own categories.",
-                                    "Dashboard shows recent items & summaries.",
-                                    "Drill into personal, friend, or group totals.",
-                                ]}
-                                action={{
-                                    label: "Manage Categories", onClick: () => {
-                                        logEvent('navigate', {
-                                            fromScreen: 'guide', toScreen: 'account', source: 'key_features', section: 'category',
-                                        })
-                                        navigate("/account?section=category")
                                     }
                                 }}
                             />

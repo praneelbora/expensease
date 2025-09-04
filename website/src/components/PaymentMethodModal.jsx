@@ -25,6 +25,7 @@ const DEFAULT_FORM = {
     bank: { ifsc: "", accountLast4: "", nameOnAccount: "" },
     card: { brand: "", last4: "", expMonth: "", expYear: "" },
     iconKey: 'auto',
+    // visibleForOthers: true
     // optional flags (only if your backend accepts them on create/update)
     // isDefaultSend: false,
     // isDefaultReceive: false,
@@ -123,6 +124,7 @@ export default function PaymentMethodModal({
         };
         payload.isDefaultSend = !!form.isDefaultSend;
         payload.isDefaultReceive = !!form.isDefaultReceive;
+        payload.visibleForOthers = form.visibleForOthers !== false; // default true
         return payload;
     };
 
@@ -188,7 +190,7 @@ export default function PaymentMethodModal({
                     {saving ? "Saving…" : isEdit ? "Save Changes" : "Create Payment Account"}
                 </button>
             </div>}>
-            <div className="flex flex-col gap-y-4 overflow-y-scroll no-scollbar">
+            <div className="flex flex-col gap-y-2 overflow-y-scroll no-scollbar">
                 {error && (
                     <div className="text-sm text-red-400 bg-red-900/20 border border-red-700 rounded px-3 py-2">
                         {error}
@@ -228,8 +230,8 @@ export default function PaymentMethodModal({
                     <span><b>Label</b> and <b>Type</b> will be visible to friends while splitting</span>
 
                 </div>
-                <div className="flex flex-row gap-3">
-                    {!editing && <div className="flex-1">
+                {!editing && <div className="flex flex-row gap-3">
+                    <div className="flex-1">
                         <label className="text-xs text-[#9aa19a]">Balance</label>
                         <input
                             value={form.balance}
@@ -237,7 +239,7 @@ export default function PaymentMethodModal({
                             placeholder="Current Balance"
                             className="w-full text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base h-[45px] pl-3 flex-1 text-left"
                         />
-                    </div>}
+                    </div>
                     {parseFloat(form.balance) > 0 && <div className="flex-1">
                         <label className="block text-sm text-[#9aa08e] mb-1">Currency</label>
                         <button
@@ -257,7 +259,7 @@ export default function PaymentMethodModal({
                             preferredCurrencies={preferredCurrencies}
                         />
                     </div>}
-                </div>
+                </div>}
                 <div>
                     <label className="text-xs text-[#9aa19a]">Icon</label>
                     <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mt-2">
@@ -275,7 +277,7 @@ export default function PaymentMethodModal({
                         ))}
                     </div>
                     <p className="text-[11px] text-[#888] mt-1">
-                        Tip: choose <b>Auto</b> to use a sensible default based on the method type.
+                        Tip: choose <b>Auto</b> to use a default based on the method type.
                     </p>
                 </div>
                 <textarea
@@ -285,24 +287,87 @@ export default function PaymentMethodModal({
                     onChange={(e) => onChange('notes', e.target.value)}
                 />
                 {/* Optional defaults (uncomment if supported by backend) */}
-                <div className="flex flex-col gap-3">
-                    <label className="flex items-center gap-2 text-sm">
+                {/* Defaults */}
+                <div className="flex flex-col gap-3 mt-1">
+                    <label className="flex items-center gap-3 text-sm">
+                        
                         <input
                             type="checkbox"
+
                             checked={!!form.isDefaultSend}
-                            onChange={(e) => onChange("isDefaultSend", e.target.checked)}
+                            onChange={(e) => {
+                                const checked = e.target.checked;
+                                onChange("isDefaultSend", checked);
+                                if (checked) onChange("visibleForOthers", true); // any default => visible
+                            }}
+                            disabled={form.visibleForOthers === false}
+                            title="Use this as default when you pay"
                         />
-                        Default for Expenses
+                        <span>Default for Expenses</span>
                     </label>
-                    <label className="flex items-center gap-2 text-sm">
+
+                    <label className="flex items-center gap-3 text-sm">
+                        
                         <input
                             type="checkbox"
+
                             checked={!!form.isDefaultReceive}
-                            onChange={(e) => onChange("isDefaultReceive", e.target.checked)}
+                            onChange={(e) => {
+                                const checked = e.target.checked;
+                                onChange("isDefaultReceive", checked);
+                                if (checked) onChange("visibleForOthers", true); // any default => visible
+                            }}
+                            disabled={form.visibleForOthers === false}
+                            title="Use this as default when you receive"
                         />
-                        Default for Recieving Money
+                        <span>Default for Receiving Money</span>
                     </label>
+
+                    {form.visibleForOthers === false && (
+                        <span className="text-[11px] text-[#9aa19a] -mt-1">
+                            Hidden methods can’t be set as defaults.
+                        </span>
+                    )}
                 </div>
+
+                {/* Visibility */}
+                <div className="mt-1 rounded-lg border border-[#2a2a2a] p-3">
+                    <div className="flex items-start justify-between">
+                        <div className="flex flex-col">
+                            <div className="flex flex-row gap-3 items-center mb-1">
+                                
+                                <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={!!form.visibleForOthers}
+                            onChange={(e) => {
+                                const checked = e.target.checked;
+                                onChange("visibleForOthers", checked);
+                                if (!checked) {
+                                    // hiding clears both defaults
+                                    onChange("isDefaultSend", false);
+                                    onChange("isDefaultReceive", false);
+                                }
+                            }}
+                            title="Show this method to friends while splitting/settling"
+                        />
+                        <span className="text-sm">Visible to others</span>
+                                </div>
+                            <span className="text-[11px] text-[#888]">
+                                When off, friends won’t see this method in splits. You can still use it yourself.
+                            </span>
+                            {form.visibleForOthers && (
+                                <span className="mt-1 text-[11px] text-[#9aa19a]">
+                                    Tip: Friends can only see the <b>label</b> and <b>type</b>.
+                                </span>
+                            )}
+                        </div>
+
+                        
+                    </div>
+                </div>
+
+
 
                 {/* Actions */}
 

@@ -395,7 +395,7 @@ const Dashboard = () => {
                 if (prevAvg === 0) return null;
 
                 const pct = ((lastAvg - prevAvg) / prevAvg) * 100;
-                
+
                 return {
                     text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% from last 3 months`,
                     color: pct >= 0 ? "text-green-500" : "text-red-500"
@@ -560,7 +560,11 @@ const Dashboard = () => {
                                         className="flex gap-3 overflow-x-auto snap-x snap-mandatory snap-always scroll-smooth no-scrollbar"
                                         aria-label="Payment accounts carousel"
                                     >
-                                        {paymentMethods.map((pay) => (
+                                        {paymentMethods.sort((a, b) => {
+                                            const aDefault = a.isDefaultSend || a.isDefaultReceive;
+                                            const bDefault = b.isDefaultSend || b.isDefaultReceive;
+                                            return bDefault - aDefault; // puts defaults first
+                                        }).map((pay) => (
                                             <button
                                                 key={pay._id}
                                                 type="button"
@@ -575,6 +579,7 @@ const Dashboard = () => {
                                                 }}
                                                 className="bg-[#1f1f1f] p-4 rounded-xl min-w-[calc(50%-8px)] snap-start text-left outline-none"
                                             >
+                                                {console.log(pay)}
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div className="min-w-0">
                                                         <p className="text-xl font-bold break-words">{pay.label}</p>
@@ -710,7 +715,7 @@ const Dashboard = () => {
                                             ))}
                                             {Object.keys(stats.total).length === 0 && <span>—</span>}
                                         </div>
-                                        <p className={`text-[11px] ${deltas?.total?.color?deltas.total.color:'text-[#888]'} mt-1`}>
+                                        <p className={`text-[11px] ${deltas?.total?.color ? deltas.total.color : 'text-[#888]'} mt-1`}>
                                             {deltas.total ? <> {deltas.total.text}</> : null}
                                         </p>
                                         {(stats.personal.count + stats.group.count + stats.friend.count) > 0 && (<>
@@ -740,7 +745,7 @@ const Dashboard = () => {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <p className={`text-[11px] ${deltas?.personal?.color?deltas.personal.color:'text-[#888]'} mt-1`}>
+                                            <p className={`text-[11px] ${deltas?.personal?.color ? deltas.personal.color : 'text-[#888]'} mt-1`}>
                                                 {deltas.personal ? <> {deltas.personal.text}</> : null}
                                             </p>
                                             <p className="text-[11px] text-[#888]">{stats.personal.count} transactions</p>
@@ -766,7 +771,7 @@ const Dashboard = () => {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <p className={`text-[11px] ${deltas?.group?.color?deltas.group.color:'text-[#888]'} mt-1`}>
+                                            <p className={`text-[11px] ${deltas?.group?.color ? deltas.group.color : 'text-[#888]'} mt-1`}>
                                                 {deltas.group ? <> {deltas.group.text}</> : null}
                                             </p>
                                             <p className="text-[11px] text-[#888]">{stats.group.count} transactions</p>
@@ -789,7 +794,7 @@ const Dashboard = () => {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <p className={`text-[11px] ${deltas?.friend?.color?deltas.friend.color:'text-[#888]'} mt-1`}>
+                                            <p className={`text-[11px] ${deltas?.friend?.color ? deltas.friend.color : 'text-[#888]'} mt-1`}>
                                                 {deltas.friend ? <> {deltas.friend.text}</> : null}
                                             </p>
                                             <p className="text-[11px] text-[#888]">{stats.friend.count} transactions</p>
