@@ -19,6 +19,16 @@ import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "../utils/curr
 import ModalWrapper from "../components/ModalWrapper";
 import BalancesModal from "../components/BalancesModal";
 import PaymentMethodModal from "../components/PaymentMethodModal";
+// at top of src/pages/Dashboard.jsx (adjust path if your file is elsewhere)
+import {
+    SkeletonLine,
+    SkeletonCard,
+    SkeletonPaymentCard,
+    SkeletonExpenseItem,
+    SkeletonChart,
+} from "../components/Skeletons";
+
+
 import { createPaymentMethod } from "../services/PaymentMethodService";
 import SEO from "../components/SEO";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -113,17 +123,40 @@ const Dashboard = () => {
 
     useEffect(() => {
         if (!scrollRef.current) return;
-        PullToRefresh.init({
+
+        const options = {
             mainElement: scrollRef.current,
             onRefresh: doRefresh,
             distThreshold: 60,
-            distMax: 120,
+            distMax: 80,
+            distReload: 50,
             resistance: 2.5,
+            // small instruction texts for pull/release; keep or remove as you like
+            instructionsPullToRefresh: "",
+            instructionsReleaseToRefresh: "",
+            // hide the default refreshing text (we'll use iconRefreshing instead)
+            instructionsRefreshing: "",
+            // spinner shown while refreshing — Tailwind classes (animate-spin) will apply if Tailwind is loaded
+            iconRefreshing: `
+                <div class="flex flex-row justify-center w-full items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 animate-spin text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" stroke-opacity="0.15"></circle>
+                    <path d="M22 12a10 10 0 0 0-10-10" stroke-linecap="round"></path>
+                    </svg>
+                </div>
+            `,
+            // keep your custom shouldPullToRefresh logic
             shouldPullToRefresh: () =>
                 scrollRef.current && scrollRef.current.scrollTop === 0,
-        });
-        return () => PullToRefresh.destroyAll();
-    }, []);
+        };
+
+        PullToRefresh.init(options);
+
+        return () => {
+            try { PullToRefresh.destroyAll(); } catch (e) { /* ignore */ }
+        };
+    }, [doRefresh]);
+
 
     // --- carousel page dots ---
     const [page, setPage] = useState(0);
@@ -495,8 +528,6 @@ const Dashboard = () => {
             />
 
             <div className="h-full bg-[#121212] text-[#EBF1D5] flex flex-col px-4">
-                {/* top refresh indicator */}
-                <div className={`h-[2px] bg-teal-400 transition-opacity ${refreshing ? "opacity-100" : "opacity-0"}`} />
 
                 {/* header */}
                 <div className="bg-[#121212] sticky -top-[5px] z-10 pb-2 border-b border-[#EBF1D5] flex flex-row items-center justify-between">
@@ -525,8 +556,67 @@ const Dashboard = () => {
                     aria-busy={loading}
                 >
                     {loading ? (
-                        <div className="flex flex-col justify-center items-center flex-1 py-5">
-                            <Loader />
+                        // Skeleton page while loading
+                        <div className="flex flex-col gap-3 pb-[15px]">
+                            {/* Payment accounts skeleton */}
+                            <div className="flex flex-col gap-2">
+                                <p className="text-[13px] text-teal-500 uppercase">Payment Accounts</p>
+                                <div className="flex gap-3 overflow-x-auto no-scrollbar">
+                                    <SkeletonPaymentCard />
+                                    <SkeletonPaymentCard />
+                                    <div className="min-w-[calc(50%-8px)] snap-start flex items-center justify-center">
+                                        <div className="bg-[#1f1f1f] p-4 rounded-xl w-full text-center">
+                                            <div className="mx-auto w-10 h-10 rounded-full bg-white/5 animate-pulse" />
+                                            <div className="mt-2">
+                                                <SkeletonLine width="w-24" height="h-4" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Summary skeletons */}
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[13px] text-teal-500 uppercase">Summary</p>
+                                    <div className="flex items-center gap-2">
+                                        <SkeletonLine width="w-16" height="h-6" />
+                                    </div>
+                                </div>
+                                <div className="flex w-[160px]">
+                                    <SkeletonLine height="h-8" />
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+                                    <SkeletonCard />
+                                    <SkeletonCard />
+                                    <SkeletonCard />
+                                    <SkeletonCard />
+                                    <SkeletonCard />
+                                </div>
+                            </div>
+
+                            {/* Recent expenses skeleton */}
+                            <div>
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-sm text-teal-500 uppercase">Recent Expenses</h2>
+                                    <div className="flex items-center gap-3">
+                                        <SkeletonLine width="w-20" height="h-6" />
+                                    </div>
+                                </div>
+
+                                <ul className="flex flex-col gap-2 mt-2">
+                                    <SkeletonExpenseItem />
+                                    <SkeletonExpenseItem />
+                                    <SkeletonExpenseItem />
+                                </ul>
+                            </div>
+
+                            {/* Charts skeleton */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                <SkeletonChart />
+                                <SkeletonChart />
+                                <SkeletonChart className="lg:col-span-2" />
+                            </div>
                         </div>
                     ) : expenses.length === 0 ? (
                         <div className="flex flex-col flex-1 justify-center">

@@ -489,8 +489,11 @@ router.get('/friends', auth, async (req, res) => {
 //   }
 // });
 // POST /v1/expenses/settle
+
 router.post('/settle', auth, async (req, res) => {
     try {
+        console.log(req.body);
+        
         const {
             fromUserId,
             toUserId,

@@ -206,20 +206,39 @@ const GroupDetails = () => {
     useEffect(() => {
         if (!scrollRef.current) return;
 
-        PullToRefresh.init({
+        const options = {
             mainElement: scrollRef.current,
             onRefresh: doRefresh,
             distThreshold: 60,
-            distMax: 120,
+            distMax: 80,
+            distReload: 50,
             resistance: 2.5,
+            // small instruction texts for pull/release; keep or remove as you like
+            instructionsPullToRefresh: "",
+            instructionsReleaseToRefresh: "",
+            // hide the default refreshing text (we'll use iconRefreshing instead)
+            instructionsRefreshing: "",
+            // spinner shown while refreshing — Tailwind classes (animate-spin) will apply if Tailwind is loaded
+            iconRefreshing: `
+                <div class="flex flex-row justify-center w-full items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 animate-spin text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" stroke-opacity="0.15"></circle>
+                    <path d="M22 12a10 10 0 0 0-10-10" stroke-linecap="round"></path>
+                    </svg>
+                </div>
+            `,
+            // keep your custom shouldPullToRefresh logic
             shouldPullToRefresh: () =>
                 scrollRef.current && scrollRef.current.scrollTop === 0,
-        });
+        };
+
+        PullToRefresh.init(options);
 
         return () => {
-            PullToRefresh.destroyAll(); // correct cleanup
+            try { PullToRefresh.destroyAll(); } catch (e) { /* ignore */ }
         };
-    }, []);
+    }, [doRefresh]);
+
 
     const simplifyDebts = (totalDebt, members, locale = "en-IN") => {
         const transactions = [];

@@ -31,6 +31,9 @@ import SheetCurrencies from "~/shtCurrencies";
 import SheetCategories from "~/shtCategories";
 import SheetPayments from "~/shtPayments";
 
+// Optional theme hook (if available)
+import { useTheme } from "context/ThemeProvider";
+
 const fmtMoney = formatMoney;
 const symbol = getSymbol;
 const digits = getDigits;
@@ -42,11 +45,15 @@ const initials = (name = "") => {
     return (p[0][0] + p[1][0]).toUpperCase();
 };
 
-const TEST_MODE = process.env.EXPO_PUBLIC_TEST_MODE
+const TEST_MODE = process.env.EXPO_PUBLIC_TEST_MODE;
+
 // =================== Screen ===================
 export default function NewExpenseScreen() {
     const router = useRouter();
     const params = useLocalSearchParams(); // can carry { groupId, friendId }
+    const themeCtx = useTheme?.() || {};
+    const styles = useMemo(() => createStyles(themeCtx?.theme), [themeCtx?.theme]);
+
     const {
         user,
         userToken,
@@ -72,7 +79,7 @@ export default function NewExpenseScreen() {
     const [desc, setDesc] = useState(TEST_MODE ? "TEST_DESCRIPTION" : "");
     const [currency, setCurrency] = useState(defaultCurrency);
     const [amount, setAmount] = useState(TEST_MODE ? 99 : ""); // keep string for controlled TextInput
-    const [category, setCategory] = useState(TEST_MODE ? 'TEST_CATEGORY' : "");
+    const [category, setCategory] = useState(TEST_MODE ? "TEST_CATEGORY" : "");
     const [expenseDate, setExpenseDate] = useState(todayISO());
 
     const [groupSelect, setGroupSelect] = useState(null);
@@ -97,18 +104,16 @@ export default function NewExpenseScreen() {
     const openPaymentSheet = (ctx) => {
         setPaymentModalCtx(ctx);
         paymentSheetRef.current?.present();
-    }
-
+    };
     const openCurrencySheet = () => currencySheetRef.current?.present();
 
     // currency options
     const currencyOptions = useMemo(() => {
         const base = new Set([defaultCurrency, ...(preferredCurrencies || [])]);
-        // ensure base ones are included + full list available
         return allCurrencies
-            .filter(c => base.has(c.code))   // show preferred ones first
-            .concat(allCurrencies.filter(c => !base.has(c.code))) // then rest
-            .map(c => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
+            .filter((c) => base.has(c.code))
+            .concat(allCurrencies.filter((c) => !base.has(c.code)))
+            .map((c) => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
     }, [defaultCurrency, preferredCurrencies]);
 
     const categoryOptions = useMemo(
@@ -117,7 +122,7 @@ export default function NewExpenseScreen() {
                 value: key,
                 label: cfg.label,
                 icon: cfg.icon,
-                keywords: cfg.keywords
+                keywords: cfg.keywords,
             })),
         []
     );
@@ -182,9 +187,7 @@ export default function NewExpenseScreen() {
                 arr = arr.filter((f) => f.suggested);
             } else {
                 arr = arr.filter(
-                    (f) =>
-                        f.name?.toLowerCase?.().includes(lower) ||
-                        f.email?.toLowerCase?.().includes(lower)
+                    (f) => f.name?.toLowerCase?.().includes(lower) || f.email?.toLowerCase?.().includes(lower)
                 );
                 arr.sort((a, b) => a.name.localeCompare(b.name));
             }
@@ -248,13 +251,14 @@ export default function NewExpenseScreen() {
                 toggleFriend(f);
             }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [params?.groupId, params?.friendId, groups, friends]);
 
     // ---------- selection handlers ----------
     const addMeIfNeeded = (list) => {
         let updated = list.map((x) => {
             if (x._id === user._id) {
-                return { ...x, name: `${user.name} (Me)` }; // ensure "(Me)" suffix
+                return { ...x, name: `${user.name} (Me)` };
             }
             return x;
         });
@@ -271,15 +275,14 @@ export default function NewExpenseScreen() {
                     owing: false,
                     payAmount: 0,
                     oweAmount: 0,
-                    owePercent: 0
+                    owePercent: 0,
                 },
-                ...updated
+                ...updated,
             ];
         }
 
         return updated;
     };
-
 
     const updateFriendsPaymentMethods = async (ids) => {
         try {
@@ -306,10 +309,7 @@ export default function NewExpenseScreen() {
         if (exists) {
             upd = upd.filter((f) => f._id !== friend._id);
         } else {
-            upd = [
-                ...upd,
-                { ...friend, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 },
-            ];
+            upd = [...upd, { ...friend, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }];
         }
         upd = addMeIfNeeded(upd);
         setSelectedFriends(upd);
@@ -326,11 +326,9 @@ export default function NewExpenseScreen() {
             setGroupSelect(null);
         } else {
             const newMembers = (group.members || [])
-                .filter((gm) => !selectedFriends.some((f) => String(f._id) === String(gm._id) && gm_.id !== user._id))
+                .filter((gm) => !selectedFriends.some((f) => String(f._id) === String(gm._id) && gm._id !== user._id))
                 .map((gm) => ({ ...gm, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }));
             const upd = addMeIfNeeded([...selectedFriends, ...newMembers]);
-            console.log(selectedFriends, newMembers, user._id);
-
             setSelectedFriends(upd);
             setGroupSelect(group);
             updateFriendsPaymentMethods(upd.map((f) => f._id));
@@ -400,9 +398,7 @@ export default function NewExpenseScreen() {
         const p = num(percent);
         setSelectedFriends((prev) =>
             prev.map((f) =>
-                f._id === friendId
-                    ? { ...f, owePercent: p, oweAmount: Number((num(amount) * (p / 100)).toFixed(2)) }
-                    : f
+                f._id === friendId ? { ...f, owePercent: p, oweAmount: Number((num(amount) * (p / 100)).toFixed(2)) } : f
             )
         );
     };
@@ -454,8 +450,6 @@ export default function NewExpenseScreen() {
 
     // ----- payment modal data -----
     const paymentOptions = useMemo(() => {
-        console.log(paymentModalCtx);
-
         if (paymentModalCtx.context === "personal") return paymentMethods || [];
         const f = selectedFriends.find((x) => x._id === paymentModalCtx.friendId);
         return (f?.paymentMethods || []).map((m) => ({ _id: m.paymentMethodId, ...m }));
@@ -472,9 +466,7 @@ export default function NewExpenseScreen() {
             setPaymentMethod(id);
             return;
         }
-        setSelectedFriends((prev) =>
-            prev.map((f) => (f._id === paymentModalCtx.friendId ? { ...f, selectedPaymentMethodId: id } : f))
-        );
+        setSelectedFriends((prev) => prev.map((f) => (f._id === paymentModalCtx.friendId ? { ...f, selectedPaymentMethodId: id } : f)));
     };
 
     const requirePersonalPick =
@@ -494,7 +486,7 @@ export default function NewExpenseScreen() {
         const cur = currency;
         const moneyLeft = (x) => `${symbol(cur)} ${Number(x).toFixed(digits(cur))}`;
 
-        setHint(""); // default
+        setHint("");
         if (expenseMode === "personal") {
             if (!desc.trim()) return setHint("Add a short description for this expense.");
             if (!cur) return setHint("Pick a currency.");
@@ -525,11 +517,9 @@ export default function NewExpenseScreen() {
             return setHint("Great! Percentages add up to 100%. You can Save now.");
         }
         if (mode === "value") {
-            if (Number(oweTotal.toFixed(2)) !== amt)
-                return setHint(`${fmtMoney(cur, oweTotal)} / ${fmtMoney(cur, amt)} assigned. ${moneyLeft(amt - oweTotal)} left.`);
+            if (Number(oweTotal.toFixed(2)) !== amt) return setHint(`${fmtMoney(cur, oweTotal)} / ${fmtMoney(cur, amt)} assigned. ${moneyLeft(amt - oweTotal)} left.`);
             return setHint("All owed amounts add up correctly. You can Save now.");
         }
-        // equal
         return setHint("Looks good! Review the shares and hit Save.");
     }, [
         expenseMode,
@@ -566,7 +556,6 @@ export default function NewExpenseScreen() {
 
         if (mode === "percent") return pctTotal === 100;
         if (mode === "value") return Number(oweTotal.toFixed(2)) === num(amount);
-        // equal
         const owing = selectedFriends.filter((f) => f.owing).length > 0;
         const paying = selectedFriends.filter((f) => f.paying).length > 0;
         return owing && paying;
@@ -622,13 +611,7 @@ export default function NewExpenseScreen() {
             }
 
             await createExpense(payload, userToken);
-            // logEvent?.("newExpense", {
-            //   currency,
-            //   amount: payload.amount,
-            //   category: payload.category,
-            //   type: payload.mode,
-            //   splitMode: payload.splitMode,
-            // });
+            // logEvent?.("newExpense", { currency, amount: payload.amount, category: payload.category, type: payload.mode, splitMode: payload.splitMode });
 
             // reset
             setDesc("");
@@ -660,7 +643,6 @@ export default function NewExpenseScreen() {
             <StatusBar style="light" />
             <Header title="New Expense" />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
-
                 <View style={styles.modeToggle}>
                     <TouchableOpacity
                         onPress={() => setExpenseMode("personal")}
@@ -676,26 +658,20 @@ export default function NewExpenseScreen() {
                     </TouchableOpacity>
                 </View>
 
-
                 {/* Search (split, when nothing selected) */}
                 {expenseMode === "split" && !groupSelect && selectedFriends.filter((f) => f._id !== user._id).length === 0 ? (
-                    <View style={{ width: '100%', paddingTop: 10, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: "100%", paddingTop: 10, flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4 }}>
                         <TextInput
                             placeholder="Search friends or groups"
-                            placeholderTextColor="#81827C"
+                            placeholderTextColor={styles.colors.mutedFallback}
                             value={search}
                             onChangeText={setSearch}
                             autoCapitalize="none"
                             autoCorrect={false}
                             style={styles.input}
                         />
-                        {!groupSelect && selectedFriends.filter((x) => x._id !== user._id).length === 0 ? (
-                            <Text style={styles.helperSmall}>
-                                Select a group or a friend you want to split with.
-                            </Text>
-                        ) : null}
+                        <Text style={styles.helperSmall}>Select a group or a friend you want to split with.</Text>
                     </View>
-
                 ) : null}
 
                 {/* Banner */}
@@ -710,22 +686,20 @@ export default function NewExpenseScreen() {
                     >
                         <Text style={styles.bannerText}>{banner.text}</Text>
                         <TouchableOpacity onPress={() => setBanner(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                            <Text style={{ color: "#ccc" }}>✕</Text>
+                            <Text style={{ color: styles.colors.mutedFallback }}>✕</Text>
                         </TouchableOpacity>
                     </View>
                 ) : null}
 
                 <ScrollView
                     style={{ flex: 1 }}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor="#00d0b0" />}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={styles.colors.ctaFallback} />}
                     contentContainerStyle={{ paddingBottom: 24 }}
                     showsVerticalScrollIndicator={false}
                 >
                     {/* Split: suggestions + selection chips */}
                     {expenseMode === "split" && (groups.length > 0 || friends.length > 0) ? (
                         <>
-
-
                             {/* Selected summary */}
                             {(groupSelect || selectedFriends.filter((f) => f._id !== user._id).length > 0) && (
                                 <View style={{ marginTop: 8, gap: 8 }}>
@@ -738,7 +712,7 @@ export default function NewExpenseScreen() {
                                                     <View key={`sel-${fr._id}`} style={styles.selRow}>
                                                         <Text style={styles.selText}>{fr.name}</Text>
                                                         <TouchableOpacity onPress={() => removeFriend(fr)}>
-                                                            <Text style={{ color: "#EA4335" }}>Remove</Text>
+                                                            <Text style={{ color: styles.colors.dangerFallback }}>Remove</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 ))}
@@ -749,7 +723,7 @@ export default function NewExpenseScreen() {
                                             <View style={styles.selRow}>
                                                 <Text style={styles.selText}>{groupSelect.name}</Text>
                                                 <TouchableOpacity onPress={() => toggleGroup(groupSelect)}>
-                                                    <Text style={{ color: "#EA4335" }}>Remove</Text>
+                                                    <Text style={{ color: styles.colors.dangerFallback }}>Remove</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
@@ -758,22 +732,16 @@ export default function NewExpenseScreen() {
                             )}
 
                             {/* Suggestions / search results */}
-                            {!(groupSelect || selectedFriends.filter((f) => f._id !== user._id).length > 0) && (selectedFriends.filter((f) => f._id !== user._id).length === 0 || search.length > 0) && (
+                            {!(groupSelect || selectedFriends.filter((f) => f._id !== user._id).length > 0) && (
                                 <View style={{ marginTop: 12, gap: 12 }}>
                                     {filteredGroups.length > 0 && (
                                         <View>
-                                            <Text style={styles.suggestHeader}>
-                                                {search.length === 0 ? "SUGGESTED " : ""}GROUPS
-                                            </Text>
+                                            <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}GROUPS</Text>
                                             <View style={styles.chipsWrap}>
                                                 {filteredGroups.map((g) => {
                                                     const active = groupSelect?._id === g._id;
                                                     return (
-                                                        <TouchableOpacity
-                                                            key={g._id}
-                                                            onPress={() => toggleGroup(g)}
-                                                            style={[styles.chip, active && styles.chipActive]}
-                                                        >
+                                                        <TouchableOpacity key={g._id} onPress={() => toggleGroup(g)} style={[styles.chip, active && styles.chipActive]}>
                                                             <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
                                                                 {g.name}
                                                             </Text>
@@ -785,18 +753,12 @@ export default function NewExpenseScreen() {
                                     )}
                                     {filteredFriends.length > 0 && (
                                         <View>
-                                            <Text style={styles.suggestHeader}>
-                                                {search.length === 0 ? "SUGGESTED " : ""}FRIENDS
-                                            </Text>
+                                            <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}FRIENDS</Text>
                                             <View style={styles.chipsWrap}>
                                                 {filteredFriends.map((fr) => {
                                                     const active = selectedFriends.some((s) => s._id === fr._id);
                                                     return (
-                                                        <TouchableOpacity
-                                                            key={fr._id}
-                                                            onPress={() => toggleFriend(fr)}
-                                                            style={[styles.chip, active && styles.chipActive]}
-                                                        >
+                                                        <TouchableOpacity key={fr._id} onPress={() => toggleFriend(fr)} style={[styles.chip, active && styles.chipActive]}>
                                                             <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
                                                                 {fr.name}
                                                             </Text>
@@ -817,66 +779,41 @@ export default function NewExpenseScreen() {
                             <Text style={styles.sectionLabel}>Create Expense</Text>
 
                             {/* Description */}
-                            <TextInput
-                                placeholder="Description"
-                                placeholderTextColor="#81827C"
-                                value={desc}
-                                onChangeText={setDesc}
-                                style={styles.input}
-                            />
+                            <TextInput placeholder="Description" placeholderTextColor={styles.colors.mutedFallback} value={desc} onChangeText={setDesc} style={styles.input} />
 
                             {/* Currency + Amount */}
                             <View style={{ flexDirection: "row", gap: 8 }}>
-                                <TouchableOpacity
-                                    onPress={openCurrencySheet}
-                                    style={[styles.input, styles.btnLike, { flex: 1 }]}
-                                >
-                                    <Text style={[styles.btnLikeText, currency ? { color: "#EBF1D5" } : { color: "#828282" }]}>
+                                <TouchableOpacity onPress={openCurrencySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
+                                    <Text style={[styles.btnLikeText, currency ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
                                         {currency || "Currency"}
                                     </Text>
                                 </TouchableOpacity>
                                 <TextInput
                                     placeholder="Amount"
-                                    placeholderTextColor="#81827C"
+                                    placeholderTextColor={styles.colors.mutedFallback}
                                     keyboardType="number-pad"
-                                    value={amount}
+                                    value={String(amount)}
                                     onChangeText={(text) => {
-                                        // allow only digits
-                                        const numericValue = text.replace(/[^0-9]/g, '');
+                                        const numericValue = text.replace(/[^0-9]/g, "");
                                         setAmount(numericValue);
                                     }}
                                     style={[styles.input, { flex: 2 }]}
                                 />
-
                             </View>
 
                             {/* Category + Date */}
                             <View style={{ flexDirection: "row", gap: 8 }}>
-                                <TouchableOpacity
-                                    onPress={openCategorySheet}
-                                    style={[styles.input, styles.btnLike, { flex: 1 }]}
-                                >
-                                    <Text style={[styles.btnLikeText, category ? { color: "#EBF1D5" } : { color: "#828282" }]}>
-                                        {category || "Category"}
-                                    </Text>
+                                <TouchableOpacity onPress={openCategorySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
+                                    <Text style={[styles.btnLikeText, category ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{category || "Category"}</Text>
                                 </TouchableOpacity>
 
-                                <TextInput
-                                    placeholder="YYYY-MM-DD"
-                                    placeholderTextColor="#81827C"
-                                    value={expenseDate}
-                                    onChangeText={setExpenseDate}
-                                    style={[styles.input, { flex: 1 }]}
-                                />
+                                <TextInput placeholder="YYYY-MM-DD" placeholderTextColor={styles.colors.mutedFallback} value={expenseDate} onChangeText={setExpenseDate} style={[styles.input, { flex: 1 }]} />
                             </View>
 
                             {/* Personal: pick account */}
                             {expenseMode === "personal" && (
-                                <TouchableOpacity
-                                    onPress={() => openPaymentSheet({ context: "personal" })}
-                                    style={[styles.input, styles.btnLike]}
-                                >
-                                    <Text style={[styles.btnLikeText, paymentMethod ? { color: "#EBF1D5" } : { color: "#828282" }]}>
+                                <TouchableOpacity onPress={() => openPaymentSheet({ context: "personal" })} style={[styles.input, styles.btnLike]}>
+                                    <Text style={[styles.btnLikeText, paymentMethod ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
                                         {paymentMethod ? (paymentMethods.find((a) => a._id === paymentMethod)?.label || "Payment Account") : "Payment Account"}
                                     </Text>
                                 </TouchableOpacity>
@@ -894,11 +831,7 @@ export default function NewExpenseScreen() {
                                         {selectedFriends.map((f) => {
                                             const active = !!f.paying;
                                             return (
-                                                <TouchableOpacity
-                                                    key={`pay-${f._id}`}
-                                                    onPress={() => togglePaying(f._id)}
-                                                    style={[styles.chip2, active && styles.chip2Active]}
-                                                >
+                                                <TouchableOpacity key={`pay-${f._id}`} onPress={() => togglePaying(f._id)} style={[styles.chip2, active && styles.chip2Active]}>
                                                     <Text style={[styles.chip2Text, active && styles.chip2TextActive]} numberOfLines={1}>
                                                         {f.name}
                                                     </Text>
@@ -917,37 +850,27 @@ export default function NewExpenseScreen() {
                                                     const sel = f.paymentMethods?.find((m) => m.paymentMethodId === f.selectedPaymentMethodId);
                                                     return (
                                                         <View key={`pr-${f._id}`} style={styles.rowBetween}>
-                                                            <Text style={{ color: "#EBF1D5", flex: 1 }} numberOfLines={1}>{f.name}</Text>
+                                                            <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
+                                                                {f.name}
+                                                            </Text>
                                                             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                                                 {many ? (
                                                                     <TouchableOpacity
                                                                         onPress={() => openPaymentSheet({ context: "split", friendId: f._id })}
                                                                         style={[
                                                                             styles.pmBtn,
-                                                                            sel
-                                                                                ? { borderColor: "#55554f", backgroundColor: "transparent" } // normal gray look
-                                                                                : { borderColor: "#f44336", backgroundColor: "rgba(244,67,54,0.1)" }, // error red
+                                                                            sel ? { borderColor: styles.colors.borderFallback, backgroundColor: "transparent" } : { borderColor: styles.colors.dangerFallback, backgroundColor: "rgba(244,67,54,0.08)" },
                                                                         ]}
                                                                     >
-                                                                        <Text
-                                                                            style={[
-                                                                                styles.pmBtnText,
-                                                                                {
-                                                                                    color: sel ? "#EBF1D5" : "#f44336", // gray/white when ok, red when missing
-                                                                                    fontWeight: sel ? "400" : "400",
-                                                                                },
-                                                                            ]}
-                                                                            numberOfLines={1}
-                                                                        >
-                                                                            {sel ? (sel.label || sel.type || "Payment Method") : "Select"}
+                                                                        <Text style={[styles.pmBtnText, { color: sel ? styles.colors.textFallback : styles.colors.dangerFallback }]} numberOfLines={1}>
+                                                                            {sel ? sel.label || sel.type || "Payment Method" : "Select"}
                                                                         </Text>
                                                                     </TouchableOpacity>
-
                                                                 ) : null}
                                                                 {selectedFriends.filter((x) => x.paying).length > 1 ? (
                                                                     <TextInput
                                                                         placeholder="Amount"
-                                                                        placeholderTextColor="#81827C"
+                                                                        placeholderTextColor={styles.colors.mutedFallback}
                                                                         keyboardType="decimal-pad"
                                                                         value={String(f.payAmount || "")}
                                                                         onChangeText={(v) => setPayAmount(f._id, v)}
@@ -960,12 +883,8 @@ export default function NewExpenseScreen() {
                                                 })}
                                             {selectedFriends.filter((f) => f.paying).length > 1 && !isPaidValid ? (
                                                 <View style={{ alignItems: "center", marginTop: 4 }}>
-                                                    <Text style={styles.helperMono}>
-                                                        {fmtMoney(currency, paidTotal)} / {fmtMoney(currency, num(amount))}
-                                                    </Text>
-                                                    <Text style={[styles.helperMono, { color: "#a0a0a0" }]}>
-                                                        {fmtMoney(currency, num(amount) - paidTotal)} left
-                                                    </Text>
+                                                    <Text style={styles.helperMono}>{fmtMoney(currency, paidTotal)} / {fmtMoney(currency, num(amount))}</Text>
+                                                    <Text style={[styles.helperMono, { color: styles.colors.mutedFallback }]}>{fmtMoney(currency, num(amount) - paidTotal)} left</Text>
                                                 </View>
                                             ) : null}
                                         </View>
@@ -982,11 +901,7 @@ export default function NewExpenseScreen() {
                                                 {selectedFriends.map((f) => {
                                                     const active = !!f.owing;
                                                     return (
-                                                        <TouchableOpacity
-                                                            key={`owe-${f._id}`}
-                                                            onPress={() => toggleOwing(f._id)}
-                                                            style={[styles.chip2, active && styles.chip2Active]}
-                                                        >
+                                                        <TouchableOpacity key={`owe-${f._id}`} onPress={() => toggleOwing(f._id)} style={[styles.chip2, active && styles.chip2Active]}>
                                                             <Text style={[styles.chip2Text, active && styles.chip2TextActive]} numberOfLines={1}>
                                                                 {f.name}
                                                             </Text>
@@ -1008,13 +923,9 @@ export default function NewExpenseScreen() {
                                                                         if (m === "equal") {
                                                                             setSelectedFriends((prev) => distributeEqualOwe(prev));
                                                                         } else if (m === "percent") {
-                                                                            setSelectedFriends((prev) =>
-                                                                                prev.map((f) => ({ ...f, owePercent: f.owePercent || 0, oweAmount: 0 }))
-                                                                            );
+                                                                            setSelectedFriends((prev) => prev.map((f) => ({ ...f, owePercent: f.owePercent || 0, oweAmount: 0 })));
                                                                         } else {
-                                                                            setSelectedFriends((prev) =>
-                                                                                prev.map((f) => ({ ...f, owePercent: undefined }))
-                                                                            );
+                                                                            setSelectedFriends((prev) => prev.map((f) => ({ ...f, owePercent: undefined })));
                                                                         }
                                                                     }}
                                                                     style={[styles.modeMini, active && styles.modeMiniActive]}
@@ -1033,11 +944,13 @@ export default function NewExpenseScreen() {
                                                             .filter((f) => f.owing)
                                                             .map((f) => (
                                                                 <View key={`ow-${f._id}`} style={styles.rowBetween}>
-                                                                    <Text style={{ color: "#EBF1D5" }} numberOfLines={1}>{f.name}</Text>
+                                                                    <Text style={{ color: styles.colors.textFallback }} numberOfLines={1}>
+                                                                        {f.name}
+                                                                    </Text>
                                                                     {mode === "percent" ? (
                                                                         <TextInput
                                                                             placeholder="Percent"
-                                                                            placeholderTextColor="#81827C"
+                                                                            placeholderTextColor={styles.colors.mutedFallback}
                                                                             keyboardType="decimal-pad"
                                                                             value={String(f.owePercent ?? "")}
                                                                             onChangeText={(v) => setOwePercent(f._id, v)}
@@ -1046,14 +959,14 @@ export default function NewExpenseScreen() {
                                                                     ) : mode === "value" ? (
                                                                         <TextInput
                                                                             placeholder="Amount"
-                                                                            placeholderTextColor="#81827C"
+                                                                            placeholderTextColor={styles.colors.mutedFallback}
                                                                             keyboardType="decimal-pad"
                                                                             value={String(f.oweAmount || "")}
                                                                             onChangeText={(v) => setOweAmount(f._id, v)}
                                                                             style={[styles.input, { width: 100, textAlign: "right" }]}
                                                                         />
                                                                     ) : (
-                                                                        <Text style={{ color: "#EBF1D5", marginVertical: 4 }}>{f.oweAmount || 0}</Text>
+                                                                        <Text style={{ color: styles.colors.textFallback, marginVertical: 4 }}>{f.oweAmount || 0}</Text>
                                                                     )}
                                                                 </View>
                                                             ))}
@@ -1069,58 +982,17 @@ export default function NewExpenseScreen() {
 
                     {/* Loan CTA */}
                 </ScrollView>
-                {/* {!desc ? (
-          <View style={{ flex: 1, flexDirection: 'column', justifyContent: 'flex-end', marginBottom: 10, alignItems: "center" }}>
-            <Text style={{ color: "#a0a0a0" }}>
-              Lent someone money?{" "}
-              <Text
-                style={{ color: "#00C49F", textDecorationLine: "underline" }}
-                onPress={() => {
-                  // logEvent?.("navigate", { fromScreen: "newExpense", toScreen: "new-loan", source: "cta" });
-                  router.push("/new-loan");
-                }}
-              >
-                Add a Loan
-              </Text>
-            </Text>
-          </View>
-        ) : null} */}
 
-                <SheetCurrencies
-                    innerRef={currencySheetRef}
-                    value={currency}
-                    options={currencyOptions}
-                    onSelect={setCurrency}
-                    onClose={() => console.log("Currency sheet closed")}
-                />
-
-                <SheetCategories
-                    innerRef={categorySheetRef}
-                    value={category}
-                    options={categoryOptions}
-                    onSelect={setCategory}
-                    onClose={() => console.log("Category closed")}
-                />
-
-                <SheetPayments
-                    innerRef={paymentSheetRef}
-                    value={paymentValue}
-                    options={paymentOptions}
-                    onSelect={(id) => handleSelectPayment(id)}
-                    onClose={() => console.log("Payment closed")}
-                />
-
+                <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
+                <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
+                <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />
 
                 <View style={styles.footer}>
-                    <Text style={styles.hint} numberOfLines={2}>{hint}</Text>
-                    <TouchableOpacity
-                        onPress={handleSubmit}
-                        disabled={!canSubmit || loading}
-                        style={[styles.submitBtn, (!canSubmit || loading) ? styles.submitDisabled : null]}
-                    >
-                        <Text style={[styles.submitText, (!canSubmit || loading) && { opacity: 0.9 }]}>
-                            {loading ? "Saving…" : "Save Expense"}
-                        </Text>
+                    <Text style={styles.hint} numberOfLines={2}>
+                        {hint}
+                    </Text>
+                    <TouchableOpacity onPress={handleSubmit} disabled={!canSubmit || loading} style={[styles.submitBtn, (!canSubmit || loading) ? styles.submitDisabled : null]}>
+                        <Text style={[styles.submitText, (!canSubmit || loading) && { opacity: 0.9 }]}>{loading ? "Saving…" : "Save Expense"}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -1128,149 +1000,178 @@ export default function NewExpenseScreen() {
     );
 }
 
-// ---------------- Styles ----------------
-const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: "#121212" },
-    header: {
-        paddingHorizontal: 16,
-        paddingTop: Platform.OS === "android" ? 6 : 0,
-        paddingBottom: 10,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: "#EBF1D5",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
-    headerTitle: { color: "#EBF1D5", fontSize: 24, fontWeight: "700" },
+// ---------------- Theme-aware styles ----------------
+const createStyles = (theme = {}) => {
+    const palette = {
+        background: theme?.colors?.background ?? "#121212",
+        card: theme?.colors?.card ?? "#1f1f1f",
+        cardAlt: theme?.colors?.cardAlt ?? "#181818",
+        border: theme?.colors?.border ?? "#333",
+        text: theme?.colors?.text ?? "#EBF1D5",
+        muted: theme?.colors?.muted ?? "#81827C",
+        helperMuted: theme?.colors?.helperMuted ?? "#a0a0a0",
+        primary: theme?.colors?.primary ?? "#60DFC9",
+        cta: theme?.colors?.cta ?? "#00C49F",
+        danger: theme?.colors?.danger ?? "#ef4444",
+    };
 
-    input: {
-        backgroundColor: "#1f1f1f",
-        color: "#EBF1D5",
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "#55554f",
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        fontSize: 16,
-        width: '100%'
-    },
-    btnLike: { justifyContent: "center" },
-    btnLikeText: { fontSize: 16 },
+    const s = StyleSheet.create({
+        safe: { flex: 1, backgroundColor: palette.background },
+        header: {
+            paddingHorizontal: 16,
+            paddingTop: Platform.OS === "android" ? 6 : 0,
+            paddingBottom: 10,
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: palette.text,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+        },
+        headerTitle: { color: palette.text, fontSize: 24, fontWeight: "700" },
 
-    modeToggle: {
-        flexDirection: "row",
-        alignSelf: "center",
-        backgroundColor: "#1f1f1f",
-        borderRadius: 999,
-        padding: 4,
-        borderWidth: 1,
-        borderColor: "rgba(235,241,213,0.5)",
-    },
-    modeBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999 },
-    modeBtnActive: { backgroundColor: "#EBF1D5" },
-    modeText: { color: "#EBF1D5", fontSize: 13, fontWeight: "600" },
-    modeTextActive: { color: "#121212" },
+        input: {
+            backgroundColor: palette.card,
+            color: palette.text,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: palette.border,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            fontSize: 16,
+            width: "100%",
+        },
+        btnLike: { justifyContent: "center" },
+        btnLikeText: { fontSize: 16, color: palette.text },
 
-    sectionLabel: { color: "#00C49F", fontSize: 12, letterSpacing: 1, textTransform: "uppercase" },
-    helperSmall: { color: "#81827C", fontSize: 12 },
-    helperMono: { color: "#EBF1D5", fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }) },
+        modeToggle: {
+            flexDirection: "row",
+            alignSelf: "center",
+            backgroundColor: palette.card,
+            borderRadius: 999,
+            padding: 4,
+            borderWidth: 1,
+            borderColor: palette.border,
+        },
+        modeBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999 },
+        modeBtnActive: { backgroundColor: palette.text },
+        modeText: { color: palette.text, fontSize: 13, fontWeight: "600" },
+        modeTextActive: { color: palette.background },
 
-    chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-    chip: { paddingHorizontal: 12, height: 40, borderRadius: 12, borderWidth: 1, borderColor: "#333", justifyContent: "center" },
-    chipActive: { backgroundColor: "#DFF3E8", borderColor: "#DFF3E8" },
-    chipText: { color: "#EBF1D5" },
-    chipTextActive: { color: "#EBF1D5", fontWeight: "700" },
+        sectionLabel: { color: palette.cta, fontSize: 12, letterSpacing: 1, textTransform: "uppercase" },
+        helperSmall: { color: palette.muted, fontSize: 12 },
+        helperMono: { color: palette.text, fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }) },
 
-    chip2: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 2, borderColor: "#81827C" },
-    chip2Active: { backgroundColor: "#00C49F33", borderColor: "#00C49F33", },
-    chip2Text: { color: "#EBF1D5" },
-    chip2TextActive: { color: "#EBF1D5", fontWeight: "700" },
+        chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+        chip: { paddingHorizontal: 12, height: 40, borderRadius: 12, borderWidth: 1, borderColor: palette.border, justifyContent: "center", backgroundColor: palette.card },
+        chipActive: { backgroundColor: "#DFF3E8", borderColor: "#DFF3E8" },
+        chipText: { color: palette.text },
+        chipTextActive: { color: palette.text, fontWeight: "700" },
 
-    suggestHeader: { color: "#60DFC9", fontSize: 12, letterSpacing: 1, marginBottom: 5 },
+        chip2: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 2, borderColor: palette.muted, backgroundColor: "transparent" },
+        chip2Active: { backgroundColor: `${palette.cta}33`, borderColor: `${palette.cta}33` },
+        chip2Text: { color: palette.text },
+        chip2TextActive: { color: palette.text, fontWeight: "700" },
 
-    selRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", height: 30 },
-    selText: { color: "#EBF1D5", fontSize: 16, textTransform: "capitalize" },
+        suggestHeader: { color: palette.primary, fontSize: 12, letterSpacing: 1, marginBottom: 5 },
 
-    rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+        selRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", height: 30 },
+        selText: { color: palette.text, fontSize: 16, textTransform: "capitalize" },
 
-    pmBtn: {
-        borderWidth: 1,
-        borderColor: "#55554f",
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        borderRadius: 10,
-        maxWidth: 180,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    pmBtnText: {
-        fontSize: 14,
-        color: "#EBF1D5",
-    },
+        rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
 
-    banner: {
-        marginHorizontal: 12,
-        marginTop: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderRadius: 8,
-        borderWidth: 1,
-        backgroundColor: "#1e1e1e",
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
-    },
-    bannerSuccess: { backgroundColor: "rgba(0,150,136,0.2)", borderColor: "#009688" },
-    bannerError: { backgroundColor: "rgba(244,67,54,0.2)", borderColor: "#f44336" },
-    bannerInfo: { backgroundColor: "rgba(158,158,158,0.2)", borderColor: "#9e9e9e" },
-    bannerText: { color: "#EBF1D5", flex: 1 },
+        pmBtn: {
+            borderWidth: 1,
+            borderColor: palette.border,
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            borderRadius: 10,
+            maxWidth: 180,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        pmBtnText: { fontSize: 14, color: palette.text },
 
-    footer: {
-        paddingTop: 6,
-        paddingBottom: 12,
-        paddingHorizontal: 16,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: "rgba(255,255,255,0.4)",
-        backgroundColor: "rgba(18,18,18,0.95)",
-    },
-    hint: { color: "#a0a0a0", textAlign: "center", fontSize: 12, minHeight: 16, marginBottom: 6 },
-    submitBtn: { height: 48, borderRadius: 12, backgroundColor: "#00C49F", alignItems: "center", justifyContent: "center" },
-    submitText: { color: "#121212", fontWeight: "700", fontSize: 16 },
-    submitDisabled: { backgroundColor: "rgba(255,255,255,0.1)" },
+        banner: {
+            marginHorizontal: 12,
+            marginTop: 8,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            borderRadius: 8,
+            borderWidth: 1,
+            backgroundColor: palette.card,
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+        },
+        bannerSuccess: { backgroundColor: "rgba(0,150,136,0.16)", borderColor: "#009688" },
+        bannerError: { backgroundColor: "rgba(244,67,54,0.12)", borderColor: "#f44336" },
+        bannerInfo: { backgroundColor: "rgba(158,158,158,0.12)", borderColor: "#9e9e9e" },
+        bannerText: { color: palette.text, flex: 1 },
 
-    // Modals
-    modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
-    modalCard: { backgroundColor: "#1f1f1f", borderRadius: 12, padding: 16, width: "100%" },
-    modalTitle: { color: "#EBF1D5", fontSize: 18, fontWeight: "700", marginBottom: 8 },
-    modalBtn: { backgroundColor: "#2a2a2a", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
-    modalBtnText: { color: "#EBF1D5", fontWeight: "600" },
-    pickerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 10, borderRadius: 8, marginBottom: 6, backgroundColor: "rgba(255,255,255,0.05)" },
-    pickerText: { color: "#EBF1D5", fontSize: 16 },
-    // mini mode toggle buttons (=, %, 1.23)
-    modeMini: {
-        flex: 1,
-        paddingVertical: 6,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: "#55554f",
-        alignItems: "center",
-        justifyContent: "center",
-        marginRight: 6,
-        backgroundColor: "#1f1f1f",
-    },
-    modeMiniActive: {
-        backgroundColor: "#00C49F33", // soft green tint
-        borderColor: "#00C49F",
-    },
-    modeMiniText: {
-        color: "#EBF1D5",
-        fontSize: 14,
-        fontWeight: "600",
-    },
-    modeMiniTextActive: {
-        color: "#00C49F",
-        fontWeight: "700",
-    },
+        footer: {
+            paddingTop: 6,
+            paddingBottom: 12,
+            paddingHorizontal: 16,
+            borderTopWidth: StyleSheet.hairlineWidth,
+            borderTopColor: palette.border,
+            backgroundColor: palette.background,
+        },
+        hint: { color: palette.helperMuted, textAlign: "center", fontSize: 12, minHeight: 16, marginBottom: 6 },
+        submitBtn: { height: 48, borderRadius: 12, backgroundColor: palette.cta, alignItems: "center", justifyContent: "center" },
+        submitText: { color: palette.background, fontWeight: "700", fontSize: 16 },
+        submitDisabled: { backgroundColor: palette.muted },
 
-});
+        // Modals
+        modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
+        modalCard: { backgroundColor: palette.card, borderRadius: 12, padding: 16, width: "100%" },
+        modalTitle: { color: palette.text, fontSize: 18, fontWeight: "700", marginBottom: 8 },
+        modalBtn: { backgroundColor: palette.card, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+        modalBtnText: { color: palette.text, fontWeight: "600" },
+
+        pickerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 10, borderRadius: 8, marginBottom: 6, backgroundColor: "rgba(255,255,255,0.02)" },
+
+        // mini mode toggle buttons (=, %, 1.23)
+        modeMini: {
+            flex: 1,
+            paddingVertical: 6,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: palette.border,
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 6,
+            backgroundColor: palette.card,
+        },
+        modeMiniActive: {
+            backgroundColor: `${palette.cta}33`,
+            borderColor: palette.cta,
+        },
+        modeMiniText: {
+            color: palette.text,
+            fontSize: 14,
+            fontWeight: "600",
+        },
+        modeMiniTextActive: {
+            color: palette.cta,
+            fontWeight: "700",
+        },
+
+        // color tokens available for inline use
+        colors: {
+            backgroundFallback: palette.background,
+            cardFallback: palette.card,
+            cardAltFallback: palette.cardAlt,
+            borderFallback: palette.border,
+            textFallback: palette.text,
+            mutedFallback: palette.muted,
+            helperMutedFallback: palette.helperMuted,
+            primaryFallback: palette.primary,
+            ctaFallback: palette.cta,
+            dangerFallback: palette.danger,
+        },
+    });
+
+    s.colors = s.colors;
+    return s;
+};

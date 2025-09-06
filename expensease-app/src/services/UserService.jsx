@@ -7,20 +7,20 @@ const BASE_USERS = "/v1/users";
 // Auth / Session
 // ------------------------
 
-// Google login (server expects { access_token })
-export async function googleLogin(access_token) {
-    const data = await api.post(`${BASE_USERS}/google-login`, { access_token });
+// Google login (server expects { id_token })
+export async function googleLoginMobile(idToken, pushToken, platform) {
+    const data = await api.post(`${BASE_USERS}/google-login`, {
+        id_token: idToken,
+        pushToken,
+        platform
+    });
 
-    // If your backend returns tokens in a different shape, adapt here:
     const authToken = data?.responseBody?.["x-auth-token"] || data?.accessToken;
-    const refreshToken = data?.refreshToken; // if provided
-
     if (!authToken) {
         throw new Error(data?.error || "Google login failed.");
     }
 
-    // Persist tokens for the api client
-    await setTokens({ accessToken: authToken, refreshToken });
+    await setTokens({ accessToken: authToken });
 
     return {
         userToken: authToken,
@@ -30,8 +30,8 @@ export async function googleLogin(access_token) {
 }
 
 // Email-based mobile login (OTP / magic link style on your backend)
-export async function mobileLogin(email) {
-    const data = await api.post(`${BASE_USERS}/login`, { email });
+export async function mobileLogin(email, expoPushToken, platform) {
+    const data = await api.post(`${BASE_USERS}/login`, { email, pushToken: expoPushToken, platform });
 
     const authToken = data?.responseBody?.["x-auth-token"] || data?.accessToken;
     const refreshToken = data?.refreshToken; // if provided
@@ -176,15 +176,57 @@ export async function checkAppVersion(currentVersion, OS) {
     }
 }
 
+export async function savePublicPushToken(token, platform) {
+    return api.post(`${BASE_USERS}/push-token/public`, { token, platform });
+}
+
+// Save token with auth (saves to User + Admin)
+export async function saveUserPushToken(token, platform) {
+    return api.post(`${BASE_USERS}/push-token`, { token, platform });
+}
+
+
 // Save Expo push token with platform
 // src/services/UserService.js
-export async function savePushToken(token, platform, userToken = null) {
+export async function logToServer(payload = {}, userToken = null) {
     try {
-        const data = await api.post("/v1/users/push-token", { token, platform });
+        // console.log(payload);
+        const data = await api.post(`${BASE_USERS}/logging`, payload);
+        // console.log("✅ Logging success:", data);
         return data;
     } catch (err) {
-        console.error("❌ Failed to save push token:", err);
+        console.error("❌ Logging failed:", err);
         throw err;
     }
 }
 
+
+
+// ------------------------
+// Phone OTP Login
+// ------------------------
+
+export async function sendOtp(phoneNumber) {
+    const data = await api.post(`${BASE_USERS}/sendSMS`, { phoneNumber });
+    if (data?.error) {
+        throw new Error(data.error);
+    }
+    return data; // e.g. { type: "success" }
+}
+
+export async function verifyOtp(phoneNumber, code, pushToken = null, platform = "android") {
+    const data = await api.post(`${BASE_USERS}/verifyOTP`, { phoneNumber, code, pushToken, platform });
+
+    const authToken = data?.responseBody?.["x-auth-token"] || data?.accessToken;
+    if (!authToken) {
+        throw new Error(data?.error || "OTP verification failed.");
+    }
+
+    await setTokens({ accessToken: authToken });
+
+    return {
+        userToken: authToken,
+        newUser: !!data?.new,
+        userId: data?.id,
+    };
+}

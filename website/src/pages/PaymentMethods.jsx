@@ -15,7 +15,7 @@ import {
 } from "../services/PaymentMethodService";
 import { useAuth } from "../context/AuthContext";
 import MainLayout from "../layouts/MainLayout";
-import { ChevronLeft, Plus } from "lucide-react";
+import { ChevronLeft, Loader, Plus } from "lucide-react";
 import PaymentMethodModal from "../components/PaymentMethodModal";
 import PaymentMethodCard from "../components/PaymentMethodCard";
 import PaymentMethodBalanceModal from "../components/PaymentMethodBalanceModal";
@@ -47,7 +47,7 @@ const PaymentMethods = () => {
     const doRefresh = async () => {
         setRefreshing(true);
         try {
-            await Promise.all([fetchPaymentMethods()]);
+            await Promise.all([fetchPaymentMethods(true)]);
         } finally {
             setRefreshing(false);
         }
@@ -55,20 +55,39 @@ const PaymentMethods = () => {
     useEffect(() => {
         if (!scrollRef.current) return;
 
-        PullToRefresh.init({
+        const options = {
             mainElement: scrollRef.current,
             onRefresh: doRefresh,
             distThreshold: 60,
-            distMax: 120,
+            distMax: 80,
+            distReload: 50,
             resistance: 2.5,
+            // small instruction texts for pull/release; keep or remove as you like
+            instructionsPullToRefresh: "",
+            instructionsReleaseToRefresh: "",
+            // hide the default refreshing text (we'll use iconRefreshing instead)
+            instructionsRefreshing: "",
+            // spinner shown while refreshing — Tailwind classes (animate-spin) will apply if Tailwind is loaded
+            iconRefreshing: `
+                <div class="flex flex-row justify-center w-full items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 animate-spin text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" stroke-opacity="0.15"></circle>
+                    <path d="M22 12a10 10 0 0 0-10-10" stroke-linecap="round"></path>
+                    </svg>
+                </div>
+            `,
+            // keep your custom shouldPullToRefresh logic
             shouldPullToRefresh: () =>
                 scrollRef.current && scrollRef.current.scrollTop === 0,
-        });
+        };
+
+        PullToRefresh.init(options);
 
         return () => {
-            PullToRefresh.destroyAll(); // correct cleanup
+            try { PullToRefresh.destroyAll(); } catch (e) { /* ignore */ }
         };
-    }, []);
+    }, [doRefresh]);
+
 
 
     const filtered = useMemo(() => {
@@ -219,7 +238,9 @@ const PaymentMethods = () => {
                 <div ref={scrollRef} className="flex flex-col flex-1 w-full overflow-y-auto pt-3 no-scrollbar scroll-touch gap-3 pb-[15px]">
 
                     {loadingPaymentMethods ? (
-                        <div className="text-sm ">Loading…</div>
+                        <div className="flex flex-col justify-center items-center flex-1 py-5">
+                            <Loader />
+                        </div>
                     ) : filtered.length === 0 ? (
                         <div className="text-sm ">No payment accounts yet.</div>
                     ) : (

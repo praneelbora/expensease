@@ -31,12 +31,16 @@ export default function FilterModal({
     const [selectedCurrency, setSelectedCurrency] = useState(appliedFilter.currency || "");
     const [sort, setSort] = useState(appliedFilter.sort || "newest");
     const [paymentMethod, setPaymentMethod] = useState(appliedFilter.paymentMethod || "");
+    const [owedByMe, setOwedByMe] = useState("any");
+    const [paidByMe, setPaidByMe] = useState("any");
     useEffect(() => {
         setSelectedType(selectedFilters.type || "all");
         setSelectedCategory(selectedFilters.category || "all");
         setSelectedCurrency(selectedFilters.currency || "");
         setSort(selectedFilters.sort || "newest");
         setPaymentMethod(selectedFilters.paymentMethod || '')
+        setOwedByMe(selectedFilters.owedByMe || 'any')
+        setPaidByMe(selectedFilters.paidByMe || 'any')
     }, [selectedFilters, show]);
     const currencyOptions = useMemo(() => {
         const codes = getAllCurrencyCodes();
@@ -47,28 +51,72 @@ export default function FilterModal({
         setSelectedCategory("all");
         setSelectedCurrency("");
         setSort("newest");
+        setPaymentMethod("");
+        setPaidByMe("any");
+        setOwedByMe("any");
 
-        // also tell parent that filters are cleared
         onApply({
             type: "all",
             category: "all",
             currency: "",
             sort: "newest",
-            paymentMethod: ""
+            paymentMethod: "",
+            paidByMe: "any",
+            owedByMe: "any",
         });
         onClose();
     };
     const applyFilters = () => {
-        onApply({
-            type: selectedType,
-            category: selectedCategory,
-            currency: selectedCurrency,
-            sort,
-            paymentMethod
-        });
+        if (!isDirty) return; // guard
+        onApply(current);
         onClose?.();
     };
-
+    const normalizeFilters = (f) => ({
+        type: f.type ?? "all",
+        category: f.category ?? "all",
+        currency: f.currency ?? "",
+        sort: f.sort ?? "newest",
+        paymentMethod: f.paymentMethod ?? "",
+        paidByMe: f.paidByMe ?? "any",
+        owedByMe: f.owedByMe ?? "any",
+    });
+    const baseline = useMemo(() => normalizeFilters(selectedFilters), [show, selectedFilters]);
+    const current = useMemo(
+        () =>
+            normalizeFilters({
+                type: selectedType,
+                category: selectedCategory,
+                currency: selectedCurrency,
+                sort,
+                paymentMethod,
+                paidByMe,
+                owedByMe,
+            }),
+        [selectedType, selectedCategory, selectedCurrency, sort, paymentMethod, paidByMe, owedByMe]
+    );
+    const isDirty = useMemo(
+        () => JSON.stringify(baseline) !== JSON.stringify(current),
+        [baseline, current]
+    );
+    const isAtDefaults = useMemo(
+        () =>
+            JSON.stringify(current) ===
+            JSON.stringify(
+                normalizeFilters({
+                    type: "all",
+                    category: "all",
+                    currency: "",
+                    sort: "newest",
+                    paymentMethod: "",
+                    paidByMe: "any",
+                    owedByMe: "any",
+                })
+            ),
+        [current]
+    );
+    const triClass = (active) =>
+        `px-3 py-1 rounded-full text-sm transition ${active ? "bg-teal-400 text-black" : "bg-[#1f1f1f] text-[#EBF1D5] hover:bg-[#2a2a2a]"
+        }`;
     return (
         <ModalWrapper
             show={show}
@@ -92,7 +140,8 @@ export default function FilterModal({
                         </button>
                         <button
                             onClick={applyFilters}
-                            className="px-3 py-1.5 rounded-md bg-teal-600 text-black"
+                            disabled={!isDirty}
+                            className={`px-3 py-1.5 rounded-md bg-teal-600 text-black ${!isDirty ? "opacity-50 cursor-not-allowed" : ""}`}
                         >
                             Apply
                         </button>
@@ -184,6 +233,42 @@ export default function FilterModal({
                         options={SORT_OPTIONS}
                     />
                 </div>
+                <div className="flex flex-wrap justify-between">
+                    {/* NEW: Paid by me */}
+                    <div>
+                        <label className="text-xs text-[#9aa19a] mb-1 block">Paid by Me</label>
+                        <div className="flex items-center gap-2 py-1">
+
+                            <button onClick={() => setPaidByMe("any")} className={triClass(paidByMe === "any")}>
+                                Any
+                            </button>
+                            <button onClick={() => setPaidByMe("yes")} className={triClass(paidByMe === "yes")}>
+                                Yes
+                            </button>
+                            <button onClick={() => setPaidByMe("no")} className={triClass(paidByMe === "no")}>
+                                No
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* NEW: Owed by me */}
+                    {/* <div>
+                        <label className="text-xs text-[#9aa19a] mb-1 block">Owed by Me</label>
+                        <div className="flex items-center gap-2 py-1">
+                            <button onClick={() => setOwedByMe("any")} className={triClass(owedByMe === "any")}>
+                                Any
+                            </button>
+                            <button onClick={() => setOwedByMe("yes")} className={triClass(owedByMe === "yes")}>
+                                Yes
+                            </button>
+                            <button onClick={() => setOwedByMe("no")} className={triClass(owedByMe === "no")}>
+                                No
+                            </button>
+
+                        </div>
+                    </div> */}
+                </div>
+
             </div>
         </ModalWrapper>
     );

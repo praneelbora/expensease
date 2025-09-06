@@ -22,6 +22,7 @@ import { categoryMap } from "utils/categories";
 
 // ===== adjust these paths to your project =====
 import { useAuth } from "context/AuthContext";
+import { useTheme } from "context/ThemeProvider";
 import { getAllExpenses } from "services/ExpenseService";
 // import { logEvent } from "utils/analytics";
 
@@ -32,6 +33,8 @@ import SearchBar from "~/searchBar";
 export default function ExpensesScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
+    const { theme } = useTheme();
+    const styles = React.useMemo(() => createStyles(theme), [theme]);
 
     const {
         user,
@@ -50,16 +53,13 @@ export default function ExpensesScreen() {
     const [showFilter, setShowFilter] = useState(false);
     const filterSheetRef = useRef(null);
 
-
     const currencyOptions = useMemo(() => {
         const base = new Set([defaultCurrency, ...(preferredCurrencies || [])]);
-        // ensure base ones are included + full list available
         return allCurrencies
-            .filter(c => base.has(c.code))   // show preferred ones first
-            .concat(allCurrencies.filter(c => !base.has(c.code))) // then rest
-            .map(c => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
+            .filter((c) => base.has(c.code))
+            .concat(allCurrencies.filter((c) => !base.has(c.code)))
+            .map((c) => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
     }, [defaultCurrency, preferredCurrencies]);
-
 
     // URL-style initial state (type/category/sort) via router params
     const initialType = (params?.type || params?.filter || "all").toString();
@@ -71,20 +71,28 @@ export default function ExpensesScreen() {
         category: initialCategory,
         currency: "",
         sort: initialSort,
-        mode: "split",   // 👈 default mode
+        mode: "split",
     });
+
+    useEffect(() => {
+        setAppliedFilter((s) => ({
+            ...s,
+            type: initialType,
+            category: initialCategory,
+            sort: initialSort,
+        }));
+    }, [initialType, initialCategory, initialSort]);
+
     const defaultFitler = {
         type: initialType,
         category: initialCategory,
         currency: "",
         sort: initialSort,
-        mode: "split",   // 👈 default mode
+        mode: "split",
     };
-
 
     // keep route in sync when filters change
     useEffect(() => {
-        // just replace current route with updated query for share-ability
         const q = new URLSearchParams({
             type: appliedFilter.type,
             category: appliedFilter.category,
@@ -160,19 +168,15 @@ export default function ExpensesScreen() {
 
     const categoryOptions = useMemo(() => {
         const s = new Set();
-
-        // ✅ Only add categories that appear in expenses
         (expenses || []).forEach((e) => {
             if (e?.typeOf !== "settle" && e?.category) {
                 const label = categoryMap[e.category]?.label || e.category;
                 s.add(label);
             }
         });
-
         const arr = Array.from(s).sort((a, b) => a.localeCompare(b));
         return ["all", ...arr];
     }, [expenses]);
-
 
     // main filterer
     const filteredExpenses = useMemo(() => {
@@ -213,9 +217,7 @@ export default function ExpensesScreen() {
             if (qq) {
                 out = out.filter((exp) => {
                     const inDesc = (exp.description || "").toLowerCase().includes(qq);
-                    const inNames = (exp.splits || []).some(
-                        (s) => s.friendId && s.friendId.name.toLowerCase().includes(qq)
-                    );
+                    const inNames = (exp.splits || []).some((s) => s.friendId && s.friendId.name.toLowerCase().includes(qq));
                     const inAmount = String(exp.amount ?? "").toLowerCase().includes(qq);
                     const inCurrency = (exp.currency || "").toLowerCase().includes(qq);
                     const inGroup = (exp.groupId?.name || "").toLowerCase().includes(qq);
@@ -235,12 +237,7 @@ export default function ExpensesScreen() {
             }
 
             // sort
-            out.sort((a, b) =>
-                (sort === "newest")
-                    ? new Date(b.date) - new Date(a.date)
-                    : new Date(a.date) - new Date(b.date)
-            );
-
+            out.sort((a, b) => (sort === "newest" ? new Date(b.date) - new Date(a.date) : new Date(a.date) - new Date(b.date)));
             return out;
         };
 
@@ -251,33 +248,26 @@ export default function ExpensesScreen() {
     const renderItem = ({ item: exp }) => {
         const isSettle = exp.typeOf === "settle";
         const leftTitle = exp.description || (isSettle ? "Settlement" : "Expense");
-        const sub =
-            isSettle
-                ? getSettleDirectionText(exp.splits)
-                : exp.groupId?.name || (exp.splits?.length ? "With friends" : "Personal");
+        const sub = isSettle ? getSettleDirectionText(exp.splits) : exp.groupId?.name || (exp.splits?.length ? "With friends" : "Personal");
 
         const oweInfo = !isSettle ? getOweInfo(exp.splits) : null;
 
         return (
             <TouchableOpacity
                 activeOpacity={0.8}
-                style={styles.expenseRow}
+                style={[styles.expenseRow]}
                 onPress={() => {
-                    // logEvent?.("open_expense_modal", { screen: "expenses" });
-                    // You can navigate to a detail screen or open your native modal here:
-                    // router.push(`/expenses/${exp._id}`);
+                    // placeholder: open details or modal
                 }}
             >
                 <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.expenseTitle} numberOfLines={1}>{leftTitle}</Text>
+                    <Text style={styles.expenseTitle} numberOfLines={1}>
+                        {leftTitle}
+                    </Text>
                     <Text style={styles.expenseSub} numberOfLines={1}>
                         {sub} • {new Date(exp.date).toDateString()}
                     </Text>
-                    {!!oweInfo && (
-                        <Text style={styles.expenseHint}>
-                            {oweInfo.text} {getSymbol(exp.currency)}{oweInfo.amount}
-                        </Text>
-                    )}
+                    {!!oweInfo && <Text style={styles.expenseHint}>{oweInfo.text} {getSymbol(exp.currency)}{oweInfo.amount}</Text>}
                 </View>
                 <Text style={styles.expenseAmt}>
                     {getSymbol(exp.currency)} {Number(exp.amount || 0).toFixed(2)}
@@ -286,20 +276,23 @@ export default function ExpensesScreen() {
         );
     };
 
-
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
-            <StatusBar style="light" />
-            <Header title="Expenses" showFilter onFilterPress={() => filterSheetRef.current?.present()} filterBtnActive={JSON.stringify(appliedFilter) !== JSON.stringify(defaultFitler)} />
+            {/* StatusBar uses theme.statusBarStyle if present, otherwise derive from theme.mode */}
+            <StatusBar style={theme?.statusBarStyle === "dark-content" ? "dark" : "light"} />
+            <Header
+                title="Expenses"
+                showFilter
+                onFilterPress={() => filterSheetRef.current?.present()}
+                filterBtnActive={JSON.stringify(appliedFilter) !== JSON.stringify(defaultFitler)}
+            />
+
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
                 {/* Search */}
                 {expenses.length > 0 && (
-                    <SearchBar
-                        value={query}
-                        onChangeText={setQuery}
-                        placeholder="Search Descriptions / Names / Amounts / Currencies"
-                    />
+                    <SearchBar value={query} onChangeText={setQuery} placeholder="Search Descriptions / Names / Amounts / Currencies" />
                 )}
+
                 {/* List */}
                 <FlatList
                     data={loading ? [] : filteredExpenses}
@@ -317,11 +310,11 @@ export default function ExpensesScreen() {
                     )}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
                     ListEmptyComponent={
                         loading ? (
                             <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-                                <Feather name="loader" size={22} color="#EBF1D5" />
+                                <Feather name="loader" size={22} color={theme.colors.text} />
                             </View>
                         ) : expenses.length === 0 ? (
                             <View style={styles.emptyWrap}>
@@ -331,14 +324,10 @@ export default function ExpensesScreen() {
                         ) : (
                             <View style={styles.emptyWrap}>
                                 <Text style={[styles.emptyTitle, { marginBottom: 6 }]}>No results.</Text>
-                                <Text style={styles.emptyText}>
-                                    Clear filters to view more.
-                                </Text>
+                                <Text style={styles.emptyText}>Clear filters to view more.</Text>
                                 <TouchableOpacity
                                     style={[styles.ctaBtn, { marginTop: 10 }]}
-                                    onPress={() =>
-                                        setAppliedFilter({ type: "all", category: "all", currency: "", sort: "newest" })
-                                    }
+                                    onPress={() => setAppliedFilter({ type: "all", category: "all", currency: "", sort: "newest" })}
                                 >
                                     <Text style={styles.ctaBtnText}>Clear Filters</Text>
                                 </TouchableOpacity>
@@ -346,16 +335,10 @@ export default function ExpensesScreen() {
                         )
                     }
                     ListFooterComponent={
-                        !loading && filteredExpenses.length > 0 &&
-                            (appliedFilter.type !== "all" || appliedFilter.category !== "all") ? (
+                        !loading && filteredExpenses.length > 0 && (appliedFilter.type !== "all" || appliedFilter.category !== "all") ? (
                             <Text style={styles.footerHint}>
                                 End of Results.{" "}
-                                <Text
-                                    onPress={() =>
-                                        setAppliedFilter({ type: "all", category: "all", currency: "", sort: "newest" })
-                                    }
-                                    style={{ color: "#60DFC9", textDecorationLine: "underline" }}
-                                >
+                                <Text onPress={() => setAppliedFilter({ type: "all", category: "all", currency: "", sort: "newest" })} style={{ color: theme.colors.primary, textDecorationLine: "underline" }}>
                                     Clear Filters
                                 </Text>{" "}
                                 to view more.
@@ -365,13 +348,12 @@ export default function ExpensesScreen() {
                 />
 
                 {/* Filters sheet */}
-
                 <BottomSheetFilters
                     innerRef={filterSheetRef}
-                    selected={appliedFilter}                 // ✅ pass appliedFilter
-                    filters={FILTERS}                        // ✅ use correct expense filters
-                    categories={categoryOptions}             // ✅ use dynamic categories
-                    onApply={(newFilters) => setAppliedFilter(newFilters)}   // ✅ update appliedFilter
+                    selected={appliedFilter}
+                    filters={FILTERS}
+                    categories={categoryOptions}
+                    onApply={(newFilters) => setAppliedFilter(newFilters)}
                     onClose={() => console.log("Filter sheet closed")}
                 />
             </View>
@@ -379,81 +361,87 @@ export default function ExpensesScreen() {
     );
 }
 
-// ============ styles ============
-const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: "#121212" },
-    header: {
-        paddingHorizontal: 16,
-        paddingTop: Platform.OS === "android" ? 6 : 0,
-        paddingBottom: 10,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: "#EBF1D5",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
-    headerTitle: { color: "#EBF1D5", fontSize: 24, fontWeight: "700" },
+// ============ themed styles factory ============
+const createStyles = (theme) =>
+    StyleSheet.create({
+        safe: { flex: 1, backgroundColor: theme?.colors?.background ?? "#121212" },
+        header: {
+            paddingHorizontal: 16,
+            paddingTop: Platform.OS === "android" ? 6 : 0,
+            paddingBottom: 10,
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: theme?.colors?.border ?? "#2a2a2a",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+        },
+        headerTitle: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 24, fontWeight: "700" },
 
-    filterBtn: {
-        backgroundColor: "#212121",
-        paddingHorizontal: 10, paddingVertical: 8,
-        borderRadius: 8, borderWidth: 1, borderColor: "#212121",
-    },
-    filterBtnActive: { borderColor: "#00C49F" },
+        filterBtn: {
+            backgroundColor: theme?.colors?.card ?? "#212121",
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "#212121",
+        },
+        filterBtnActive: { borderColor: theme?.colors?.primary ?? "#00C49F" },
 
-    input: {
-        backgroundColor: "#1f1f1f",
-        color: "#EBF1D5",
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "#55554f",
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        fontSize: 16,
-    },
+        input: {
+            backgroundColor: theme?.colors?.card ?? "#1f1f1f",
+            color: theme?.colors?.text ?? "#EBF1D5",
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "#55554f",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            fontSize: 16,
+        },
 
-    expenseRow: {
-        backgroundColor: "#1f1f1f",
-        borderRadius: 12,
-        padding: 12,
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 8,
-    },
-    expenseTitle: { color: "#EBF1D5", fontSize: 15, fontWeight: "700" },
-    expenseSub: { color: "#aaa", fontSize: 12, marginTop: 2 },
-    expenseHint: { color: "#60DFC9", fontSize: 12, marginTop: 2 },
-    expenseAmt: { color: "#EBF1D5", fontWeight: "700", marginLeft: 12 },
+        expenseRow: {
+            backgroundColor: theme?.colors?.card ?? "#1f1f1f",
+            borderRadius: 12,
+            padding: 12,
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 8,
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "#2a2a2a",
+        },
+        expenseTitle: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 15, fontWeight: "700" },
+        expenseSub: { color: theme?.colors?.muted ?? "#aaa", fontSize: 12, marginTop: 2 },
+        expenseHint: { color: theme?.colors?.primary ?? "#60DFC9", fontSize: 12, marginTop: 2 },
+        expenseAmt: { color: theme?.colors?.text ?? "#EBF1D5", fontWeight: "700", marginLeft: 12 },
 
-    emptyWrap: {
-        backgroundColor: "#1f1f1f",
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "#333",
-        padding: 16,
-        marginHorizontal: 16,
-        marginTop: 24,
-        alignItems: "center",
-    },
-    emptyTitle: { color: "#EBF1D5", fontSize: 18, fontWeight: "700" },
-    emptyText: { color: "#888", textAlign: "center", marginTop: 6 },
+        emptyWrap: {
+            backgroundColor: theme?.colors?.card ?? "#1f1f1f",
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "#333",
+            padding: 16,
+            marginHorizontal: 16,
+            marginTop: 24,
+            alignItems: "center",
+        },
+        emptyTitle: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 18, fontWeight: "700" },
+        emptyText: { color: theme?.colors?.muted ?? "#888", textAlign: "center", marginTop: 6 },
 
-    ctaBtn: { backgroundColor: "#00C49F", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
-    ctaBtnText: { color: "#121212", fontWeight: "700" },
+        ctaBtn: { backgroundColor: theme?.colors?.primary ?? "#00C49F", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+        ctaBtnText: { color: theme?.colors?.inverseText ?? "#121212", fontWeight: "700" },
 
-    footerHint: { color: "#888", textAlign: "center", marginVertical: 10 },
+        footerHint: { color: theme?.colors?.muted ?? "#888", textAlign: "center", marginVertical: 10 },
 
-    // modal
-    modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
-    modalCard: { backgroundColor: "#1f1f1f", borderRadius: 12, padding: 16, width: "100%" },
-    modalTitle: { color: "#EBF1D5", fontSize: 18, fontWeight: "700", marginBottom: 8 },
-    modalSection: { color: "#60DFC9", fontSize: 12, textTransform: "uppercase", marginTop: 8, marginBottom: 6 },
-    chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-    chip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: "#2a2a2a" },
-    chipActive: { backgroundColor: "#EBF1D5", borderColor: "#EBF1D5" },
-    chipText: { color: "#EBF1D5", fontSize: 12 },
-    chipTextActive: { color: "#121212", fontWeight: "700" },
-    modalBtnSecondary: { backgroundColor: "#2a2a2a", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
-    modalBtnPrimary: { backgroundColor: "#00C49F", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
-    modalBtnText: { color: "#EBF1D5", fontWeight: "600" },
-});
+        // modal
+        modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
+        modalCard: { backgroundColor: theme?.colors?.card ?? "#1f1f1f", borderRadius: 12, padding: 16, width: "100%" },
+        modalTitle: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 18, fontWeight: "700", marginBottom: 8 },
+        modalSection: { color: theme?.colors?.primary ?? "#60DFC9", fontSize: 12, textTransform: "uppercase", marginTop: 8, marginBottom: 6 },
+        chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+        chip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: theme?.colors?.border ?? "#2a2a2a" },
+        chipActive: { backgroundColor: theme?.colors?.primary ?? "#EBF1D5", borderColor: theme?.colors?.primary ?? "#EBF1D5" },
+        chipText: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 12 },
+        chipTextActive: { color: theme?.colors?.inverseText ?? "#121212", fontWeight: "700" },
+        modalBtnSecondary: { backgroundColor: theme?.colors?.card ?? "#2a2a2a", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+        modalBtnPrimary: { backgroundColor: theme?.colors?.primary ?? "#00C49F", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+        modalBtnText: { color: theme?.colors?.text ?? "#EBF1D5", fontWeight: "600" },
+    });

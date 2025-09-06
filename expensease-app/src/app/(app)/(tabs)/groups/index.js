@@ -3,12 +3,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
     View,
     Text,
-    TextInput,
     TouchableOpacity,
     FlatList,
     StyleSheet,
     RefreshControl,
-    Modal,
     Platform,
 } from "react-native";
 import Header from "~/header";
@@ -23,7 +21,10 @@ import { useAuth } from "/context/AuthContext";
 import { getAllGroups, getGroupExpenses, joinGroup, createGroup } from "/services/GroupService";
 // import { logEvent } from "/utils/analytics";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "utils/currencies";
+import BottomSheetGroups from "~/btmShtAddGroup";
+import { useTheme } from "context/ThemeProvider";
 
+/* ----------------- helpers ----------------- */
 const currencyDigits = (code, locale = "en-IN") => {
     try {
         const fmt = new Intl.NumberFormat(locale, { style: "currency", currency: code });
@@ -44,92 +45,13 @@ const initials = (name = "") => {
     return (parts[0][0] + parts[1][0]).toUpperCase();
 };
 
-// ===== simple banner =====
-const Banner = ({ banner, onClose }) =>
-    banner ? (
-        <View
-            style={[
-                styles.banner,
-                banner.type === "success" && styles.bannerSuccess,
-                banner.type === "error" && styles.bannerError,
-                banner.type === "info" && styles.bannerInfo,
-            ]}
-        >
-            <Text style={styles.bannerText}>{banner.text}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={{ color: "#ccc" }}>✕</Text>
-            </TouchableOpacity>
-        </View>
-    ) : null;
-
-// ===== Create / Join modal (minimal) =====
-function GroupsMiniModal({ visible, onClose, onCreate, onJoin, busy }) {
-    const [name, setName] = useState("");
-    const [code, setCode] = useState("");
-
-    useEffect(() => {
-        if (!visible) {
-            setName("");
-            setCode("");
-        }
-    }, [visible]);
-
-    return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <View style={styles.modalBackdrop}>
-                <View style={styles.modalCard}>
-                    <Text style={styles.modalTitle}>Groups</Text>
-
-                    <Text style={styles.modalSection}>Create Group</Text>
-                    <TextInput
-                        placeholder="Group name"
-                        placeholderTextColor="#81827C"
-                        value={name}
-                        onChangeText={setName}
-                        style={styles.input}
-                    />
-                    <TouchableOpacity
-                        onPress={() => onCreate(name)}
-                        disabled={!name.trim() || busy}
-                        style={[styles.actionBtn, (!name.trim() || busy) && styles.btnDisabled]}
-                    >
-                        <Text style={styles.actionBtnText}>{busy ? "Working…" : "Create"}</Text>
-                    </TouchableOpacity>
-
-                    <View style={{ height: 16 }} />
-
-                    <Text style={styles.modalSection}>Join with Code</Text>
-                    <TextInput
-                        placeholder="Enter code"
-                        placeholderTextColor="#81827C"
-                        value={code}
-                        onChangeText={setCode}
-                        autoCapitalize="characters"
-                        style={styles.input}
-                    />
-                    <TouchableOpacity
-                        onPress={() => onJoin(code)}
-                        disabled={!code.trim() || busy}
-                        style={[styles.actionBtn, (!code.trim() || busy) && styles.btnDisabled]}
-                    >
-                        <Text style={styles.actionBtnText}>{busy ? "Working…" : "Join"}</Text>
-                    </TouchableOpacity>
-
-                    <View style={{ alignItems: "flex-end", marginTop: 12 }}>
-                        <TouchableOpacity style={styles.modalBtn} onPress={onClose}>
-                            <Text style={styles.modalBtnText}>Close</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
-}
-
+/* ----------------- Screen ----------------- */
 export default function GroupsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams(); // can hold { join: CODE }
     const { userToken } = useAuth() || {};
+    const { theme } = useTheme();
+    const styles = React.useMemo(() => createStyles(theme), [theme]);
 
     // data
     const [groups, setGroups] = useState([]);
@@ -146,8 +68,9 @@ export default function GroupsScreen() {
     const [activeFilter, setActiveFilter] = useState("all"); // all | owes_me | i_owe | settled
 
     const hasJoinedRef = useRef(false);
+    const groupsRef = useRef(null);
 
-    // ===== fetch: groups + per-currency totals =====
+    // hydrate groups with per-currency totals
     const hydrateGroups = useCallback(
         async (raw = []) => {
             const enhanced = await Promise.all(
@@ -214,14 +137,13 @@ export default function GroupsScreen() {
         }
     }, [fetchGroups]);
 
-    // ===== handle ?join=CODE =====
+    // handle ?join=CODE
     const handleJoinGroup = useCallback(
         async (joinCode) => {
             try {
                 setModalBusy(true);
                 const data = await joinGroup(joinCode, userToken);
                 if (data?.error) throw new Error(data.error);
-                // logEvent?.("group_join", { screen: "groups", source: "link" });
 
                 setBanner({ type: "success", text: "Joined group successfully." });
                 setTimeout(() => setBanner(null), 3000);
@@ -247,7 +169,7 @@ export default function GroupsScreen() {
         }
     }, [params?.join, handleJoinGroup]);
 
-    // ===== filters/search =====
+    // filters/search
     const groupCategory = (g) => {
         const list = g?.totalOweList || [];
         const hasPos = list.some((x) => x.amount > 0); // you owe
@@ -266,9 +188,7 @@ export default function GroupsScreen() {
                     !q ||
                     g.name?.toLowerCase().includes(q) ||
                     (g.members || []).some(
-                        (m) =>
-                            m?.name?.toLowerCase().includes(q) ||
-                            m?.email?.toLowerCase().includes(q)
+                        (m) => m?.name?.toLowerCase().includes(q) || m?.email?.toLowerCase().includes(q)
                     );
                 if (!matchText) return false;
 
@@ -282,12 +202,11 @@ export default function GroupsScreen() {
             .sort((a, b) => a.name.localeCompare(b.name));
     }, [groups, query, activeFilter]);
 
-    // ===== create / join from modal (simple) =====
+    // create / join handlers for bottom sheet
     const onCreateGroup = async (name) => {
         try {
             setModalBusy(true);
             await createGroup(name, [], userToken);
-            // logEvent?.("group_create", { screen: "groups", source: "modal" });
             setShowModal(false);
             setBanner({ type: "success", text: "Group created." });
             setTimeout(() => setBanner(null), 2500);
@@ -300,7 +219,7 @@ export default function GroupsScreen() {
         }
     };
 
-    // ===== render row =====
+    // render row
     const renderItem = ({ item: group }) => {
         const list = group?.totalOweList || [];
         const dominant = list[0];
@@ -310,8 +229,6 @@ export default function GroupsScreen() {
         return (
             <TouchableOpacity
                 onPress={() => {
-                    // logEvent?.("navigate", { fromScreen: "groups", toScreen: "group_detail", source: "group_list" });
-                    // router.push(`/c/${group._id}`);
                     router.push({ pathname: "/groups/details", params: { id: group._id } });
                 }}
                 activeOpacity={0.8}
@@ -323,24 +240,17 @@ export default function GroupsScreen() {
                 </View>
 
                 <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>{group.name}</Text>
-                    <Text style={styles.rowSub}>
-                        {membersCount} Member{membersCount === 1 ? "" : "s"}
+                    <Text style={styles.rowTitle} numberOfLines={1}>
+                        {group.name}
                     </Text>
+                    <Text style={styles.rowSub}>{membersCount} Member{membersCount === 1 ? "" : "s"}</Text>
                 </View>
 
                 {list.length > 0 ? (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         {dominant ? (
-                            <View
-                                style={[
-                                    styles.badge,
-                                    dominant.amount < 0 ? styles.badgeOwed : styles.badgeOwe,
-                                ]}
-                            >
-                                <Text
-                                    style={dominant.amount < 0 ? styles.badgeOwedText : styles.badgeOweText}
-                                >
+                            <View style={[styles.badge, dominant.amount < 0 ? styles.badgeOwed : styles.badgeOwe]}>
+                                <Text style={dominant.amount < 0 ? styles.badgeOwedText : styles.badgeOweText}>
                                     {dominant.amount < 0 ? "you’re owed · " : "you owe · "}
                                     {getSymbol(dominant.code)}
                                     {Math.abs(dominant.amount).toFixed(currencyDigits(dominant.code))}
@@ -362,17 +272,31 @@ export default function GroupsScreen() {
         );
     };
 
+    // Banner component (uses themed styles)
+    const Banner = ({ bannerObj, onClose }) =>
+        bannerObj ? (
+            <View
+                style={[
+                    styles.banner,
+                    bannerObj.type === "success" && styles.bannerSuccess,
+                    bannerObj.type === "error" && styles.bannerError,
+                    bannerObj.type === "info" && styles.bannerInfo,
+                ]}
+            >
+                <Text style={styles.bannerText}>{bannerObj.text}</Text>
+                <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.bannerClose}>✕</Text>
+                </TouchableOpacity>
+            </View>
+        ) : null;
+
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
-            <StatusBar style="light" />
+            <StatusBar style={theme?.statusBarStyle === "dark-content" ? "dark" : "light"} />
             <Header title="Groups" />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
                 <View style={{ gap: 8 }}>
-                    <SearchBar
-                        value={query}
-                        onChangeText={setQuery}
-                        placeholder="Search groups or members"
-                    />
+                    <SearchBar value={query} onChangeText={setQuery} placeholder="Search groups or members" />
 
                     <View style={styles.filters}>
                         {[
@@ -389,9 +313,7 @@ export default function GroupsScreen() {
                                     style={[styles.filterChip, active && styles.filterChipActive]}
                                     accessibilityState={{ selected: active }}
                                 >
-                                    <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                                        {label}
-                                    </Text>
+                                    <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{label}</Text>
                                 </TouchableOpacity>
                             );
                         })}
@@ -399,15 +321,15 @@ export default function GroupsScreen() {
                 </View>
 
                 {/* Banner */}
-                <Banner banner={banner} onClose={() => setBanner(null)} />
+                <Banner bannerObj={banner} onClose={() => setBanner(null)} />
 
-                {/* List / Empty / Loading */}
+                {/* List */}
                 <FlatList
                     data={loading ? [] : filteredGroups}
                     keyExtractor={(item) => String(item._id)}
                     renderItem={renderItem}
                     contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme?.colors?.primary} />}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={
                         loading ? (
@@ -426,13 +348,10 @@ export default function GroupsScreen() {
                         ) : (
                             <View style={styles.emptyCard}>
                                 <Text style={styles.emptyTitle}>No groups yet</Text>
-                                <Text style={styles.emptyText}>
-                                    To split expenses with multiple people, create a group.
-                                </Text>
+                                <Text style={styles.emptyText}>To split expenses with multiple people, create a group.</Text>
                                 <TouchableOpacity
                                     style={styles.ctaBtn}
                                     onPress={() => {
-                                        // logEvent?.("open_add_group_modal", { screen: "groups", source: "cta" });
                                         setShowModal(true);
                                     }}
                                 >
@@ -443,7 +362,7 @@ export default function GroupsScreen() {
                     }
                     ListFooterComponent={
                         !loading && filteredGroups.length > 0 ? (
-                            <Text style={{ color: "#00C49F", textAlign: "center", marginTop: 10 }}>
+                            <Text style={[styles.countFooter]}>
                                 {filteredGroups.length} Group{filteredGroups.length === 1 ? "" : "s"}
                             </Text>
                         ) : null
@@ -451,143 +370,253 @@ export default function GroupsScreen() {
                 />
 
                 {/* Floating create button (mobile) */}
-                <TouchableOpacity
-                    accessibilityLabel="Create group"
-                    onPress={() => {
-                        // logEvent?.("open_add_group_modal", { screen: "groups", source: "fab" });
-                        setShowModal(true);
-                    }}
-                    style={styles.fab}
-                >
-                    <Feather name="plus" size={22} color="#121212" />
+                <TouchableOpacity accessibilityLabel="Create group" onPress={() => groupsRef.current?.present()} style={styles.fab}>
+                    <Feather name="plus" size={24} color={theme?.colors?.inverseText ?? "#121212"} />
                 </TouchableOpacity>
 
-                <GroupsMiniModal
-                    visible={showModal}
-                    onClose={() => setShowModal(false)}
-                    busy={modalBusy}
-                    onCreate={onCreateGroup}
-                    onJoin={handleJoinGroup}
+                <BottomSheetGroups
+                    innerRef={groupsRef}
+                    onClose={() => { }}
+                    busy={loading}
+                    onCreate={async (name) => {
+                        try {
+                            await createGroup(name, [], userToken);
+                            groupsRef.current?.dismiss();
+                            await fetchGroups();
+                        } catch (e) {
+                            console.error("Failed to create group:", e);
+                        }
+                    }}
+                    onJoin={async (code) => {
+                        try {
+                            await joinGroup(code, userToken);
+                            groupsRef.current?.dismiss();
+                            await fetchGroups();
+                        } catch (e) {
+                            console.error("Failed to join group:", e);
+                        }
+                    }}
                 />
             </View>
         </SafeAreaView>
     );
 }
 
-// ============ styles ============
-const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: "#121212" },
-    header: {
-        paddingHorizontal: 16,
-        paddingTop: Platform.OS === "android" ? 6 : 0,
-        paddingBottom: 10,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: "#EBF1D5",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
-    headerTitle: { color: "#EBF1D5", fontSize: 24, fontWeight: "700" },
-    headerFab: {
-        width: 32, height: 32, borderRadius: 16,
-        backgroundColor: "#00C49F", alignItems: "center", justifyContent: "center",
-    },
+/* ============ themed styles factory ============ */
+const createStyles = (theme) =>
+    StyleSheet.create({
+        safe: { flex: 1, backgroundColor: theme?.colors?.background ?? "#121212" },
+        header: {
+            paddingHorizontal: 16,
+            paddingTop: Platform.OS === "android" ? 6 : 0,
+            paddingBottom: 10,
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: theme?.colors?.border ?? "#EBF1D5",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+        },
+        headerTitle: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 24, fontWeight: "700" },
+        headerFab: {
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: theme?.colors?.primary ?? "#00C49F",
+            alignItems: "center",
+            justifyContent: "center",
+        },
 
-    input: {
-        backgroundColor: "#1f1f1f",
-        color: "#EBF1D5",
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "#55554f",
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        fontSize: 15,
-    },
-    filters: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-    filterChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: "#2a2a2a" },
-    filterChipActive: { backgroundColor: "#EBF1D5", borderColor: "#EBF1D5" },
-    filterChipText: { color: "#EBF1D5", fontSize: 12 },
-    filterChipTextActive: { color: "#121212", fontWeight: "700" },
+        input: {
+            backgroundColor: theme?.colors?.card ?? "#1f1f1f",
+            color: theme?.colors?.text ?? "#EBF1D5",
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "#55554f",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            fontSize: 15,
+        },
+        filters: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+        filterChip: {
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "#2a2a2a",
+            backgroundColor: "transparent",
+        },
+        filterChipActive: {
+            backgroundColor: theme?.colors?.primary ?? "#EBF1D5",
+            borderColor: theme?.colors?.primary ?? "#EBF1D5",
+        },
+        filterChipText: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 12 },
+        filterChipTextActive: { color: theme?.colors?.inverseText ?? "#121212", fontWeight: "700" },
 
-    // rows
-    row: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        paddingVertical: 12,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: "#212121",
-    },
-    logo: {
-        width: 40, height: 40, borderRadius: 8,
-        backgroundColor: "#1f1f1f", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-        alignItems: "center", justifyContent: "center",
-    },
-    logoText: { color: "#EBF1D5", fontWeight: "700" },
-    rowTitle: { color: "#EBF1D5", fontSize: 15, fontWeight: "600", textTransform: "capitalize" },
-    rowSub: { color: "#888", fontSize: 12 },
+        // rows
+        row: {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+            paddingVertical: 12,
+            paddingHorizontal: 0,
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: theme?.colors?.border ?? "#212121",
+        },
+        logo: {
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            backgroundColor: theme?.colors?.card ?? "#1f1f1f",
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "rgba(255,255,255,0.08)",
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        logoText: { color: theme?.colors?.text ?? "#EBF1D5", fontWeight: "700" },
+        rowTitle: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 15, fontWeight: "600", textTransform: "capitalize" },
+        rowSub: { color: theme?.colors?.muted ?? "#888", fontSize: 12 },
 
-    badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
-    badgeOwe: { borderColor: "rgba(244,67,54,0.4)", backgroundColor: "rgba(244,67,54,0.1)" },
-    badgeOwed: { borderColor: "rgba(0,196,159,0.4)", backgroundColor: "rgba(0,196,159,0.1)" },
-    badgeOweText: { color: "#f28b82", fontSize: 12 },
-    badgeOwedText: { color: "#60DFC9", fontSize: 12 },
-    badgeNeutral: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
-    badgeNeutralText: { color: "#bbb", fontSize: 12 },
+        badge: {
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 6,
+            backgroundColor: "rgba(255,255,255,0.03)",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.06)",
+        },
+        badgeOwe: {
+            borderColor: theme?.colors?.negative ? `rgba(${hexToRgb(theme.colors.negative)},0.35)` : "rgba(244,67,54,0.4)",
+            backgroundColor: theme?.colors?.negative ? `rgba(${hexToRgb(theme.colors.negative)},0.08)` : "rgba(244,67,54,0.1)",
+        },
+        badgeOwed: {
+            borderColor: theme?.colors?.positive ? `rgba(${hexToRgb(theme.colors.positive)},0.35)` : "rgba(0,196,159,0.4)",
+            backgroundColor: theme?.colors?.positive ? `rgba(${hexToRgb(theme.colors.positive)},0.08)` : "rgba(0,196,159,0.1)",
+        },
+        badgeOweText: { color: theme?.colors?.negativeText ?? "#f28b82", fontSize: 12 },
+        badgeOwedText: { color: theme?.colors?.positive ?? "#60DFC9", fontSize: 12 },
+        badgeNeutral: {
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 6,
+            backgroundColor: "rgba(255,255,255,0.03)",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.06)",
+        },
+        badgeNeutralText: { color: theme?.colors?.muted ?? "#bbb", fontSize: 12 },
 
-    // empty
-    emptyCard: { backgroundColor: "#1f1f1f", borderRadius: 12, padding: 16, marginTop: 24, alignItems: "center", borderWidth: 1, borderColor: "#333" },
-    emptyTitle: { color: "#EBF1D5", fontSize: 20, fontWeight: "700" },
-    emptyText: { color: "#888", textAlign: "center", marginTop: 6, marginBottom: 12 },
-    ctaBtn: { backgroundColor: "#00C49F", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
-    ctaBtnText: { color: "#121212", fontWeight: "700" },
-    countFooter: { color: "#60DFC9", textAlign: "center", marginTop: 8 },
+        // empty
+        emptyCard: {
+            backgroundColor: theme?.colors?.card ?? "#1f1f1f",
+            borderRadius: 12,
+            padding: 16,
+            marginTop: 24,
+            alignItems: "center",
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "#333",
+        },
+        emptyTitle: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 20, fontWeight: "700" },
+        emptyText: { color: theme?.colors?.muted ?? "#888", textAlign: "center", marginTop: 6, marginBottom: 12 },
+        ctaBtn: { backgroundColor: theme?.colors?.primary ?? "#00C49F", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+        ctaBtnText: { color: theme?.colors?.inverseText ?? "#121212", fontWeight: "700" },
+        countFooter: { color: theme?.colors?.primary ?? "#60DFC9", textAlign: "center", marginTop: 8 },
 
-    // banner
-    banner: {
-        marginHorizontal: 16,
-        marginTop: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderRadius: 8,
-        borderWidth: 1,
-        backgroundColor: "#1e1e1e",
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
-    },
-    bannerSuccess: { backgroundColor: "rgba(0,150,136,0.2)", borderColor: "#009688" },
-    bannerError: { backgroundColor: "rgba(244,67,54,0.2)", borderColor: "#f44336" },
-    bannerInfo: { backgroundColor: "rgba(158,158,158,0.2)", borderColor: "#9e9e9e" },
-    bannerText: { color: "#EBF1D5", flex: 1 },
+        // banner
+        banner: {
+            marginHorizontal: 16,
+            marginTop: 8,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            borderRadius: 8,
+            borderWidth: 1,
+            backgroundColor: theme?.colors?.card ?? "#1e1e1e",
+            borderColor: theme?.colors?.border ?? "rgba(255,255,255,0.06)",
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+        },
+        bannerSuccess: { backgroundColor: theme?.colors?.positive ? rgba(theme.colors.positive, 0.12) : "rgba(0,150,136,0.12)", borderColor: theme?.colors?.positive ?? "#009688" },
+        bannerError: { backgroundColor: theme?.colors?.negative ? rgba(theme.colors.negative, 0.12) : "rgba(244,67,54,0.12)", borderColor: theme?.colors?.negative ?? "#f44336" },
+        bannerInfo: { backgroundColor: "rgba(158,158,158,0.08)", borderColor: "rgba(158,158,158,0.2)" },
+        bannerText: { color: theme?.colors?.text ?? "#EBF1D5", flex: 1 },
+        bannerClose: { color: theme?.colors?.muted ?? "#ccc" },
 
-    // modal
-    modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
-    modalCard: { backgroundColor: "#1f1f1f", borderRadius: 12, padding: 16, width: "100%" },
-    modalTitle: { color: "#EBF1D5", fontSize: 18, fontWeight: "700", marginBottom: 8 },
-    modalSection: { color: "#60DFC9", fontSize: 12, textTransform: "uppercase", marginBottom: 6 },
-    modalBtn: { backgroundColor: "#2a2a2a", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
-    modalBtnText: { color: "#EBF1D5", fontWeight: "600" },
-    actionBtn: { backgroundColor: "#00C49F", borderRadius: 10, paddingVertical: 10, alignItems: "center", marginTop: 6 },
-    actionBtnText: { color: "#121212", fontWeight: "700" },
-    btnDisabled: { backgroundColor: "rgba(255,255,255,0.1)" },
+        // modal
+        modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
+        modalCard: { backgroundColor: theme?.colors?.card ?? "#1f1f1f", borderRadius: 12, padding: 16, width: "100%" },
+        modalTitle: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 18, fontWeight: "700", marginBottom: 8 },
+        modalSection: { color: theme?.colors?.primary ?? "#60DFC9", fontSize: 12, textTransform: "uppercase", marginBottom: 6 },
+        modalBtn: { backgroundColor: theme?.colors?.card ?? "#2a2a2a", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+        modalBtnText: { color: theme?.colors?.text ?? "#EBF1D5", fontWeight: "600" },
+        actionBtn: { backgroundColor: theme?.colors?.primary ?? "#00C49F", borderRadius: 10, paddingVertical: 10, alignItems: "center", marginTop: 6 },
+        actionBtnText: { color: theme?.colors?.inverseText ?? "#121212", fontWeight: "700" },
+        btnDisabled: { backgroundColor: "rgba(255,255,255,0.06)" },
 
-    // skeletons
-    skelRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
-    skelLogo: { width: 40, height: 40, borderRadius: 8, backgroundColor: "#222", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-    skelLineShort: { height: 8, width: "35%", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 4 },
-    skelLine: { height: 8, width: "55%", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 4 },
-    skelBadge: { height: 22, width: 100, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 6, marginLeft: "auto" },
+        // skeletons (matched to real row sizes/borders)
+        skelRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 0 },
+        skelLogo: {
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            backgroundColor: theme?.colors?.card ?? "#222",
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "rgba(255,255,255,0.08)",
+        },
+        skelLineShort: {
+            height: 12,
+            width: "40%",
+            backgroundColor: theme?.colors?.card ? theme.colors.card : "rgba(255,255,255,0.06)",
+            borderRadius: 6,
+        },
+        skelLine: {
+            height: 10,
+            width: "60%",
+            backgroundColor: theme?.colors?.card ? theme.colors.card : "rgba(255,255,255,0.04)",
+            borderRadius: 6,
+        },
+        skelBadge: {
+            height: 22,
+            minWidth: 80,
+            paddingHorizontal: 8,
+            borderRadius: 6,
+            backgroundColor: "transparent",
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "rgba(255,255,255,0.06)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginLeft: "auto",
+        },
 
-    // fab
-    fab: {
-        position: "absolute",
-        right: 16,
-        bottom: 20,
-        width: 48, height: 48, borderRadius: 24,
-        backgroundColor: "#00C49F",
-        alignItems: "center", justifyContent: "center",
-        elevation: 4,
-    },
-});
+        // fab
+        fab: {
+            position: "absolute",
+            right: 16,
+            bottom: 24,
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: theme?.colors?.primary ?? "#00C49F",
+            alignItems: "center",
+            justifyContent: "center",
+            elevation: 4,
+        },
+    });
+
+/* ============ small helpers for rgba from theme ============ */
+/* If your theme already provides rgba variants you can remove these helpers. */
+function hexToRgb(hex = "#000000") {
+    const h = String(hex).replace("#", "");
+    if (h.length !== 6) return "0,0,0";
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `${r},${g},${b}`;
+}
+function rgba(hexOrRgb, alpha = 1) {
+    if (!hexOrRgb) return `rgba(0,0,0,${alpha})`;
+    if (typeof hexOrRgb === "string" && hexOrRgb.startsWith("#")) {
+        return `rgba(${hexToRgb(hexOrRgb)},${alpha})`;
+    }
+    // fallback: return provided value (may already be rgba/rgb)
+    return hexOrRgb;
+}

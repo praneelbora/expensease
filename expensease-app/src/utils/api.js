@@ -44,12 +44,17 @@ function buildHeaders(token, extra = {}) {
 
 async function handle(res, fallbackMsg) {
     let data = null;
-    try { data = await res.json(); } catch { }
+    let text = null;
+    try { data = await res.json(); } catch (e) {
+        try { text = await res.text(); } catch (e2) { /* ignore */ }
+    }
     if (!res.ok) {
-        const msg = (data && (data.message || data.error)) || fallbackMsg || "Request failed";
+        const msg = (data && (data.message || data.error)) || (text ? text : fallbackMsg || `Request failed with status ${res.status}`);
         const err = new Error(msg);
         err.status = res.status;
-        err.data = data;
+        err.data = data ?? text;
+        // helpful debug
+        console.error("API error", { status: res.status, url: res.url, body: err.data });
         throw err;
     }
     return data;

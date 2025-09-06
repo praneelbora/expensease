@@ -39,6 +39,9 @@ export const updateGroupPrivacySetting = (groupId, enforcePrivacy) =>
 
 // --- Member management ---
 
+export const addMembersToGroup = (groupId, memberIds) =>
+    api.post(`${BASE}/${groupId}/addMembers`, { members: memberIds });
+
 export const removeMember = (groupId, memberId) =>
     api.post(`${BASE}/${groupId}/remove`, { memberId });
 
@@ -52,3 +55,4 @@ export const demoteMember = (groupId, memberId) =>
 
 export const getGroupExpenses = (groupId) =>
     api.get(`/v1/expenses/group/${groupId}`);
+

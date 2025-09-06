@@ -5,7 +5,8 @@ import { Feather } from "@expo/vector-icons";
 import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MainBottomSheet from "./mainBottomSheet";
-import CategoryIcon from "./categoryIcon"; // ✅ ensure this points to your CategoryIcon component
+import CategoryIcon from "./categoryIcon"; // ensure this points to your CategoryIcon component
+import { useTheme } from "context/ThemeProvider";
 
 const BottomSheetList = ({
     innerRef,
@@ -22,13 +23,16 @@ const BottomSheetList = ({
 }) => {
     const insets = useSafeAreaInsets();
     const [search, setSearch] = useState("");
+    const { theme } = useTheme?.() || {};
+    const colors = theme?.colors || {};
+    const styles = useMemo(() => createStyles(colors), [colors]);
 
     // Filtered options
     const filteredOptions = useMemo(() => {
         if (!withSearch || !search.trim()) return options;
         const q = search.toLowerCase();
         return options.filter((opt) => {
-            const labelMatch = String(opt[labelKey]).toLowerCase().includes(q);
+            const labelMatch = String(opt[labelKey] ?? "").toLowerCase().includes(q);
             const codeMatch =
                 extraRightKey && String(opt[extraRightKey] || "").toLowerCase().includes(q);
             const keywordMatch = Array.isArray(opt.keywords)
@@ -54,10 +58,10 @@ const BottomSheetList = ({
             {/* Search */}
             {withSearch && (
                 <View style={styles.searchWrap}>
-                    <Feather name="search" size={18} color="#aaa" style={{ marginRight: 8 }} />
+                    <Feather name="search" size={18} color={colors.muted ?? "#aaa"} style={{ marginRight: 8 }} />
                     <TextInput
                         placeholder={searchPlaceholder}
-                        placeholderTextColor="#777"
+                        placeholderTextColor={colors.muted ?? "#777"}
                         value={search}
                         onChangeText={setSearch}
                         style={styles.searchInput}
@@ -74,8 +78,8 @@ const BottomSheetList = ({
                     const active = value === opt[valueKey];
                     return (
                         <TouchableOpacity
-                            key={opt[valueKey]}
-                            style={[styles.row, active && { backgroundColor: "rgba(0,196,159,0.2)" }]}
+                            key={String(opt[valueKey])}
+                            style={[styles.row, active && { backgroundColor: (colors.cta ?? "#00C49F") + "22" }]}
                             onPress={() => {
                                 onSelect(opt[valueKey]);
                                 onClose?.();
@@ -83,9 +87,9 @@ const BottomSheetList = ({
                             }}
                         >
                             {/* Left: icon + label */}
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                {opt.icon ? <CategoryIcon category={opt.value} size={20} /> : null}
-                                <Text style={styles.label}>{opt[labelKey]}</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 }}>
+                                {opt.icon ? <CategoryIcon category={opt.value} size={20} color={active ? colors.background : colors.text} /> : null}
+                                <Text numberOfLines={1} style={styles.label}>{opt[labelKey]}</Text>
                             </View>
 
                             {/* Right: extra key or check */}
@@ -93,7 +97,7 @@ const BottomSheetList = ({
                                 {extraRightKey && (
                                     <Text style={styles.code}>{opt[extraRightKey]}</Text>
                                 )}
-                                {active ? <Feather name="check" size={18} color="#00C49F" /> : null}
+                                {active ? <Feather name="check" size={18} color={colors.cta ?? "#00C49F"} /> : null}
                             </View>
                         </TouchableOpacity>
                     );
@@ -108,7 +112,8 @@ const BottomSheetList = ({
 
 export default BottomSheetList;
 
-const styles = StyleSheet.create({
+/* theme-aware styles */
+const createStyles = (colors = {}) => StyleSheet.create({
     header: {
         flexDirection: "row",
         justifyContent: "space-between",
@@ -116,10 +121,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: "#333",
+        borderBottomColor: colors.border ?? "#333",
+        backgroundColor: colors.card ?? "#1f1f1f",
     },
     headerText: {
-        color: "#EBF1D5",
+        color: colors.text ?? "#EBF1D5",
         fontSize: 18,
         fontWeight: "700",
     },
@@ -128,7 +134,7 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
     },
     closeText: {
-        color: "#EA4335",
+        color: colors.negative ?? "#EA4335",
         fontSize: 16,
         fontWeight: "600",
     },
@@ -140,11 +146,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 4,
         borderRadius: 8,
-        backgroundColor: "#121212",
+        backgroundColor: colors.background ?? "#121212",
     },
     searchInput: {
         flex: 1,
-        color: "#EBF1D5",
+        color: colors.text ?? "#EBF1D5",
         paddingVertical: 8,
         fontSize: 16,
     },
@@ -160,8 +166,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         borderRadius: 8,
         marginBottom: 6,
-        backgroundColor: "rgba(255,255,255,0.05)"
+        backgroundColor: colors.cardAlt ?? "rgba(255,255,255,0.05)",
     },
-    label: { color: "#EBF1D5", fontSize: 16 },
-    code: { color: "#aaa", fontSize: 14 },
+    label: { color: colors.text ?? "#EBF1D5", fontSize: 16, flexShrink: 1 },
+    code: { color: colors.muted ?? "#aaa", fontSize: 14 },
 });

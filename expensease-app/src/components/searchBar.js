@@ -2,6 +2,7 @@
 import React from "react";
 import { View, TextInput, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTheme } from "context/ThemeProvider";
 
 export default function SearchBar({
     value,
@@ -9,20 +10,32 @@ export default function SearchBar({
     placeholder = "Search...",
     style,
 }) {
+    const { theme } = useTheme();
+    const colors = theme.colors;
+
     return (
-        <View style={[styles.searchWrap, style]}>
+        <View
+            style={[
+                styles.searchWrap,
+                {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                },
+                style,
+            ]}
+        >
             <Feather
                 name="search"
                 size={18}
-                color="#aaa"
+                color={colors.muted}
                 style={{ marginRight: 8 }}
             />
             <TextInput
                 placeholder={placeholder}
-                placeholderTextColor="#777"
+                placeholderTextColor={colors.muted}
                 value={value}
                 onChangeText={onChangeText}
-                style={styles.searchInput}
+                style={[styles.searchInput, { color: colors.text }]}
             />
         </View>
     );
@@ -32,17 +45,13 @@ const styles = StyleSheet.create({
     searchWrap: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#1f1f1f",
         borderRadius: 10,
         borderWidth: 1,
-        borderColor: "#555",
         paddingHorizontal: 12,
         paddingVertical: 10,
     },
     searchInput: {
         flex: 1,
         fontSize: 16,
-        color: "#EBF1D5",
     },
-
 });

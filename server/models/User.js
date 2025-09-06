@@ -2,7 +2,9 @@ const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    email: { type: String, unique: true, sparse: true, trim: true },
+    phone: { type: String, unique: true, sparse: true, trim: true },
+
     phone: {
         type: String,
         unique: true,      // must be unique if provided
@@ -41,8 +43,8 @@ const userSchema = new mongoose.Schema({
         default: {},
     },
     pushTokens: {
-      ios: { type: [String], default: [] },
-      android: { type: [String], default: [] },
+        ios: { type: [String], default: [] },
+        android: { type: [String], default: [] },
     },
 
 }, { timestamps: true });

@@ -9,12 +9,14 @@ const jwt = require('jsonwebtoken');
 const auth = require('../../middleware/auth');
 const DefaultCategories = require('../../assets/Categories').default;
 const { OAuth2Client } = require("google-auth-library");
-const client = new OAuth2Client(process.env.VITE_GOOGLE_CLIENT_ID);
-
+const client = new OAuth2Client();
+const https = require("https");
 const JWT_SECRET = process.env.JWT_SECRET;
 const PaymentMethod = require("../../models/PaymentMethod");
 const PaymentMethodTxn = require("../../models/PaymentMethodTransaction");
 const Admin = require('../../models/Admin');
+
+const { savePushTokenPublic, savePushTokenAuthed, savePushToken } = require("./controller.js");
 
 
 // // 👤 Authenticated User Info
@@ -71,42 +73,79 @@ router.post('/categories', auth, async (req, res) => {
   }
 });
 
+
 router.post("/google-login", async (req, res) => {
-  const { access_token } = req.body;
-  if (!access_token) return res.status(400).json({ error: "Missing access token" });
+  console.log("Google login body:", req.body);
+  const { id_token, access_token, pushToken, platform } = req.body;
+
+  if (!id_token && !access_token) {
+    return res.status(400).json({ error: "Missing id_token or access_token" });
+  }
 
   try {
-    // Exchange code for tokens
-    const response = await fetch(
-      `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${access_token}`
-    );
-    const profile = await response.json();
-    const { email, name, picture, sub: googleId } = profile;
+    let profile;
 
-    let user = await User.findOne({ email });
+    if (id_token) {
+      // Mobile flow (id_token)
+      const ticket = await client.verifyIdToken({
+        idToken: id_token,
+        audience: [
+          process.env.GOOGLE_WEB_CLIENT_ID,
+          process.env.GOOGLE_ANDROID_CLIENT_ID,
+          process.env.GOOGLE_IOS_CLIENT_ID,
+        ],
+      });
+
+      const payload = ticket.getPayload();
+      console.log("Google payload:", payload);
+
+      profile = {
+        email: payload.email,
+        name: payload.name,
+        picture: payload.picture,
+        googleId: payload.sub,
+      };
+    } else if (access_token) {
+      // Web flow (access_token)
+      const response = await fetch(
+        `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${access_token}`
+      );
+      const data = await response.json();
+      profile = {
+        email: data.email,
+        name: data.name,
+        picture: data.picture,
+        googleId: data.sub,
+      };
+    }
+
+    // --- Create or fetch user ---
+    let user = await User.findOne({ email: profile.email });
     let newUser = false;
-
 
     if (!user) {
       newUser = true;
-      user = await User.create({ email, name, picture, googleId });
+      user = await User.create(profile);
+
       await PaymentMethod.create({
         userId: user._id,
         label: "Cash",
         type: "cash",
-        supportedCurrencies: [], // any currency
-        balances: {
-          INR: { available: 0, pending: 0 }
-        },
+        balances: { INR: { available: 0, pending: 0 } },
         capabilities: ["send", "receive"],
-        isDefaultSend: true,       // optional: treat cash as default send
-        isDefaultReceive: true,    // optional: treat cash as default receive
+        isDefaultSend: true,
+        isDefaultReceive: true,
         provider: "manual",
-        status: "verified"         // cash doesn’t need verification
+        status: "verified",
       });
     }
 
-    // Issue JWT
+    // Save push token if provided
+    if (pushToken) {
+      await savePushToken({ userId: user._id, token: pushToken, platform });
+    }
+
+    // --- Issue JWT ---
     const authToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "100d" });
 
     res.status(200).json({
@@ -116,9 +155,12 @@ router.post("/google-login", async (req, res) => {
     });
   } catch (err) {
     console.error("Google login failed:", err);
-    res.status(401).json({ error: "Invalid or expired Google code" });
+    res.status(401).json({ error: "Invalid or expired Google token" });
   }
 });
+
+
+
 
 
 router.patch('/profile', auth, async (req, res) => {
@@ -421,9 +463,9 @@ router.get("/suggestions", auth, async (req, res) => {
 });
 
 router.post("/login", async (req, res) => {
-  const { email } = req.body;
+  const { email, pushToken, platform } = req.body;
   console.log(req.body);
-  
+
   if (!email) return res.status(400).json({ error: "Missing email id" });
 
   try {
@@ -450,7 +492,9 @@ router.post("/login", async (req, res) => {
       });
     }
 
-
+    if (pushToken) {
+      await savePushToken({ userId: user._id, token: pushToken, platform });
+    }
     const authToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "100d" });
 
     res.status(200).json({
@@ -459,7 +503,7 @@ router.post("/login", async (req, res) => {
       newUser,
     });
   } catch (err) {
-    console.error("Google login failed:", err);
+    console.error(" login failed:", err);
     res.status(401).json({ error: "Invalid or expired Google code" });
   }
 });
@@ -477,7 +521,7 @@ router.get("/version", async (req, res) => {
       });
       adminDoc = defaultDoc.toObject();
     }
-    
+
     res.json({
       minimumIOSVersion: adminDoc.minimumIOSVersion,
       minimumAndroidVersion: adminDoc.minimumAndroidVersion,
@@ -488,43 +532,206 @@ router.get("/version", async (req, res) => {
   }
 });
 
-router.post("/push-token", async (req, res) => {
+// Non-auth route: just save token to Admin
+router.post("/push-token/public", savePushTokenPublic);
+
+// Authenticated route: save to User and Admin
+router.post("/push-token", auth, savePushTokenAuthed);
+
+// temp route to test phone-only user creation
+router.post("/test-phone-login", async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: "Missing phone" });
+
   try {
-    const { token, platform } = req.body;
-    const userId = req.user?.id; // optional, only if logged in
+    let user = await User.findOne({ phone });
+    let newUser = false;
 
-    if (!token || !["ios", "android"].includes(platform)) {
-      return res.status(400).json({ error: "Valid token and platform are required" });
+    if (!user) {
+      newUser = true;
+      user = await User.create({ phone, name: "TEST PHONE USER" });
+
     }
+    console.log();
 
-    // --- Save to Admin ---
-    const admin = await Admin.findOne() || await Admin.create({});
-    
-    // Ensure array exists
-    if (!admin.pushTokens) {
-      admin.pushTokens = { ios: [], android: [] };
-    }
+    res.status(200).json({
 
-    // Remove duplicate & push
-    admin.pushTokens[platform] = admin.pushTokens[platform].filter(t => t !== token);
-    admin.pushTokens[platform].push(token);
-    await admin.save();
-
-    // --- Save to User if logged in ---
-    if (userId) {
-      const pullQuery = {};
-      pullQuery[`pushTokens.${platform}`] = token;
-      await User.findByIdAndUpdate(userId, { $pull: pullQuery });
-
-      const pushQuery = {};
-      pushQuery[`pushTokens.${platform}`] = token;
-      await User.findByIdAndUpdate(userId, { $push: pushQuery });
-    }
-
-    res.json({ success: true, message: "Push token saved" });
+      user: { id: user._id, name: user.name, phone: user.phone },
+      newUser,
+    });
   } catch (err) {
-    console.error("Save push token error:", err);
-    res.status(500).json({ error: "Failed to save push token" });
+    console.error("Phone login failed:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Send OTP
+router.post("/sendSMS", async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    if (!phoneNumber) return res.status(400).json({ error: "Phone number required" });
+
+    console.log("📲 Sending SMS to:", phoneNumber);
+
+    // --- TEST BYPASS ---
+    if (["7447425397", ""].includes(phoneNumber)) {
+      return res.status(200).json({ type: "success", bypass: true });
+    }
+
+    const options = {
+      method: "POST",
+      hostname: "control.msg91.com",
+      port: null,
+      path: `/api/v5/otp?template_id=${process.env.MSG_TEMPLATE_ID}&mobile=${phoneNumber}&authkey=${process.env.MSG_AUTHKEY}`,
+      headers: { "Content-Type": "application/json" },
+    };
+
+    const request = https.request(options, (response) => {
+      let data = [];
+      response.on("data", (chunk) => data.push(chunk));
+      response.on("end", () => {
+        const body = Buffer.concat(data).toString();
+        try {
+          const parsed = JSON.parse(body);
+          console.log("MSG91 send response:", parsed);
+          return res.status(200).json(parsed);
+        } catch (e) {
+          return res.status(500).json({ error: "Failed to parse SMS gateway response" });
+        }
+      });
+    });
+
+    request.on("error", (err) => {
+      console.error("Error sending SMS:", err);
+      res.status(500).json({ error: "SMS sending failed" });
+    });
+
+    request.end();
+  } catch (error) {
+    console.error("Error in /sendSMS:", error);
+    res.status(500).json({ error: "Unexpected error" });
+  }
+});
+
+// Verify OTP
+router.post("/verifyOTP", async (req, res) => {
+  try {
+    const { phoneNumber, code, pushToken, platform } = req.body;
+    if (!phoneNumber || !code) return res.status(400).json({ error: "Phone and OTP required" });
+
+    console.log("🔐 Verifying OTP for:", phoneNumber);
+
+    // --- TEST BYPASS ---
+    if (["9876543210", "9999999999"].includes(phoneNumber)) {
+      let user = await User.findOne({ phone: phoneNumber });
+      if (!user) {
+        user = await User.create({ phone: phoneNumber, name: "Phone User" });
+        await PaymentMethod.create({
+          userId: user._id,
+          label: "Cash",
+          type: "cash",
+          balances: { INR: { available: 0, pending: 0 } },
+          capabilities: ["send", "receive"],
+          isDefaultSend: true,
+          isDefaultReceive: true,
+          provider: "manual",
+          status: "verified",
+        });
+      }
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "100d" });
+      return res.status(200).json({
+        new: false,
+        responseBody: { "x-auth-token": token },
+        id: user._id,
+      });
+    }
+
+    // --- Verify via MSG91 ---
+    const options = {
+      method: "GET",
+      hostname: "control.msg91.com",
+      port: null,
+      path: `/api/v5/otp/verify?otp=${code}&mobile=${phoneNumber}`,
+      headers: { authkey: process.env.MSG_AUTHKEY },
+    };
+
+    const request = https.request(options, (response) => {
+      let data = [];
+      response.on("data", (chunk) => data.push(chunk));
+      response.on("end", async () => {
+        const body = Buffer.concat(data).toString();
+        const json = JSON.parse(body);
+        console.log("MSG91 verify response:", json);
+
+        if (json.type !== "success") {
+          return res.status(400).json({ error: "OTP verification failed" });
+        }
+        if (pushToken) {
+          await savePushToken({ userId: user._id, token: pushToken, platform });
+        }
+
+        // --- Find or create user ---
+        let user = await User.findOne({ phone: phoneNumber });
+        let newUser = false;
+        if (!user) {
+          newUser = true;
+          user = await User.create({ phone: phoneNumber, name: "Phone User" });
+          await PaymentMethod.create({
+            userId: user._id,
+            label: "Cash",
+            type: "cash",
+            balances: { INR: { available: 0, pending: 0 } },
+            capabilities: ["send", "receive"],
+            isDefaultSend: true,
+            isDefaultReceive: true,
+            provider: "manual",
+            status: "verified",
+          });
+        }
+
+        // --- Handle push tokens ---
+        if (pushToken) {
+          const pullQuery = {};
+          pullQuery[`pushTokens.${platform}`] = pushToken;
+          await User.findByIdAndUpdate(user._id, { $pull: pullQuery });
+
+          const pushQuery = {};
+          pushQuery[`pushTokens.${platform}`] = pushToken;
+          await User.findByIdAndUpdate(user._id, { $push: pushQuery });
+        }
+
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "100d" });
+        res.status(200).json({
+          new: newUser,
+          responseBody: { "x-auth-token": token },
+          id: user._id,
+        });
+      });
+    });
+
+    request.on("error", (err) => {
+      console.error("Error verifying OTP:", err);
+      res.status(500).json({ error: "OTP verification failed" });
+    });
+
+    request.end();
+  } catch (error) {
+    console.error("Error in /verifyOTP:", error);
+    res.status(500).json({ error: "Unexpected error" });
+  }
+});
+
+router.post("/logging", async (req, res) => {
+  try {
+    console.log("📥 Logging endpoint hit:");
+    // console.log("Headers:", req.headers);
+    console.log("Body:", req.body);
+
+    // respond so frontend doesn’t hang
+    res.json({ success: true, received: req.body });
+  } catch (err) {
+    console.error("❌ Logging route error:", err);
+    res.status(500).json({ error: "Logging failed" });
   }
 });
 

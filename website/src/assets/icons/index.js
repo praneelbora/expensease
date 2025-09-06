@@ -59,6 +59,9 @@ import Wallet2 from "./wallet2.svg?react";
 import Wheel from "./wheel.svg?react";
 import Wifi from "./wifi.svg?react";
 import Wine from "./wine.svg?react";
+import Building from "./building.svg?react";
+import Church from "./church.svg?react";
+import Shield from "./shield.svg?react";
 
 import DefaultIcon from "./notepad.svg?react";
 
@@ -122,6 +125,9 @@ export const iconMap = {
   wheel: Wheel,
   wifi: Wifi,
   wine: Wine,
+  building: Building,
+  church: Church,
+  shield: Shield,
 };
 
 // Safe getter

@@ -59,6 +59,9 @@ import Wallet2 from "./wallet2.svg";
 import Wheel from "./wheel.svg";
 import Wifi from "./wifi.svg";
 import Wine from "./wine.svg";
+import Building from "./building.svg";
+import Church from "./church.svg";
+import Shield from "./shield.svg";
 
 import DefaultIcon from "./notepad.svg"; // <-- add a generic fallback icon
 
@@ -122,6 +125,9 @@ export const iconMap = {
   wheel: Wheel,
   wifi: Wifi,
   wine: Wine,
+  building: Building,
+  church: Church,
+  shield: Shield,
 };
 
 // Helper

@@ -1,7 +1,15 @@
 // app/friends/[id]/settings.js
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    View, Text, TouchableOpacity, FlatList, StyleSheet, RefreshControl, Modal, Platform, ActivityIndicator
+    View,
+    Text,
+    TouchableOpacity,
+    FlatList,
+    StyleSheet,
+    RefreshControl,
+    Modal,
+    Platform,
+    ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -18,12 +26,16 @@ import {
 } from "services/FriendService";
 import { getFriendExpense } from "services/ExpenseService";
 import { getSymbol } from "utils/currencies";
-// import { logEvent } from "utils/analytics";
 import Header from "~/header";
 
-// ---------- small helpers ----------
-const Section = ({ title, children, right }) => (
-    <View style={{}}>
+// Theme hook (optional). If you don't have a ThemeProvider, ensure this returns {}
+import { useTheme } from "context/ThemeProvider";
+
+/* --------------------------
+   Small themed components
+   -------------------------- */
+const Section = ({ title, children, right, styles }) => (
+    <View>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <Text style={styles.sectionTitle}>{title}</Text>
             {right}
@@ -32,20 +44,20 @@ const Section = ({ title, children, right }) => (
     </View>
 );
 
-const DangerConfirm = ({ visible, onClose, onConfirm }) => (
+const DangerConfirm = ({ visible, onClose, onConfirm, styles }) => (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
         <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
                 <Text style={styles.modalTitle}>Remove Friend?</Text>
-                <Text style={{ color: "#bbb", marginBottom: 12 }}>
+                <Text style={styles.modalMsg}>
                     This will remove this friend and related expense links. You can add them again later.
                 </Text>
-                <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
-                    <TouchableOpacity onPress={onClose} style={[styles.modalBtn, { backgroundColor: "#2a2a2a" }]}>
-                        <Text style={{ color: "#EBF1D5" }}>Cancel</Text>
+                <View style={styles.modalActionsRow}>
+                    <TouchableOpacity onPress={onClose} style={[styles.modalBtn, styles.modalBtnSecondary]}>
+                        <Text style={styles.modalBtnText}>Cancel</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={onConfirm} style={[styles.modalBtn, { backgroundColor: "#ef4444" }]}>
-                        <Text style={{ color: "#fff", fontWeight: "800" }}>Remove</Text>
+                    <TouchableOpacity onPress={onConfirm} style={[styles.modalBtn, styles.modalBtnDanger]}>
+                        <Text style={[styles.modalBtnText, styles.modalBtnDangerText]}>Remove</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -53,10 +65,15 @@ const DangerConfirm = ({ visible, onClose, onConfirm }) => (
     </Modal>
 );
 
+/* --------------------------
+   Main screen
+   -------------------------- */
 export default function FriendSettings() {
     const router = useRouter();
     const { id } = useLocalSearchParams(); // friendId
     const { user, userToken } = useAuth() || {};
+    const themeCtx = useTheme?.() || {};
+    const styles = useMemo(() => createStyles(themeCtx?.theme), [themeCtx?.theme]);
 
     const [friend, setFriend] = useState(null);
     const [expenses, setExpenses] = useState([]);
@@ -66,7 +83,6 @@ export default function FriendSettings() {
     const [refreshing, setRefreshing] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
 
-    // fetch friend
     const fetchFriend = useCallback(async () => {
         try {
             const data = await getFriendDetails(id, userToken);
@@ -76,7 +92,6 @@ export default function FriendSettings() {
         }
     }, [id, userToken]);
 
-    // fetch expenses
     const fetchExpenses = useCallback(async () => {
         try {
             const data = await getFriendExpense(id, userToken);
@@ -95,14 +110,19 @@ export default function FriendSettings() {
         }
     }, [fetchFriend, fetchExpenses]);
 
-    useEffect(() => { loadAll(); }, [loadAll]);
+    useEffect(() => {
+        loadAll();
+    }, [loadAll]);
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        try { await loadAll(); } finally { setRefreshing(false); }
+        try {
+            await loadAll();
+        } finally {
+            setRefreshing(false);
+        }
     }, [loadAll]);
 
-    // compute totals (balance / yourExpense / friendExpense) per currency
     const totals = useMemo(() => {
         if (!expenses || !user?._id) return null;
         const t = { balance: {}, yourExpense: {}, friendExpense: {} };
@@ -110,7 +130,7 @@ export default function FriendSettings() {
         expenses.forEach((exp) => {
             const code = exp.currency || "INR";
             (exp.splits || []).forEach((split) => {
-                if (split.friendId?._id === user._id) {
+                if (String(split.friendId?._id) === String(user._id)) {
                     t.balance[code] = (t.balance[code] || 0) + ((split.payAmount || 0) - (split.oweAmount || 0));
                     t.yourExpense[code] = (t.yourExpense[code] || 0) + (split.oweAmount || 0);
                 } else {
@@ -121,8 +141,7 @@ export default function FriendSettings() {
         return t;
     }, [expenses, user?._id]);
 
-    // request status heuristics (adjust if your API shape differs)
-    const status = friend?.status || friend?.friendshipStatus || friend?.friendship?.status; // 'pending_incoming' | 'pending_outgoing' | 'accepted'
+    const status = friend?.status || friend?.friendshipStatus || friend?.friendship?.status;
     const name = friend?.friend?.name || friend?.name || "Friend";
     const friendId = friend?.friend?._id || friend?._id || id;
 
@@ -132,7 +151,6 @@ export default function FriendSettings() {
         setBusyAction(true);
         setError(null);
         try {
-            // logEvent("remove_friend", { screen: "friend_settings" });
             await removeFriend(friendId, userToken);
             router.replace("/friends");
         } catch (e) {
@@ -144,6 +162,7 @@ export default function FriendSettings() {
 
     const handleAccept = async () => {
         setBusyAction(true);
+        setError(null);
         try {
             await acceptFriendRequest(friendId, userToken);
             await fetchFriend();
@@ -155,6 +174,7 @@ export default function FriendSettings() {
     };
     const handleReject = async () => {
         setBusyAction(true);
+        setError(null);
         try {
             await rejectFriendRequest(friendId, userToken);
             router.replace("/friends");
@@ -166,6 +186,7 @@ export default function FriendSettings() {
     };
     const handleCancel = async () => {
         setBusyAction(true);
+        setError(null);
         try {
             await cancelFriendRequest(friendId, userToken);
             router.replace("/friends");
@@ -178,46 +199,38 @@ export default function FriendSettings() {
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
-            <StatusBar style="light" />
-            {/* Header */}
+            <StatusBar style={styles.statusBar} />
             <Header showBack title="Friend settings" />
-            <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
-
-                {/* Content */}
+            <View style={styles.container}>
                 {loading ? (
-                    <View style={styles.center}><ActivityIndicator color="#60DFC9" /></View>
+                    <View style={styles.center}><ActivityIndicator color={styles.colors.primaryFallback} /></View>
                 ) : !friend ? (
-                    <View style={styles.center}><Text style={{ color: "#B8C4A0" }}>Friend not found</Text></View>
+                    <View style={styles.center}><Text style={styles.notFoundText}>Friend not found</Text></View>
                 ) : (
                     <FlatList
-                        data={[1]} // just to enable RefreshControl + scrolling layout
+                        data={[1]}
                         keyExtractor={() => "body"}
-                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
+                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={styles.colors.primaryFallback} />}
                         contentContainerStyle={{ paddingBottom: 28 }}
                         renderItem={() => (
                             <View style={{ gap: 16 }}>
-                                {/* Friend Banner / status */}
-                                <Section title="Friend">
+                                <Section title="Friend" styles={styles}>
                                     <View style={styles.card}>
                                         <Text style={styles.friendName} numberOfLines={1}>{name}</Text>
-                                        {!!status && (
-                                            <Text style={styles.friendSub} numberOfLines={1}>
-                                                Status: {String(status).replaceAll("_", " ")}
-                                            </Text>
-                                        )}
+                                        {!!status && <Text style={styles.friendSub} numberOfLines={1}>Status: {String(status).replaceAll("_", " ")}</Text>}
 
-                                        {/* Request Controls */}
-                                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                                        <View style={styles.controlsRow}>
                                             {status === "pending_incoming" && (
                                                 <>
-                                                    <TouchableOpacity disabled={busyAction} onPress={handleAccept} style={[styles.btn, styles.btnTeal]}>
-                                                        <Text style={styles.btnTealText}>Accept</Text>
+                                                    <TouchableOpacity disabled={busyAction} onPress={handleAccept} style={[styles.btn, styles.btnPrimary]}>
+                                                        <Text style={styles.btnPrimaryText}>Accept</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity disabled={busyAction} onPress={handleReject} style={[styles.btn, styles.btnOutline]}>
                                                         <Text style={styles.btnOutlineText}>Reject</Text>
                                                     </TouchableOpacity>
                                                 </>
                                             )}
+
                                             {status === "pending_outgoing" && (
                                                 <TouchableOpacity disabled={busyAction} onPress={handleCancel} style={[styles.btn, styles.btnOutline]}>
                                                     <Text style={styles.btnOutlineText}>Cancel Request</Text>
@@ -225,33 +238,29 @@ export default function FriendSettings() {
                                             )}
 
                                             <TouchableOpacity
-                                                onPress={() => {
-                                                    // logEvent("navigate", { fromScreen: "friend_settings", toScreen: "friend_detail", source: "cta_text" });
-                                                    router.back();
-                                                }}
-                                                style={[styles.btn, { backgroundColor: "#2a2a2a" }]}
+                                                onPress={() => router.back()}
+                                                style={[styles.btn, styles.btnSecondary]}
                                             >
-                                                <Text style={{ color: "#EBF1D5", fontWeight: "700" }}>View Expenses</Text>
+                                                <Text style={styles.btnSecondaryText}>View Expenses</Text>
                                             </TouchableOpacity>
                                         </View>
                                     </View>
                                 </Section>
 
-                                {/* (Optional) Summary */}
                                 {totals && Object.keys(totals.balance || {}).length > 0 && (
-                                    <Section title="Summary">
+                                    <Section title="Summary" styles={styles}>
                                         <View style={styles.card}>
                                             {Object.keys(totals.balance).map((code) => {
                                                 const bal = totals.balance[code] || 0;
                                                 const sym = getSymbol(code);
                                                 const pos = bal >= 0;
                                                 return (
-                                                    <View key={code} style={{ paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#2a2a2a" }}>
-                                                        <Text style={{ color: pos ? "#60DFC9" : "#f87171", fontSize: 14, fontWeight: "700" }}>
+                                                    <View key={code} style={styles.summaryRow}>
+                                                        <Text style={pos ? styles.summaryPosLabel : styles.summaryNegLabel}>
                                                             {pos ? "You are owed" : "You owe"}
                                                         </Text>
-                                                        <Text style={{ color: "#EBF1D5", fontSize: 20, fontWeight: "800" }}>
-                                                            {sym} {Math.abs(bal).toFixed(2)} <Text style={{ color: "#a0a0a0", fontSize: 12 }}>{code}</Text>
+                                                        <Text style={styles.summaryAmount}>
+                                                            {sym} {Math.abs(bal).toFixed(2)} <Text style={styles.summaryCode}>{code}</Text>
                                                         </Text>
                                                     </View>
                                                 );
@@ -260,24 +269,20 @@ export default function FriendSettings() {
                                     </Section>
                                 )}
 
-                                {/* Danger Zone */}
-                                <Section title="Danger Zone">
-                                    <View style={[styles.card, { borderColor: "#7f1d1d" }]}>
-                                        <Text style={{ color: "#ff7b7b", fontWeight: "800", marginBottom: 6 }}>Remove Friend</Text>
-                                        <Text style={{ color: "#9aa08e" }}>
+                                <Section title="Danger Zone" styles={styles}>
+                                    <View style={[styles.card, { borderColor: styles.colors.dangerFallback }]}>
+                                        <Text style={styles.dangerTitle}>Remove Friend</Text>
+                                        <Text style={styles.dangerDesc}>
                                             Removes this friend and the links to your shared expenses. You can add them again later.
                                         </Text>
                                         <View style={{ height: 10 }} />
-                                        <TouchableOpacity onPress={() => setConfirmOpen(true)} style={[styles.btn, { backgroundColor: "#ef4444" }]}>
-                                            {busyAction ? (
-                                                <ActivityIndicator color="#fff" />
-                                            ) : (
-                                                <Text style={{ color: "#fff", fontWeight: "800" }}>Remove Friend</Text>
-                                            )}
+                                        <TouchableOpacity onPress={() => setConfirmOpen(true)} style={[styles.btn, styles.btnDanger]}>
+                                            {busyAction ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnDangerText}>Remove Friend</Text>}
                                         </TouchableOpacity>
+
                                         {!!error && (
-                                            <View style={{ marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: "rgba(239,68,68,0.15)", borderWidth: 1, borderColor: "#7f1d1d" }}>
-                                                <Text style={{ color: "#ffb4b4", textAlign: "center" }}>{error}</Text>
+                                            <View style={styles.errorBox}>
+                                                <Text style={styles.errorText}>{error}</Text>
                                             </View>
                                         )}
                                     </View>
@@ -287,35 +292,93 @@ export default function FriendSettings() {
                     />
                 )}
 
-                {/* Confirm Modal */}
-                <DangerConfirm
-                    visible={confirmOpen}
-                    onClose={() => setConfirmOpen(false)}
-                    onConfirm={handleRemoveFriend}
-                />
+                <DangerConfirm visible={confirmOpen} onClose={() => setConfirmOpen(false)} onConfirm={handleRemoveFriend} styles={styles} />
             </View>
         </SafeAreaView>
     );
 }
 
-const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: "#121212" },
-    sectionTitle: { color: "#60DFC9", fontSize: 12, textTransform: "uppercase", fontWeight: "700" },
+/* --------------------------
+   Theme-aware styles factory
+   -------------------------- */
+const createStyles = (theme = {}) => {
+    const colors = {
+        background: theme?.colors?.background ?? "#121212",
+        card: theme?.colors?.card ?? "#1f1f1f",
+        cardAlt: theme?.colors?.cardAlt ?? "#2A2A2A",
+        border: theme?.colors?.border ?? "#333",
+        text: theme?.colors?.text ?? "#EBF1D5",
+        muted: theme?.colors?.muted ?? "#a0a0a0",
+        primary: theme?.colors?.primary ?? "#60DFC9",
+        cta: theme?.colors?.cta ?? "#00C49F",
+        danger: theme?.colors?.danger ?? "#ef4444",
+    };
 
-    card: { backgroundColor: "#1f1f1f", borderRadius: 12, borderWidth: 1, borderColor: "#333", padding: 12 },
-    friendName: { color: "#EBF1D5", fontSize: 18, fontWeight: "800" },
-    friendSub: { color: "#a0a0a0", marginTop: 2 },
+    const s = StyleSheet.create({
+        safe: { flex: 1, backgroundColor: colors.background },
+        statusBar: theme?.statusBarStyle === "dark-content" ? "dark" : "light",
+        container: { flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 },
 
-    btn: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-    btnTeal: { backgroundColor: "#60DFC9" },
-    btnTealText: { color: "#121212", fontWeight: "800" },
-    btnOutline: { borderWidth: 1, borderColor: "#EBF1D5" },
-    btnOutlineText: { color: "#EBF1D5", fontWeight: "800" },
+        sectionTitle: { color: colors.primary, fontSize: 12, textTransform: "uppercase", fontWeight: "700" },
 
-    center: { flex: 1, alignItems: "center", justifyContent: "center" },
+        card: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12 },
+        friendName: { color: colors.text, fontSize: 18, fontWeight: "800" },
+        friendSub: { color: colors.muted, marginTop: 2 },
 
-    modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
-    modalCard: { backgroundColor: "#1f1f1f", borderRadius: 12, padding: 16, width: "100%" },
-    modalTitle: { color: "#EBF1D5", fontSize: 18, fontWeight: "800", marginBottom: 8 },
-    modalBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
-});
+        controlsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
+
+        btn: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+        btnPrimary: { backgroundColor: colors.primary },
+        btnPrimaryText: { color: "#121212", fontWeight: "800" },
+        btnSecondary: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 },
+        btnSecondaryText: { color: colors.text, fontWeight: "700" },
+        btnOutline: { borderWidth: 1, borderColor: colors.text },
+        btnOutlineText: { color: colors.text, fontWeight: "800" },
+
+        center: { flex: 1, alignItems: "center", justifyContent: "center" },
+        notFoundText: { color: "#B8C4A0" },
+
+        // summary
+        summaryRow: { paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#2a2a2a" },
+        summaryPosLabel: { color: colors.primary, fontSize: 14, fontWeight: "700" },
+        summaryNegLabel: { color: "#f87171", fontSize: 14, fontWeight: "700" },
+        summaryAmount: { color: colors.text, fontSize: 20, fontWeight: "800" },
+        summaryCode: { color: colors.muted, fontSize: 12 },
+
+        // danger
+        dangerTitle: { color: "#ff7b7b", fontWeight: "800", marginBottom: 6 },
+        dangerDesc: { color: "#9aa08e" },
+
+        errorBox: { marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: "rgba(239,68,68,0.12)", borderWidth: 1, borderColor: "rgba(127,29,29,0.6)" },
+        errorText: { color: "#ffb4b4", textAlign: "center" },
+
+        // modal
+        modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
+        modalCard: { backgroundColor: colors.card, borderRadius: 12, padding: 16, width: "100%" },
+        modalTitle: { color: colors.text, fontSize: 18, fontWeight: "800", marginBottom: 8 },
+        modalMsg: { color: colors.muted, marginBottom: 12 },
+        modalActionsRow: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
+
+        modalBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+        modalBtnSecondary: { backgroundColor: "#2a2a2a" },
+        modalBtnDanger: { backgroundColor: colors.danger },
+        modalBtnText: { color: colors.text, fontWeight: "700" },
+        modalBtnDangerText: { color: "#fff", fontWeight: "800" },
+
+        // small palette helpers exported for child components
+        colors: {
+            backgroundFallback: colors.background,
+            cardFallback: colors.card,
+            cardAltFallback: colors.cardAlt,
+            borderFallback: colors.border,
+            textFallback: colors.text,
+            mutedFallback: colors.muted,
+            primaryFallback: colors.primary,
+            ctaFallback: colors.cta,
+            dangerFallback: colors.danger,
+        },
+    });
+
+    s.colors = s.colors;
+    return s;
+};

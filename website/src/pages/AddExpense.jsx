@@ -1154,16 +1154,11 @@ const AddExpense = () => {
                                                             key={fr._id}
                                                             onClick={() => toggleFriendSelection(fr)}
                                                             aria-pressed={isSel}
-                                                            className={`px-3 h-10 rounded-xl border text-sm flex items-center gap-2
-              ${isSel
-                                                                    ? 'bg-teal-300 text-black border-teal-300'
-                                                                    : 'border-[#333] text-[#EBF1D5] hover:bg-white/5'
+                                                            className={`px-3 h-10 rounded-xl border text-sm flex items-center gap-2 ${isSel
+                                                                ? 'bg-teal-300 text-black border-teal-300'
+                                                                : 'border-[#333] text-[#EBF1D5] hover:bg-white/5'
                                                                 }`}
                                                         >
-                                                            {/* Optional avatar initials for scannability */}
-                                                            {/* <span className="h-6 w-6 rounded-full bg-white/10 grid place-items-center text-[11px]">
-              {(fr.name || '?').slice(0,1).toUpperCase()}
-            </span> */}
                                                             <span className="capitalize">{fr.name}</span>
                                                         </button>
                                                     );
@@ -1193,10 +1188,10 @@ const AddExpense = () => {
                                     </div>
                                     <div className="flex flex-row w-full gap-2">
 
-                                        <div className="flex-1/3">
+                                        <div className="flex-1/2">
                                             <button
                                                 onClick={() => setShowCurrencyModal(true)}
-                                                className={`w-full ${currency ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
+                                                className={`w-full ${currency ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 text-left`}
                                             >
                                                 {currency || "Currency"}
                                             </button>
@@ -1213,7 +1208,7 @@ const AddExpense = () => {
                                         </div>
 
                                         <input
-                                            className="flex-2/3 text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3"
+                                            className="flex-1/2 text-[#EBF1D5] text-[18px] border-b-2 border-[#55554f] p-2 text-base min-h-[40px] pl-3"
                                             type="number"
                                             placeholder="Amount"
                                             value={amount}
@@ -1221,7 +1216,7 @@ const AddExpense = () => {
                                         />
                                     </div>
                                     <div className="flex flex-row w-full gap-2">
-                                        <div className="flex-1/3">
+                                        <div className="flex-1/2">
                                             <button
                                                 onClick={() => setShowCategoryModal(true)}
                                                 className={`w-full ${category ? 'text-[#EBF1D5]' : 'text-[rgba(130,130,130,1)]'} text-[18px] border-b-2 border-[#55554f]  p-2 text-base h-[45px] pl-3 flex-1 text-left`}
@@ -1239,7 +1234,7 @@ const AddExpense = () => {
 
 
 
-                                        <div className="flex-2/3">
+                                        <div className="flex-1/2">
                                             <input
                                                 type="date"
                                                 value={expenseDate}
@@ -1527,24 +1522,24 @@ const AddExpense = () => {
                         </div>
                     )}
 
-                    {desc.length == 0 && <div className="flex flex-col flex-1 justify-end mt-10">
-                        <div className="py-2 text-center text-sm text-[#a0a0a0]">
-                            Lent someone money?{" "}
-                            <button
-                                className="text-teal-400 underline"
-                                onClick={() => {
-                                    logEvent('navigate', {
-                                        fromScreen: 'new-expense', toScreen: 'new-loan', source: 'cta'
-                                    });
-                                    navigate('/new-loan')
-                                }}
-                            >
-                                Add a Loan
-                            </button>
-                        </div>
-                    </div>
-                    }
                 </div>
+                {desc.length == 0 && <div className="flex flex-col justify-end mt-10">
+                    <div className="py-2 text-center text-sm text-[#a0a0a0]">
+                        Lent someone money?{" "}
+                        <button
+                            className="text-teal-400 underline"
+                            onClick={() => {
+                                logEvent('navigate', {
+                                    fromScreen: 'new-expense', toScreen: 'new-loan', source: 'cta'
+                                });
+                                navigate('/new-loan')
+                            }}
+                        >
+                            Add a Loan
+                        </button>
+                    </div>
+                </div>
+                }
                 <footer className="sticky bottom-0 z-10 bg-[#121212]/95 backdrop-blur border-t border-white/10">
 
                     <div className="mx-auto w-full max-w-screen-sm px-3 py-1 pb-[calc(12px]">

@@ -53,10 +53,7 @@ const SplitSection = ({
                     <TouchableOpacity
                         key={`pay-${f._id}`}
                         onPress={() => togglePaying(f._id)}
-                        style={[
-                            styles.chip,
-                            f.paying && styles.chipActive,
-                        ]}
+                        style={[styles.chip, f.paying && styles.chipActive]}
                     >
                         <Text style={[styles.chipText, f.paying && styles.chipTextActive]}>
                             {f.name} {f._id === userId ? "(You)" : ""}
@@ -65,6 +62,7 @@ const SplitSection = ({
                 ))}
             </View>
 
+            {/* If multiple payers → breakdown */}
             {selectedFriends?.filter((f) => f.paying).length > 1 && (
                 <View style={styles.breakdown}>
                     <Text style={styles.breakdownText}>
@@ -79,7 +77,7 @@ const SplitSection = ({
 
             {/* Owed by */}
             {isPaidAmountValid && isPaidAmountValid() && (
-                <View style={{ marginTop: 16 }}>
+                <View style={{ marginTop: 20 }}>
                     <Text style={styles.sectionTitle}>
                         Owed by <Text style={styles.hint}>(select who owes)</Text>
                     </Text>
@@ -88,31 +86,26 @@ const SplitSection = ({
                             <TouchableOpacity
                                 key={`owe-${f._id}`}
                                 onPress={() => toggleOwing(f._id)}
-                                style={[
-                                    styles.chip,
-                                    f.owing && styles.chipActive,
-                                ]}
+                                style={[styles.chip, f.owing && styles.chipActive]}
                             >
-                                <Text
-                                    style={[styles.chipText, f.owing && styles.chipTextActive]}
-                                >
+                                <Text style={[styles.chipText, f.owing && styles.chipTextActive]}>
                                     {f.name} {f._id === userId ? "(You)" : ""}
                                 </Text>
                             </TouchableOpacity>
                         ))}
                     </View>
 
-                    {/* Split mode buttons */}
+                    {/* Split mode toggle */}
                     {selectedFriends.filter((f) => f.owing).length > 1 && (
                         <View style={styles.modeRow}>
                             {["equal", "value", "percent"].map((m) => (
                                 <TouchableOpacity
                                     key={m}
-                                    onPress={() => setSplitMode(m)}
-                                    style={[
-                                        styles.modeBtn,
-                                        splitMode === m && styles.modeBtnActive,
-                                    ]}
+                                    onPress={() => {
+                                        setSplitMode(m);
+                                        if (m === "equal") setSelectedFriends(equalizeOwe);
+                                    }}
+                                    style={[styles.modeBtn, splitMode === m && styles.modeBtnActive]}
                                 >
                                     <Text
                                         style={[
@@ -127,7 +120,7 @@ const SplitSection = ({
                         </View>
                     )}
 
-                    {/* Inputs per friend if value/percent */}
+                    {/* Inputs per friend */}
                     {selectedFriends.filter((f) => f.owing).length > 1 && (
                         <View style={{ marginTop: 12 }}>
                             {selectedFriends
@@ -142,9 +135,7 @@ const SplitSection = ({
                                                 style={styles.input}
                                                 keyboardType="numeric"
                                                 value={String(f.owePercent ?? "")}
-                                                onChangeText={(v) =>
-                                                    handleOwePercentChange(f._id, v)
-                                                }
+                                                onChangeText={(v) => handleOwePercentChange(f._id, v)}
                                                 placeholder="%"
                                                 placeholderTextColor="#777"
                                             />
@@ -153,27 +144,23 @@ const SplitSection = ({
                                                 style={styles.input}
                                                 keyboardType="numeric"
                                                 value={String(f.oweAmount ?? "")}
-                                                onChangeText={(v) =>
-                                                    handleOweChange(f._id, v)
-                                                }
+                                                onChangeText={(v) => handleOweChange(f._id, v)}
                                                 placeholder="Amount"
                                                 placeholderTextColor="#777"
                                             />
                                         ) : (
-                                            <Text style={{ color: "#EBF1D5" }}>
-                                                {Number(f.oweAmount || 0).toFixed(2)}
+                                            <Text style={styles.oweEqual}>
+                                                {getSymbol(currency)} {Number(f.oweAmount || 0).toFixed(2)}
                                             </Text>
                                         )}
                                     </View>
                                 ))}
 
                             {/* Remaining info */}
-                            {(!isPaidAmountValid() || splitMode !== "equal") && (
-                                <View style={styles.remainingWrap}>
-                                    <Text style={styles.breakdownText}>{getRemainingTop()}</Text>
-                                    <Text style={styles.breakdownSub}>{getRemainingBottom()}</Text>
-                                </View>
-                            )}
+                            <View style={styles.remainingWrap}>
+                                <Text style={styles.breakdownText}>{getRemainingTop()}</Text>
+                                <Text style={styles.breakdownSub}>{getRemainingBottom()}</Text>
+                            </View>
                         </View>
                     )}
                 </View>
@@ -193,30 +180,32 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#55554f",
         borderRadius: 16,
-        paddingHorizontal: 10,
+        paddingHorizontal: 12,
         paddingVertical: 6,
+        marginRight: 6,
+        marginBottom: 6,
     },
     chipActive: { backgroundColor: "#00C49F", borderColor: "#00C49F" },
     chipText: { color: "#EBF1D5" },
     chipTextActive: { color: "#121212", fontWeight: "700" },
-    breakdown: { alignItems: "center", marginTop: 8 },
-    breakdownText: { color: "#EBF1D5", fontSize: 12, fontFamily: "monospace" },
+    breakdown: { alignItems: "center", marginTop: 10 },
+    breakdownText: { color: "#EBF1D5", fontSize: 13, fontFamily: "monospace" },
     breakdownSub: { color: "#aaa", fontSize: 12, fontFamily: "monospace" },
-    modeRow: { flexDirection: "row", gap: 8, marginTop: 8 },
+    modeRow: { flexDirection: "row", gap: 10, marginTop: 12 },
     modeBtn: {
         borderWidth: 1,
         borderColor: "#55554f",
-        paddingHorizontal: 10,
+        paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 8,
     },
     modeBtnActive: { backgroundColor: "#00C49F", borderColor: "#00C49F" },
-    modeText: { color: "#EBF1D5" },
+    modeText: { color: "#EBF1D5", fontWeight: "600" },
     modeTextActive: { color: "#121212", fontWeight: "700" },
     oweRow: {
         flexDirection: "row",
         justifyContent: "space-between",
-        marginVertical: 6,
+        marginVertical: 8,
         alignItems: "center",
     },
     oweLabel: { color: "#EBF1D5", fontSize: 14 },
@@ -228,5 +217,6 @@ const styles = StyleSheet.create({
         width: 80,
         textAlign: "right",
     },
-    remainingWrap: { alignItems: "center", marginTop: 8 },
+    oweEqual: { color: "#EBF1D5", fontSize: 14, fontWeight: "500" },
+    remainingWrap: { alignItems: "center", marginTop: 12 },
 });

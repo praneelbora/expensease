@@ -41,7 +41,9 @@ const Expenses = () => {
         category: initialCategory ? initialCategory : 'all',
         currency: '',
         sort: 'newest',
-        paymentMethod: ''   // new
+        paymentMethod: '',
+        paidByMe: 'any',
+        owedByMe: 'any'
     });
 
     // keep URL in sync when state changes
@@ -70,47 +72,42 @@ const Expenses = () => {
         { key: "friend", label: "Friend Expenses" },
     ];
 
-    const filters = useMemo(() => {
-        const s = new Set();
+    // Is current user a payer on this expense?
+    const isPaidByMe = (exp, userId) => {
+        // Settlements and split expenses: look at splits
+        if (exp?.splits?.length) {
+            return exp.splits.some(s => {
+                const me = s.friendId?._id === userId || s.friendId === userId;
+                const paid = (s.paying === true)
+                return me && paid;
+            });
+        }
 
-        expenses?.forEach(e => {
-            let key = null;
+        // Personal expense (no splits): generally it's "you paid"
+        // If your schema has createdBy/payer, prefer that:
+        if (exp?.mode === "personal") {
+            return true;
+        }
 
-            if (e?.typeOf === "settle") {
-                key = "settle";
-            } else if (e?.typeOf === "expense") {
-                if (e.mode === "personal") {
-                    // personal expenses without group
-                    key = e.groupId ? "group" : "friend";
-                } else if (e.mode === "split") {
-                    // split mode always means group expense
-                    key = "group";
-                }
-            }
+        return false;
+    };
 
-            if (key) s.add(key);
-        });
+    // Does current user owe anything on this expense?
+    const isOwedByMe = (exp, userId) => {
+        if (!exp?.splits?.length) return false; // personal: you don't "owe"
 
-        const arr = Array.from(s).sort();
+        const me = exp.splits.find(s => s.friendId?._id === userId || s.friendId === userId);
+        if (!me) return false;
+        if (me.owing === true) return true;
 
-        const mapped = arr.map(type => ({
-            key: type,
-            label:
-                type === "settle" ? "Settlements" :
-                    type === "personal" ? "Personal Expenses" :
-                        type === "group" ? "Group Expenses" :
-                            type === "friend" ? "Friend Expenses" :
-                                type.charAt(0).toUpperCase() + type.slice(1)
-        }));
-
-        return [{ key: "all", label: "All Expenses" }, ...mapped];
-    }, [expenses]);
+        return false;
+    };
 
 
     const filteredExpenses = useMemo(() => {
         const filterExpenses = (
             expenses,
-            { type = "all", category = "all", currency = "", sort = "newest", paymentMethod = '' },
+            { type = "all", category = "all", currency = "", sort = "newest", paymentMethod = '', paidByMe = 'any', owedByMe = 'any' },
             query
         ) => {
             let filtered = [...expenses];
@@ -158,7 +155,20 @@ const Expenses = () => {
                 });
             }
 
+            if (paidByMe !== "any") {
+                filtered = filtered.filter(exp => {
+                    const flag = isPaidByMe(exp, userId);
+                    return paidByMe === "yes" ? flag : !flag;
+                });
+            }
 
+            // 6) Owed by me tri-state
+            if (owedByMe !== "any") {
+                filtered = filtered.filter(exp => {
+                    const flag = isOwedByMe(exp, userId);
+                    return owedByMe === "yes" ? flag : !flag;
+                });
+            }
             // 4️⃣ Search / Query filter
             if (query && query.trim() !== "") {
                 const q = query.trim().toLowerCase();
@@ -294,20 +304,39 @@ const Expenses = () => {
     useEffect(() => {
         if (!scrollRef.current) return;
 
-        PullToRefresh.init({
+        const options = {
             mainElement: scrollRef.current,
             onRefresh: doRefresh,
             distThreshold: 60,
-            distMax: 120,
+            distMax: 80,
+            distReload: 50,
             resistance: 2.5,
+            // small instruction texts for pull/release; keep or remove as you like
+            instructionsPullToRefresh: "",
+            instructionsReleaseToRefresh: "",
+            // hide the default refreshing text (we'll use iconRefreshing instead)
+            instructionsRefreshing: "",
+            // spinner shown while refreshing — Tailwind classes (animate-spin) will apply if Tailwind is loaded
+            iconRefreshing: `
+                <div class="flex flex-row justify-center w-full items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 animate-spin text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" stroke-opacity="0.15"></circle>
+                    <path d="M22 12a10 10 0 0 0-10-10" stroke-linecap="round"></path>
+                    </svg>
+                </div>
+            `,
+            // keep your custom shouldPullToRefresh logic
             shouldPullToRefresh: () =>
                 scrollRef.current && scrollRef.current.scrollTop === 0,
-        });
+        };
+
+        PullToRefresh.init(options);
 
         return () => {
-            PullToRefresh.destroyAll(); // correct cleanup
+            try { PullToRefresh.destroyAll(); } catch (e) { /* ignore */ }
         };
-    }, []);
+    }, [doRefresh]);
+
     return (
         <MainLayout>
             <SEO

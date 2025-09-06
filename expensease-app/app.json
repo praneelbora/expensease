@@ -14,14 +14,21 @@
             "backgroundColor": "#ffffff"
         },
         "ios": {
-            "bundleIdentifier": "com.praneelbora.expensease",
+            "bundleIdentifier": "com.boratechnologies.expensease",
+            "googleServicesFile": "./GoogleService-Info.plist",
             "supportsTablet": true,
             "associatedDomains": [
                 "applinks:expensease.in"
-            ]
+            ],
+            "infoPlist": {
+                "UIBackgroundModes": [
+                    "remote-notification"
+                ]
+            }
         },
         "android": {
             "package": "com.praneelbora.expensease",
+            "googleServicesFile": "./google-services.json",
             "intentFilters": [
                 {
                     "action": "VIEW",

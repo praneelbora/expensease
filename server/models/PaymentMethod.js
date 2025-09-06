@@ -12,7 +12,7 @@ const PaymentMethodSchema = new mongoose.Schema({
 
     // ux & routing
     label: { type: String, required: true },             // "Primary UPI", "HDFC Bank", "Cash"
-    type: { type: String, enum: ["upi", "bank", "card", "cash", "wallet", "other"], required: true },
+    type: { type: String, enum: ["upi", "bank", "card", "cash", "wallet", "other", "credit card", "debit card"], required: true },
     defaultCurrency: { type: String },       // primary display currency
     supportedCurrencies: { type: [String], default: [] },    // [] = any; else whitelist
     balances: {

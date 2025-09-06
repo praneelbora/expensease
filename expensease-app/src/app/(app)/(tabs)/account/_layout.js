@@ -15,6 +15,28 @@ export default function AccountLayout() {
                 name="paymentAccounts"
                 options={{ title: "Payment Accounts" }}
             />
+            <Stack.Screen
+                name="theme"
+                options={{ title: "App Theme" }}
+            />
+            <Stack.Screen
+                name="currency"
+                options={{ title: "Default Currency" }}
+            />
+
+            {/* NEW: FAQ, Privacy, Contact */}
+            <Stack.Screen
+                name="faq"
+                options={{ title: "FAQs" }}
+            />
+            <Stack.Screen
+                name="privacy"
+                options={{ title: "Privacy & Data" }}
+            />
+            <Stack.Screen
+                name="contact"
+                options={{ title: "Contact support" }}
+            />
         </Stack>
     );
 }

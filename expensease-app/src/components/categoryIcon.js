@@ -1,20 +1,19 @@
 // components/CategoryIcon.js
 import React from "react";
-import { useColorScheme } from "react-native";
 import { iconMap } from "@/icons";
 import { categoryMap } from "utils/categories";
+import { useTheme } from "context/ThemeProvider";
 
-export default function CategoryIcon({ category, size = 24 }) {
-    const scheme = useColorScheme();
+export default function CategoryIcon({ category, size = 24, color }) {
+    const { theme } = useTheme();
     const categoryConfig = categoryMap[category];
     const Icon = categoryConfig ? iconMap[categoryConfig.icon] : iconMap["notepad"];
 
     return (
-        // <></>
         <Icon
             width={size}
             height={size}
-            color={'#EBF1D5'}
+            color={color || theme.colors.text} // fallback to theme text color
         />
     );
 }

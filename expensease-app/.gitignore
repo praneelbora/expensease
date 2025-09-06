@@ -37,3 +37,7 @@ yarn-error.*
 *.tsbuildinfo
 
 build-*
+
+google-services.json
+expensease-9-firebase-adminsdk-fbsvc-6c642e49ff.json
+GoogleService-Info.plist

@@ -100,4 +100,19 @@ export const categoryMap = {
         icon: "wine",
         keywords: ["wine", "alcohol", "drink", "party", "bar", "friends", "hangout", "meet"],
     },
+    building: {
+        label: "Office",
+        icon: "building",
+        keywords: ["office", "work", "job", "business", "coworking"],
+    },
+    church: {
+        label: "Religion",
+        icon: "church",
+        keywords: ["religion", "worship", "faith", "temple", "spiritual", "god"],
+    },
+    shield: {
+        label: "Insurance",
+        icon: "shield",
+        keywords: ["insurance", "policy", "coverage", "health", "safety"],
+    }
 };

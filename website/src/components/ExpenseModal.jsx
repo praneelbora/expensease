@@ -926,7 +926,7 @@ export default function ExpenseModal({
                                         return (
                                             <div>
                                                 {myExpense > 0 ?
-                                                    <p className="flex text-red-500">Your share: {getSymbol(showModal?.currency)} {fmtMoney(myExpense)}</p> :
+                                                    <p className="flex text-teal-500">Your share: {getSymbol(showModal?.currency)} {fmtMoney(myExpense)}</p> :
                                                     <p className="flex text-[#888]">Not Involved</p>
                                                 }
                                             </div>
