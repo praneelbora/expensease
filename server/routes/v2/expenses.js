@@ -1,9 +1,12 @@
+// routes/settleAndFriend.js  (replace / merge with your file)
 const mongoose = require('mongoose');
 const express = require('express');
 const router = express.Router();
 const Expense = require('../../models/Expense');
 const User = require('../../models/User');
 const auth = require("../../middleware/auth");
+const notif = require('../v1/notifs'); // <-- single-file notif helper (sendToUsers, pushNotifications, etc.)
+
 const calculateDebt = (groupExpenses, members) => {
     const totalDebt = {}; // memberId -> { [currency]: netAmount }
 
@@ -269,231 +272,10 @@ router.get('/friends', auth, async (req, res) => {
     }
 });
 
-// routes/expenses.js
-// router.post('/settle', auth, async (req, res) => {
-//   try {
-//     const {
-//       fromUserId,
-//       toUserId,
-//       amount,
-//       note,
-//       groupId,         // legacy single-group support
-//       groupIds,        // array for multi-group
-//       currency,
-//       type             // 'all_personal' | 'all_groups' | 'group' | 'net' | 'custom?'
-//     } = req.body;
-
-//     if (!fromUserId || !toUserId || !amount || !currency) {
-//         console.log('missing required fields');
-
-//       return res.status(400).json({ error: "Missing required fields." });
-//     }
-
-//     // Helpers
-//     const eps = 0.01;
-//     const asStr = v => String(v);
-//     const UID = asStr(fromUserId);
-//     const VID = asStr(toUserId);
-
-//     const baseUnsettled = {
-//       currency,
-//       $or: [{ settled: false }, { settled: { $exists: false } }]
-//     };
-
-//     // Pair-only personal filter (exactly 2 splits, both users, no group)
-//     const personalFilter = {
-//       ...baseUnsettled,
-//       groupId: null,
-//       'splits.friendId': { $all: [fromUserId, toUserId] },
-//       $expr: { $eq: [{ $size: "$splits" }, 2] }
-//     };
-
-//     // Compute net map for any set of expenses
-//     const computeNetMap = (expenses) => {
-//       const net = {}; // friendId -> number
-//       for (const exp of expenses) {
-//         if (exp.typeOf === 'loan') continue;
-//         if (exp.currency !== currency) continue;
-//         for (const s of exp.splits) {
-//           const owe = Number(s.oweAmount) || 0;
-//           const pay = Number(s.payAmount) || 0;
-//           const delta = (s.owing ? owe : 0) - (s.paying ? pay : 0);
-//           net[asStr(s.friendId)] = (net[asStr(s.friendId)] || 0) + delta;
-//         }
-//       }
-//       return net;
-//     };
-
-//     // For a scope, how much "from -> to" should flow to make the pair zero *inside that scope*
-//     const requiredForPair = (net) => {
-//       const fromNet = Number(net[UID] || 0);   // positive => others owe fromUser
-//       const toNet   = Number(net[VID] || 0);   // positive => others owe toUser
-//       const needFrom = Math.max(0, -fromNet);  // how much fromUser owes in this scope
-//       const needTo   = Math.max(0, toNet);     // how much toUser is owed in this scope
-//       return Math.min(needFrom, needTo);       // how much should flow from -> to to zero the pair
-//     };
-
-//     // Create a settle expense (optionally tied to a group)
-//     const createSettle = async ({ amount, groupId: gId }) => {
-//       const settleExpense = new Expense({
-//         createdBy: fromUserId,
-//         description: note || `Settled ${currency} ${amount}`,
-//         amount,
-//         typeOf: 'settle',
-//         splitMode: 'value',
-//         currency,
-//         ...(gId ? { groupId: gId } : {}),
-//         splits: [
-//           { friendId: toUserId,   owing: true,  paying: false, oweAmount: amount },
-//           { friendId: fromUserId, owing: false, paying: true,  payAmount: amount }
-//         ]
-//       });
-//       console.log('saving:',settleExpense);
-
-//     //   await settleExpense.save();
-//       return settleExpense;
-//     };
-
-//     // After we post a settle, re-check the scope and mark settled if the pair is ~0 in that scope.
-//     const settleScopeIfZero = async (scopeQuery) => {
-//       const docs = await Expense.find(scopeQuery);
-//       const net = computeNetMap(docs);
-//       const pairZero = Math.abs(net[UID] || 0) < eps && Math.abs(net[VID] || 0) < eps;
-//       if (pairZero && docs.length > 0) {
-//         await Expense.updateMany(
-//           { _id: { $in: docs.map(d => d._id) } },
-//           { $set: { settled: true, settledAt: new Date() } }
-//         );
-//       }
-//       return { pairZero, matchedCount: docs.length };
-//     };
-
-//     // Build work-list by type
-//     const normalizedGroupIds = Array.isArray(groupIds) ? [...new Set(groupIds.map(asStr))] : [];
-
-//     // 1) PERSONAL: compute outstanding for personal scope
-//     const personalDocs = await Expense.find(personalFilter);
-//     const personalNet = computeNetMap(personalDocs);
-//     const personalNeed = requiredForPair(personalNet); // how much from -> to needed in personal
-
-//     // 2) GROUPS: for each groupId, compute outstanding inside that group
-//     const groupsCalc = [];
-//     const whichGroups =
-//       type === 'group'    ? (groupId ? [asStr(groupId)] : [])
-//     : type === 'all_groups' ? normalizedGroupIds
-//     : type === 'net'        ? normalizedGroupIds
-//                             : (groupId ? [asStr(groupId)] : []); // legacy fallback if provided
-
-//     for (const gid of whichGroups) {
-//       const groupDocs = await Expense.find({ ...baseUnsettled, groupId: gid });
-//       console.log(groupDocs);
-
-//       const net = computeNetMap(groupDocs);
-//       console.log(net);
-
-//       const need = requiredForPair(net);
-//       groupsCalc.push({ groupId: gid, need, docs: groupDocs });
-//     }
-
-//     // Decide how to apply the submitted amount
-//     let remaining = Number(amount) || 0;
-//     const created = [];
-
-//     const applyPersonal = async (cap) => {
-//       const take = Math.min(Math.max(cap, 0), Math.max(personalNeed, 0), remaining);
-//       if (take > 0) {
-//         const se = await createSettle({ amount: take, groupId: null });
-//         created.push(se);
-//         remaining -= take;
-//         await settleScopeIfZero(personalFilter);
-//       }
-//       return take;
-//     };
-
-//     const applyGroup = async (gid, cap) => {
-//       const take = Math.min(Math.max(cap, 0), remaining);
-//       if (take > 0) {
-//         const se = await createSettle({ amount: take, groupId: gid });
-//         created.push(se);
-//         remaining -= take;
-//         await settleScopeIfZero({ ...baseUnsettled, groupId: gid });
-//       }
-//       return take;
-//     };
-
-//     // Execution per type
-//     if (type === 'all_personal') {
-//       await applyPersonal(remaining);
-//     } else if (type === 'group') {
-//       if (!groupId) {
-//         console.log('groupId required for type=group');
-
-//         return res.status(400).json({ error: "groupId required for type=group" });
-//       }
-//       console.log(groupsCalc);
-
-
-
-//       await applyGroup(asStr(groupId), gNeed);
-//     } else if (type === 'all_groups') {
-//       // Greedy across groups (largest need first)
-//       groupsCalc.sort((a, b) => b.need - a.need);
-//       for (const g of groupsCalc) {
-//         if (remaining <= 0) break;
-//         await applyGroup(g.groupId, g.need);
-//       }
-//     } else if (type === 'net') {
-//       // First personal, then groups (individually)
-//       await applyPersonal(remaining);
-//       if (remaining > 0) {
-//         groupsCalc.sort((a, b) => b.need - a.need);
-//         for (const g of groupsCalc) {
-//           if (remaining <= 0) break;
-//           await applyGroup(g.groupId, g.need);
-//         }
-//       }
-//     } else {
-//       // default / custom / legacy:
-//       // - if groupId present: treat as single-group settlement
-//       // - else: treat as personal-only
-//       if (groupId) {
-//         await applyGroup(asStr(groupId), remaining);
-//       } else {
-//         await applyPersonal(remaining);
-//       }
-//     }
-
-//     // Final: recompute “pair is zero” across the specific scopes we touched and respond
-//     const scopesTouched = [];
-//     if (created.length === 0) {
-//       // Nothing applied (e.g., zero outstanding). Still return success with no created.
-//       return res.status(201).json({
-//         createdCount: 0,
-//         remaining,
-//         type: type || (groupId ? 'group' : 'all_personal'),
-//         message: "No applicable outstanding to settle for this scope."
-//       });
-//     }
-
-//     // (Optional) Expose a summary
-//     res.status(201).json({
-//       createdCount: created.length,
-//       created: created.map(d => ({ _id: d._id, groupId: d.groupId || null, amount: d.amount })),
-//       remaining,   // if user sent more than needed, leftover > 0
-//       type: type || (groupId ? 'group' : 'all_personal')
-//     });
-
-//   } catch (err) {
-//     console.error("Settle error:", err);
-//     res.status(500).json({ error: 'Failed to settle amount' });
-//   }
-// });
 // POST /v1/expenses/settle
 
 router.post('/settle', auth, async (req, res) => {
-    try {
-        console.log(req.body);
-        
+    try {        
         const {
             fromUserId,
             toUserId,
@@ -506,7 +288,7 @@ router.post('/settle', auth, async (req, res) => {
             meta = {}   // may contain .groups (map) and .personal
         } = req.body;
 
-        if (!fromUserId || !toUserId || !amount || !currency || !type) {
+        if (!fromUserId || !toUserId || !amount || !currency ) {
             return res.status(400).json({ error: "Missing required fields." });
         }
 
@@ -524,10 +306,26 @@ router.post('/settle', auth, async (req, res) => {
                     { friendId: to, owing: true, paying: false, oweAmount: amt },
                     { friendId: from, owing: false, paying: true, payAmount: amt }
                 ]
-            });
-            console.log(settleExpense);
-
+            });            
             await settleExpense.save();
+
+            // Notify the two parties (best-effort). Wrap in try/catch so errors don't affect response.
+            (async () => {
+                try {
+                    const title = 'Payment recorded';
+                    const msg = `A settlement of ${cur} ${amt} was recorded.`;
+                    const data = { type: 'settlement', expenseId: String(settleExpense._id), groupId: gid || null, amount: amt, currency: cur };
+                    const category = gid ? 'group_settlement' : 'friend_settlement';
+                    const opts = { channel: 'push', fromFriendId: String(from), groupId: gid ? String(gid) : null };
+                    // send to both from & to
+                    await notif.sendToUsers([String(from), String(to)], title, msg, data, category, opts).catch(e => {
+                      console.error('notif.sendToUsers failed (inside createSettleExpense):', e);
+                    });
+                } catch (e) {
+                    console.error('createSettleExpense: notification error', e);
+                }
+            })();
+
             return settleExpense;
         };
 
@@ -605,6 +403,23 @@ router.post('/settle', auth, async (req, res) => {
             results.push(doc);
 
             await tryMarkScopeSettled({ gid: groupId, cur: currency, aId: fromUserId, bId: toUserId });
+
+            // summary notification (best-effort)
+            (async () => {
+                try {
+                    const fromUser = await User.findById(fromUserId).select('name').lean();
+                    const toUser = await User.findById(toUserId).select('name').lean();
+                    const title = 'Settlement created';
+                    const msg = `${fromUser?.name || 'Someone'} settled ${amount} ${currency} with ${toUser?.name || 'Someone'}.`;
+                    const data = { type: 'settlement_summary', count: results.length, totalAmount: Number(amount), currency, items: results.map(r => String(r._id)) };
+                    const category = 'group_settlement';
+                    const opts = { channel: 'push', fromFriendId: String(fromUserId), groupId: String(groupId) };
+                    await notif.sendToUsers([String(fromUserId), String(toUserId)], title, msg, data, category, opts).catch(e => console.error('summary notify failed', e));
+                } catch (e) {
+                    console.error('summary notification error (group):', e);
+                }
+            })();
+
             return res.status(201).json({ ok: true, type, count: 1, items: results });
 
         } else if (type === 'all_personal') {
@@ -620,6 +435,23 @@ router.post('/settle', auth, async (req, res) => {
             results.push(doc);
 
             await tryMarkScopeSettled({ gid: null, cur: currency, aId: fromUserId, bId: toUserId });
+
+            // summary notification
+            (async () => {
+                try {
+                    const fromUser = await User.findById(fromUserId).select('name').lean();
+                    const toUser = await User.findById(toUserId).select('name').lean();
+                    const title = 'Settlement created';
+                    const msg = `${fromUser?.name || 'Someone'} settled ${amount} ${currency} with ${toUser?.name || 'Someone'}.`;
+                    const data = { type: 'settlement_summary', count: results.length, totalAmount: Number(amount), currency, items: results.map(r => String(r._id)) };
+                    const category = 'friend_settlement';
+                    const opts = { channel: 'push', fromFriendId: String(fromUserId), groupId: null };
+                    await notif.sendToUsers([String(fromUserId), String(toUserId)], title, msg, data, category, opts).catch(e => console.error('summary notify failed', e));
+                } catch (e) {
+                    console.error('summary notification error (personal):', e);
+                }
+            })();
+
             return res.status(201).json({ ok: true, type, count: 1, items: results });
 
         } else if (type === 'all_groups') {
@@ -648,6 +480,23 @@ router.post('/settle', auth, async (req, res) => {
 
                 await tryMarkScopeSettled({ gid, cur, aId: fromUserId, bId: toUserId });
             }
+
+            // summary notification for batch
+            (async () => {
+                try {
+                    const total = results.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                    const fromUser = await User.findById(fromUserId).select('name').lean();
+                    const toUser = await User.findById(toUserId).select('name').lean();
+                    const title = 'Settlements created';
+                    const msg = `${fromUser?.name || 'Someone'} created ${results.length} settlements totalling ${total} ${currency}.`;
+                    const data = { type: 'settlement_summary', count: results.length, totalAmount: total, currency, items: results.map(r => String(r._id)) };
+                    const category = 'group_settlement';
+                    const opts = { channel: 'push', fromFriendId: String(fromUserId), groupId: null }; // groupId is per-item; listener should still handle per-item group overrides when sending per-item
+                    await notif.sendToUsers([String(fromUserId), String(toUserId)], title, msg, data, category, opts).catch(e => console.error('summary notify failed', e));
+                } catch (e) {
+                    console.error('summary notification error (all_groups):', e);
+                }
+            })();
 
             return res.status(201).json({ ok: true, type, count: results.length, items: results });
 
@@ -695,6 +544,23 @@ router.post('/settle', auth, async (req, res) => {
                     bId: toUserId
                 });
             }
+
+            // summary notification for net
+            (async () => {
+                try {
+                    const total = results.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                    const fromUser = await User.findById(fromUserId).select('name').lean();
+                    const toUser = await User.findById(toUserId).select('name').lean();
+                    const title = 'Settlements created';
+                    const msg = `${fromUser?.name || 'Someone'} created ${results.length} settlements totalling ${total} ${currency}.`;
+                    const data = { type: 'settlement_summary', count: results.length, totalAmount: total, currency, items: results.map(r => String(r._id)) };
+                    const category = 'friend_settlement';
+                    const opts = { channel: 'push', fromFriendId: String(fromUserId), groupId: null };
+                    await notif.sendToUsers([String(fromUserId), String(toUserId)], title, msg, data, category, opts).catch(e => console.error('summary notify failed', e));
+                } catch (e) {
+                    console.error('summary notification error (net):', e);
+                }
+            })();
 
             return res.status(201).json({ ok: true, type, count: results.length, items: results });
         }

@@ -1,13 +1,78 @@
+// routes/friends.js
 const express = require('express');
 const router = express.Router();
 const User = require('../../models/User');
 const Expense = require('../../models/Expense');
 const Loan = require('../../models/Loan');
-
 const FriendRequest = require('../../models/FriendRequest');
 const bcrypt = require('bcryptjs');
 const auth = require("../../middleware/auth");
 const jwt = require('jsonwebtoken');
+const notif = require('./notifs'); // single-file notif helper (sendToUsers, pushNotifications, etc.)
+
+/* ------------------------
+   Small notification helpers (use category + opts)
+   ------------------------ */
+const notify = {
+  friendRequestReceived: async ({ receiverId, senderName, requestId, senderId }) => {
+    const title = 'Friend request';
+    const body = `${senderName} sent you a friend request`;
+    const data = { type: 'friend_request', requestId: String(requestId) };
+    const category = 'friend_request';
+    const opts = { channel: 'push', fromFriendId: String(senderId) };
+    return notif.sendToUsers([String(receiverId)], title, body, data, category, opts)
+      .catch(e => console.error('notify.friendRequestReceived failed', e));
+  },
+  friendRequestAccepted: async ({ toUserId, fromUserName, accepterId }) => {
+    const title = 'Friend request accepted';
+    const body = `${fromUserName} accepted your friend request`;
+    const data = { type: 'friend_request_accepted' };
+    const category = 'friend_request';
+    const opts = { channel: 'push', fromFriendId: String(accepterId) };
+    return notif.sendToUsers([String(toUserId)], title, body, data, category, opts)
+      .catch(e => console.error('notify.friendRequestAccepted failed', e));
+  },
+  friendRequestRejected: async ({ toUserId, fromUserName, rejecterId }) => {
+    const title = 'Friend request rejected';
+    const body = `${fromUserName} rejected your friend request`;
+    const data = { type: 'friend_request_rejected' };
+    const category = 'friend_request';
+    const opts = { channel: 'push', fromFriendId: String(rejecterId) };
+    return notif.sendToUsers([String(toUserId)], title, body, data, category, opts)
+      .catch(e => console.error('notify.friendRequestRejected failed', e));
+  },
+  friendRequestCancelled: async ({ receiverId, senderName, senderId }) => {
+    const title = 'Friend request cancelled';
+    const body = `${senderName} cancelled the friend request`;
+    const data = { type: 'friend_request_cancelled' };
+    const category = 'friend_request';
+    const opts = { channel: 'push', fromFriendId: String(senderId) };
+    return notif.sendToUsers([String(receiverId)], title, body, data, category, opts)
+      .catch(e => console.error('notify.friendRequestCancelled failed', e));
+  },
+  friendRemoved: async ({ removedUserId, byName, removerId }) => {
+    const title = 'Removed as friend';
+    const body = `${byName} removed you as a friend`;
+    const data = { type: 'friend_removed' };
+    const category = 'groups'; // this is personal but not an expense — keep as general 'groups' or 'friend_request' if you prefer
+    const opts = { channel: 'push', fromFriendId: String(removerId) };
+    return notif.sendToUsers([String(removedUserId)], title, body, data, category, opts)
+      .catch(e => console.error('notify.friendRemoved failed', e));
+  },
+  autoAccepted: async ({ userAId, userBId, accepterName, accepterId }) => {
+    const title = 'Friend request accepted';
+    const body = `${accepterName} accepted the friend request`;
+    const data = { type: 'friend_auto_accepted' };
+    const category = 'friend_request';
+    const opts = { channel: 'push', fromFriendId: String(accepterId) };
+    return notif.sendToUsers([String(userAId), String(userBId)], title, body, data, category, opts)
+      .catch(e => console.error('notify.autoAccepted failed', e));
+  }
+};
+
+/* ------------------------
+   Routes
+   ------------------------ */
 
 router.post('/request', auth, async (req, res) => {
     try {
@@ -56,6 +121,20 @@ router.post('/request', auth, async (req, res) => {
             await sender.save();
             await receiver.save();
 
+            // notify both parties that they are now friends (best-effort)
+            (async () => {
+              try {
+                await notify.autoAccepted({
+                  userAId: sender._id,
+                  userBId: receiver._id,
+                  accepterName: receiver.name || 'Someone',
+                  accepterId: receiver._id
+                });
+              } catch (e) {
+                console.error('auto-accept notification failed', e);
+              }
+            })();
+
             return res.status(200).json({ message: 'Friend request auto-accepted' });
         }
 
@@ -67,6 +146,20 @@ router.post('/request', auth, async (req, res) => {
         });
 
         await newRequest.save();
+
+        // Notify receiver (best-effort)
+        (async () => {
+          try {
+            await notify.friendRequestReceived({
+              receiverId: receiver._id,
+              senderName: sender.name || 'Someone',
+              requestId: newRequest._id,
+              senderId: sender._id
+            });
+          } catch (e) {
+            console.error('friend request notification failed', e);
+          }
+        })();
 
         res.status(201).json({ message: 'Friend request sent', request: newRequest });
 
@@ -103,6 +196,19 @@ router.post('/accept', auth, async (req, res) => {
         await sender.save();
         await receiver.save();
 
+        // Notify original sender that request was accepted (best-effort)
+        (async () => {
+          try {
+            await notify.friendRequestAccepted({
+              toUserId: sender._id,
+              fromUserName: receiver.name || 'Someone',
+              accepterId: receiver._id
+            });
+          } catch (e) {
+            console.error('accept notification failed', e);
+          }
+        })();
+
         res.json({ msg: 'Friend request accepted' });
     } catch (error) {
         console.log('friends/accept error: ', error);
@@ -121,6 +227,21 @@ router.post('/reject', auth, async (req, res) => {
 
         request.status = 'rejected';
         await request.save();
+
+        // Notify sender that request was rejected (best-effort)
+        (async () => {
+          try {
+            const receiver = await User.findById(req.user.id).select('name').lean();
+            await notify.friendRequestRejected({
+              toUserId: request.sender,
+              fromUserName: receiver?.name || 'Someone',
+              rejecterId: req.user.id
+            });
+          } catch (e) {
+            console.error('reject notification failed', e);
+          }
+        })();
+
         res.json({ msg: 'Friend request rejected' });
     } catch (error) {
         console.log('friends/reject error: ', error);
@@ -138,6 +259,21 @@ router.post('/cancel', auth, async (req, res) => {
             return res.status(403).json({ msg: 'Not authorized' });
         }
         await FriendRequest.findByIdAndDelete(requestId);
+
+        // Notify receiver that sender cancelled (best-effort)
+        (async () => {
+          try {
+            const sender = await User.findById(req.user.id).select('name').lean();
+            await notify.friendRequestCancelled({
+              receiverId: request.receiver,
+              senderName: sender?.name || 'Someone',
+              senderId: req.user.id
+            });
+          } catch (e) {
+            console.error('cancel notification failed', e);
+          }
+        })();
+
         res.json({ msg: 'Friend request deleted' });
     } catch (error) {
         console.log('friends/reject error: ', error);
@@ -211,6 +347,21 @@ router.post('/request-link', auth, async (req, res) => {
             sender.friends.push(receiver._id);
             await receiver.save();
             await sender.save();
+
+            // notify both parties that they are now friends
+            (async () => {
+              try {
+                await notify.autoAccepted({
+                  userAId: sender._id,
+                  userBId: receiver._id,
+                  accepterName: receiver.name || 'Someone',
+                  accepterId: receiver._id
+                });
+              } catch (e) {
+                console.error('auto-accept (link) notification failed', e);
+              }
+            })();
+
             return res.status(200).json({ message: 'Friend request accepted from link' });
         }
 
@@ -231,6 +382,20 @@ router.post('/request-link', auth, async (req, res) => {
         });
 
         await newRequest.save();
+
+        // notify receiver (best-effort)
+        (async () => {
+          try {
+            await notify.friendRequestReceived({
+              receiverId: receiver._id,
+              senderName: sender.name || 'Someone',
+              requestId: newRequest._id,
+              senderId: sender._id
+            });
+          } catch (e) {
+            console.error('request-link notification failed', e);
+          }
+        })();
 
         res.status(201).json({ message: 'Friend request sent via link' });
     } catch (error) {
@@ -304,6 +469,20 @@ router.post('/remove', auth, async (req, res) => {
 
         await user.save();
         await friend.save();
+
+        // Notify removed friend (best-effort)
+        (async () => {
+          try {
+            const by = await User.findById(userId).select('name').lean();
+            await notify.friendRemoved({
+              removedUserId: friendId,
+              byName: by?.name || 'Someone',
+              removerId: userId
+            });
+          } catch (e) {
+            console.error('remove notification failed', e);
+          }
+        })();
 
         res.status(200).json({ message: "Friend removed successfully" });
     } catch (error) {

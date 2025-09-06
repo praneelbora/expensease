@@ -3,6 +3,7 @@ import Admin from "../../models/Admin.js";
 import User from "../../models/User.js";
 
 export async function savePushToken({ userId, token, platform }) {
+    
     if (!token || !["ios", "android"].includes(platform)) {
         throw new Error("Valid token and platform are required");
     }
@@ -31,7 +32,6 @@ export async function savePushToken({ userId, token, platform }) {
 
 export async function savePushTokenPublic(req, res) {
     try {
-        console.log("req.body: ", req.body);
         const { token, platform } = req.body;
 
         await savePushToken({ token, platform }); // no userId
@@ -44,7 +44,6 @@ export async function savePushTokenPublic(req, res) {
 
 export async function savePushTokenAuthed(req, res) {
     try {
-        console.log("auth req.body: ", req.body);
         const { token, platform } = req.body;
         const userId = req.user?.id;
 

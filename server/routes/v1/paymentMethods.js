@@ -543,8 +543,6 @@ router.post('/public/friends', auth, async (req, res) => {
             ]
         }).sort({ createdAt: -1 });
 
-        console.log(paymentMethods);
-
         // Group by friendId
         const grouped = Object.fromEntries(validIds.map((id) => [id, []]));
         for (const acc of paymentMethods) {

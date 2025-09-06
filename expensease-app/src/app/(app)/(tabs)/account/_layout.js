@@ -37,6 +37,10 @@ export default function AccountLayout() {
                 name="contact"
                 options={{ title: "Contact support" }}
             />
+            <Stack.Screen
+                name="notifications"
+                options={{ title: "Notifications" }}
+            />
         </Stack>
     );
 }

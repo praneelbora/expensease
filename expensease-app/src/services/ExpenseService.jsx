@@ -59,7 +59,7 @@ export const settleExpense = async ({ payerId, receiverId, amount, description, 
         ...(meta?.groupId ? { groupId: meta.groupId } : {}),
         ...(meta ? { meta } : {}),
     };
-    console.log(body);
+    console.log('body: ',body);
 
     return api.post(`${BASE2}/settle`, body);
 };

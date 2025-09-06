@@ -233,6 +233,14 @@ export default function AccountScreen() {
                                         <Text style={styles.gridLabel}>Theme</Text>
                                     </TouchableOpacity>
 
+                                    {/* Notifications tile (new) */}
+                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/notifications")}>
+                                        <View style={styles.iconWrap}>
+                                            <Feather name="bell" size={30} color={theme.colors.primary} />
+                                        </View>
+                                        <Text style={styles.gridLabel}>Notifications</Text>
+                                    </TouchableOpacity>
+
                                     {/* Payment Accounts */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/paymentAccounts")}>
                                         <View style={styles.iconWrap}>
