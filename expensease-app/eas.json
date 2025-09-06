@@ -8,19 +8,27 @@
             "developmentClient": true,
             "distribution": "internal",
             "env": {
-                "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api"
+                "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api",
+                "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID":"421409040351-5gi3qiffdaolc8d29bj338ioibtu2db3.apps.googleusercontent.com",
+                "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"421409040351-1a24o9dkjq3207gkggs9doms0pmltg0f.apps.googleusercontent.com"
             }
         },
         "preview": {
             "distribution": "internal",
             "env": {
-                "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api"
+                "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api",
+                 "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID":"421409040351-5gi3qiffdaolc8d29bj338ioibtu2db3.apps.googleusercontent.com",
+                 "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"421409040351-1a24o9dkjq3207gkggs9doms0pmltg0f.apps.googleusercontent.com",
+                 "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID":"421409040351-te6tvrccsppdt9nngms5c85i808trnor.apps.googleusercontent.com"
             }
         },
         "production": {
             "autoIncrement": true,
             "env": {
-                "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api"
+                "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api",
+                "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID":"421409040351-5gi3qiffdaolc8d29bj338ioibtu2db3.apps.googleusercontent.com",
+                "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"421409040351-1a24o9dkjq3207gkggs9doms0pmltg0f.apps.googleusercontent.com",
+                "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID":"421409040351-te6tvrccsppdt9nngms5c85i808trnor.apps.googleusercontent.com"
             }
         }
     },
