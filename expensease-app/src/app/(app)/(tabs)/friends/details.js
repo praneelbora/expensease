@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import Header from "~/header";
 import ExpenseRow from "~/expenseRow";
@@ -454,6 +454,8 @@ export default function FriendDetails() {
 
     const fetchData = useCallback(async () => {
         try {
+            console.log('fetchData');
+
             const data = await getFriendDetails(id, userToken);
             setFriend(data.friend);
             setUserId(data.id);
@@ -479,7 +481,14 @@ export default function FriendDetails() {
         }
     }, [id, userToken, fetchLoansForFriend]);
 
-    useEffect(() => { if (id) fetchData(); }, [id, fetchData]);
+    useFocusEffect(
+        React.useCallback(() => {
+            if (id) {
+                fetchData();
+            }
+        }, [id])
+    );
+
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -497,7 +506,7 @@ export default function FriendDetails() {
     // inside FriendDetails (already present in your file)
     const handleSettleSubmit = async (payload) => {
         if (!payload) return;
-        console.log(payload);
+        console.log('handleSettleSubmit:', payload);
         try {
             const { payerId: payerIdPayload, receiverId: receiverIdPayload, amount: amt, description, currency, meta, groupId } = payload;
             console.log(payerIdPayload, receiverIdPayload, amt);
@@ -661,7 +670,7 @@ export default function FriendDetails() {
                         <ExpenseRow
                             expense={item}
                             userId={userId}
-                            onPress={(exp) => console.log("Clicked", exp._id)}
+                            update={fetchData}
                         />
                     }
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={styles.colors.primaryFallback} />}
@@ -836,6 +845,7 @@ export default function FriendDetails() {
                     setShowSettle(false);
                     settleRef.current?.dismiss?.();
                 }}
+                update={fetchData}
                 userId={userId}
                 friends={friendsForSheet}
                 currencyOptions={currencyOptions}

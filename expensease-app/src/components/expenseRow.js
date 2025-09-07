@@ -10,7 +10,7 @@ import { deleteExpense } from "services/ExpenseService";
 import SettleIcon from "@/icons/handshake";
 import BottomSheetExpense from "./btmShtExpense";
 
-const ExpenseRow = ({ expense = {}, userId, onPress, showExpense = false }) => {
+const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
     const { categories = [] } = useAuth() || {};
     const { theme } = useTheme();
     const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -212,6 +212,7 @@ const ExpenseRow = ({ expense = {}, userId, onPress, showExpense = false }) => {
                 onDelete={async (id) => {
                     try {
                         await deleteExpense(id);
+                        update()
                     } catch (e) {
                         // swallow; sheet or parent should show error if needed
                         console.warn("deleteExpense failed:", e);

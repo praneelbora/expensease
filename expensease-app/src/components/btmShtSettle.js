@@ -48,7 +48,7 @@ const BtmShtSettle = ({
     const { theme } = useTheme?.() || {};
     const colors = theme?.colors || {};
     const styles = useMemo(() => createStyles(colors), [colors]);
-    console.log(transactions);
+    console.log('transaction: ', transactions);
 
     // UI state 
     const [settleMode, setSettleMode] = useState("suggested"); // 'suggested' | 'custom'
@@ -61,6 +61,8 @@ const BtmShtSettle = ({
     const [amount, setAmount] = useState("");
     const [description, setDescription] = useState("");
     const [currency, setCurrency] = useState(defaultCurrency);
+    // add near other UI state
+    const [groupContext, setGroupContext] = useState(false);
 
     // selection state (for suggested)
     const [selectedKey, setSelectedKey] = useState(null);
@@ -98,6 +100,42 @@ const BtmShtSettle = ({
         setSelectedMeta(null);
         setConfirmationVisible(false);
     }, [defaultCurrency]);
+    // detect if we're being opened from a group and all txns belong to that group
+    useEffect(() => {
+        if (!group || !prunedTxns?.length) {
+            setGroupContext(false);
+            return;
+        }
+        const gid = group._id || group.id || null;
+        if (!gid) {
+            setGroupContext(false);
+            return;
+        }
+        const allSameGroup = prunedTxns.every((t) => {
+            const tgid = t.groupId || t.group?._id || t.groupId?._id || null;
+            return String(tgid) === String(gid);
+        });
+
+        if (allSameGroup) {
+            // set group context and prefill a group meta
+            setGroupContext(true);
+            const currencyFromTx = prunedTxns[0]?.currency || defaultCurrency;
+            setSelectedMeta((prev) => ({
+                ...(prev || {}),
+                type: "group",
+                name: group.name || "",
+                ids: [gid],
+                currency: prev?.currency || currencyFromTx,
+                groupId: gid,
+            }));
+            // prefer the group's currency (or first txn) for UI
+            setCurrency((c) => c || currencyFromTx);
+            // keep suggested mode by default
+            setSettleMode("suggested");
+        } else {
+            setGroupContext(false);
+        }
+    }, [group, prunedTxns, defaultCurrency]);
 
     useEffect(() => {
         if (prefill) {
@@ -169,14 +207,55 @@ const BtmShtSettle = ({
     };
 
     // ensure incoming transactions is an array
+    // ensure incoming transactions is an array and normalize missing fields
     const normalizedTxns = useMemo(() => {
+        let arr = [];
         if (!transactions) return [];
-        if (Array.isArray(transactions)) return transactions;
-        // maybe object with arrays inside
-        return Array.isArray(transactions.items) ? transactions.items : [];
-    }, [transactions]);
+        if (Array.isArray(transactions)) arr = transactions.slice();
+        else if (Array.isArray(transactions.items)) arr = transactions.items.slice();
+        else return [];
+
+        // canonical group id if parent passed group
+        const gid = group?._id || group?.id || null;
+
+        return arr.map((t) => {
+            // shallow copy
+            const tx = { ...t };
+
+            // If no explicit type, default to 'group' when we have a parent group,
+            // otherwise default to 'net' (you can change to 'all_personal' if desired).
+            if (!tx.type) {
+                tx.type = gid ? "group" : "net";
+            }
+
+            // If parent group provided and tx has no groupId, set it so pruning/grouping logic sees it
+            if (gid && !tx.groupId) {
+                tx.groupId = gid;
+                // also set a name for group rows if useful
+                if (!tx.name) tx.name = group?.name || "";
+            }
+
+            // normalize currency, amount to expected shapes
+            if (tx.currency == null) tx.currency = defaultCurrency;
+            tx.amount = Number(tx.amount || 0);
+
+            return tx;
+        });
+    }, [transactions, group, defaultCurrency]);
 
     const prunedTxns = useMemo(() => pruneSettlementLists(normalizedTxns), [normalizedTxns]);
+
+    // (optional) small debug logs — remove when happy
+    useEffect(() => {
+        // helpful while debugging to ensure normalization worked
+        // eslint-disable-next-line no-console
+        console.log("BtmShtSettle: prunedTxns:", prunedTxns);
+        // eslint-disable-next-line no-console
+        console.log("BtmShtSettle: grouped:", (prunedTxns || []).reduce((acc, tx) => {
+            (acc[tx.type] ||= []).push(tx);
+            return acc;
+        }, {}));
+    }, [prunedTxns]);
 
     // grouped by type for sections order
     const grouped = useMemo(() => {
@@ -232,8 +311,20 @@ const BtmShtSettle = ({
 
         const key = keyOf(txn);
         setSelectedKey(key);
-        setSelectedMeta(txn);
+
+        // ensure meta has type, and if groupContext prefer group meta
+        const normalized = { ...txn };
+        if (!normalized.type) {
+            normalized.type = groupContext ? "group" : "custom";
+        }
+        if (groupContext) {
+            normalized.groupId = group._id || group.id;
+            normalized.name = group.name || normalized.name;
+            normalized.ids = normalized.ids || [group._id || group.id];
+        }
+        setSelectedMeta(normalized);
     };
+
 
     const handleToggle = (mode) => {
         setSettleMode(mode);
@@ -256,15 +347,41 @@ const BtmShtSettle = ({
         if (!isValid) return;
         setConfirming(true);
         try {
+            // clone current selectedMeta (if any)
+            let metaToSend = selectedMeta ? { ...selectedMeta } : undefined;
+
+            // If we're in custom mode and no meta exists, create a small default custom meta
+            if (settleMode === "custom" && !metaToSend) {
+                metaToSend = { type: "custom", currency: currency || defaultCurrency };
+            }
+
+            // If meta exists but has no explicit type, treat it as custom by default
+            if (metaToSend && !metaToSend.type) {
+                metaToSend.type = "custom";
+            }
+
+            // If groupContext (or selectedMeta references a group), force minimal group meta
+            const gid = group?._id || group?.id || null;
+            const metaRefsGroup = metaToSend && (metaToSend.groupId || (Array.isArray(metaToSend.ids) && metaToSend.ids.length));
+            if (groupContext || metaRefsGroup) {
+                metaToSend = {
+                    type: "group",
+                    currency: (metaToSend && metaToSend.currency) || currency || defaultCurrency,
+                };
+            }
+
             const payload = {
                 payerId,
                 receiverId,
                 amount: parseFloat(amount),
                 description,
                 currency,
-                meta: selectedMeta || undefined,
+                meta: metaToSend,
             };
+            console.log('payload', payload);
+
             await onSubmit?.(payload);
+
             // reset + close
             resetForm();
             onClose?.();
@@ -276,10 +393,30 @@ const BtmShtSettle = ({
         }
     };
 
+
+
     const handleSettleAll = async () => {
         setConfirming(true);
         try {
-            await onSubmitAll?.();
+            // Build a sensible meta for Settle All
+            let metaToSend = selectedMeta ? { ...selectedMeta } : undefined;
+
+            if (groupContext) {
+                metaToSend = {
+                    ...(metaToSend || {}),
+                    type: "group",
+                    name: group?.name || "",
+                    ids: [(group._id || group.id)],
+                    groupId: group._id || group.id,
+                    currency: metaToSend?.currency || (prunedTxns[0]?.currency || defaultCurrency),
+                };
+            } else {
+                // generic all-personal/net scenario: if meta missing, mark as 'net'
+                metaToSend = metaToSend || { type: "net", currency: prunedTxns[0]?.currency || defaultCurrency };
+            }
+
+            // allow parent to accept meta param (optional) - older parents may ignore it
+            await onSubmitAll?.(metaToSend);
             resetForm();
             onClose?.();
             innerRef?.current?.dismiss?.();
@@ -289,6 +426,7 @@ const BtmShtSettle = ({
             setConfirming(false);
         }
     };
+
 
     // render helpers
     const sectionOrder = ["net", "all_personal", "all_groups", "group"];
@@ -308,7 +446,9 @@ const BtmShtSettle = ({
             }}
         >
             <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-                <Text style={styles.headerText}>Settle Up</Text>
+                <Text style={styles.headerText}>
+                    {groupContext && group?.name ? `${group.name}` : "Settle Up"}
+                </Text>
                 <TouchableOpacity
                     onPress={() => {
                         resetForm();
@@ -318,6 +458,7 @@ const BtmShtSettle = ({
                     <Text style={styles.closeText}>Close</Text>
                 </TouchableOpacity>
             </View>
+
 
             <ScrollView
                 style={{ flex: 1 }}
@@ -404,8 +545,12 @@ const BtmShtSettle = ({
                                                 >
                                                     <View style={{ flex: 1 }}>
                                                         <Text style={styles.txLabel}>{from} → {to}</Text>
-                                                        {type === "group" && <Text style={styles.txSub}>{txn.name || "Unnamed Group"}</Text>}
+                                                        {/* only show group name in the row when not opened from that same group */}
+                                                        {type === "group" && !groupContext && (
+                                                            <Text style={styles.txSub}>{txn.name || "Unnamed Group"}</Text>
+                                                        )}
                                                     </View>
+
                                                     <Text style={[styles.txAmount, amtStyle]}>{sym} {amt}</Text>
                                                 </TouchableOpacity>
                                             );

@@ -232,6 +232,7 @@ export default function NewExpenseScreen() {
 
         const gid = params?.groupId;
         const fid = params?.friendId;
+        console.log(gid, fid);
 
         if (gid && !hasPreselectedGroup.current) {
             const g = groups.find((x) => String(x._id) === String(gid));

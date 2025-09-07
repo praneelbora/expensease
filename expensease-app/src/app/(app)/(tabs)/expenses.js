@@ -244,37 +244,7 @@ export default function ExpensesScreen() {
         return filterExpenses(expenses, appliedFilter, query);
     }, [expenses, appliedFilter, query]);
 
-    // expense row
-    const renderItem = ({ item: exp }) => {
-        const isSettle = exp.typeOf === "settle";
-        const leftTitle = exp.description || (isSettle ? "Settlement" : "Expense");
-        const sub = isSettle ? getSettleDirectionText(exp.splits) : exp.groupId?.name || (exp.splits?.length ? "With friends" : "Personal");
 
-        const oweInfo = !isSettle ? getOweInfo(exp.splits) : null;
-
-        return (
-            <TouchableOpacity
-                activeOpacity={0.8}
-                style={[styles.expenseRow]}
-                onPress={() => {
-                    // placeholder: open details or modal
-                }}
-            >
-                <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.expenseTitle} numberOfLines={1}>
-                        {leftTitle}
-                    </Text>
-                    <Text style={styles.expenseSub} numberOfLines={1}>
-                        {sub} • {new Date(exp.date).toDateString()}
-                    </Text>
-                    {!!oweInfo && <Text style={styles.expenseHint}>{oweInfo.text} {getSymbol(exp.currency)}{oweInfo.amount}</Text>}
-                </View>
-                <Text style={styles.expenseAmt}>
-                    {getSymbol(exp.currency)} {Number(exp.amount || 0).toFixed(2)}
-                </Text>
-            </TouchableOpacity>
-        );
-    };
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -302,10 +272,7 @@ export default function ExpensesScreen() {
                             expense={item}
                             userId={userId}
                             showExpense={appliedFilter.mode === "expense"}
-                            onPress={(exp) => {
-                                // open modal / navigate
-                                console.log("Clicked", exp._id);
-                            }}
+                            update={fetchExpenses}
                         />
                     )}
                     showsVerticalScrollIndicator={false}

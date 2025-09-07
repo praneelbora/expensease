@@ -250,7 +250,19 @@ export default function GroupDetails() {
         }
     };
 
-    const recordSettlement = async ({ payerId, receiverId, amount, description, currency }) => {
+    const recordSettlement = async ({ payerId, receiverId, amount, description, currency, meta }) => {
+        // normalize meta: if it's a group settlement, send minimal group meta
+        let metaToSend = meta;
+        if (metaToSend && metaToSend.type === "group") {
+            metaToSend = {
+                type: "group",
+                currency: metaToSend.currency || currency || defaultCurrency || "INR",
+            };
+        }
+
+        // final currency preference: meta.currency -> passed currency -> defaultCurrency -> hard "INR"
+        const finalCurrency = (metaToSend && metaToSend.currency) || currency || defaultCurrency || "INR";
+
         await settleExpense(
             {
                 payerId,
@@ -258,24 +270,30 @@ export default function GroupDetails() {
                 amount,
                 description: description || "Settlement",
                 groupId: id,
-                currency,
+                currency: finalCurrency,
+                meta: metaToSend,
             },
             userToken
         );
+
         await fetchGroupExpenses();
     };
-
     const recordAllSettlements = async () => {
         for (const t of simplifiedTransactions) {
+            // construct minimal group meta for each tx (use tx.currency if present)
+            const metaForTx = { type: "group", currency: t.currency || defaultCurrency || "INR" };
+
             await recordSettlement({
                 payerId: t.from,
                 receiverId: t.to,
                 amount: t.amount,
                 description: "Settlement",
                 currency: t.currency,
+                meta: metaForTx,
             });
         }
     };
+
 
     // ===== render helpers =====
     const renderExpense = ({ item: exp }) => {
@@ -386,7 +404,7 @@ export default function GroupDetails() {
                 <FlatList
                     data={loadingExpenses ? [] : filteredExpenses.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))}
                     keyExtractor={(it) => String(it._id)}
-                    renderItem={({ item }) => <ExpenseRow expense={item} userId={userId} onPress={(exp) => console.log("Clicked", exp._id)} />}
+                    renderItem={({ item }) => <ExpenseRow expense={item} userId={userId} update={fetchGroupExpenses} />}
                     showsVerticalScrollIndicator={false}
                     ListHeaderComponent={listHeader}
                     ListEmptyComponent={

@@ -478,10 +478,7 @@ export default function DashboardScreen() {
                                                     <ExpenseRow
                                                         expense={item}
                                                         userId={userId}
-                                                        onPress={(exp) => {
-                                                            setSelectedExpense(exp);
-                                                            expenseSheetRef.current?.present();
-                                                        }}
+                                                        update={fetchExpenses}
                                                     />
                                                 )}
                                             />
