@@ -1,9 +1,36 @@
 <script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (let registration of registrations) {
-        registration.unregister();
-      }
-    });
+(async function unregisterAllServiceWorkersAndClearCaches() {
+  if (!('serviceWorker' in navigator)) {
+    console.log('Service Worker API not supported in this browser.');
+    return;
   }
+
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    if (!regs.length) console.log('No service worker registrations found.');
+
+    for (const reg of regs) {
+      console.log('Unregistering service worker for scope:', reg.scope);
+      const ok = await reg.unregister();
+      console.log('Unregister result for', reg.scope, ':', ok);
+    }
+
+    // Clear all caches created by the service worker or otherwise
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      if (keys.length) {
+        await Promise.all(keys.map(k => caches.delete(k)));
+        console.log('Cleared caches:', keys);
+      } else {
+        console.log('No caches to clear.');
+      }
+    }
+
+    // Give the browser a tick so unregister takes effect, then reload
+    console.log('Reloading page to complete removal of Service Worker...');
+    setTimeout(() => location.reload(), 300);
+  } catch (err) {
+    console.error('Error while unregistering service workers / clearing caches:', err);
+  }
+})();
 </script>

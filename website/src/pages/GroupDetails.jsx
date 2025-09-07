@@ -68,7 +68,7 @@ const GroupDetails = () => {
     };
     const handleSettle = async ({ payerId, receiverId, amount, description, currency }) => {
         try {
-            await settleExpense({ payerId, receiverId, amount, description, groupId: id, currency }, userToken);
+            await settleExpense({ payerId, receiverId, amount, description, groupId: id, currency, meta: { type: 'group', groupId: id } }, userToken);
             await getGroupExpenses(id, userToken);
             console.log("Settlement recorded successfully!");
             await fetchGroupExpenses()

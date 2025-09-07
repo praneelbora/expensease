@@ -64,7 +64,6 @@ export const settleExpense = async ({ payerId, receiverId, amount, description, 
     if (!payerId || !receiverId || !amount) {
         throw new Error("Please fill all required fields.");
     }
-    console.log(meta.ids);
 
     try {
         const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v2/expenses/settle`, {

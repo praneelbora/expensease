@@ -275,21 +275,33 @@ router.get('/friends', auth, async (req, res) => {
 // POST /v1/expenses/settle
 
 router.post('/settle', auth, async (req, res) => {
-    try {        
+    try {
         const {
             fromUserId,
             toUserId,
             amount,
             note,
             currency,
-            type,       // 'group' | 'all_groups' | 'all_personal' | 'net'
-            groupId,    // single gid (for type:'group')
-            groupIds,   // array of gids OR map { gid: {from,to,amount,currency,...} }
-            meta = {}   // may contain .groups (map) and .personal
+            type, // 'group' | 'all_groups' | 'all_personal' | 'net' | 'custom'
+            groupId, // single gid (for type:'group')
+            groupIds, // array of gids OR map { gid: {from,to,amount,currency,...} }
+            meta = {} // may contain .groups (map) and .personal and .items (for custom)
         } = req.body;
 
-        if (!fromUserId || !toUserId || !amount || !currency ) {
-            return res.status(400).json({ error: "Missing required fields." });
+        console.log(req.body);
+
+        // Basic required fields
+        if (!fromUserId || !toUserId) {
+            return res.status(400).json({ error: "Missing required fields: fromUserId/toUserId." });
+        }
+
+        // amount/currency are required unless this is `custom` with meta.items (per-item amounts)
+        const hasCustomItems = Array.isArray(meta?.items) && meta.items.length > 0;
+        if (!hasCustomItems) {
+            // for non-custom or custom-without-items, require top-level amount & currency
+            if (typeof amount === 'undefined' || !currency) {
+                return res.status(400).json({ error: "Missing required fields: amount/currency." });
+            }
         }
 
         // Utilities
@@ -306,7 +318,7 @@ router.post('/settle', auth, async (req, res) => {
                     { friendId: to, owing: true, paying: false, oweAmount: amt },
                     { friendId: from, owing: false, paying: true, payAmount: amt }
                 ]
-            });            
+            });
             await settleExpense.save();
 
             // Notify the two parties (best-effort). Wrap in try/catch so errors don't affect response.
@@ -319,7 +331,7 @@ router.post('/settle', auth, async (req, res) => {
                     const opts = { channel: 'push', fromFriendId: String(from), groupId: gid ? String(gid) : null };
                     // send to both from & to
                     await notif.sendToUsers([String(from), String(to)], title, msg, data, category, opts).catch(e => {
-                      console.error('notif.sendToUsers failed (inside createSettleExpense):', e);
+                        console.error('notif.sendToUsers failed (inside createSettleExpense):', e);
                     });
                 } catch (e) {
                     console.error('createSettleExpense: notification error', e);
@@ -360,7 +372,8 @@ router.post('/settle', auth, async (req, res) => {
                     const owe = Number(s.oweAmount) || 0;
                     const pay = Number(s.payAmount) || 0;
                     const delta = (s.owing ? owe : 0) - (s.paying ? pay : 0);
-                    net[s.friendId] = (net[s.friendId] || 0) + delta;
+                    const id = String(s.friendId);
+                    net[id] = (net[id] || 0) + delta;
                 }
             }
             const allZero = Object.values(net).every(v => Math.abs(v) < 0.01);
@@ -491,7 +504,7 @@ router.post('/settle', auth, async (req, res) => {
                     const msg = `${fromUser?.name || 'Someone'} created ${results.length} settlements totalling ${total} ${currency}.`;
                     const data = { type: 'settlement_summary', count: results.length, totalAmount: total, currency, items: results.map(r => String(r._id)) };
                     const category = 'group_settlement';
-                    const opts = { channel: 'push', fromFriendId: String(fromUserId), groupId: null }; // groupId is per-item; listener should still handle per-item group overrides when sending per-item
+                    const opts = { channel: 'push', fromFriendId: String(fromUserId), groupId: null };
                     await notif.sendToUsers([String(fromUserId), String(toUserId)], title, msg, data, category, opts).catch(e => console.error('summary notify failed', e));
                 } catch (e) {
                     console.error('summary notification error (all_groups):', e);
@@ -502,14 +515,13 @@ router.post('/settle', auth, async (req, res) => {
 
         } else if (type === 'net') {
             // NET = settle each group individually + settle the personal residue
-            // groups can arrive in meta.groups OR groupIds (map)
             const groupMap = (meta?.groups && Object.keys(meta.groups).length)
                 ? meta.groups
                 : asMap(groupIds, {});
 
             // 1) groups
             for (const [gid, detail] of Object.entries(groupMap)) {
-                if (!detail) continue; // if only id was passed without detail, skip (or look it up if you wish)
+                if (!detail) continue;
                 const amt = Number(detail.amount || 0);
                 const cur = detail.currency || currency;
                 const from = String(detail.from || fromUserId);
@@ -563,14 +575,89 @@ router.post('/settle', auth, async (req, res) => {
             })();
 
             return res.status(201).json({ ok: true, type, count: results.length, items: results });
+
+        } else if (type === 'custom') {
+            // custom: either a single settle (fallback to top-level fields) or multiple items in meta.items
+            // meta.items => [{ from, to, amount, currency, groupId, description }, ...]
+            const items = Array.isArray(meta?.items) ? meta.items : [];
+
+            if (items.length === 0) {
+                // fallback: treat like a single settle (groupId may be absent => personal)
+                const doc = await createSettleExpense({
+                    from: fromUserId,
+                    to: toUserId,
+                    amt: Number(amount),
+                    cur: currency,
+                    gid: meta?.groupId ?? null,
+                    desc: note || meta?.description || ''
+                });
+                results.push(doc);
+
+                await tryMarkScopeSettled({
+                    gid: meta?.groupId ?? null,
+                    cur: currency,
+                    aId: fromUserId,
+                    bId: toUserId
+                });
+            } else {
+                for (const it of items) {
+                    const from = String(it.from || fromUserId);
+                    const to = String(it.to || toUserId);
+                    const amt = Number(it.amount || 0);
+                    const cur = it.currency || currency;
+                    const gid = (typeof it.groupId !== 'undefined') ? it.groupId : null;
+                    const desc = it.description || note || '';
+
+                    if (!amt || amt <= 0) continue;
+
+                    const doc = await createSettleExpense({
+                        from,
+                        to,
+                        amt,
+                        cur,
+                        gid,
+                        desc
+                    });
+                    results.push(doc);
+
+                    await tryMarkScopeSettled({
+                        gid: gid,
+                        cur: cur,
+                        aId: from,
+                        bId: to
+                    });
+                }
+            }
+
+            // summary notification for custom
+            (async () => {
+                try {
+                    const total = results.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                    const fromUser = await User.findById(fromUserId).select('name').lean();
+                    const toUser = await User.findById(toUserId).select('name').lean();
+                    const title = 'Settlements created';
+                    const msg = `${fromUser?.name || 'Someone'} created ${results.length} custom settlements totalling ${total} ${currency || (results[0] && results[0].currency) || ''}.`;
+                    const data = { type: 'settlement_summary', count: results.length, totalAmount: total, currency, items: results.map(r => String(r._id)) };
+                    const category = 'friend_settlement';
+                    const opts = { channel: 'push', fromFriendId: String(fromUserId), groupId: null };
+                    await notif.sendToUsers([String(fromUserId), String(toUserId)], title, msg, data, category, opts).catch(e => console.error('summary notify failed', e));
+                } catch (e) {
+                    console.error('summary notification error (custom):', e);
+                }
+            })();
+
+            return res.status(201).json({ ok: true, type, count: results.length, items: results });
+
+        } else {
+            // Fallback / unrecognized
+            return res.status(400).json({ error: `Unknown settle type '${type}'.` });
         }
 
-        // Fallback / unrecognized
-        return res.status(400).json({ error: `Unknown settle type '${type}'.` });
     } catch (err) {
         console.error("Settle error:", err);
         res.status(500).json({ error: 'Failed to settle amount' });
     }
 });
+
 
 module.exports = router;

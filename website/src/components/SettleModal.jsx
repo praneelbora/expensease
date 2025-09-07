@@ -19,9 +19,10 @@ export default function SettleModal({
     prefill,
     currencyOptions,
     defaultCurrency,
-    preferredCurrencies
+    preferredCurrencies,
+    settlementLists
 }) {
-    console.log(simplifiedTransactions);
+    // console.log(settlementLists);
 
     const [payerId, setPayerId] = useState("");
     const [receiverId, setReceiverId] = useState("");
@@ -124,8 +125,11 @@ export default function SettleModal({
     const keyTuple = (t) => `${t.currency}|${t.from}|${t.to}|${Number(t.amount || 0)}`;
 
     const pruneSettlementLists = (list = []) => {
+        console.log(list);
+
         const byType = { net: [], all_personal: [], all_groups: [], group: [] };
         for (const x of list) (byType[x.type] ||= []).push(x);
+        console.log(byType);
 
         const hasGroups = byType.group.length > 0;
         const hasPersonal = byType.all_personal.length > 0;
@@ -160,8 +164,8 @@ export default function SettleModal({
     };
 
     const prunedTxns = useMemo(
-        () => pruneSettlementLists(simplifiedTransactions),
-        [simplifiedTransactions]
+        () => pruneSettlementLists(settlementLists),
+        [settlementLists]
     );
 
 

@@ -60,8 +60,11 @@ export const createPaymentMethod = async (payload, userToken) => {
 export const listPaymentMethods = async (filters = {}) => {
     const userToken = Cookies.get("userToken");
     if (!userToken) return null;
+    console.log(filters);
+    console.log(qs(filters));
+
     const res = await fetch(
-        `${BASE_URL}/v1/paymentMethods${qs(filters)}`,
+        `${BASE_URL}/v1/paymentMethods`,
         { headers: withAuthHeaders(userToken) }
     );
     return handle(res, "Failed to fetch paymentMethodss");
