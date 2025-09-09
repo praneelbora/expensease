@@ -1,78 +1,80 @@
 {
-    "expo": {
-        "name": "Expensease",
-        "slug": "expensease",
-        "version": "0.0.1",
-        "scheme": "expensease",
-        "orientation": "portrait",
-        "icon": "./assets/default/icon.png",
-        "userInterfaceStyle": "light",
-        "newArchEnabled": true,
-        "splash": {
-            "image": "./assets/default/splash-icon.png",
-            "resizeMode": "contain",
-            "backgroundColor": "#ffffff"
-        },
-        "ios": {
-            "bundleIdentifier": "com.boratechnologies.expensease",
-            "googleServicesFile": "./GoogleService-Info.plist",
-            "supportsTablet": true,
-            "associatedDomains": [
-                "applinks:expensease.in"
-            ],
-            "infoPlist": {
-                "UIBackgroundModes": [
-                    "remote-notification"
-                ]
+  "expo": {
+    "name": "Expensease",
+    "slug": "expensease",
+    "version": "0.0.1",
+    "scheme": "expensease",
+    "orientation": "portrait",
+    "icon": "./assets/default/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/default/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "bundleIdentifier": "com.boratechnologies.expensease",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "supportsTablet": true,
+      "associatedDomains": [
+        "applinks:expensease.in"
+      ],
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      },
+      "appleTeamId": "2TA4D4M36W"
+    },
+    "android": {
+      "package": "com.praneelbora.expensease",
+      "googleServicesFile": "./google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "https",
+              "host": "expensease.in"
             }
-        },
-        "android": {
-            "package": "com.praneelbora.expensease",
-            "googleServicesFile": "./google-services.json",
-            "intentFilters": [
-                {
-                    "action": "VIEW",
-                    "data": [
-                        {
-                            "scheme": "https",
-                            "host": "expensease.in"
-                        }
-                    ],
-                    "category": [
-                        "BROWSABLE",
-                        "DEFAULT"
-                    ]
-                }
-            ]
-        },
-        "web": {
-            "favicon": "./assets/default/favicon.png"
-        },
-        "plugins": [
-            "expo-router",
-            [
-                "@react-native-google-signin/google-signin",
-                {
-                    "iosUrlScheme": "com.googleusercontent.apps.755754243643-s1ju6pe90tmrstpf54vl4hkik8a33ne8"
-                }
-            ],
-            [
-                "expo-notifications",
-                {
-                    "icon": "./assets/default/favicon.png",
-                    "color": "#00C49F",
-                    "defaultChannel": "default",
-                    "enableBackgroundRemoteNotifications": true
-                }
-            ]
-        ],
-        "extra": {
-            "router": {
-                "origin": "expensease://"
-            },
-            "eas": {
-                "projectId": "c1c6dfe4-de93-4bae-ab13-95ccf7e1d6a7"
-            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/default/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "@react-native-google-signin/google-signin/app.plugin.js",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.755754243643-s1ju6pe90tmrstpf54vl4hkik8a33ne8"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/default/favicon.png",
+          "color": "#00C49F",
+          "defaultChannel": "default",
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      "android-credential-manager"
+    ],
+    "extra": {
+      "router": {
+        "origin": "expensease://"
+      },
+      "eas": {
+        "projectId": "c1c6dfe4-de93-4bae-ab13-95ccf7e1d6a7"
+      }
     }
+  }
 }

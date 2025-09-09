@@ -14,7 +14,8 @@ export async function googleLoginMobile(idToken, pushToken, platform) {
         pushToken,
         platform
     });
-
+    console.log(data);
+    
     const authToken = data?.responseBody?.["x-auth-token"] || data?.accessToken;
     if (!authToken) {
         throw new Error(data?.error || "Google login failed.");

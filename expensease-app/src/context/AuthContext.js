@@ -42,7 +42,7 @@ export const AuthProvider = ({ children }) => {
 
     // core states
     const [user, setUser] = useState(null);
-    const [userToken, _setUserToken] = useState(null);
+    const [userToken, setUserToken] = useState(null);
 
     // hydrated -> true when initial token bootstrap finished (either token found or not)
     const [hydrated, setHydrated] = useState(false);
@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }) => {
     // --- public: set token + persist ---
     const setAndPersistUserToken = async (token) => {
         // set local state first so UI can react immediately
-        _setUserToken(token);
+        setUserToken(token);
 
         if (token) {
             try {
@@ -167,14 +167,14 @@ export const AuthProvider = ({ children }) => {
                 const token = await getSecureItem(TOKEN_KEY);
                 if (token) {
                     // set token; the effect below will fetch data
-                    _setUserToken(token);
+                    setUserToken(token);
                 } else {
                     // no token found -> not authenticated
-                    _setUserToken(null);
+                    setUserToken(null);
                 }
             } catch (e) {
                 console.warn("Auth bootstrap read token failed:", e);
-                _setUserToken(null);
+                setUserToken(null);
             } finally {
                 // mark bootstrap finished (hydrated) regardless of token presence
                 setHydrated(true);

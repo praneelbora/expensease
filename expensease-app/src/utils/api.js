@@ -4,6 +4,7 @@ import { getSecureItem, setSecureItem, deleteSecureItem } from "./secureToken";
 const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const ACCESS_TOKEN_KEY = "userToken";
 const REFRESH_TOKEN_KEY = "refreshToken"; // if you support refresh
+console.log(BASE_URL);
 
 // in-memory cache to avoid disk hit on every call
 const mem = { accessToken: null, refreshToken: null, isRefreshing: false, waiters: [] };

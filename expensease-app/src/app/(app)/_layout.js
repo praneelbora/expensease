@@ -11,9 +11,10 @@ const RootLayout = () => {
                 screenOptions={{
                     headerShown: false
                 }}>
-                <Stack.Screen name="(tabs)" options={{ title: "Home", headerShown: false }} />
-                <Stack.Screen name="updateScreen" options={{ title: "Update", headerShown: false, animationTypeForReplace: 'pop' }} />
                 <Stack.Screen name="index" options={{ title: "Login", headerShown: false, animationTypeForReplace: 'pop' }} />
+                <Stack.Screen name="updateScreen" options={{ title: "Update", headerShown: false, animationTypeForReplace: 'pop' }} />
+                <Stack.Screen name="(tabs)" options={{ title: "Home", headerShown: false }} />
+                <Stack.Screen name="terms" options={{ title: "Terms & privacy", headerShown: false, animationTypeForReplace: 'pop' }} />
             </Stack>
         </>
     )
