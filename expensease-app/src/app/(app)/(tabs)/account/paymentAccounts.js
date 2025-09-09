@@ -182,6 +182,21 @@ export default function PaymentAccountsScreen() {
             alert(e.message || "Failed to update balance");
         }
     };
+    // inside PaymentAccountsScreen component (add near other actions)
+    const onToggleExcludeFromSummaries = async (paymentMethodId, currentValue) => {
+        try {
+            // optimistic UI: update local auth/paymentMethods if you want (optional)
+            setSubmitting(true);
+            // send update with new value (flip boolean)
+            await updatePaymentMethod(paymentMethodId, { excludeFromSummaries: !currentValue }, userToken);
+            await fetchPaymentMethods();
+        } catch (e) {
+            console.error("Failed toggling excludeFromSummaries:", e);
+            alert(e.message || "Failed to update payment account");
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -223,9 +238,12 @@ export default function PaymentAccountsScreen() {
                                 setSelectedPM(item)
                                 balanceSheetRef.current?.present()
                             }}
+                            // NEW: toggle exclude from summaries
+                            onToggleExclude={(pm) => onToggleExcludeFromSummaries(pm._id, !!pm.excludeFromSummaries)}
                             styles={styles}
                         />
                     )}
+
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={
                         loadingPaymentMethods ? (

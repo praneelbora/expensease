@@ -41,8 +41,18 @@ export default function MonthlyTrends({ expenses, userId, defaultCurrency }) {
     const [trendRange, setTrendRange] = useState("thisMonth")
     const [expenseType, setExpenseType] = useState("all")
     const [currency, setCurrency] = useState(defaultCurrency) // "ALL" or a specific code like "INR", "USD"
+    // helper: treat missing PM as included; if pm.excludeFromSummaries === true
+    // then exclude ONLY when the current user is NOT part of this transaction.
+    const pmIsExcludedForUser = (pm, exp, userSplitForThisUser) => {
+        if (!pm) return false;
+        if (typeof pm === "object" && pm.excludeFromSummaries === true) {
+            // user is part if they have a split (userSplitForThisUser) OR they created the personal expense
+            const userIsPartOfTransaction = !!userSplitForThisUser || String(exp.createdBy) === String(userId);
+            return !userIsPartOfTransaction; // exclude only when user is NOT part
+        }
+        return false;
+    };
 
-    // ---------- shared filter ----------
     const shouldCount = (exp) => {
         if (exp.typeOf !== "expense") return { include: false, amount: 0, code: null }
         const split = exp.splits?.find((s) => s.friendId?._id === userId)
@@ -64,6 +74,24 @@ export default function MonthlyTrends({ expenses, userId, defaultCurrency }) {
             include = true; amount = Number(exp.amount) || 0
         }
 
+        // If included so far, check payment-method exclusion rules:
+        if (include) {
+            // For split-based items prefer split.paidFromPaymentMethodId; else use exp.paidFromPaymentMethodId
+            let pmToCheck = null
+            if (split && (split.paidFromPaymentMethodId || split.paidFromPaymentMethodId === null)) {
+                pmToCheck = split.paidFromPaymentMethodId
+            } else {
+                pmToCheck = exp.paidFromPaymentMethodId
+            }
+
+            if (pmIsExcludedForUser(pmToCheck, exp, split)) {
+                // payment method excludes this share for users NOT part of transaction
+                // since userIsPartOfTransaction already considered in helper, if helper returns true we should not include
+                include = false
+                amount = 0
+            }
+        }
+
         // currency filter (if a specific currency is chosen)
         if (include && currency !== "ALL" && code !== currency) {
             include = false
@@ -72,6 +100,7 @@ export default function MonthlyTrends({ expenses, userId, defaultCurrency }) {
 
         return { include, amount, code }
     }
+
 
     // ---------- compute available currencies (from expenses that pass type filter) ----------
     const availableCurrencies = useMemo(() => {
@@ -94,19 +123,42 @@ export default function MonthlyTrends({ expenses, userId, defaultCurrency }) {
         const code = getCurrencyCode(exp)
 
         if (expenseType === "all") {
-            if (exp.groupId && split?.owing) return { include: true, amount: share, code }
-            if (exp.splits?.length > 0 && split?.owing && !exp.groupId) return { include: true, amount: share, code }
-            if (!exp.groupId && (!exp.splits || exp.splits.length === 0)) return { include: true, amount: Number(exp.amount) || 0, code }
+            if (exp.groupId && split?.owing) {
+                // check PM exclusion for this split/share
+                const pmToCheck = split && (split.paidFromPaymentMethodId || split.paidFromPaymentMethodId === null) ? split.paidFromPaymentMethodId : exp.paidFromPaymentMethodId
+                if (pmIsExcludedForUser(pmToCheck, exp, split)) return { include: false, amount: 0, code }
+                return { include: true, amount: share, code }
+            }
+            if (exp.splits?.length > 0 && split?.owing && !exp.groupId) {
+                const pmToCheck = split && (split.paidFromPaymentMethodId || split.paidFromPaymentMethodId === null) ? split.paidFromPaymentMethodId : exp.paidFromPaymentMethodId
+                if (pmIsExcludedForUser(pmToCheck, exp, split)) return { include: false, amount: 0, code }
+                return { include: true, amount: share, code }
+            }
+            if (!exp.groupId && (!exp.splits || exp.splits.length === 0)) {
+                const pmToCheck = exp.paidFromPaymentMethodId
+                if (pmIsExcludedForUser(pmToCheck, exp, null)) return { include: false, amount: 0, code }
+                return { include: true, amount: Number(exp.amount) || 0, code }
+            }
             return { include: false, amount: 0, code }
         }
-        if (expenseType === "group" && exp.groupId && split?.owing)
+        if (expenseType === "group" && exp.groupId && split?.owing) {
+            const pmToCheck = split && (split.paidFromPaymentMethodId || split.paidFromPaymentMethodId === null) ? split.paidFromPaymentMethodId : exp.paidFromPaymentMethodId
+            if (pmIsExcludedForUser(pmToCheck, exp, split)) return { include: false, amount: 0, code }
             return { include: true, amount: share, code }
-        if (expenseType === "friend" && exp.splits?.length > 0 && split?.owing && !exp.groupId)
+        }
+        if (expenseType === "friend" && exp.splits?.length > 0 && split?.owing && !exp.groupId) {
+            const pmToCheck = split && (split.paidFromPaymentMethodId || split.paidFromPaymentMethodId === null) ? split.paidFromPaymentMethodId : exp.paidFromPaymentMethodId
+            if (pmIsExcludedForUser(pmToCheck, exp, split)) return { include: false, amount: 0, code }
             return { include: true, amount: share, code }
-        if (expenseType === "personal" && !exp.groupId && (!exp.splits || exp.splits.length === 0))
+        }
+        if (expenseType === "personal" && !exp.groupId && (!exp.splits || exp.splits.length === 0)) {
+            const pmToCheck = exp.paidFromPaymentMethodId
+            if (pmIsExcludedForUser(pmToCheck, exp, null)) return { include: false, amount: 0, code }
             return { include: true, amount: Number(exp.amount) || 0, code }
+        }
         return { include: false, amount: 0, code }
     }
+
 
     // ---------- prefiltered list (respects expenseType + chosen currency) ----------
     const filtered = useMemo(() => {

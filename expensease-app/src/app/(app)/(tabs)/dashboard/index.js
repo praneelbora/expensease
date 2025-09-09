@@ -172,6 +172,23 @@ export default function DashboardScreen() {
     const statsByRange = useMemo(() => {
         const filtered = filterExpensesByRange(expenses || [], summaryRange);
 
+        // helper: should PM be excluded for this user + expense + optional userSplit
+        const pmIsExcludedForUser = (pm, exp, userSplitForThisUser) => {
+            if (!pm) return false;
+            const pmObj =
+                typeof pm === "object"
+                    ? pm
+                    : (exp?.paidFromPaymentMethodId && typeof exp.paidFromPaymentMethodId === "object"
+                        ? exp.paidFromPaymentMethodId
+                        : null);
+            if (!pmObj) return false;
+            if (pmObj.excludeFromSummaries === true) {
+                const userIsPartOfTransaction = !!userSplitForThisUser || String(exp.createdBy) === String(userId);
+                return !userIsPartOfTransaction; // exclude only when user not part
+            }
+            return false;
+        };
+
         const acc = {
             total: {},
             personal: { amount: {}, count: 0 },
@@ -182,27 +199,40 @@ export default function DashboardScreen() {
 
         for (const exp of filtered) {
             const code = exp?.currency || "INR";
+
             if (exp.typeOf === "expense") {
                 const amt = Number(exp?.amount) || 0;
-                const userSplit = exp.splits?.find((s) => s.friendId?._id === userId);
+                const userSplit = exp.splits?.find((s) => String(s.friendId?._id || s.friendId) === String(userId));
                 const share = Number(userSplit?.oweAmount);
 
                 if (exp.groupId) {
+                    // group share: only add user's oweAmount; prefer split-level PM then fallback to top-level
                     if (userSplit?.owing && Number.isFinite(share)) {
-                        acc.group.amount[code] = (acc.group.amount[code] || 0) + share;
-                        acc.total[code] = (acc.total[code] || 0) + share;
+                        const pmForThisShare = userSplit?.paidFromPaymentMethodId || exp.paidFromPaymentMethodId;
+                        if (!pmIsExcludedForUser(pmForThisShare, exp, userSplit)) {
+                            acc.group.amount[code] = (acc.group.amount[code] || 0) + share;
+                            acc.total[code] = (acc.total[code] || 0) + share;
+                            acc.group.count += 1;
+                        }
                     }
-                    acc.group.count += 1;
                 } else if (exp.splits?.length > 0) {
+                    // friend split (non-group)
                     if (userSplit?.owing && Number.isFinite(share)) {
-                        acc.friend.amount[code] = (acc.friend.amount[code] || 0) + share;
-                        acc.total[code] = (acc.total[code] || 0) + share;
+                        const pmForThisShare = userSplit?.paidFromPaymentMethodId || exp.paidFromPaymentMethodId;
+                        if (!pmIsExcludedForUser(pmForThisShare, exp, userSplit)) {
+                            acc.friend.amount[code] = (acc.friend.amount[code] || 0) + share;
+                            acc.total[code] = (acc.total[code] || 0) + share;
+                            acc.friend.count += 1;
+                        }
                     }
-                    acc.friend.count += 1;
                 } else {
-                    acc.personal.amount[code] = (acc.personal.amount[code] || 0) + amt;
-                    acc.total[code] = (acc.total[code] || 0) + amt;
-                    acc.personal.count += 1;
+                    // personal expense: check top-level PM
+                    const pmTop = exp.paidFromPaymentMethodId;
+                    if (!pmIsExcludedForUser(pmTop, exp, null)) {
+                        acc.personal.amount[code] = (acc.personal.amount[code] || 0) + amt;
+                        acc.total[code] = (acc.total[code] || 0) + amt;
+                        acc.personal.count += 1;
+                    }
                 }
             } else if (exp.typeOf === "settle") {
                 const sAmt = Number(exp?.amount) || 0;
@@ -210,14 +240,41 @@ export default function DashboardScreen() {
                 acc.settle.count += 1;
             }
         }
+
         return acc;
     }, [expenses, userId, summaryRange]);
+
+
 
     const deltas = useMemo(() => {
         if (!expenses?.length) return { total: null, personal: null, group: null, friend: null };
 
         const now = new Date();
         const currentYear = now.getFullYear();
+
+        // local helper: check if a payment method (object or id) should be excluded for the current user
+        // pm may be an object or an id. exp is the expense object (used to find populated pm if present).
+        const pmIsExcludedForUser_local = (pm, exp, userSplitForThisUser) => {
+            if (!pm) return false;
+
+            // If pm is an object, use it. If pm is an id, try to see if expense contains a populated object
+            const pmObj = typeof pm === "object"
+                ? pm
+                : (exp?.paidFromPaymentMethodId && typeof exp.paidFromPaymentMethodId === "object"
+                    ? exp.paidFromPaymentMethodId
+                    : null);
+
+            if (!pmObj) {
+                // no populated pm object available -> conservatively treat as included
+                return false;
+            }
+
+            if (pmObj.excludeFromSummaries === true) {
+                const userIsPartOfTransaction = !!userSplitForThisUser || String(exp.createdBy) === String(userId);
+                return !userIsPartOfTransaction; // exclude only when user is NOT part
+            }
+            return false;
+        };
 
         function avgForRange(range, typeKey) {
             const start = new Date(now);
@@ -241,17 +298,41 @@ export default function DashboardScreen() {
             const totalsByPeriod = {};
             for (const exp of data) {
                 const d = new Date(exp.date);
-                const userSplit = exp.splits?.find((s) => s.friendId?._id === userId);
-                let share = exp.groupId
-                    ? userSplit?.owing
-                        ? Number(userSplit?.oweAmount) || 0
-                        : 0
-                    : exp.splits?.length > 0
-                        ? userSplit?.owing
-                            ? Number(userSplit?.oweAmount) || 0
-                            : 0
-                        : Number(exp.amount) || 0;
+                const userSplit = exp.splits?.find((s) => String(s.friendId?._id || s.friendId) === String(userId));
+
+                // Calculate share and determine the payment method that applies to this share
+                let share = 0;
+                let pmForThisShare = null;
+
+                if (exp.groupId) {
+                    // group expense: user share comes from userSplit oweAmount if they owe
+                    if (userSplit?.owing) {
+                        share = Number(userSplit?.oweAmount) || 0;
+                        pmForThisShare = userSplit?.paidFromPaymentMethodId || exp.paidFromPaymentMethodId;
+                    } else {
+                        share = 0;
+                    }
+                } else if (exp.splits?.length > 0) {
+                    // friend split (non-group)
+                    if (userSplit?.owing) {
+                        share = Number(userSplit?.oweAmount) || 0;
+                        pmForThisShare = userSplit?.paidFromPaymentMethodId || exp.paidFromPaymentMethodId;
+                    } else {
+                        share = 0;
+                    }
+                } else {
+                    // personal expense
+                    share = Number(exp.amount) || 0;
+                    pmForThisShare = exp.paidFromPaymentMethodId;
+                }
+
                 if (share <= 0) continue;
+                if (pmIsExcludedForUser_local(pmForThisShare, exp, userSplit))
+                    console.log(exp);
+
+
+                // Respect payment method exclusion: skip this share if its PM is excluded for this user
+                if (pmIsExcludedForUser_local(pmForThisShare, exp, userSplit)) continue;
 
                 let bucketKey, bucketDate;
                 if (range === "thisMonth" || range === "last3m") {
@@ -288,7 +369,11 @@ export default function DashboardScreen() {
                 const prevAvg = prev[typeKey] / prev.days.size;
                 if (prevAvg === 0) return null;
                 const pct = ((lastAvg - prevAvg) / prevAvg) * 100;
-                return { text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% from last month`, color: pct <= 0 ? theme.colors.positive : theme.colors.negative };
+                // Note: keep colour logic consistent with your existing code (you can invert if desired)
+                return {
+                    text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% from last month`,
+                    color: pct <= 0 ? theme.colors.positive : theme.colors.negative,
+                };
             }
 
             if (range === "last3m") {
@@ -299,7 +384,10 @@ export default function DashboardScreen() {
                 const prevAvg = prev2.reduce((s, x) => s + x[typeKey], 0) / 2;
                 if (prevAvg === 0) return null;
                 const pct = ((lastAvg - prevAvg) / prevAvg) * 100;
-                return { text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% from last 3 months`, color: pct >= 0 ? theme.colors.negative : theme.colors.positive };
+                return {
+                    text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% from last 3 months`,
+                    color: pct >= 0 ? theme.colors.negative : theme.colors.positive,
+                };
             }
 
             if (range === "thisYear") {
@@ -310,7 +398,10 @@ export default function DashboardScreen() {
                 const prevAvg = prevYear.reduce((s, x) => s + x[typeKey], 0) / prevYear.length;
                 if (prevAvg === 0) return null;
                 const pct = ((thisAvg - prevAvg) / prevAvg) * 100;
-                return { text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% vs last year`, color: pct >= 0 ? theme.colors.negative : theme.colors.positive };
+                return {
+                    text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% vs last year`,
+                    color: pct >= 0 ? theme.colors.negative : theme.colors.positive,
+                };
             }
 
             return null;
@@ -322,7 +413,7 @@ export default function DashboardScreen() {
             group: avgForRange(summaryRange, "group"),
             friend: avgForRange(summaryRange, "friend"),
         };
-    }, [expenses, userId, summaryRange]);
+    }, [expenses, userId, summaryRange, theme]);
 
     const recentByDay = useMemo(() => {
         const bucket = {};
@@ -468,8 +559,7 @@ export default function DashboardScreen() {
                                     </View>
 
                                     {recentByDay.map(([day, list]) => (
-                                        <View key={day} style={{ gap: 8 }}>
-                                            <Text style={[styles.dayHeader, { color: theme.colors.primary }]}>{day}</Text>
+                                        <View key={day} style={{ gap: 0 }}>
                                             <FlatList
                                                 data={(list || []).slice(0, 3)}
                                                 keyExtractor={(item) => item._id}

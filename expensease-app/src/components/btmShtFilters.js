@@ -166,7 +166,7 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                             innerRef.current?.dismiss();
                         }}
                     >
-                        <Text style={[styles.btnTextPrimary]}>Apply</Text>
+                        <Text style={[styles.btnText]}>Apply</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>

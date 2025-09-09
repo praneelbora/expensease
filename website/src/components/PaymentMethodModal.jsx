@@ -15,21 +15,26 @@ const TYPE_OPTIONS = [
     { value: "other", label: "Other" },
 ];
 
+// --- add to DEFAULT_FORM near other flags ---
 const DEFAULT_FORM = {
     label: "",
     type: "upi",
-    capabilities: ["send", "receive"], // default; some types adjust below
+    capabilities: ["send", "receive"],
     provider: "manual",
     balance: "",
     upi: { handle: "" },
     bank: { ifsc: "", accountLast4: "", nameOnAccount: "" },
     card: { brand: "", last4: "", expMonth: "", expYear: "" },
     iconKey: 'auto',
+    notes: '',
+    // visibility / defaults
     // visibleForOthers: true
-    // optional flags (only if your backend accepts them on create/update)
     // isDefaultSend: false,
     // isDefaultReceive: false,
+    // NEW: exclude this method from summaries/trends (analytics)
+    excludeFromSummaries: false,
 };
+
 
 function currencyDigits(code, locale = "en-IN") {
     try {
@@ -70,6 +75,7 @@ export default function PaymentMethodModal({
         if (!show) return;
         setError("");
         // hydrate form for editing, else defaults
+        // --- when hydrating editing data inside useEffect, include the new flag ---
         if (isEdit) {
             setForm({
                 ...DEFAULT_FORM,
@@ -79,11 +85,13 @@ export default function PaymentMethodModal({
                 card: { ...DEFAULT_FORM.card, ...(editing?.card || {}) },
                 capabilities: editing?.capabilities?.length ? editing.capabilities : DEFAULT_FORM.capabilities,
                 iconKey: isEdit ? (editing.iconKey || 'auto') : 'auto',
-                notes: editing?.notes || ''
+                notes: editing?.notes || '',
+                excludeFromSummaries: !!editing?.excludeFromSummaries,
             });
         } else {
             setForm(DEFAULT_FORM);
         }
+
     }, [show, isEdit, editing]);
 
 
@@ -111,6 +119,7 @@ export default function PaymentMethodModal({
         return "";
     };
 
+    // --- update buildPayload to include the new flag ---
     const buildPayload = () => {
         const payload = {
             label: form.label.trim(),
@@ -120,13 +129,18 @@ export default function PaymentMethodModal({
             provider: form.provider || "manual",
             currency: currency,
             iconKey: form.iconKey || 'auto',
-            notes: form.notes
+            notes: form.notes,
         };
         payload.isDefaultSend = !!form.isDefaultSend;
         payload.isDefaultReceive = !!form.isDefaultReceive;
         payload.visibleForOthers = form.visibleForOthers !== false; // default true
+
+        // NEW: include excludeFromSummaries flag
+        payload.excludeFromSummaries = !!form.excludeFromSummaries;
+
         return payload;
     };
+
 
     const submit = async () => {
         const err = validate();
@@ -290,7 +304,7 @@ export default function PaymentMethodModal({
                 {/* Defaults */}
                 <div className="flex flex-col gap-3 mt-1">
                     <label className="flex items-center gap-3 text-sm">
-                        
+
                         <input
                             type="checkbox"
 
@@ -307,7 +321,7 @@ export default function PaymentMethodModal({
                     </label>
 
                     <label className="flex items-center gap-3 text-sm">
-                        
+
                         <input
                             type="checkbox"
 
@@ -335,24 +349,24 @@ export default function PaymentMethodModal({
                     <div className="flex items-start justify-between">
                         <div className="flex flex-col">
                             <div className="flex flex-row gap-3 items-center mb-1">
-                                
+
                                 <input
-                            type="checkbox"
-                            className="h-4 w-4"
-                            checked={!!form.visibleForOthers}
-                            onChange={(e) => {
-                                const checked = e.target.checked;
-                                onChange("visibleForOthers", checked);
-                                if (!checked) {
-                                    // hiding clears both defaults
-                                    onChange("isDefaultSend", false);
-                                    onChange("isDefaultReceive", false);
-                                }
-                            }}
-                            title="Show this method to friends while splitting/settling"
-                        />
-                        <span className="text-sm">Visible to others</span>
-                                </div>
+                                    type="checkbox"
+                                    className="h-4 w-4"
+                                    checked={!!form.visibleForOthers}
+                                    onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        onChange("visibleForOthers", checked);
+                                        if (!checked) {
+                                            // hiding clears both defaults
+                                            onChange("isDefaultSend", false);
+                                            onChange("isDefaultReceive", false);
+                                        }
+                                    }}
+                                    title="Show this method to friends while splitting/settling"
+                                />
+                                <span className="text-sm">Visible to others</span>
+                            </div>
                             <span className="text-[11px] text-[#888]">
                                 When off, friends won’t see this method in splits. You can still use it yourself.
                             </span>
@@ -363,9 +377,31 @@ export default function PaymentMethodModal({
                             )}
                         </div>
 
-                        
+
                     </div>
                 </div>
+
+                <div className="mt-2">
+                    <label className="flex items-start gap-3 text-sm">
+                        <input
+                            type="checkbox"
+                            className="h-4 w-4 mt-1"
+                            checked={!!form.excludeFromSummaries}
+                            onChange={(e) => {
+                                const checked = e.target.checked;
+                                onChange("excludeFromSummaries", checked);
+                            }}
+                            title="Exclude this payment method from expense summaries, charts and trend calculations"
+                        />
+                        <div className="flex flex-col">
+                            <span>Exclude from summaries & trends</span>
+                            <span className="text-[11px] text-[#888]">
+                                When enabled this payment method will be ignored in summary calculations, charts and trends (analytics). It still remains usable for splits/settlements.
+                            </span>
+                        </div>
+                    </label>
+                </div>
+
 
 
 

@@ -129,7 +129,9 @@ export default function BottomSheetAddFriends({
                                     onPress={() => toggleSelect(f)}
                                     style={styles.removeBtn}
                                 >
-                                    Cancel
+                                    <Text>
+                                    X
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         ))}

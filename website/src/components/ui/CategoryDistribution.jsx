@@ -88,17 +88,41 @@ export default function CategoryDistribution({ expenses, userId, defaultCurrency
     const categoryChart = useMemo(() => {
         const totals = {};
 
+        // helper: treat missing PM as included; if pm.excludeFromSummaries === true
+        // then exclude **only if** the current user is NOT part of this transaction.
+        const pmIsExcludedForUser = (pm, exp, userSplitForThisUser) => {
+            // if no pm info (not populated), treat as included
+            if (!pm) return false;
+            if (typeof pm === "object" && pm.excludeFromSummaries === true) {
+                // If the user is involved in this transaction, do NOT exclude
+                // User involvement: either we have a userSplit (they're part of splits)
+                // or they created the personal expense (createdBy === userId)
+                const userIsPartOfTransaction = !!userSplitForThisUser || String(exp.createdBy) === String(userId);
+                return !userIsPartOfTransaction; // exclude only when user is NOT part
+            }
+            return false; // not excluded
+        };
+
         filteredExpenses.forEach((exp) => {
             const cat = getCategoryLabel(exp.category) || "Uncategorized";
-            const userSplit = exp.splits?.find((s) => s.friendId?._id === userId);
+            const userSplit = exp.splits?.find((s) => String(s.friendId?._id || s.friendId) === String(userId));
 
             if (userSplit?.owing) {
-                totals[cat] = (totals[cat] || 0) + Number(userSplit.oweAmount || 0);
+                // check split-level payment method exclusion (use userSplit.paidFromPaymentMethodId)
+                const pmOnSplit = userSplit.paidFromPaymentMethodId;
+                if (!pmIsExcludedForUser(pmOnSplit, exp, userSplit)) {
+                    totals[cat] = (totals[cat] || 0) + Number(userSplit.oweAmount || 0);
+                }
             }
 
             // personal (non-split, non-group) expense
             if (!exp.groupId && (!exp.splits || exp.splits.length === 0)) {
-                totals[cat] = (totals[cat] || 0) + Number(exp.amount || 0);
+                // For personal expenses check top-level paidFromPaymentMethodId
+                const pmTop = exp.paidFromPaymentMethodId;
+                // user is part if they are the creator (exp.createdBy === userId)
+                if (!pmIsExcludedForUser(pmTop, exp, null)) {
+                    totals[cat] = (totals[cat] || 0) + Number(exp.amount || 0);
+                }
             }
         });
 

@@ -40,6 +40,7 @@ const PaymentMethodSchema = new mongoose.Schema({
     iconKey: { type: String, default: 'string' },
     notes: { type: String },
     visibleForOthers: { type: Boolean, default: true },
+    excludeFromSummaries: { type: Boolean, default: false },
     // meta
     usageCount: { type: Number, default: 0 },
 }, { timestamps: true });

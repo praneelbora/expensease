@@ -159,7 +159,7 @@ router.get('/:paymentMethodId', auth, async (req, res) => {
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Update paymentMethod (label, defaults, caps, supportedCurrencies, providerRefs, status)
-// ───────────────────────────────────────────────────────────────────────────────
+// router.patch('/:paymentMethodId', auth, async (req, res) => { ... })
 router.patch('/:paymentMethodId', auth, async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -181,7 +181,9 @@ router.patch('/:paymentMethodId', auth, async (req, res) => {
             'bank',
             'card',
             'iconKey',
-            'notes'
+            'notes',
+            // NEW: allow clients to set this flag
+            'excludeFromSummaries'
         ];
 
         // Basic validations
@@ -197,7 +199,32 @@ router.patch('/:paymentMethodId', auth, async (req, res) => {
             }
         }
 
+        // validate excludeFromSummaries if present
+        if (req.body.hasOwnProperty('excludeFromSummaries') && typeof req.body.excludeFromSummaries !== 'boolean') {
+            throw { status: 400, message: 'excludeFromSummaries must be boolean' };
+        }
+
+        // validate isDefault flags if present
+        if (req.body.hasOwnProperty('isDefaultSend') && typeof req.body.isDefaultSend !== 'boolean') {
+            throw { status: 400, message: 'isDefaultSend must be boolean' };
+        }
+        if (req.body.hasOwnProperty('isDefaultReceive') && typeof req.body.isDefaultReceive !== 'boolean') {
+            throw { status: 400, message: 'isDefaultReceive must be boolean' };
+        }
+
+        // validate visibleForOthers if present
+        if (req.body.hasOwnProperty('visibleForOthers') && typeof req.body.visibleForOthers !== 'boolean') {
+            throw { status: 400, message: 'visibleForOthers must be boolean' };
+        }
+
         const update = pickUpdatable(req.body, allowed);
+
+        // Server-side safety: if method is being hidden, clear default flags (can't be default if hidden)
+        // This mirrors client UX and prevents inconsistent state if client doesn't clear defaults.
+        if (update.hasOwnProperty('visibleForOthers') && update.visibleForOthers === false) {
+            update.isDefaultSend = false;
+            update.isDefaultReceive = false;
+        }
 
         const updated = await PaymentMethod.findOneAndUpdate(
             { _id: paymentMethod._id, userId: req.user.id },
@@ -205,6 +232,7 @@ router.patch('/:paymentMethodId', auth, async (req, res) => {
             { new: true, session }
         );
 
+        // If this payment method was set as default send/receive, ensure uniqueness across user's methods.
         if (update.isDefaultSend === true) {
             await setUniqueDefault(req.user.id, 'isDefaultSend', updated._id, session);
         }
@@ -221,6 +249,7 @@ router.patch('/:paymentMethodId', auth, async (req, res) => {
         session.endSession();
     }
 });
+
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Delete paymentMethod

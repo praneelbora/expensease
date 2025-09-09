@@ -1,4 +1,4 @@
-// config/categoryMap.js
+// utils/categoryMap.js
 export const categoryMap = {
     books: {
         label: "Education",

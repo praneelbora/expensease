@@ -43,9 +43,20 @@ export default function WeeklyExpenseTrends({ expenses = [], userId, defaultCurr
     const showCurrencySelect = availableCurrencies.length > 1
     const symbol = getSymbol(currency) || ""
 
-    // 3) Weekly bucketing with currency filter applied
+    // ---------- 3) Weekly bucketing with currency filter applied (updated) ----------
     const weeklyData = React.useMemo(() => {
         const buckets = {}
+
+        // helper: treat missing PM as included; if pm.excludeFromSummaries === true
+        // then exclude ONLY when the current user is NOT part of this transaction.
+        const pmIsExcludedForUser = (pm, exp, userSplitForThisUser) => {
+            if (!pm) return false
+            if (typeof pm === "object" && pm.excludeFromSummaries === true) {
+                const userIsPartOfTransaction = !!userSplitForThisUser || String(exp.createdBy) === String(userId)
+                return !userIsPartOfTransaction // exclude only when user is NOT part
+            }
+            return false
+        }
 
         for (const exp of baseFiltered) {
             if (getCurrencyCode(exp) !== currency) continue
@@ -64,15 +75,34 @@ export default function WeeklyExpenseTrends({ expenses = [], userId, defaultCurr
                 }
             }
 
-            const split = exp.splits?.find((s) => s.friendId?._id === userId)
+            const split = exp.splits?.find((s) => String(s.friendId?._id || s.friendId) === String(userId))
             const share = Number(split?.oweAmount) || 0
 
             if (exp.groupId) {
-                if (split?.owing) buckets[weekKey].group += share
+                if (split?.owing) {
+                    // check pm exclusion: prefer split-level PM, else expense-level
+                    const pmToCheck = split && (split.paidFromPaymentMethodId || split.paidFromPaymentMethodId === null)
+                        ? split.paidFromPaymentMethodId
+                        : exp.paidFromPaymentMethodId
+                    if (!pmIsExcludedForUser(pmToCheck, exp, split)) {
+                        buckets[weekKey].group += share
+                    }
+                }
             } else if (exp.splits?.length > 0) {
-                if (split?.owing) buckets[weekKey].friend += share
+                if (split?.owing) {
+                    const pmToCheck = split && (split.paidFromPaymentMethodId || split.paidFromPaymentMethodId === null)
+                        ? split.paidFromPaymentMethodId
+                        : exp.paidFromPaymentMethodId
+                    if (!pmIsExcludedForUser(pmToCheck, exp, split)) {
+                        buckets[weekKey].friend += share
+                    }
+                }
             } else {
-                buckets[weekKey].personal += Number(exp.amount) || 0
+                // personal expense: check top-level payment method
+                const pmToCheck = exp.paidFromPaymentMethodId
+                if (!pmIsExcludedForUser(pmToCheck, exp, null)) {
+                    buckets[weekKey].personal += Number(exp.amount) || 0
+                }
             }
         }
 
