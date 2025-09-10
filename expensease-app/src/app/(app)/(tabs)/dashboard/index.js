@@ -12,7 +12,7 @@ import {
     Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { useAuth } from "context/AuthContext";
@@ -81,10 +81,17 @@ export default function DashboardScreen() {
             setLoading(false);
         }
     }, [userToken]);
+    useFocusEffect(
+        useCallback(() => {
+            fetchExpenses();
+            // optional cleanup when screen loses focus
+            return () => {
+                console.log("Screen unfocused");
+            };
+        }, [fetchExpenses])
+    );
 
-    useEffect(() => {
-        fetchExpenses();
-    }, [fetchExpenses]);
+
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -308,6 +315,8 @@ export default function DashboardScreen() {
                     // group expense: user share comes from userSplit oweAmount if they owe
                     if (userSplit?.owing) {
                         share = Number(userSplit?.oweAmount) || 0;
+                        console.log(share);
+
                         pmForThisShare = userSplit?.paidFromPaymentMethodId || exp.paidFromPaymentMethodId;
                     } else {
                         share = 0;
@@ -420,7 +429,7 @@ export default function DashboardScreen() {
         (expenses || [])
             .filter((e) => e.typeOf === "expense")
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .slice(0, 3)
+            .slice(0, 7)
             .forEach((e) => {
                 const d = new Date(e.date);
                 const key = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(d);
@@ -430,13 +439,12 @@ export default function DashboardScreen() {
     }, [expenses]);
 
     return (
-        <SafeAreaView style={styles.safe}>
+        <SafeAreaView style={styles.safe} edges={["top"]}>
             <Header main />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
                 <ScrollView
                     style={styles.scroller}
                     refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />}
-                    contentContainerStyle={{ paddingBottom: 24 }}
                     showsVerticalScrollIndicator={false}
                 >
                     {loading ? (
@@ -550,7 +558,7 @@ export default function DashboardScreen() {
 
                             {/* Recent Expenses */}
                             {expenses.length > 0 && (
-                                <View style={{ marginBottom: 16 }}>
+                                <View style={{}}>
                                     <View style={styles.rowBetween}>
                                         <Text style={styles.sectionLabel}>Recent Expenses</Text>
                                         <TouchableOpacity onPress={() => router.push("/expenses")} activeOpacity={0.7}>

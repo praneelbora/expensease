@@ -242,41 +242,26 @@ export default ExpenseSheet;
 /* theme-aware styles factory */
 const createStyles = (c = {}) =>
   StyleSheet.create({
-    header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.border || "#333",
-    },
-    headerText: {
-      color: c.text || "#EBF1D5",
-      fontSize: 18,
-      fontWeight: "700",
-      textTransform: "capitalize",
-    },
     closeText: { color: c.negative || "#EA4335", fontSize: 16 },
-    topRow: { flexDirection: "row", justifyContent: "space-between", padding: 16 },
+    topRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 16 },
     amountText: { color: c.cta || c.primary || "#00C49F", fontSize: 22, fontWeight: "700" },
     dateText: { color: c.muted || "#aaa", fontSize: 14 },
     input: {
       backgroundColor: c.cardAlt || "#1f1f1f",
       borderRadius: 8,
-      padding: 12,
       color: c.text || "#EBF1D5",
       margin: 8,
     },
     footer: {
       flexDirection: "row",
       justifyContent: "space-between",
-      padding: 16,
+
     },
     deleteBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
     deleteText: { color: c.negative || "#EA4335", fontWeight: "600", marginLeft: 6 },
     saveBtn: {
       backgroundColor: c.cta || c.primary || "#00C49F",
-      padding: 10,
+
       borderRadius: 8,
       flexDirection: "row",
       alignItems: "center",
@@ -285,7 +270,6 @@ const createStyles = (c = {}) =>
     saveText: { color: c.text || "#121212", fontWeight: "700" },
     cancelBtn: { padding: 10 },
     cancelText: { color: c.text || "#EBF1D5" },
-    summaryBox: { paddingHorizontal: 16 },
     summaryText: {
       color: c.text || "#EBF1D5",
       fontSize: 18,

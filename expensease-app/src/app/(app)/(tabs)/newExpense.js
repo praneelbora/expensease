@@ -232,8 +232,6 @@ export default function NewExpenseScreen() {
 
         const gid = params?.groupId;
         const fid = params?.friendId;
-        console.log(gid, fid);
-
         if (gid && !hasPreselectedGroup.current) {
             const g = groups.find((x) => String(x._id) === String(gid));
             if (g) {
@@ -479,7 +477,12 @@ export default function NewExpenseScreen() {
             .filter((f) => Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1)
             .filter((f) => !f.selectedPaymentMethodId);
     }, [selectedFriends]);
-
+    const selectedCategory = useMemo(()=>{
+        const a = categoryOptions.filter((opt) => opt.value === category)
+        if(a.length==1) return a[0].label
+        
+        
+    },[category])
     // ---------- validation + hint message ----------
     const [hint, setHint] = useState("");
     useEffect(() => {
@@ -623,10 +626,12 @@ export default function NewExpenseScreen() {
             setGroupSelect(null);
             setExpenseDate(todayISO());
             await fetchPaymentMethods();
-
+            console.log(hasPreselectedFriend);
+            console.log(hasPreselectedGroup);
+            
             // go back if preselected
             if (hasPreselectedGroup.current && groupSelect?._id) return router.back();
-            if (hasPreselectedFriend.current && preselectedFriendId.current) return router.back();
+            if (hasPreselectedFriend.current && preselectedFriendId?._id) return router.back();
 
             setBanner({ type: "success", text: "Expense saved." });
             setTimeout(() => setBanner(null), 2000);
@@ -680,12 +685,12 @@ export default function NewExpenseScreen() {
                     <View
                         style={[
                             styles.banner,
-                            banner.type === "success" && styles.bannerSuccess,
-                            banner.type === "error" && styles.bannerError,
-                            banner.type === "info" && styles.bannerInfo,
+                            banner?.type === "success" && styles.bannerSuccess,
+                            banner?.type === "error" && styles.bannerError,
+                            banner?.type === "info" && styles.bannerInfo,
                         ]}
                     >
-                        <Text style={styles.bannerText}>{banner.text}</Text>
+                        <Text style={styles.bannerText}>{banner?.text || "Banner Texxt"}</Text>
                         <TouchableOpacity onPress={() => setBanner(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                             <Text style={{ color: styles.colors.mutedFallback }}>✕</Text>
                         </TouchableOpacity>
@@ -805,7 +810,7 @@ export default function NewExpenseScreen() {
                             {/* Category + Date */}
                             <View style={{ flexDirection: "row", gap: 8 }}>
                                 <TouchableOpacity onPress={openCategorySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
-                                    <Text style={[styles.btnLikeText, category ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{category || "Category"}</Text>
+                                    <Text style={[styles.btnLikeText, category ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{selectedCategory || category || "Category"}</Text>
                                 </TouchableOpacity>
 
                                 <TextInput placeholder="YYYY-MM-DD" placeholderTextColor={styles.colors.mutedFallback} value={expenseDate} onChangeText={setExpenseDate} style={[styles.input, { flex: 1 }]} />
@@ -1093,8 +1098,6 @@ const createStyles = (theme = {}) => {
         pmBtnText: { fontSize: 14, color: palette.text },
 
         banner: {
-            marginHorizontal: 12,
-            marginTop: 8,
             paddingHorizontal: 12,
             paddingVertical: 10,
             borderRadius: 8,

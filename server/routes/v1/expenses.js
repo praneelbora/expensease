@@ -5,7 +5,7 @@ const router = express.Router();
 const User = require('../../models/User');
 const Group = require('../../models/Group');
 const Expense = require('../../models/Expense');
-
+const { awardCoinsForExpense } = require('../../services/coins');
 const auth = require("../../middleware/auth");
 
 const PaymentMethod = require('../../models/PaymentMethod');

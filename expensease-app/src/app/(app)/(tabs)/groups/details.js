@@ -17,7 +17,7 @@ import BottomSheetAddFriendsToGroup from "~/btmShtAddfriendsToGroup";
 import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 // ===== hook up to your app =====
@@ -203,9 +203,17 @@ export default function GroupDetails() {
         await Promise.all([fetchGroup(), fetchGroupExpenses()]);
     }, [fetchGroup, fetchGroupExpenses]);
 
-    useEffect(() => {
-        if (id) fetchAll();
-    }, [id, fetchAll]);
+    useFocusEffect(
+        useCallback(() => {
+            if (id) {
+                fetchAll();
+            }
+            // optional cleanup when screen loses focus
+            return () => {
+                console.log("Screen unfocused");
+            };
+        }, [id, fetchAll])
+    );
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -370,7 +378,7 @@ export default function GroupDetails() {
                         return (
                             <Text key={i} style={{ color: youPay || youReceive ? theme?.colors?.text ?? "#EBF1D5" : theme?.colors?.muted ?? "#81827C" }}>
                                 {t.from === userId ? "You" : t.fromName} {youPay ? "owe" : "owes"} {t.to === userId ? "You" : t.toName}{" "}
-                                <Text style={{ color: youPay ? (theme?.colors?.negative ?? "#EA4335") : youReceive ? (theme?.colors?.positive ?? "#60DFC9") : theme?.colors?.text ?? "#EBF1D5" }}>
+                                <Text style={{ color: youPay ? (theme?.colors?.negative ?? "#EA4335") : youReceive ? (theme?.colors?.positive ?? "#60DFC9") : theme?.colors?.muted ?? "#EBF1D5" }}>
                                     {amtTxt}
                                 </Text>
                             </Text>

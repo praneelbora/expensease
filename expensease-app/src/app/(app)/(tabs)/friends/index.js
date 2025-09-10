@@ -14,9 +14,10 @@ import {
     Platform,
     Image,
 } from "react-native";
+import avatars from "@/avatars";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import Header from "~/header";
 import SearchBar from "~/searchBar";
@@ -190,12 +191,18 @@ export default function FriendsScreen() {
             setRefreshing(false);
         }
     }, [pullReceived, pullFriends, pullExpenses, pullLoans]);
+    useFocusEffect(
+        useCallback(() => {
+            (async () => {
+                await Promise.all([pullReceived(), pullFriends(), pullExpenses(), pullLoans()]);
+            })();
+            // optional cleanup when screen loses focus
+            return () => {
+                console.log("Screen unfocused");
+            };
+        }, [pullReceived, pullFriends, pullExpenses, pullLoans])
+    );
 
-    useEffect(() => {
-        (async () => {
-            await Promise.all([pullReceived(), pullFriends(), pullExpenses(), pullLoans()]);
-        })();
-    }, [pullReceived, pullFriends, pullExpenses, pullLoans]);
 
     // handle friend link accept via ?add=
     useEffect(() => {
@@ -502,21 +509,38 @@ export default function FriendsScreen() {
                 }}
                 style={styles.friendRow}
             >
-                {false ? (
-                    <Image source={{ uri: friend.picture }} style={styles.avatarImage} />
-                ) : (
-                    <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>{initials(friend?.name)}</Text>
-                    </View>
-                )}
+                {
+                    (() => {
+                        // prefer explicit avatarId (predefined SVG) -> photo URL -> initials
+                        const avatarId = friend?.avatarId;
+                        const found = avatarId ? avatars.find((a) => a.id === avatarId) : null;
+                        const AvatarComp = found?.Component || null;
+
+                        if (AvatarComp) {
+                            // predefined SVG avatar (kept inside circular mask)
+                            return (
+                                <View style={styles.avatarSvgWrap}>
+                                    <AvatarComp width={40} height={40} />
+                                </View>
+                            );
+                        }
+                        // fallback to initials
+                        return (
+                            <View style={styles.avatar}>
+                                <Text style={styles.avatarText}>{initials(friend?.name)}</Text>
+                            </View>
+                        );
+                    })()
+                }
+
 
                 <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.friendName} numberOfLines={1}>
                         {friend?.name}
                     </Text>
-                    <Text style={styles.friendEmail} numberOfLines={1}>
+                    {/* <Text style={styles.friendEmail} numberOfLines={1}>
                         {friend?.email}
-                    </Text>
+                    </Text> */}
                 </View>
 
                 {list.length > 0 ? (
@@ -739,7 +763,7 @@ const createStyles = (theme = {}) =>
         friendRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, gap: 12 },
         avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme?.colors?.card ?? "#1f1f1f", borderWidth: 1, borderColor: theme?.colors?.border ?? "rgba(255,255,255,.05)", alignItems: "center", justifyContent: "center" },
         avatarText: { color: theme?.colors?.text ?? "#EBF1D5", fontWeight: "700" },
-        friendName: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 15, fontWeight: "600", textTransform: "capitalize" },
+        friendName: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 17, fontWeight: "700", textTransform: "capitalize" },
         friendEmail: { color: theme?.colors?.muted ?? "#888", fontSize: 12, textTransform: "lowercase" },
 
         chip: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, borderWidth: 1, backgroundColor: "transparent", borderColor: theme?.colors?.border ?? "rgba(255,255,255,0.05)" },
@@ -816,4 +840,25 @@ const createStyles = (theme = {}) =>
             justifyContent: "center",
             elevation: 4,
         },
+        /* ---- ADD / MERGE these style rules into createStyles ---- */
+        avatarSvgWrap: {
+            width: 45,
+            height: 45,
+            borderRadius: 24,
+            overflow: "hidden",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "rgba(255,255,255,0.05)",
+
+        },
+        /* you already have avatarImage style; if you want the remote images to fit exactly, ensure it matches avatarSvgWrap sizing */
+        avatarImage: {
+            width: 43,
+            height: 43,
+            borderRadius: 20,
+            marginRight: 12,
+            resizeMode: "cover",
+        },
+
     });

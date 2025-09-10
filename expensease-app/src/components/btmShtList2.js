@@ -88,7 +88,7 @@ const BottomSheetList = ({
                         >
                             {/* Left: icon + label */}
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 }}>
-                                {opt.icon ? <CategoryIcon category={opt.value} size={20} color={active ? colors.background : colors.text} /> : null}
+                                {opt.icon ? <CategoryIcon category={opt.value} size={20} color={colors.text} /> : null}
                                 <Text numberOfLines={1} style={styles.label}>{opt[labelKey]}</Text>
                             </View>
 

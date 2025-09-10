@@ -41,6 +41,10 @@ export default function AccountLayout() {
                 name="notifications"
                 options={{ title: "Notifications" }}
             />
+            <Stack.Screen
+                name="coins"
+                options={{ title: "Coins" }}
+            />
         </Stack>
     );
 }

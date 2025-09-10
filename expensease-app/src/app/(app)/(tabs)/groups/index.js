@@ -13,7 +13,7 @@ import Header from "~/header";
 import SearchBar from "~/searchBar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 // ===== adjust these paths to your project =====
@@ -122,11 +122,18 @@ export default function GroupsScreen() {
         }
     }, [userToken, hydrateGroups]);
 
-    // initial + refresh
-    useEffect(() => {
-        if (!userToken) return;
-        fetchGroups();
-    }, [userToken, fetchGroups]);
+    useFocusEffect(
+        useCallback(() => {
+            if (userToken) {
+                fetchGroups();
+            }
+            // optional cleanup when screen loses focus
+            return () => {
+                console.log("Screen unfocused");
+            };
+        }, [userToken, fetchGroups])
+    );
+
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);

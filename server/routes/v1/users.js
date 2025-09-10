@@ -176,6 +176,7 @@ router.patch('/profile', auth, async (req, res) => {
       groupNotificationOverrides,
       friendNotificationOverrides,
       pushTokens, // optional: allow client to send token arrays (ios/android)
+      avatarId,
     } = req.body || {};
 
     console.log(new Date().toISOString(), 'INFO', routeTag, 'incoming body:', req.body);
@@ -227,6 +228,25 @@ router.patch('/profile', auth, async (req, res) => {
       update.preferredCurrencies = cleaned;
       console.debug(new Date().toISOString(), 'DEBUG', routeTag, 'will update preferredCurrencies:', cleaned);
     }
+    // ---------- AvatarId (predefined avatars) ----------
+    if (typeof avatarId !== 'undefined') {
+      if (avatarId === null || avatarId === '') {
+        // allow clearing avatar
+        update.avatarId = null;
+        console.debug(new Date().toISOString(), 'DEBUG', routeTag, 'will clear avatarId');
+      } else if (typeof avatarId === 'string') {
+        const a = avatarId.trim();
+        console.debug(new Date().toISOString(), 'DEBUG', routeTag, 'validating avatarId:', a);
+
+
+        update.avatarId = a;
+        console.debug(new Date().toISOString(), 'DEBUG', routeTag, 'will update avatarId:', a);
+      } else {
+        console.warn(new Date().toISOString(), 'WARN', routeTag, 'validation failed: avatarId wrong type', typeof avatarId);
+        return res.status(400).json({ error: 'avatarId must be a string or null' });
+      }
+    }
+
 
     // ---------- pushTokens (optional) ----------
     // Accept shape: { ios: [token], android: [token] } or arrays
@@ -332,7 +352,7 @@ router.patch('/profile', auth, async (req, res) => {
         const el = { groupId: item.groupId };
 
         // validate each channel if provided
-        ['push','email','inapp'].forEach(ch => {
+        ['push', 'email', 'inapp'].forEach(ch => {
           if (!item[ch]) return;
           const chObj = item[ch];
           const chNext = {};
@@ -380,7 +400,7 @@ router.patch('/profile', auth, async (req, res) => {
         }
         const el = { friendId: item.friendId };
 
-        ['push','email','inapp'].forEach(ch => {
+        ['push', 'email', 'inapp'].forEach(ch => {
           if (!item[ch]) return;
           const chObj = item[ch];
           const chNext = {};

@@ -1,4 +1,4 @@
-// app/account.js  (themed + theme toggle + currency tile + FAQ/Privacy/Contact tiles)
+// app/account/index.js
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     View,
@@ -10,7 +10,7 @@ import {
     UIManager,
     Platform,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as Clipboard from "expo-clipboard";
@@ -28,6 +28,9 @@ import { updateUserProfile, deleteAccount } from "services/UserService";
 import SheetCurrencies from "~/shtCurrencies";
 
 import { useTheme } from "context/ThemeProvider";
+
+import avatars from "@/avatars";
+import AvatarPickerSheet from "components/btmShtAvatar";
 
 const TEST_MODE = process.env.EXPO_PUBLIC_TEST_MODE === "true";
 
@@ -48,9 +51,16 @@ function calculateTotals(expenses, userId) {
     return { balance: totalPay - totalOwe, expense: totalOwe };
 }
 
+function getInitials(name) {
+    if (!name) return "";
+    const parts = name.trim().split(" ").filter(Boolean);
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
 export default function AccountScreen() {
     const router = useRouter();
-    const { logout, user, userToken, defaultCurrency, preferredCurrencies } = useAuth() || {};
+    const { logout, user, userToken, defaultCurrency, preferredCurrencies, setUser, loadUserData } = useAuth() || {};
     const { theme, preference, setPreference } = useTheme();
 
     const styles = useMemo(() => createStyles(theme), [theme]);
@@ -63,11 +73,30 @@ export default function AccountScreen() {
     const [totals, setTotals] = useState({ balance: 0, expense: 0 });
     const [banner, setBanner] = useState(null);
 
+    // avatar state
+    const [selectedAvatar, setSelectedAvatar] = useState(user?.avatarId || null);
+    const [savingAvatar, setSavingAvatar] = useState(false);
+
     // refs
     const scrollerRef = useRef(null);
     const currencySheetRef = useRef(null);
+    const avatarSheetRef = useRef(null);
 
     useEffect(() => setDc(defaultCurrency || ""), [defaultCurrency]);
+    useFocusEffect(
+        useCallback(() => {
+            loadUserData()
+            // optional cleanup when screen loses focus
+            return () => {
+            };
+        }, [loadUserData])
+    );
+
+
+    // sync user avatar when user updates
+    useEffect(() => {
+        setSelectedAvatar(user?.avatarId || null);
+    }, [user?.avatarId]);
 
     // fetch minimal totals
     const fetchExpenses = useCallback(async () => {
@@ -156,7 +185,11 @@ export default function AccountScreen() {
     // theme preference helper (kept)
     const setThemePreference = (pref) => {
         setPreference(pref);
-        showBanner("info", `Theme: ${pref === "system" ? "System" : pref === "dark" ? "Dark" : "Light"}`, 1200);
+        showBanner(
+            "info",
+            `Theme: ${pref === "system" ? "System" : pref === "dark" ? "Dark" : "Light"}`,
+            1200
+        );
     };
 
     // currency options for sheet (small subset + rest)
@@ -168,24 +201,81 @@ export default function AccountScreen() {
             .map((c) => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
     }, [defaultCurrency, preferredCurrencies]);
 
+    // avatar save handler passed to sheet
+    // inside AccountScreen.js
+
+    // ---- REPLACE the above handleSaveAvatar with this implementation ----
+    const AVATAR_COST = 1; // cost in coins to change avatar
+    // Replace the existing handleSaveAvatar in app/account/index.js with this simplified version
+    // (confirmation & coin-check moved into the sheet; this avoids asking twice)
+
+    const handleSaveAvatar = async (id) => {
+        if (!id) return;
+        setSavingAvatar(true);
+
+        try {
+            // Server will perform atomic coin deduction & avatar set.
+            // Client just sends the requested avatarId and updates local state on success.
+            const res = await updateUserProfile({ avatarId: id });
+
+            // If your updateUserProfile returns the updated user, use it to sync local context.
+            // Otherwise fall back to setting the avatarId locally and reloading user data.
+            const updatedUser = res?.user || res;
+
+            if (updatedUser) {
+                setSelectedAvatar(id);
+
+                if (typeof setUser === "function") {
+                    // prefer to update auth context with fresh server data if available
+                    setUser((prev = {}) => {
+                        // merge returned fields where present, but keep previous data as fallback
+                        return {
+                            ...prev,
+                            avatarId: updatedUser.avatarId ?? id,
+                            coins: typeof updatedUser.coins === "number" ? updatedUser.coins : prev.coins,
+                            name: updatedUser.name ?? prev.name,
+                            email: updatedUser.email ?? prev.email,
+                            profilePic: updatedUser.profilePic ?? prev.profilePic,
+                        };
+                    });
+                } else if (typeof loadUserData === "function") {
+                    // fallback: reload full user data
+                    try {
+                        await loadUserData();
+                    } catch (err) {
+                        // ignore reload error; we've already updated avatar locally
+                    }
+                }
+            } else {
+                // if response shape is unexpected, still update local avatar to keep UI snappy
+                setSelectedAvatar(id);
+                if (typeof loadUserData === "function") {
+                    try { await loadUserData(); } catch (_) { }
+                }
+            }
+
+            showBanner("success", "Avatar updated.", 2000);
+        } catch (e) {
+            // server may return insufficient-coins or other errors -> surface to user
+            const msg = e?.message || (e?.error || "Failed to save avatar.");
+            showBanner("error", msg, 3000);
+            throw e; // rethrow so caller (sheet) can react if needed
+        } finally {
+            setSavingAvatar(false);
+        }
+    };
+
+    // open avatar sheet
+    const openAvatarSheet = () => {
+        // present method depends on your MainBottomSheet API; using present() per earlier snippets
+        avatarSheetRef.current?.present?.();
+    };
+
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <StatusBar style={theme.statusBarStyle === "dark-content" ? "dark" : "light"} />
-            <Header title="Account" />
+            <Header title="Account" showCoins coins={user?.coins || 0} />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
-                {banner && (
-                    <View
-                        style={[
-                            styles.banner,
-                            banner.type === "success" && styles.bannerSuccess,
-                            banner.type === "error" && styles.bannerError,
-                            banner.type === "info" && styles.bannerInfo,
-                        ]}
-                    >
-                        <Text style={styles.bannerText}>{banner.text}</Text>
-                    </View>
-                )}
-
                 <ScrollView ref={scrollerRef} style={styles.scroller} contentContainerStyle={{ paddingBottom: 24 }}>
                     {loading ? (
                         <View style={{ paddingTop: 16 }}>
@@ -198,24 +288,72 @@ export default function AccountScreen() {
                             {/* Account card */}
                             <View style={styles.cardBox}>
                                 <View style={{ gap: 6 }}>
-                                    <View>
-                                        <Text style={styles.strongText}>{user?.name || "—"}</Text>
-                                    </View>
-                                    <View style={styles.rowBetween}>
-                                        <View style={{ flex: 1, paddingRight: 8 }}>
-                                            <Text style={[styles.strongText2, { textTransform: "lowercase" }]} numberOfLines={1}>
-                                                {user?.email || "—"}
-                                            </Text>
+                                    <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+                                        <TouchableOpacity
+                                            activeOpacity={0.8}
+                                            onPress={openAvatarSheet}
+                                            style={styles.avatarTouchable}
+                                        >
+                                            <View style={styles.avatarBorder}>
+                                                <View
+                                                    /* dynamically center placeholder, bottom-align selected avatar */
+                                                    style={[
+                                                        styles.avatarContainer,
+                                                        selectedAvatar ? { justifyContent: "flex-end" } : { justifyContent: "center" },
+                                                    ]}
+                                                >
+                                                    {selectedAvatar ? (
+                                                        (() => {
+                                                            const found = avatars.find((a) => a.id === selectedAvatar);
+                                                            const AvatarComp = found?.Component || null;
+                                                            return AvatarComp ? (
+                                                                <AvatarComp width={50} height={50} />
+                                                            ) : (
+                                                                <Text style={{ color: theme.colors.muted }}>—</Text>
+                                                            );
+                                                        })()
+                                                    ) : (
+                                                        <View style={[styles.placeholderCircle, { backgroundColor: theme.colors.card }]}>
+                                                            <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>
+                                                                {getInitials(user?.name || "")}
+                                                            </Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            </View>
+
+                                            {/* pen badge bottom-right (always visible) */}
+                                            <View style={[styles.penBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.card }]}>
+                                                <Feather name="edit" size={12} color={theme.mode === "dark" ? "#000" : "#fff"} />
+                                            </View>
+                                        </TouchableOpacity>
+
+
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.strongText}>{user?.name || "—"}</Text>
+                                            <View style={styles.rowBetween}>
+                                                <View style={{ flex: 1, paddingRight: 8 }}>
+                                                    <Text style={[styles.strongText2, { textTransform: "lowercase" }]} numberOfLines={1}>
+                                                        {user?.email || "—"}
+                                                    </Text>
+                                                </View>
+                                            </View>
                                         </View>
-                                        {user?.email ? (
-                                            <TouchableOpacity onPress={onCopyEmail} activeOpacity={0.7}>
-                                                <Text style={{ color: theme.colors.primary }}>Copy</Text>
-                                            </TouchableOpacity>
-                                        ) : null}
                                     </View>
                                 </View>
                             </View>
-
+                            {banner && (
+                                <View
+                                    style={[
+                                        styles.banner,
+                                        banner.type === "success" && styles.bannerSuccess,
+                                        banner.type === "error" && styles.bannerError,
+                                        banner.type === "info" && styles.bannerInfo,
+                                    ]}
+                                >
+                                    <Text style={styles.bannerText}>{banner.text}</Text>
+                                </View>
+                            )}
                             <View style={{ marginTop: 0 }}>
                                 <View style={styles.grid}>
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/guide")}>
@@ -309,6 +447,17 @@ export default function AccountScreen() {
                     <SheetCurrencies innerRef={currencySheetRef} value={dc} options={currencyOptions} onSelect={setDc} onClose={(val) => saveCurrencyPrefs(val)} />
                 </ScrollView>
             </View>
+
+            {/* Avatar picker sheet */}
+            <AvatarPickerSheet
+                innerRef={avatarSheetRef}
+                currentId={selectedAvatar}
+                initialSelection={selectedAvatar}
+                onSave={handleSaveAvatar}
+                onClose={() => { }}
+                userCoins={Number(user?.coins || 0)}
+                cost={1}
+            />
         </SafeAreaView>
     );
 }
@@ -342,7 +491,7 @@ const createStyles = (theme) =>
         sectionLabelSmall: { color: theme.colors.muted, fontSize: 12, marginBottom: 6 },
         dividerV: { width: 1, height: 18, backgroundColor: theme.colors.border },
 
-        cardBox: { backgroundColor: theme.colors.card, borderRadius: 12, padding: 12, gap: 8, borderWidth: 1, borderColor: theme.colors.border },
+        cardBox: { gap: 8 },
         rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
 
         hintText: { color: theme.colors.muted, fontSize: 12 },
@@ -388,6 +537,59 @@ const createStyles = (theme) =>
             backgroundColor: theme.colors.background,
         },
         gridLabel: { color: theme.colors.text, fontSize: 12, textAlign: "center" },
+
+        // avatar styles
+        /* ---- ADD / UPDATE these style rules ---- */
+        /* ---- MERGE / REPLACE these style rules in createStyles ---- */
+        avatarTouchable: {
+            width: 64,
+            height: 64,
+            alignItems: "center",
+            justifyContent: "center",
+            position: "relative",
+        },
+        avatarBorder: {
+            width: 64,
+            height: 64,
+            borderRadius: 32,
+            borderWidth: 2,
+            borderColor: theme.colors.card,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        avatarContainer: {
+            width: 60,
+            height: 60,
+            borderRadius: 30,
+            overflow: "hidden",
+            alignItems: "center",
+            backgroundColor: "transparent",
+        },
+        placeholderCircle: {
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        placeholderText: { fontSize: 18, fontWeight: "700" },
+        penBadge: {
+            position: "absolute",
+            right: -6,
+            bottom: -6,
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 2,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.12,
+            shadowRadius: 1,
+            elevation: 2,
+        },
+
 
         // Theme toggle
         themeToggleRow: {

@@ -56,8 +56,10 @@ const userSchema = new mongoose.Schema({
         }
     ],
     picture: { type: String },
+    avatarId: { type: String },
     googleId: { type: String },
     upiId: { type: String },
+    coins: { type: Number, default: 0 },
     defaultCurrency: {
         type: String,
         trim: true,

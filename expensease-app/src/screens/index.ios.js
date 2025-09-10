@@ -156,7 +156,7 @@ const createStyles = (theme, insets) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    googleText: { fontWeight: "700", color: theme.colors.text },
+    googleText: { fontWeight: "700", color: theme.colors.textDark },
     hint: { color: theme.colors.muted, fontSize: 13, marginTop: 12, textAlign: "center" },
     error: { color: "#F43F5E", marginBottom: 12 },
     secondaryBtn: { marginTop: 12 },
