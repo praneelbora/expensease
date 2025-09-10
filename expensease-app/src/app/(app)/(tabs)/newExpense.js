@@ -129,6 +129,7 @@ export default function NewExpenseScreen() {
 
     // ---------- fetchers ----------
     const pullFriends = useCallback(async () => {
+        if(!userToken)return;
         try {
             const data = await getFriends(userToken);
             setFriends(Array.isArray(data) ? data : []);
@@ -138,6 +139,7 @@ export default function NewExpenseScreen() {
     }, [userToken]);
 
     const pullGroups = useCallback(async () => {
+        if(!userToken)return;
         try {
             const data = await getAllGroups(userToken);
             setGroups(Array.isArray(data) ? data : []);
@@ -147,6 +149,7 @@ export default function NewExpenseScreen() {
     }, [userToken]);
 
     const pullSuggestions = useCallback(async () => {
+        if(!userToken)return;
         try {
             const data = await getSuggestions(userToken);
             setSuggestions(data || null);
@@ -837,9 +840,9 @@ export default function NewExpenseScreen() {
                                         {selectedFriends.map((f) => {
                                             const active = !!f.paying;
                                             return (
-                                                <TouchableOpacity key={`pay-${f._id}`} onPress={() => togglePaying(f._id)} style={[styles.chip2, active && styles.chip2Active]}>
+                                                <TouchableOpacity key={`pay-${f?._id}`} onPress={() => togglePaying(f?._id)} style={[styles.chip2, active && styles.chip2Active]}>
                                                     <Text style={[styles.chip2Text, active && styles.chip2TextActive]} numberOfLines={1}>
-                                                        {f.name}
+                                                        {f?.name}
                                                     </Text>
                                                 </TouchableOpacity>
                                             );

@@ -646,7 +646,7 @@ export default function FriendsScreen() {
                         <View style={styles.emptyCard}>
                             <Text style={styles.emptyTitle}>No friends yet!</Text>
                             <Text style={styles.emptyText}>To split expenses, add friends.</Text>
-                            <TouchableOpacity onPress={() => setShowModal(true)} style={styles.ctaBtn}>
+                            <TouchableOpacity onPress={() => addFriendRef.current?.present()} style={styles.ctaBtn}>
                                 <Text style={styles.ctaBtnText}>Add Friend</Text>
                             </TouchableOpacity>
                         </View>
@@ -691,7 +691,7 @@ export default function FriendsScreen() {
                     <Feather name="plus" size={24} color={theme?.colors?.inverseText ?? "#121212"} />
                 </TouchableOpacity>
 
-                <BottomSheetAddFriend innerRef={addFriendRef} onClose={() => { }} onAdded={async () => { await pullReceived(); await pullFriends(); }} userToken={userToken} />
+                <BottomSheetAddFriend innerRef={addFriendRef} onAdded={async () => { await pullReceived(); await pullFriends(); }} userToken={userToken} />
             </View>
         </SafeAreaView>
     );

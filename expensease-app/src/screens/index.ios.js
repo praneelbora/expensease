@@ -110,12 +110,12 @@ export default function Login() {
                         </View>
 
 
-              {submitting || isLoading ? (
+              {/* {submitting || isLoading ? (
                 <View style={styles.loadingRow}>
                   <ActivityIndicator />
                   <Text style={styles.loadingText}>Signing you in…</Text>
                 </View>
-              ) : null}
+              ) : null} */}
             </View>
           </Animated.View>
       </ScrollView>

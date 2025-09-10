@@ -359,7 +359,7 @@ export default function GroupsScreen() {
                                 <TouchableOpacity
                                     style={styles.ctaBtn}
                                     onPress={() => {
-                                        setShowModal(true);
+                                        groupsRef.current?.present()
                                     }}
                                 >
                                     <Text style={styles.ctaBtnText}>Create Group</Text>

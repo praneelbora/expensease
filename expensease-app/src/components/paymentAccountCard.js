@@ -127,9 +127,9 @@ export default function PaymentMethodCard({
 
                 </View>
             )}
-            <View>
+            {method?.notes && <View>
                 <Text style={styles.notes}>Notes: {method?.notes}</Text>
-            </View>
+            </View>}
             {/* Footer actions */}
             <View style={styles.footer}>
                 <TouchableOpacity onPress={() => onAddBalance?.(method)} style={styles.footerBtn}>

@@ -109,7 +109,7 @@ const BottomSheetFriendManager = ({ innerRef, userToken }) => {
         <MainBottomSheet innerRef={innerRef}>
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-                <Text style={styles.headerText}>Manage Friends</Text>
+                <Text style={styles.headerText}>Invite / Add Friends</Text>
                 <TouchableOpacity onPress={() => innerRef.current?.dismiss()}>
                     <Text style={styles.closeText}>Cancel</Text>
                 </TouchableOpacity>
@@ -141,7 +141,7 @@ const BottomSheetFriendManager = ({ innerRef, userToken }) => {
             </View>
 
             {/* Incoming Requests */}
-            <View style={styles.section}>
+            {incoming.length > 0 && <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Incoming Requests</Text>
                 {loading ? (
                     <ActivityIndicator color={colors.primary || colors.cta} />
@@ -171,10 +171,10 @@ const BottomSheetFriendManager = ({ innerRef, userToken }) => {
                         </View>
                     ))
                 )}
-            </View>
+            </View>}
 
             {/* Outgoing Requests */}
-            <View style={styles.section}>
+            {outgoing.length > 0 && <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Outgoing Requests</Text>
                 {loading ? (
                     <ActivityIndicator color={colors.primary || colors.cta} />
@@ -196,7 +196,7 @@ const BottomSheetFriendManager = ({ innerRef, userToken }) => {
                         </View>
                     ))
                 )}
-            </View>
+            </View>}
 
             <View style={{ height: insets.bottom + 16 }} />
         </MainBottomSheet>

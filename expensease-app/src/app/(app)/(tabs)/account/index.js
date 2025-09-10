@@ -517,7 +517,9 @@ const createStyles = (theme) =>
         grid: {
             flexDirection: "row",
             flexWrap: "wrap",
-            gap: 8,
+            justifyContent: 'space-between',
+            columnGap: 8,
+            rowGap: 4,
             marginTop: 6,
         },
         gridItem: {
@@ -531,7 +533,6 @@ const createStyles = (theme) =>
             alignItems: "center",
             borderWidth: 1,
             borderColor: "transparent",
-            marginBottom: 8,
             width: 56,
             height: 56,
             backgroundColor: theme.colors.background,

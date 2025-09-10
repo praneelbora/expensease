@@ -14,6 +14,7 @@ import Header from "~/header";
 import ExpenseRow from "~/expenseRow";
 import BottomSheetSettle from "~/btmShtSettle";
 import BottomSheetAddFriendsToGroup from "~/btmShtAddfriendsToGroup";
+import BottomSheetAddFriend from "~/btmShtAddFriend";
 import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -61,6 +62,7 @@ export default function GroupDetails() {
 
     const settleSheetRef = useRef(null);
     const addFriendsRef = useRef(null);
+    const inviteSheetRef = useRef(null);
 
     // UI
     const [loadingGroup, setLoadingGroup] = useState(true);
@@ -242,21 +244,45 @@ export default function GroupDetails() {
             exp.splits?.some((s) => s.friendId?._id === selectedMember && (s.payAmount > 0 || s.oweAmount > 0))
         );
     }, [expenses, selectedMember]);
+    // ----- actions (insert near handleShareInvite) -----
+    const handleCopyCode = async () => {
+        if (!group?.code) return;
+        try {
+            await Clipboard.setStringAsync(group.code);
+            setCopiedHeader(true);
+            setTimeout(() => setCopiedHeader(false), 1500);
+        } catch (e) {
+            console.warn("Copy failed", e);
+        }
+    };
 
-    // ===== actions =====
     const handleShareInvite = async () => {
         if (!group?.code) return;
-        const url = `${process.env.EXPO_PUBLIC_WEB_URL || "https://www.expensease.in"}/groups?join=${group.code}`;
-        const message = `Use this code: ${group.code}\n\nOr just tap the link to join directly:\n${url}`;
+        const message = `You're invited to join my group on Expensease — the app that makes splitting and tracking expenses simple!
+
+Group: ${group.name}
+Code: ${group.code}
+
+How to join:
+1. Open Expensease and go to the Groups page.
+2. Tap the Plus (+) button in the bottom right corner.
+3. Enter the code above in "Join with Code".
+4. Tap Join and you're in!`;
+
         try {
+            // copy to clipboard first
             await Clipboard.setStringAsync(message);
             setCopiedHeader(true);
             setTimeout(() => setCopiedHeader(false), 1500);
-            await Share.share({ title: "Join my group on Expensease", message, url });
+
+            // trigger native share
+            await Share.share({ title: "Join my group on Expensease", message });
         } catch (e) {
             console.warn("Share failed", e);
         }
     };
+
+
 
     const recordSettlement = async ({ payerId, receiverId, amount, description, currency, meta }) => {
         // normalize meta: if it's a group settlement, send minimal group meta
@@ -335,7 +361,7 @@ export default function GroupDetails() {
     const listHeader = (
         <View style={{ gap: 12 }}>
             {/* Members header */}
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            {group?.members.length>1 &&  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <Text style={styles.sectionLabel}>Members</Text>
                 <TouchableOpacity
                     onPress={() => {
@@ -344,7 +370,7 @@ export default function GroupDetails() {
                 >
                     <Feather name={showMembers ? "eye" : "eye-off"} size={18} color={theme?.colors?.primary ?? "#60DFC9"} />
                 </TouchableOpacity>
-            </View>
+            </View>}
 
             {showMembers && (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -387,7 +413,7 @@ export default function GroupDetails() {
                 </View>
             )}
 
-            <Text style={styles.sectionLabel}>Expenses</Text>
+            {expenses.length > 0 && <Text style={styles.sectionLabel}>Expenses</Text>}
         </View>
     );
 
@@ -426,12 +452,52 @@ export default function GroupDetails() {
                                     <>
                                         <Text style={styles.emptyTitle}>No Members Yet</Text>
                                         <Text style={styles.emptyText}>Invite friends to get started.</Text>
-                                        <TouchableOpacity style={styles.outlineBtn} onPress={handleShareInvite}>
-                                            <Text style={styles.outlineBtnText}>Share Invite</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={styles.outlineBtn} onPress={() => addFriendsRef.current?.present()}>
-                                            <Text style={styles.outlineBtnText}>+ Add Friends</Text>
-                                        </TouchableOpacity>
+
+                                        {/* Code display */}
+                                        <View style={{ marginTop: 12, alignItems: "center", width: "100%" }}>
+                                            <View
+                                                style={{
+                                                    flexDirection: "row",
+                                                    alignItems: "center",
+                                                    justifyContent: "space-between",
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 10,
+                                                    borderRadius: 10,
+                                                    borderWidth: 1,
+                                                    borderColor: theme?.colors?.border ?? "#333",
+                                                    backgroundColor: theme?.colors?.card ?? "#1f1f1f",
+                                                    width: "100%",
+                                                    maxWidth: 520,
+                                                }}
+                                            >
+                                                <Text numberOfLines={1} style={{ color: theme?.colors?.text ?? "#EBF1D5", fontWeight: "700", fontSize: 16 }}>
+                                                    {group?.code ?? "—"}
+                                                </Text>
+
+                                                <View style={{ flexDirection: "row", gap: 8 }}>
+                                                    <TouchableOpacity onPress={handleCopyCode} style={{ paddingHorizontal: 8, paddingVertical: 6 }}>
+                                                        <Feather name="copy" size={18} color={theme?.colors?.primary ?? "#60DFC9"} />
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        onPress={handleShareInvite}
+                                                        style={{ paddingHorizontal: 8, paddingVertical: 6 }}
+                                                    >
+                                                        <Feather name="send" size={18} color={theme?.colors?.primary ?? "#60DFC9"} />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+
+                                            <Text style={[styles.emptyText, { marginTop: 8 }]}>Share this code or copy it and paste inside "Join with Code".</Text>
+                                        </View>
+
+                                        <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+                                            <TouchableOpacity style={styles.outlineBtn} onPress={handleShareInvite}>
+                                                <Text style={styles.outlineBtnText}>Share Invite</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.outlineBtn} onPress={() => addFriendsRef.current?.present()}>
+                                                <Text style={styles.outlineBtnText}>+ Add Friends</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </>
                                 ) : (
                                     <>
@@ -466,7 +532,22 @@ export default function GroupDetails() {
                     group={group}
                     currencyOptions={currencyOptions}
                 />
-                <BottomSheetAddFriendsToGroup innerRef={addFriendsRef} groupId={id} onClose={() => addFriendsRef.current?.dismiss()} onAdded={fetchGroup} />
+                <BottomSheetAddFriendsToGroup
+                    innerRef={addFriendsRef}
+                    groupId={id}
+                    onClose={() => addFriendsRef.current?.dismiss()}
+                    onAdded={fetchGroup}
+                    onNoFriends={() => {
+                        console.log('onnofriends');
+                        
+                        inviteSheetRef.current?.present()
+                    }} // open other bottom sheet
+                />
+                <BottomSheetAddFriend 
+                innerRef={inviteSheetRef} 
+                onAdded={async () => { await fetchGroup() }} 
+                userToken={userToken} />
+
             </View>
         </SafeAreaView>
     );

@@ -1,4 +1,3 @@
-// src/components/BottomSheetAddFriends.js
 import React, { useEffect, useMemo, useState } from "react";
 import {
     View,
@@ -22,6 +21,16 @@ export default function BottomSheetAddFriends({
     groupId,
     onClose,
     onAdded,
+    /**
+     * Optional callback invoked when there are no friends.
+     * Parent should open another bottom sheet (invite flow) inside this callback.
+     * e.g. onNoFriends={() => inviteSheetRef.current?.present()}
+     */
+    onNoFriends,
+    /**
+     * If true, automatically call onNoFriends once friends load and are empty.
+     */
+    autoTriggerIfEmpty = false,
 }) {
     const insets = useSafeAreaInsets();
     const { userToken } = useAuth() || {};
@@ -36,23 +45,50 @@ export default function BottomSheetAddFriends({
     const [loading, setLoading] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
+    const [loadedOnce, setLoadedOnce] = useState(false); // used for auto-trigger check
 
     // Load friends when sheet opens
     useEffect(() => {
         if (!innerRef?.current) return;
+        let cancelled = false;
         const load = async () => {
             try {
                 setLoading(true);
                 const list = await getFriends(userToken);
-                setFriends(Array.isArray(list) ? list : []);
+                if (!cancelled) {
+                    setFriends(Array.isArray(list) ? list : []);
+                }
             } catch (e) {
                 console.warn("Failed to load friends", e);
+                if (!cancelled) setFriends([]);
             } finally {
-                setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                    setLoadedOnce(true);
+                }
             }
         };
         load();
+
+        return () => {
+            cancelled = true;
+        };
     }, [innerRef, userToken]);
+
+    // auto-trigger another sheet if empty and enabled
+    useEffect(() => {
+        if (!autoTriggerIfEmpty || !loadedOnce) return;
+        if (!loading && Array.isArray(friends) && friends.length === 0) {
+            if (typeof onNoFriends === "function") {
+                try {
+                    onNoFriends();
+                } catch (e) {
+                    console.warn("onNoFriends threw", e);
+                }
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [autoTriggerIfEmpty, loadedOnce, loading, friends]);
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -90,6 +126,45 @@ export default function BottomSheetAddFriends({
         }
     };
 
+    // If no friends at all, show CTA to trigger `onNoFriends`
+    const renderNoFriends = () => (
+        <View style={{ padding: 24, alignItems: "center" }}>
+            <Feather name="users" size={48} color={colors.muted || "#888"} />
+            <Text style={{ color: colors.text || "#EBF1D5", fontSize: 18, fontWeight: "700", marginTop: 12 }}>
+                You have not added any friends yet
+            </Text>
+            <Text style={{ color: colors.muted || "#aaa", textAlign: "center", marginTop: 8 }}>
+                Add friends to invite them into groups or settle expenses.
+            </Text>
+
+            <TouchableOpacity
+                style={[styles.btn, { marginTop: 18,paddingHorizontal: 12 }]}
+                onPress={() => {
+                    if (typeof onNoFriends === "function") onNoFriends();
+                }}
+            >
+                <Text style={styles.btnText}>Invite / Add Friends</Text>
+            </TouchableOpacity>
+
+            {/* small secondary hint */}
+            <TouchableOpacity
+                style={{ marginTop: 12 }}
+                onPress={() => {
+                    // also allow opening the native add-friends flow inside this sheet (if parent doesn't handle)
+                    // fallback: present the system share sheet with an invite message if parent didn't supply onNoFriends
+                    if (typeof onNoFriends === "function") {
+                        onNoFriends();
+                    } else {
+                        // no parent handler — dismiss and leave to parent to react (safe fallback)
+                        innerRef.current?.dismiss();
+                    }
+                }}
+            >
+                <Text style={{ color: colors.muted || "#aaa" }}>Or cancel and try later</Text>
+            </TouchableOpacity>
+        </View>
+    );
+
     return (
         <MainBottomSheet
             innerRef={innerRef}
@@ -125,32 +200,26 @@ export default function BottomSheetAddFriends({
                                 <Text style={styles.chipText} numberOfLines={1}>
                                     {f?.name}
                                 </Text>
-                                <TouchableOpacity
-                                    onPress={() => toggleSelect(f)}
-                                    style={styles.removeBtn}
-                                >
-                                    <Text>
-                                    X
-                                    </Text>
+                                <TouchableOpacity onPress={() => toggleSelect(f)} style={styles.removeBtn}>
+                                    <Text>X</Text>
                                 </TouchableOpacity>
                             </View>
                         ))}
                     </View>
                 )}
 
-                {/* Friends list */}
+                {/* Friends list or no-friends CTA */}
                 {loading ? (
                     <ActivityIndicator style={{ marginTop: 20 }} color={colors.cta || colors.primary} />
+                ) : Array.isArray(friends) && friends.length === 0 ? (
+                    renderNoFriends()
                 ) : (
                     <FlatList
                         data={filtered}
                         keyExtractor={(f) => f._id}
                         style={{ flex: 1, marginTop: 12 }}
                         renderItem={({ item }) => (
-                            <TouchableOpacity
-                                style={styles.friendRow}
-                                onPress={() => toggleSelect(item)}
-                            >
+                            <TouchableOpacity style={styles.friendRow} onPress={() => toggleSelect(item)}>
                                 <View style={{ flex: 1, minWidth: 0 }}>
                                     <Text style={styles.friendName} numberOfLines={1}>
                                         {item?.name}
@@ -182,9 +251,7 @@ export default function BottomSheetAddFriends({
                     {busy ? (
                         <ActivityIndicator color={colors.text || "#121212"} />
                     ) : (
-                        <Text style={styles.btnText}>
-                            Add {selected.length || ""} Friend{selected.length === 1 ? "" : "s"}
-                        </Text>
+                        <Text style={styles.btnText}>Add {selected.length || ""} Friend{selected.length === 1 ? "" : "s"}</Text>
                     )}
                 </TouchableOpacity>
 

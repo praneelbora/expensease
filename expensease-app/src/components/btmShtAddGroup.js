@@ -44,7 +44,11 @@ const BottomSheetGroups = ({ innerRef, onClose, onCreate, onJoin, busy }) => {
             <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
                 <Text style={styles.headerText}>Groups</Text>
                 <TouchableOpacity
-                    onPress={() => innerRef.current?.dismiss()}
+                    onPress={() => {
+                        setCode("")
+                        setName("")
+                        innerRef.current?.dismiss()
+                    }}
                     style={styles.closeBtn}
                 >
                     <Text style={styles.closeText}>Cancel</Text>
@@ -62,7 +66,10 @@ const BottomSheetGroups = ({ innerRef, onClose, onCreate, onJoin, busy }) => {
                     style={styles.input}
                 />
                 <TouchableOpacity
-                    onPress={() => onCreate?.(name)}
+                    onPress={() => {
+                        onCreate?.(name)
+                        setName('')
+                    }}
                     disabled={!name.trim() || busy}
                     style={[styles.btn, (!name.trim() || busy) && styles.btnDisabled]}
                 >
@@ -86,7 +93,10 @@ const BottomSheetGroups = ({ innerRef, onClose, onCreate, onJoin, busy }) => {
                     style={styles.input}
                 />
                 <TouchableOpacity
-                    onPress={() => onJoin?.(code)}
+                    onPress={() => {
+                        onJoin?.(code)
+                        setCode('')
+                    }}
                     disabled={!code.trim() || busy}
                     style={[styles.btn, (!code.trim() || busy) && styles.btnDisabled]}
                 >
