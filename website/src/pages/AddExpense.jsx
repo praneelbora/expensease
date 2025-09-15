@@ -433,6 +433,7 @@ const AddExpense = () => {
             }));
             setSelectedFriends([...selectedFriends, ...newMembers]);
             updateFriendsPaymentMethods([...selectedFriends, ...newMembers]?.map((f) => f._id), userToken)
+            setVal('')
             setGroupSelect(group)
         }
 
@@ -1141,7 +1142,7 @@ const AddExpense = () => {
                                     )}
 
                                     {/* Friends */}
-                                    {filteredFriends.length > 0 && (
+                                    {!groupSelect && filteredFriends.length > 0 && (
                                         <section className="mt-4">
                                             <p className="text-[12px] tracking-wide text-teal-400/90 font-medium mb-2">
                                                 {val.length === 0 && "SUGGESTED "}FRIENDS

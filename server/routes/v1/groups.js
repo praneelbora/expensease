@@ -376,4 +376,50 @@ router.post('/:groupId/addMembers', auth, async (req, res) => {
   }
 });
 
+// routes/groups.js  — add this after the privacy route (/:groupId/privacy)
+router.put('/:groupId/settings/simplify-debts', auth, async (req, res) => {
+  const { simplifyDebts } = req.body;
+
+  try {
+    console.log(req.params.groupId, simplifyDebts);
+    
+    const group = await Group.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+
+    // Only allow if requester is group creator
+    // if (group.createdBy.toString() !== req.user.id) {
+    //   return res.status(403).json({ message: 'Only group admin can change this setting' });
+    // }
+
+    group.settings = group.settings || {};
+    group.settings.simplifyDebts = !!simplifyDebts;
+    await group.save();
+    console.log(group);
+    
+    // Notify members about setting change (best-effort)
+    (async () => {
+      try {
+        const actorName = await getUserName(req.user.id);
+        const members = await groupMemberIds(group._id);
+        const recips = members.filter(id => id !== String(req.user.id));
+        if (recips.length) {
+          const title = `${group.name}: settle mode updated`;
+          const body = `${actorName} ${group.settings.simplifyDebts ? 'enabled' : 'disabled'} debt simplification for this group.`;
+          const data = { type: 'group_simplify_changed', groupId: String(group._id), groupName: group.name, simplifyDebts: group.settings.simplifyDebts };
+          const category = 'groups';
+          const opts = { channel: 'push', fromFriendId: String(req.user.id), groupId: String(group._id) };
+          await notif.sendToUsers(recips, title, body, data, category, opts);
+        }
+      } catch (e) {
+        console.error('Simplify setting notification failed:', e);
+      }
+    })();
+
+    res.json({ message: 'Simplify debts setting updated', simplifyDebts: group.settings.simplifyDebts });
+  } catch (err) {
+    console.error("Error updating simplify setting:", err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

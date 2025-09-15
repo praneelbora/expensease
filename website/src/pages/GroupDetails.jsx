@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import React, { Fragment } from 'react';
 import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
@@ -300,6 +300,135 @@ const GroupDetails = () => {
 
         return transactions;
     };
+    const [pairwiseNetTransactions, setPairwiseNetTransactions] = useState([]);
+
+    useEffect(() => {
+        if (groupExpenses && groupExpenses.length > 0) {
+            const pairs = buildPairwiseNetTransactions(groupExpenses);
+            // optionally filter by privacy
+            if (group?.settings?.enforcePrivacy) {
+                setPairwiseNetTransactions(pairs.filter(t => t.from === userId || t.to === userId));
+            } else {
+                setPairwiseNetTransactions(pairs);
+            }
+        } else {
+            setPairwiseNetTransactions([]);
+        }
+    }, [groupExpenses, group?.settings?.enforcePrivacy, userId]);
+
+    // Build pairwise transactions from raw groupExpenses
+    // returns array of { from, to, amount, currency, meta?: { expenseId, description } }
+    const buildPairwiseTransactionsFromExpenses = (groupExpenses) => {
+        if (!groupExpenses) return [];
+
+        const txs = [];
+
+        for (const exp of groupExpenses) {
+            const currency = exp.currency || 'INR';
+            // gather payers (splits that actually paid)
+            const payers = exp.splits.filter(s => s.payAmount > 0 && s.paying && s.friendId);
+            const payersTotal = payers.reduce((acc, p) => acc + (p.payAmount || 0), 0);
+
+            // gather owers (splits that owe)
+            const owers = exp.splits.filter(s => s.oweAmount > 0 && s.owing && s.friendId);
+
+            // If there are no payers or no owers, skip
+            if (payers.length === 0 || owers.length === 0) continue;
+
+            // For each owing split, distribute its oweAmount across payers proportionally to payAmount
+            // inside the loop where you push txs (replace the inner loops with this)
+            for (const o of owers) {
+                const oweAmt = Number(o.oweAmount || 0);
+                if (!oweAmt) continue;
+
+                if (payersTotal === 0) {
+                    const equalShare = oweAmt / payers.length;
+                    for (const p of payers) {
+                        // SKIP self-transfers
+                        if (o.friendId._id === p.friendId._id) continue;
+
+                        txs.push({
+                            from: o.friendId._id,
+                            to: p.friendId._id,
+                            amount: equalShare,
+                            currency,
+                            meta: { expenseId: exp._id, description: exp.description || exp.title || '' }
+                        });
+                    }
+                } else {
+                    for (const p of payers) {
+                        // SKIP self-transfers
+                        if (o.friendId._id === p.friendId._id) continue;
+
+                        const share = (p.payAmount || 0) / payersTotal;
+                        const amount = share * oweAmt;
+                        if (amount > 0) {
+                            txs.push({
+                                from: o.friendId._id,
+                                to: p.friendId._id,
+                                amount,
+                                currency,
+                                meta: { expenseId: exp._id, description: exp.description || exp.title || '' }
+                            });
+                        }
+                    }
+                }
+            }
+
+        }
+
+        return txs;
+    };
+
+    // Aggregate pairwise txs into per-pair sums and then net mutual directions
+    // returns array of { from, to, amount, currency }
+    const buildPairwiseNetTransactions = (groupExpenses, roundDigits = 2) => {
+        const pairMap = {}; // key = `${from}|${to}|${currency}` -> amount
+
+        const raw = buildPairwiseTransactionsFromExpenses(groupExpenses);
+
+        const pow = 10 ** roundDigits;
+        const r = v => Math.round((Number(v) + Number.EPSILON) * pow) / pow;
+
+        // Sum amounts for identical pair+currency
+        raw.forEach(tx => {
+            const key = `${tx.from}|${tx.to}|${tx.currency}`;
+            pairMap[key] = (pairMap[key] || 0) + Number(tx.amount || 0);
+        });
+
+        // Convert to easier lookup by unordered pair for netting
+        const netMap = {}; // key unordered `${a}|${b}|${currency}` -> { aToB: x, bToA: y }
+        Object.keys(pairMap).forEach(key => {
+            const [from, to, currency] = key.split('|');
+            const unorderedKey = [from < to ? from : to, from < to ? to : from, currency].join('|');
+            if (!netMap[unorderedKey]) netMap[unorderedKey] = { a: null, b: null, currency };
+            const [a, b] = unorderedKey.split('|');
+
+            // determine placement
+            if (from === a && to === b) {
+                netMap[unorderedKey].aToB = (netMap[unorderedKey].aToB || 0) + pairMap[key];
+            } else {
+                netMap[unorderedKey].bToA = (netMap[unorderedKey].bToA || 0) + pairMap[key];
+            }
+        });
+
+        // Create result array applying netting (aToB - bToA)
+        const result = [];
+        Object.entries(netMap).forEach(([k, v]) => {
+            const [a, b, currency] = k.split('|');
+            const aToB = r(v.aToB || 0);
+            const bToA = r(v.bToA || 0);
+            const net = r(aToB - bToA);
+            if (net > 0) {
+                result.push({ from: a, to: b, amount: net, currency });
+            } else if (net < 0) {
+                result.push({ from: b, to: a, amount: Math.abs(net), currency });
+            }
+            // if net == 0 -> fully canceled, ignore
+        });
+
+        return result;
+    };
 
     const getMemberName = (memberId) => {
         if (memberId == userId) return "You"
@@ -337,6 +466,63 @@ const GroupDetails = () => {
         fetchGroupExpenses();
     }, [id]);
     const round = (val) => Math.round(val * 100) / 100;
+    // Toggle: show simplified transactions or full per-member net list
+    const [showSimplified, setShowSimplified] = useState(group?.settings?.simplifyDebts ?? true);
+    useEffect(() => {
+        setShowSimplified(group?.settings?.simplifyDebts ?? true);
+    }, [group?.settings?.simplifyDebts]);
+
+
+    // Build the typed settlement list for SettleModal
+    // Build the typed settlement list for SettleModal
+    const settlementLists = useMemo(() => {
+        const list = [];
+
+        const canSimplify = group?.settings?.simplifyDebts ?? true; // default true for legacy groups
+
+        const safePush = (row) => {
+            if (!row || !row.from || !row.to) return;
+            if (String(row.from) === String(row.to)) return; // skip self-debts
+            list.push(row);
+        };
+
+        // 1) net (transitive simplified) — treat these as "net" rows
+        if (canSimplify && Array.isArray(simplifiedTransactions) && simplifiedTransactions.length > 0) {
+            simplifiedTransactions.forEach(tx => {
+                safePush({
+                    type: "net",
+                    from: tx.from,
+                    to: tx.to,
+                    amount: Number(tx.amount || 0),
+                    currency: tx.currency || (group?.currency || defaultCurrency) || "INR",
+                    meta: tx.meta || null,
+                    groupId: tx.groupId || group?._id,
+                    name: tx.name || group?.name,
+                });
+            });
+        }
+
+        // 2) pairwise per-group (don't transitively simplify across chain) => type "group"
+        if (Array.isArray(pairwiseNetTransactions) && pairwiseNetTransactions.length > 0) {
+            pairwiseNetTransactions.forEach(tx => {
+                safePush({
+                    type: "group",
+                    from: tx.from,
+                    to: tx.to,
+                    amount: Number(tx.amount || 0),
+                    currency: tx.currency || (group?.currency || defaultCurrency) || "INR",
+                    groupId: group?._id,
+                    name: group?.name,
+                    meta: tx.meta || null,
+                });
+            });
+        }
+
+        // (optional) other categories (all_personal, all_groups) can be added later
+
+        return list;
+    }, [simplifiedTransactions, pairwiseNetTransactions, group, defaultCurrency]);
+
 
     return (
         <MainLayout groupId={id}>
@@ -533,47 +719,86 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups?join=${group.code}`;
                             <hr />
 
                             {/* Debt Summary */}
-                            {groupExpenses && groupExpenses.length > 0 && simplifiedTransactions?.length > 0 && <> <div className="flex flex-col">
-                                <div className="flex justify-between items-center">
-                                    <p className="text-[13px] text-teal-500 uppercase">Debt Summary</p>
-                                    <button
-                                        onClick={() => {
-                                            logEvent('open_settle_modal', {
-                                                screen: 'group_detail'
-                                            })
-                                            setShowSettleModal(true)
-                                        }}
-                                        className="text-sm border border-teal-500 rounded-md px-2 py-0.5 uppercase text-teal-500"
-                                    >
-                                        Settle
-                                    </button>
-                                </div>
-                                {simplifiedTransactions?.map((transaction, index) => {
-                                    const sym = getSymbol(transaction.currency);
-                                    const name1 = getMemberName(transaction.from);
-                                    const name2 = getMemberName(transaction.to);
-                                    const amt = transaction.amount.toFixed(2);
+                            {groupExpenses && groupExpenses.length > 0 && ((showSimplified && simplifiedTransactions?.length > 0) || (!showSimplified && totalDebt)) && (
+                                <>
+                                    <div className="flex flex-col">
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-[13px] text-teal-500 uppercase">Debt Summary</p>
 
-                                    const isYouPaying = name1 === "You";
-                                    const isYouReceiving = name2 === "You";
-                                    const isYou = name1 === "You" || name2 === "You";
-                                    const amountColor = isYouPaying
-                                        ? "text-red-500"
-                                        : isYouReceiving
-                                            ? "text-teal-500"
-                                            : ""; // or leave blank for no color
-                                    const textColor = isYou ? "" : "text-[#81827C]"
-                                    return (
-                                        <div key={index} className={textColor}>
-                                            {`${name1} ${isYouPaying ? "owe" : "owes"} ${name2} `}
-                                            <span className={amountColor}>{getSymbol(transaction?.currency)} {amt}</span>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        logEvent('open_settle_modal', {
+                                                            screen: 'group_detail'
+                                                        })
+                                                        setShowSettleModal(true)
+                                                    }}
+                                                    className="text-sm border border-teal-500 rounded-md px-2 py-0.5 uppercase text-teal-500"
+                                                >
+                                                    Settle
+                                                </button>
+                                            </div>
                                         </div>
-                                    );
-                                })}
 
-                            </div>
+                                        {/* Content: simplified transactions or per-member net list */}
+                                        <div className="mt-2">
+                                            {showSimplified ? (
+                                                // simplified transactions as before
+                                                simplifiedTransactions?.map((transaction, index) => {
+                                                    const sym = getSymbol(transaction.currency);
+                                                    const name1 = getMemberName(transaction.from);
+                                                    const name2 = getMemberName(transaction.to);
+                                                    const amt = transaction.amount.toFixed(2);
 
-                                <hr /></>}
+                                                    const isYouPaying = name1 === "You";
+                                                    const isYouReceiving = name2 === "You";
+                                                    const isYou = name1 === "You" || name2 === "You";
+                                                    const amountColor = isYouPaying
+                                                        ? "text-red-500"
+                                                        : isYouReceiving
+                                                            ? "text-teal-500"
+                                                            : "";
+                                                    const textColor = isYou ? "" : "text-[#81827C]"
+                                                    return (
+                                                        <div key={index} className={textColor}>
+                                                            {`${name1} ${isYouPaying ? "owe" : "owes"} ${name2} `}
+                                                            <span className={amountColor}>{getSymbol(transaction?.currency)} {amt}</span>
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : (
+                                                // pairwise net view
+                                                (pairwiseNetTransactions.length === 0) ? (
+                                                    <div className="text-sm text-[#81827C]">No pairwise debts.</div>
+                                                ) : pairwiseNetTransactions.map((t, idx) => {
+                                                    const nameFrom = getMemberName(t.from);
+                                                    const nameTo = getMemberName(t.to);
+                                                    const isYouPaying = t.from === userId;
+                                                    const isYouReceiving = t.to === userId;
+                                                    const isYou = isYouPaying || isYouReceiving;
+
+                                                    const amount = Number(t.amount || 0).toFixed(2);
+                                                    const amountColor = isYouPaying ? "text-red-500" : isYouReceiving ? "text-teal-500" : "";
+                                                    const textColor = isYou ? "" : "text-[#81827C]";
+
+                                                    return (
+                                                        <div key={idx} className={`${textColor} flex items-center justify-between`}>
+                                                            <div>
+                                                                {isYouPaying ? `You owe ${nameTo}` : isYouReceiving ? `${nameFrom} owes you` : `${nameFrom} owes ${nameTo}`}
+                                                            </div>
+                                                            <div className={amountColor}>{getSymbol(t.currency)} {amount}</div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+
+                                        </div>
+                                    </div>
+
+                                    <hr />
+                                </>
+                            )}
+
 
                             {/* Expenses */}
                             <div className="flex flex-1 flex-col">
@@ -672,14 +897,15 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups?join=${group.code}`;
                     setShowModal={setShowSettleModal}
                     group={group}
                     simplifiedTransactions={simplifiedTransactions}
+                    settlementLists={settlementLists}        // <-- added
                     onSubmit={handleSettle}
                     userId={userId}
                     currencyOptions={currencyOptions}
                     defaultCurrency={defaultCurrency}
                     preferredCurrencies={preferredCurrencies}
                 />
-
             )}
+
             {!loading && (
                 <>
                     {/* Expenses FAB */}

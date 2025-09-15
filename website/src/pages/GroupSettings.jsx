@@ -5,7 +5,7 @@ import { getGroupDetails, updateGroupName, leaveGroup, deleteGroup, removeMember
 import MainLayout from "../layouts/MainLayout";
 import { ChevronLeft, Loader } from "lucide-react";
 import { getFriends, sendFriendRequest } from "../services/FriendService";
-import { getGroupExpenses, updateGroupPrivacySetting } from "../services/GroupService";
+import { getGroupExpenses, updateGroupPrivacySetting, updateGroupSimplifySetting } from "../services/GroupService";
 import ModalWrapper from "../components/ModalWrapper";
 import { getSymbol } from "../utils/currencies"
 import { fetchReceivedRequests, fetchSentRequests, acceptFriendRequest, rejectFriendRequest } from "../services/FriendService";
@@ -24,6 +24,7 @@ export default function GroupSettings() {
     const [friends, setFriends] = useState([]);
     const [groupExpenses, setGroupExpenses] = useState([]);
     const [adminEnforcedPrivacy, setAdminEnforcedPrivacy] = useState(false);
+    const [simplifyDebtsEnabled, setSimplifyDebtsEnabled] = useState(true);
     const [confirmAction, setConfirmAction] = useState(null);
     // 'leave' | 'delete' | null
     const [busyAction, setBusyAction] = useState(false);
@@ -135,12 +136,13 @@ export default function GroupSettings() {
     };
 
 
-    async function fetchGroup() {
-        setLoading(true)
+    async function fetchGroup(notLoad) {
+        if (!notLoad) setLoading(true)
         const data = await getGroupDetails(id, userToken);
         setGroup(data);
         setNewGroupName(data.name);
         setAdminEnforcedPrivacy(data?.settings?.enforcePrivacy || false);
+        setSimplifyDebtsEnabled(data?.settings?.simplifyDebts || false);
         setLoading(false)
     }
 
@@ -367,6 +369,44 @@ export default function GroupSettings() {
 
                                 </ul>
                             </div>
+                            {/* Simplify Debts (group-level) */}
+                            <div className="bg-[#1A1A1A] border border-[#2C2C2C] rounded-lg p-4 mt-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="checkbox"
+                                            checked={!!simplifyDebtsEnabled}
+                                            onChange={async () => {
+                                                const next = !simplifyDebtsEnabled;
+                                                setSimplifyDebtsEnabled(next);
+                                                try {
+                                                    logEvent('group_setting_simplify_toggle', { next });
+                                                    await updateGroupSimplifySetting(id, next, userToken);
+                                                    // refresh to reflect persisted settings across the app
+                                                    await fetchGroup(true);
+                                                } catch (e) {
+                                                    // roll back on error
+                                                    setSimplifyDebtsEnabled(!next);
+                                                    console.error(e);
+                                                }
+                                            }}
+                                            className="w-5 h-5 accent-teal-500 cursor-pointer"
+                                            disabled={!isOwner}
+                                        />
+                                        <span className="text-base font-medium text-teal-400">
+                                            Simplify debts
+                                        </span>
+                                    </div>
+                                    {!isOwner && (
+                                        <span className="text-xs text-[#9aa08e]">Managed by group owner</span>
+                                    )}
+                                </div>
+                                <p className="text-sm text-gray-[#888] mt-2">
+                                    When enabled, the group’s default view uses transitive simplification to minimize settlements.
+                                    When disabled, members see pairwise net debts only (e.g., A→B and B→C stay separate, mutual A↔B collapses).
+                                </p>
+                            </div>
+
                             {/* Admin toggle: only visible to group creator */}
                             {isOwner ? (
                                 <div className="bg-[#1A1A1A] border border-[#2C2C2C] rounded-lg p-4 mt-6">

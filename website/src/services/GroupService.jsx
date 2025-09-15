@@ -180,3 +180,16 @@ export const updateGroupPrivacySetting = async (groupId, enforcePrivacy, userTok
     return data;
 };
 
+// services/GroupService.js
+export async function updateGroupSimplifySetting(groupId, simplify, userToken) {
+  const res = await fetch(`${BASE_URL}/v1/groups/${groupId}/settings/simplify-debts`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-auth-token': userToken,
+    },
+    body: JSON.stringify({ simplifyDebts: !!simplify }),
+  });
+  if (!res.ok) throw new Error('Failed to update simplifyDebts');
+  return res.json();
+}

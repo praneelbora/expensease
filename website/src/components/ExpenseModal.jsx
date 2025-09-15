@@ -87,7 +87,15 @@ export default function ExpenseModal({
     const [paymentMethod, setPaymentMethod] = useState('');
 
     const closePaymentModal = () => setPaymentModal({ open: false, context: 'personal', friendId: null });
-
+    const inferSplitModeFromSplits = (splitsArr = []) => {
+        if (!Array.isArray(splitsArr) || !splitsArr.length) return "equal";
+        // if any split has owePercent defined -> percent mode
+        if (splitsArr.some(s => s?.owePercent != null)) return "percent";
+        // if any split has non-zero oweAmount (and no percent) -> value mode
+        if (splitsArr.some(s => Number(s?.oweAmount || 0) > 0)) return "value";
+        // otherwise fallback
+        return "equal";
+    };
     const unifiedOptions = useMemo(() => {
         if (!paymentModal.open) return [];
         if (paymentModal.context === 'personal') {
@@ -134,7 +142,7 @@ export default function ExpenseModal({
         date: toInputDate(date) || "",
         typeOf: showModal?.typeOf || "expense",     // 'expense' | 'settle'
         mode: showModal?.mode || "personal",        // 'personal' | 'split'
-        splitMode: showModal?.splitMode || "equal", // 'equal' | 'value' | 'percent'
+        splitMode: (showModal?.splitMode ?? inferSplitModeFromSplits(splits)),
         // keep only ids for friendId (backend expects ids)
         splits: (splits || []).map(s => ({
             ...s,
@@ -157,8 +165,10 @@ export default function ExpenseModal({
                 if (!showModal?.groupId) {
                     if (alive) {
                         const norm = mergeMembersWithSplits([], splits);
+                        console.log('norm',norm);
+                        
                         setSelectedFriends(norm);
-                        setForm((f) => ({ ...f, splitMode: showModal?.splitMode || "equal" }))
+                        setForm((f) => ({ ...f, splitMode: (showModal?.splitMode ?? inferSplitModeFromSplits(splits)), }))
                     }
                     return;
                 }
@@ -168,13 +178,19 @@ export default function ExpenseModal({
 
                 if (alive) {
                     setGroupMembers(members);
-                    setSelectedFriends(mergeMembersWithSplits(members, splits));
-                    setForm((f) => ({ ...f, splitMode: showModal?.splitMode || "equal" }))
+                    const norm = mergeMembersWithSplits(members, splits);
+                    console.log('norm2 ',norm);
+                    setSelectedFriends(norm);
+                    // setSelectedFriends(mergeMembersWithSplits(members, splits));
+                    setForm((f) => ({ ...f, splitMode: (showModal?.splitMode ?? inferSplitModeFromSplits(splits)), }))
                 }
             } catch (e) {
                 if (alive) {
                     setGroupMembers([]);
-                    setSelectedFriends(mergeMembersWithSplits([], splits));
+                    const norm = mergeMembersWithSplits([], splits);
+                    console.log('norm3 ',norm);
+                    setSelectedFriends(norm);
+                    // setSelectedFriends(mergeMembersWithSplits([], splits));
                 }
                 console.error("Failed to load group members", e);
             }
@@ -431,7 +447,7 @@ export default function ExpenseModal({
             category: showModal?.category || "",
             typeOf: showModal?.typeOf || "expense",
             mode: showModal?.mode || "personal",
-            splitMode: showModal?.splitMode || "equal",
+            splitMode: (showModal?.splitMode ?? inferSplitModeFromSplits(splits)),
             splits: (splits || []).map(s => ({
                 ...s,
                 friendId: s?.friendId?._id || s?.friendId,
@@ -454,7 +470,7 @@ export default function ExpenseModal({
             let next = prev;
 
             // keep pay equalized if multiple payers
-            if (prev.some(p => p.paying)) next = equalizePay(next);
+            // if (prev.some(p => p.paying)) next = equalizePay(next);
 
             if (form.splitMode === "equal") {
                 // recalc equal owes
@@ -766,6 +782,8 @@ export default function ExpenseModal({
     useEffect(() => {
         if (isEditing) updateFriendsPaymentMethods(selectedFriends.map((f) => f._id))
     }, [isEditing])
+
+
     // Build footer
     const footer = (
         <>
@@ -817,7 +835,7 @@ export default function ExpenseModal({
                                         date: toInputDate(date) || "",
                                         typeOf: showModal?.typeOf || "expense",     // 'expense' | 'settle'
                                         mode: showModal?.mode || "personal",        // 'personal' | 'split'
-                                        splitMode: showModal?.splitMode || "equal", // 'equal' | 'value' | 'percent'
+                                        splitMode: (showModal?.splitMode ?? inferSplitModeFromSplits(splits)),
                                         // keep only ids for friendId (backend expects ids)
                                         splits: (splits || []).map(s => ({
                                             ...s,
@@ -1203,11 +1221,13 @@ export default function ExpenseModal({
                                                             type="number"
                                                             value={f.payAmount}
                                                             onChange={(e) => {
-                                                                const val = parseFloat(e.target.value || 0);
-                                                                setSelectedFriends((prev) =>
-                                                                    prev.map((prevF) => (f._id === prevF._id ? { ...prevF, payAmount: val } : f))
-                                                                );
+                                                                const val = Number(e.target.value || 0);
+                                                                console.log(val);
+
+                                                                setSelectedFriends(prev => prev.map(p => p._id === f._id ? { ...p, payAmount: val } : p));
                                                             }}
+
+
                                                             placeholder="Amount"
                                                         />}
                                                     </div>

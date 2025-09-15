@@ -1,3 +1,4 @@
+// models/Group.js
 const mongoose = require('mongoose');
 
 const contributionSchema = new mongoose.Schema({
@@ -12,7 +13,8 @@ const groupSchema = new mongoose.Schema({
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     settings: {
-        enforcePrivacy: { type: Boolean, default: false }
+        enforcePrivacy: { type: Boolean, default: false },
+        simplifyDebts: { type: Boolean, default: true }
     },
     fundBalance: { type: Number, default: 0 }, // total money in group account
     contributions: [contributionSchema], // who gave money and when
