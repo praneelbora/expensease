@@ -254,7 +254,12 @@ export default function GroupSettingsScreen() {
             <StatusBar style={theme?.statusBarStyle === "dark-content" ? "dark" : "light"} />
             <Header showBack title="Group Settings" />
             <View style={styles.container}>
-                <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme?.colors?.primary ?? "#60DFC9"} />}>
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={<RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={theme?.colors?.primary ?? "#60DFC9"} />}>
                     {loading ? (
                         <View style={styles.loadingWrap}>
                             <ActivityIndicator color={theme?.colors?.primary ?? "#60DFC9"} />
@@ -392,7 +397,7 @@ export default function GroupSettingsScreen() {
                                 <View style={styles.section}>
                                     <View style={styles.privacyBox}>
                                         <Text style={styles.privacyTitle}>Enforce privacy mode</Text>
-                                        <Switch value={adminEnforcedPrivacy} onValueChange={togglePrivacy} thumbColor={theme?.colors?.primary ?? "#60DFC9"} />
+                                        <Switch value={adminEnforcedPrivacy} onValueChange={togglePrivacy} trackColor={theme?.colors?.primary} ios_backgroundColor={theme?.colors?.primary} thumbColor={theme?.colors?.text ?? "#60DFC9"} />
                                     </View>
                                     <Text style={styles.privacyDesc}>When enabled, members only see expenses they’re involved in.</Text>
                                 </View>
@@ -529,7 +534,7 @@ const createStyles = (theme = {}) =>
         summaryAmount: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 22, fontWeight: "800", marginTop: 6 },
 
         summaryStatsRow: { flexDirection: "row", gap: 12, marginTop: 12 },
-        statBox: { flex: 1, backgroundColor: theme?.colors?.cardAlt ?? "#2A2A2A", borderRadius: 10, padding: 10 },
+        statBox: { flex: 1, backgroundColor: theme?.colors?.background ?? "#2A2A2A", borderRadius: 10, padding: 10 },
         statLabel: { color: theme?.colors?.muted ?? "#9aa08e", fontSize: 12 },
         statValue: { color: theme?.colors?.primary ?? "#60DFC9", fontSize: 18, fontWeight: "700" },
 
@@ -553,7 +558,7 @@ const createStyles = (theme = {}) =>
         requestAcceptText: { color: theme?.colors?.primary ?? "#60DFC9", fontSize: 12 },
         requestRejectText: { color: theme?.colors?.negative ?? "#f87171", fontSize: 12 },
 
-        privacyBox: { backgroundColor: theme?.colors?.cardAlt ?? "#212121", borderColor: theme?.colors?.border ?? "#333", borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+        privacyBox: { backgroundColor: theme?.colors?.card ?? "#212121", borderColor: theme?.colors?.border ?? "#333", borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
         privacyTitle: { color: theme?.colors?.primary ?? "#60DFC9", fontWeight: "700" },
         privacyDesc: { color: theme?.colors?.muted ?? "#9aa08e", marginTop: 8, fontSize: 12 },
 

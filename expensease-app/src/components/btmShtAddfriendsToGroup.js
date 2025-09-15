@@ -21,15 +21,7 @@ export default function BottomSheetAddFriends({
     groupId,
     onClose,
     onAdded,
-    /**
-     * Optional callback invoked when there are no friends.
-     * Parent should open another bottom sheet (invite flow) inside this callback.
-     * e.g. onNoFriends={() => inviteSheetRef.current?.present()}
-     */
     onNoFriends,
-    /**
-     * If true, automatically call onNoFriends once friends load and are empty.
-     */
     autoTriggerIfEmpty = false,
 }) {
     const insets = useSafeAreaInsets();
@@ -45,7 +37,7 @@ export default function BottomSheetAddFriends({
     const [loading, setLoading] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
-    const [loadedOnce, setLoadedOnce] = useState(false); // used for auto-trigger check
+    const [loadedOnce, setLoadedOnce] = useState(false);
 
     // Load friends when sheet opens
     useEffect(() => {
@@ -90,15 +82,6 @@ export default function BottomSheetAddFriends({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [autoTriggerIfEmpty, loadedOnce, loading, friends]);
 
-    const filtered = useMemo(() => {
-        const q = query.trim().toLowerCase();
-        return friends.filter(
-            (f) =>
-                !selected.find((s) => s._id === f._id) &&
-                (f.name?.toLowerCase().includes(q) || f.email?.toLowerCase().includes(q))
-        );
-    }, [friends, query, selected]);
-
     const toggleSelect = (friend) => {
         if (selected.find((s) => s._id === friend._id)) {
             setSelected((prev) => prev.filter((s) => s._id !== friend._id));
@@ -126,7 +109,6 @@ export default function BottomSheetAddFriends({
         }
     };
 
-    // If no friends at all, show CTA to trigger `onNoFriends`
     const renderNoFriends = () => (
         <View style={{ padding: 24, alignItems: "center" }}>
             <Feather name="users" size={48} color={colors.muted || "#888"} />
@@ -138,7 +120,7 @@ export default function BottomSheetAddFriends({
             </Text>
 
             <TouchableOpacity
-                style={[styles.btn, { marginTop: 18,paddingHorizontal: 12 }]}
+                style={[styles.btn, { marginTop: 18, paddingHorizontal: 12 }]}
                 onPress={() => {
                     if (typeof onNoFriends === "function") onNoFriends();
                 }}
@@ -146,16 +128,12 @@ export default function BottomSheetAddFriends({
                 <Text style={styles.btnText}>Invite / Add Friends</Text>
             </TouchableOpacity>
 
-            {/* small secondary hint */}
             <TouchableOpacity
                 style={{ marginTop: 12 }}
                 onPress={() => {
-                    // also allow opening the native add-friends flow inside this sheet (if parent doesn't handle)
-                    // fallback: present the system share sheet with an invite message if parent didn't supply onNoFriends
                     if (typeof onNoFriends === "function") {
                         onNoFriends();
                     } else {
-                        // no parent handler — dismiss and leave to parent to react (safe fallback)
                         innerRef.current?.dismiss();
                     }
                 }}
@@ -165,11 +143,33 @@ export default function BottomSheetAddFriends({
         </View>
     );
 
+    // Build the list shown in the FlatList:
+    // - take friends that match the query
+    // - show selected ones first (in the order they were selected), then the rest
+    const listData = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        const matchesQuery = (f) =>
+            f.name?.toLowerCase().includes(q) || f.email?.toLowerCase().includes(q) || q === "";
+
+        const visible = friends.filter(matchesQuery);
+
+        // map selected IDs for quick lookup
+        const selectedIds = new Set(selected.map((s) => s._id));
+
+        // selected items that are in visible list (preserve selection order)
+        const selectedVisible = selected.filter((s) => visible.find((v) => v._id === s._id));
+
+        // remaining visible that are not selected
+        const others = visible.filter((v) => !selectedIds.has(v._id));
+
+        return [...selectedVisible, ...others];
+    }, [friends, query, selected]);
+
     return (
         <MainBottomSheet
             innerRef={innerRef}
             onDismiss={onClose}
-            snapPoints={["100%"]} // full screen
+            snapPoints={["100%"]}
         >
             <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
                 {/* Header */}
@@ -192,21 +192,7 @@ export default function BottomSheetAddFriends({
                     />
                 </View>
 
-                {/* Selected chips */}
-                {selected.length > 0 && (
-                    <View style={styles.chipsContainer}>
-                        {selected.map((f) => (
-                            <View key={f._id} style={styles.chip}>
-                                <Text style={styles.chipText} numberOfLines={1}>
-                                    {f?.name}
-                                </Text>
-                                <TouchableOpacity onPress={() => toggleSelect(f)} style={styles.removeBtn}>
-                                    <Text>X</Text>
-                                </TouchableOpacity>
-                            </View>
-                        ))}
-                    </View>
-                )}
+                {/* NOTE: chips removed — selected items now show at top of main list */}
 
                 {/* Friends list or no-friends CTA */}
                 {loading ? (
@@ -215,24 +201,40 @@ export default function BottomSheetAddFriends({
                     renderNoFriends()
                 ) : (
                     <FlatList
-                        data={filtered}
+                        data={listData}
                         keyExtractor={(f) => f._id}
                         style={{ flex: 1, marginTop: 12 }}
-                        renderItem={({ item }) => (
-                            <TouchableOpacity style={styles.friendRow} onPress={() => toggleSelect(item)}>
-                                <View style={{ flex: 1, minWidth: 0 }}>
-                                    <Text style={styles.friendName} numberOfLines={1}>
-                                        {item?.name}
-                                    </Text>
-                                    <Text style={styles.friendEmail}>{item?.email}</Text>
-                                </View>
-                                {selected.find((s) => s._id === item._id) ? (
-                                    <Feather name="check-circle" size={22} color={colors.cta || colors.primary} />
-                                ) : (
-                                    <Feather name="circle" size={22} color={colors.muted || "#777"} />
-                                )}
-                            </TouchableOpacity>
-                        )}
+                        renderItem={({ item }) => {
+                            const isSelected = !!selected.find((s) => s._id === item._id);
+                            return (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.friendRow,
+                                        isSelected ? styles.friendRowSelected : null,
+                                    ]}
+                                    onPress={() => toggleSelect(item)}
+                                >
+                                    <View style={{ flex: 1, minWidth: 0 }}>
+                                        <Text style={styles.friendName} numberOfLines={1}>
+                                            {item?.name}
+                                        </Text>
+                                        <Text style={styles.friendEmail}>{item?.email}</Text>
+                                    </View>
+
+                                    {/* Right-side selected button */}
+                                    <TouchableOpacity
+                                        onPress={() => toggleSelect(item)}
+                                        style={styles.iconWrap}
+                                    >
+                                        {isSelected ? (
+                                            <Feather name="check-circle" size={22} color={colors.cta || colors.primary} />
+                                        ) : (
+                                            <Feather name="circle" size={22} color={colors.muted || "#777"} />
+                                        )}
+                                    </TouchableOpacity>
+                                </TouchableOpacity>
+                            );
+                        }}
                     />
                 )}
 
@@ -286,29 +288,6 @@ const createStyles = (c = {}) =>
         },
         searchInput: { flex: 1, color: c.text || "#EBF1D5", paddingVertical: 8, fontSize: 16 },
 
-        chipsContainer: {
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: 8,
-            paddingHorizontal: 16,
-            marginTop: 6,
-        },
-        chip: {
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: c.border || "#333",
-            borderRadius: 20,
-            paddingHorizontal: 10,
-            paddingVertical: 4,
-        },
-        chipText: { color: c.text || "#EBF1D5", fontSize: 13, fontWeight: "600" },
-        removeBtn: {
-            marginLeft: 6,
-            backgroundColor: c.card || "#555",
-            borderRadius: 999,
-            padding: 2,
-        },
-
         friendRow: {
             flexDirection: "row",
             justifyContent: "space-between",
@@ -317,9 +296,21 @@ const createStyles = (c = {}) =>
             paddingVertical: 12,
             borderBottomWidth: StyleSheet.hairlineWidth,
             borderBottomColor: c.border || "#333",
+            backgroundColor: "transparent",
+        },
+        friendRowSelected: {
+            // subtle highlight for selected rows
+            backgroundColor: c.card || "#2a2a2a",
         },
         friendName: { color: c.text || "#EBF1D5", fontSize: 15, fontWeight: "600" },
         friendEmail: { color: c.muted || "#888", fontSize: 12 },
+
+        iconWrap: {
+            paddingLeft: 12,
+            paddingVertical: 4,
+            justifyContent: "center",
+            alignItems: "center",
+        },
 
         btn: {
             marginHorizontal: 16,
