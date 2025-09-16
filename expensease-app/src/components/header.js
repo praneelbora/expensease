@@ -115,7 +115,7 @@ export default function Header({
                             filterBtnActive && styles.filterBtnActive,
                         ]}
                     >
-                        <Filter size={18} color={filterBtnActive ? theme.colors.primary : theme.colors.muted} />
+                        <Filter size={18} color={theme.colors.text} />
                     </Pressable>
                 )}
 
@@ -166,12 +166,14 @@ const createStyles = (theme) =>
         filterBtn: {
             padding: 8,
             borderRadius: 8,
-            borderWidth: 0,
+            borderWidth: 0.5,
+            borderColor: "#00000088",
             backgroundColor: "transparent",
         },
         filterBtnActive: {
             borderWidth: 1,
-            borderColor: `${theme.colors.primary}44`, // subtle alpha
+            borderColor: `${theme.colors.primary}`, // subtle alpha
+            backgroundColor: `${theme.colors.primary}44`, // subtle alpha
         },
         brand: {
             color: theme.colors.text,

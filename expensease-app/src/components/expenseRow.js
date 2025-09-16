@@ -6,7 +6,7 @@ import { useTheme } from "context/ThemeProvider";
 import { getSymbol } from "utils/currencies";
 import CategoryIcon from "./categoryIcon";
 import { categoryMap } from "utils/categories";
-import { deleteExpense } from "services/ExpenseService";
+import { deleteExpense, updateExpense } from "services/ExpenseService";
 import SettleIcon from "@/icons/handshake";
 import BottomSheetExpense from "./btmShtExpense";
 
@@ -209,6 +209,14 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
                 innerRef={expenseSheetRef}
                 expense={expense}
                 userId={userId}
+                onUpdateExpense={async (id, payload) => {
+                    try {
+                        await updateExpense(id, payload);
+                        update()
+                    } catch (error) {
+                        console.warn("updateExpense failed:", error);
+                    }
+                }}
                 onDelete={async (id) => {
                     try {
                         await deleteExpense(id);
