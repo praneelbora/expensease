@@ -148,7 +148,7 @@ const createStyles = (c = {}) =>
       borderBottomWidth: 1,
       borderBottomColor: c.border || "#333",
     },
-    headerText: { color: c.text || "#EBF1D5", fontSize: 18, fontWeight: "700" },
+    headerText: { color: c.text || "#EBF1D5", fontSize: 18, fontWeight: "700", textTransform: "capitalize" },
     closeBtn: { padding: 4 },
 
     footerWrap: {

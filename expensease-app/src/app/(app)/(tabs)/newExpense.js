@@ -1076,7 +1076,7 @@ const createStyles = (theme = {}) => {
         chipText: { color: palette.text },
         chipTextActive: { color: palette.text, fontWeight: "700" },
 
-        chip2: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 2, borderColor: palette.muted, backgroundColor: "transparent" },
+        chip2: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, borderWidth: 2, borderColor: palette.muted, backgroundColor: "transparent" },
         chip2Active: { backgroundColor: `${palette.cta}33`, borderColor: `${palette.cta}33` },
         chip2Text: { color: palette.text },
         chip2TextActive: { color: palette.text, fontWeight: "700" },

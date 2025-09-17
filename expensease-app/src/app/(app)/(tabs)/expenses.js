@@ -11,6 +11,8 @@ import {
     Modal,
     Platform,
 } from "react-native";
+import { SectionList } from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -146,6 +148,8 @@ export default function ExpensesScreen() {
     useEffect(() => {
         fetchExpenses();
     }, [fetchExpenses]);
+    // --- summary calculation ---
+
 
     // pull-to-refresh
     const [refreshing, setRefreshing] = useState(false);
@@ -360,10 +364,245 @@ export default function ExpensesScreen() {
 
         return filterExpenses(expenses, appliedFilter, query);
     }, [expenses, appliedFilter, query]);
+    // only show what the user is owing in the current filtered results
+    const summary = useMemo(() => {
+        if (!filteredExpenses || filteredExpenses.length === 0) return null;
+        if (!userId) {
+            // userId not known yet — avoid returning misleading totals
+            console.log("SUMMARY: userId not available yet");
+            return null;
+        }
 
-    useEffect(() => {
-        console.log('log: ', DEFAULT_FILTER, appliedFilter);
-    }, [DEFAULT_FILTER, appliedFilter]);
+        console.log("SUMMARY: computing owe totals for", filteredExpenses.length, "items");
+
+        // totals by currency but only include amounts the user owes (user split's oweAmount)
+        const totals = filteredExpenses.reduce((acc, e) => {
+            const splits = e.splits || [];
+            const userSplit = splits.find((s) => s.friendId && s.friendId._id === userId);
+            // consider oweAmount (if present) as what the user owes for this expense
+            const owe = Number(userSplit?.oweAmount ?? 0);
+            if (owe > 0) {
+                const cur = e.currency || defaultCurrency || "UNK";
+                acc[cur] = (acc[cur] || 0) + owe;
+            }
+            return acc;
+        }, {});
+
+        // remove zero entries
+        const nonZeroEntries = Object.entries(totals).filter(([, amt]) => amt > 0);
+        if (nonZeroEntries.length === 0) {
+            console.log("SUMMARY: user owes nothing in the filtered results");
+            return {
+                count: filteredExpenses.length,
+                amounts: [],
+                activeLabel: "", // still useful if you want to show filter info
+            };
+        }
+
+        // produce a human readable amounts array: ["₹1,234.00", "USD 200"]
+        const amountStrings = nonZeroEntries.map(([cur, amt]) => {
+            const digits = getDigits(cur) ?? 2;
+            const sym = getSymbol(cur) || cur;
+            const formatted =
+                typeof sym === "string" && sym.length <= 3 && sym !== cur
+                    ? `${sym}${Number(amt).toFixed(digits)}`
+                    : `${cur} ${Number(amt).toFixed(digits)}`;
+            return formatted;
+        });
+
+        // active filter labels
+        const activeParts = [];
+        if (appliedFilter.type && appliedFilter.type !== DEFAULT_FILTER.type) activeParts.push(appliedFilter.type);
+        if (appliedFilter.category && appliedFilter.category !== DEFAULT_FILTER.category) activeParts.push(appliedFilter.category);
+        if (appliedFilter.date === "custom" && (appliedFilter.dateRange?.from || appliedFilter.dateRange?.to)) {
+            const from = appliedFilter.dateRange?.from ? new Date(appliedFilter.dateRange.from).toLocaleDateString() : null;
+            const to = appliedFilter.dateRange?.to ? new Date(appliedFilter.dateRange.to).toLocaleDateString() : null;
+            activeParts.push(`${from || "..."} → ${to || "..."}`);
+        } else if (appliedFilter.date) {
+            activeParts.push(appliedFilter.date);
+        }
+
+        console.log("SUMMARY: owe totals:", nonZeroEntries, "labels:", activeParts);
+
+        return {
+            count: filteredExpenses.length,
+            amounts: amountStrings,
+            activeLabel: activeParts.join(" • "),
+        };
+    }, [filteredExpenses, appliedFilter, defaultCurrency, userId]);
+
+    const SummaryHeader = ({ summary }) => {
+        if (!summary) return null;
+        return (
+            <View style={{ paddingHorizontal: 4 }}>
+                <View style={[styles.expenseRow, { padding: 12, backgroundColor: theme.colors.card, borderRadius: 12 }]}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: theme.colors.text, fontWeight: "700", fontSize: 15 }}>
+                            Showing {summary.count} {summary.count === 1 ? "expense" : "expenses"}
+                        </Text>
+                        {summary.activeLabel ? (
+                            <Text style={{ color: theme.colors.muted, marginTop: 4, fontSize: 12, textTransform: 'capitalize' }}>
+                                Filters: {summary.activeLabel}
+                            </Text>
+                        ) : null}
+                    </View>
+
+                    <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
+                        {summary.amounts.map((a, i) => (
+                            <View key={i} >
+                            <Text style={{ color: theme.colors.muted, fontSize: 12, textAlign: "right" }}>
+                                you spent
+                            </Text>
+                            <Text style={{ color: theme.colors.text, fontWeight: "700", fontSize: 15 }}>
+                                {a}
+                            </Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+            </View>
+        );
+    };
+
+const sections = useMemo(() => {
+    if (!filteredExpenses || filteredExpenses.length === 0) return [];
+
+    // helper to get month key "YYYY-MM" and readable label "Sep 2025"
+    const getMonthKey = (isoDate) => {
+        const d = new Date(isoDate);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const label = d.toLocaleDateString("en-GB", { year: "numeric", month: "short" });
+        return { key, label, ts: +new Date(d.getFullYear(), d.getMonth(), 1) };
+    };
+
+    const map = new Map();
+
+    // group by month key
+    filteredExpenses.forEach((e) => {
+        if (!e?.date) return; // skip if no date
+        const { key, label, ts } = getMonthKey(e.date);
+        if (!map.has(key)) {
+            map.set(key, { key, label, ts, items: [] });
+        }
+        map.get(key).items.push(e);
+    });
+
+    // convert to array and sort months descending (newest first)
+    const arr = Array.from(map.values()).sort((a, b) => b.ts - a.ts);
+
+    // compute per-month owe totals for current user
+    const sectionsWithSummary = arr.map((group) => {
+        const totals = group.items.reduce((acc, e) => {
+            // skip settlement records completely
+            if (e.typeOf === "settle") {
+                return acc;
+            }
+
+            // determine how much this user owes for this expense (default 0)
+            let owe = 0;
+
+            // 1) personal mode: if the expense was created by someone else, user owes the whole amount
+            if (e.mode === "personal") {
+                console.log(e);
+                acc[e.currency] = acc[e.currency] + Math.abs(e.amount)
+                // const createdById = e.createdBy?._id ?? e.createdBy;
+                // if (createdById && String(createdById) !== String(userId)) {
+                //     owe = Number(e.amount ?? 0);
+                // } else {
+                //     owe = 0;
+                // }
+            } else {
+                // 2) split mode (or default): find user's split and use oweAmount
+                const splits = e.splits || [];
+                const userSplit = splits.find((s) => {
+                    const fid = s.friendId?._id ?? s.friendId;
+                    return fid && String(fid) === String(userId);
+                });
+                owe = Number(userSplit?.oweAmount ?? 0);
+            }
+
+            if (owe > 0) {
+                const cur = (e.currency || defaultCurrency || "UNK").toUpperCase();
+                acc[cur] = (acc[cur] || 0) + owe;
+            }
+
+            return acc; // important: always return accumulator
+        }, {});
+
+        // format amounts (only non-zero)
+        const amountEntries = Object.entries(totals).filter(([, v]) => v > 0);
+        const amountStrings = amountEntries.map(([cur, amt]) => {
+            const digits = getDigits(cur) ?? 2;
+            const sym = getSymbol(cur) || cur;
+            return (typeof sym === "string" && sym.length <= 3 && sym !== cur)
+                ? `${sym}${Number(amt).toFixed(digits)}`
+                : `${cur} ${Number(amt).toFixed(digits)}`;
+        });
+
+        // also count only those items where user owes > 0 (optional)
+        const oweCount = group.items.filter((e) => {
+            if (e.typeOf === "settle") return false;
+            if (e.mode === "personal") {
+                const createdById = e.createdBy?._id ?? e.createdBy;
+                return createdById && String(createdById) !== String(userId);
+            }
+            const splits = e.splits || [];
+            const userSplit = splits.find((s) => {
+                const fid = s.friendId?._id ?? s.friendId;
+                return fid && String(fid) === String(userId);
+            });
+            return Number(userSplit?.oweAmount ?? 0) > 0;
+        }).length;
+
+        return {
+            title: group.label,
+            key: group.key,
+            data: group.items, // SectionList expects `data` array
+            summary: {
+                totalByCurrency: totals,
+                amountStrings,
+                itemCount: group.items.length,
+            },
+        };
+    });
+
+    return sectionsWithSummary;
+}, [filteredExpenses, userId, defaultCurrency]);
+
+///// ---------- Month summary header component ----------
+const MonthHeader = ({ title, summary }) => {
+    // nothing to show if no owe amounts
+    const { amountStrings = [], oweCount = 0 } = summary || {};
+    return (
+        <View style={{ paddingHorizontal: 4, paddingTop: 12, paddingBottom: 6 }}>
+            <View style={[styles.expenseRow, { padding: 12, backgroundColor: theme.colors.card, borderRadius: 12 }]}>
+                <View style={{ flex: 1 }}>
+                    <Text style={{ color: theme.colors.text, fontWeight: "700", fontSize: 15 }}>
+                        {title}
+                    </Text>
+                    <Text style={{ color: theme.colors.muted, marginTop: 4, fontSize: 12 }}>
+                        {summary?.itemCount ?? 0} {summary?.itemCount === 1 ? "expense" : "expenses"}
+                        {oweCount > 0 ? ` • ${oweCount} ${oweCount === 1 ? "owe" : "owes"}` : ""}
+                    </Text>
+                </View>
+
+                <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
+                    {amountStrings.length > 0 ? (
+                        amountStrings.map((a, i) => (
+                            <Text key={i} style={{ color: theme.colors.primary, fontWeight: "700", fontSize: 14 }}>
+                                {a}
+                            </Text>
+                        ))
+                    ) : (
+                        <Text style={{ color: theme.colors.muted, fontSize: 12 }}>You owe nothing</Text>
+                    )}
+                </View>
+            </View>
+        </View>
+    );
+};
+
+///// ---------- SectionList rendering (replace your FlatList) ----------
 
 
     return (
@@ -382,9 +621,49 @@ export default function ExpensesScreen() {
                 {expenses.length > 0 && (
                     <SearchBar value={query} onChangeText={setQuery} placeholder="Search Descriptions / Names / Amounts / Currencies" />
                 )}
-
+                <SectionList
+    sections={loading ? [] : sections}
+    keyExtractor={(item) => String(item._id)}
+    renderItem={({ item }) => (
+        <ExpenseRow
+            expense={item}
+            userId={userId}
+            showExpense={appliedFilter.mode === "expense"}
+            update={fetchExpenses}
+        />
+    )}
+    renderSectionHeader={({ section }) => (<MonthHeader title={section.title} summary={section.summary} />)}
+    showsVerticalScrollIndicator={false}
+    contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
+    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+    ListEmptyComponent={
+        loading ? (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+                <Feather name="loader" size={22} color={theme.colors.text} />
+            </View>
+        ) : (expenses.length === 0) ? (
+            <View style={styles.emptyWrap}>
+                <Text style={styles.emptyTitle}>No expenses found.</Text>
+                <Text style={styles.emptyText}>Add your first expense to see it here.</Text>
+            </View>
+        ) : (
+            <View style={styles.emptyWrap}>
+                <Text style={[styles.emptyTitle, { marginBottom: 6 }]}>No results.</Text>
+                <Text style={styles.emptyText}>Clear filters to view more.</Text>
+                <TouchableOpacity
+                    style={[styles.ctaBtn, { marginTop: 10 }]}
+                    onPress={() => setAppliedFilter(DEFAULT_FILTER)}
+                >
+                    <Text style={styles.ctaBtnText}>Clear Filters</Text>
+                </TouchableOpacity>
+            </View>
+        )
+    }
+    // optional: keep headers sticky
+    stickySectionHeadersEnabled={false}
+/>
                 {/* List */}
-                <FlatList
+                {/* <FlatList
                     data={loading ? [] : filteredExpenses}
                     keyExtractor={(item) => String(item._id)}
                     renderItem={({ item }) => (
@@ -398,6 +677,9 @@ export default function ExpensesScreen() {
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+                    ListHeaderComponent={
+                        areFiltersActive(appliedFilter) && summary ? <SummaryHeader summary={summary} /> : null
+                    }
                     ListEmptyComponent={
                         loading ? (
                             <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -432,7 +714,7 @@ export default function ExpensesScreen() {
                             </Text>
                         ) : null
                     }
-                />
+                /> */}
 
                 {/* Filters sheet */}
                 <BottomSheetFilters
@@ -532,4 +814,11 @@ const createStyles = (theme) =>
         modalBtnSecondary: { backgroundColor: theme?.colors?.card ?? "#2a2a2a", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
         modalBtnPrimary: { backgroundColor: theme?.colors?.primary ?? "#00C49F", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
         modalBtnText: { color: theme?.colors?.text ?? "#EBF1D5", fontWeight: "600" },
+        summaryWrap: {
+            marginHorizontal: 0,
+        },
+        summaryText: {
+            color: theme?.colors?.muted ?? "#888",
+        },
+
     });
