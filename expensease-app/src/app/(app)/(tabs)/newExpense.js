@@ -129,7 +129,7 @@ export default function NewExpenseScreen() {
 
     // ---------- fetchers ----------
     const pullFriends = useCallback(async () => {
-        if(!userToken)return;
+        if (!userToken) return;
         try {
             const data = await getFriends(userToken);
             setFriends(Array.isArray(data) ? data : []);
@@ -139,7 +139,7 @@ export default function NewExpenseScreen() {
     }, [userToken]);
 
     const pullGroups = useCallback(async () => {
-        if(!userToken)return;
+        if (!userToken) return;
         try {
             const data = await getAllGroups(userToken);
             setGroups(Array.isArray(data) ? data : []);
@@ -149,7 +149,7 @@ export default function NewExpenseScreen() {
     }, [userToken]);
 
     const pullSuggestions = useCallback(async () => {
-        if(!userToken)return;
+        if (!userToken) return;
         try {
             const data = await getSuggestions(userToken);
             setSuggestions(data || null);
@@ -480,12 +480,12 @@ export default function NewExpenseScreen() {
             .filter((f) => Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1)
             .filter((f) => !f.selectedPaymentMethodId);
     }, [selectedFriends]);
-    const selectedCategory = useMemo(()=>{
+    const selectedCategory = useMemo(() => {
         const a = categoryOptions.filter((opt) => opt.value === category)
-        if(a.length==1) return a[0].label
-        
-        
-    },[category])
+        if (a.length == 1) return a[0].label
+
+
+    }, [category])
     // ---------- validation + hint message ----------
     const [hint, setHint] = useState("");
     useEffect(() => {
@@ -629,9 +629,6 @@ export default function NewExpenseScreen() {
             setGroupSelect(null);
             setExpenseDate(todayISO());
             await fetchPaymentMethods();
-            console.log(hasPreselectedFriend);
-            console.log(hasPreselectedGroup);
-            
             // go back if preselected
             if (hasPreselectedGroup.current && groupSelect?._id) return router.back();
             if (hasPreselectedFriend.current && preselectedFriendId?._id) return router.back();

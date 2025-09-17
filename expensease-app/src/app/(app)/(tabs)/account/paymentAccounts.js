@@ -156,8 +156,6 @@ export default function PaymentAccountsScreen() {
         setShowAddBalance(true);
     };
     const submitAddBalance = async ({ action, currency, amountMajor, bucket }) => {
-        console.log();
-
         if (!selectedPM?._id) return;
         const base = { currency, amount: amountMajor };
 

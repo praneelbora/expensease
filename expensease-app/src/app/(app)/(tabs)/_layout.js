@@ -47,7 +47,7 @@ export default function TabsLayout() {
     );
 
     return (
-        <Tabs screenOptions={opts}>
+        <Tabs initialRouteName="dashboard" screenOptions={opts}>
             <Tabs.Screen
                 name="friends"
                 options={{

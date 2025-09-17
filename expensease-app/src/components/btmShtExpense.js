@@ -68,7 +68,7 @@ export default function ExpenseBottomSheet({
 
     // control state
     const [loading, setLoading] = useState(false);
-    const [isEditing, setIsEditing] = useState(true);
+    const [isEditing, setIsEditing] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [viewSplits, setViewSplits] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
@@ -462,10 +462,28 @@ export default function ExpenseBottomSheet({
     const lastAudit = Array.isArray(expense?.auditLog) && expense?.auditLog.length ? expense.auditLog[expense.auditLog.length - 1] : null;
 
     // footer options for layout
+    // footer options for layout (replace your existing footerOptions)
     const footerOptions = {
         showDelete: true,
         onDelete: () => {
-            setConfirmDelete(true)
+            // show confirmation alert before deleting
+            Alert.alert(
+                "Delete Expense",
+                "Are you sure you want to delete this expense? This will delete the expense for everyone.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                        text: "Delete",
+                        style: "destructive",
+                        onPress: () => {
+                            // call the existing delete handler
+                            handleDelete();
+                        },
+                    },
+                ],
+                { cancelable: true }
+            );
+            // return nothing; delete happens in onPress of the alert
         },
         deleteLabel: "Delete",
         onCancel: () => {
@@ -483,6 +501,7 @@ export default function ExpenseBottomSheet({
         primaryDisabled: loading || (isEditing && !canSubmit()),
         busy: loading,
     };
+
 
     function canSubmit() {
         if (form.mode == "personal" && form.typeOf == "expense") {
@@ -696,7 +715,7 @@ export default function ExpenseBottomSheet({
                                 <View style={{ gap: 8 }}>
                                     {selectedFriends.filter((f) => f.paying).map((f) => (
                                         <View key={f._id} style={styles.splitRow}>
-                                            <Text style={{color:colors.text}}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
+                                            <Text style={{ color: colors.text }}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
                                             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                                 {Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1 && (
                                                     <TouchableOpacity onPress={() => {
@@ -738,21 +757,21 @@ export default function ExpenseBottomSheet({
                                         <View style={{ gap: 8 }}>
                                             <Text style={styles.sectionTitle}>Split options</Text>
                                             <View style={{ flexDirection: "row", gap: 8 }}>
-                                                <TouchableOpacity onPress={() => { setForm((f) => ({ ...f, splitMode: "equal" })); setSelectedFriends(equalizeOwe); }} style={[styles.modeBtn, form.splitMode === "equal" ? styles.modeBtnActive : styles.modeBtnInactive]}><Text style={{color:form.splitMode === "equal"?colors.textDark :colors.text}}>=</Text></TouchableOpacity>
-                                                <TouchableOpacity onPress={() => setForm((f) => ({ ...f, splitMode: "value" }))} style={[styles.modeBtn, form.splitMode === "value" ? styles.modeBtnActive : styles.modeBtnInactive]}><Text style={{color:form.splitMode === "value"?colors.textDark :colors.text}}>1.23</Text></TouchableOpacity>
-                                                <TouchableOpacity onPress={() => setForm((f) => ({ ...f, splitMode: "percent" }))} style={[styles.modeBtn, form.splitMode === "percent" ? styles.modeBtnActive : styles.modeBtnInactive]}><Text style={{color:form.splitMode === "percent"?colors.textDark :colors.text}}>%</Text></TouchableOpacity>
+                                                <TouchableOpacity onPress={() => { setForm((f) => ({ ...f, splitMode: "equal" })); setSelectedFriends(equalizeOwe); }} style={[styles.modeBtn, form.splitMode === "equal" ? styles.modeBtnActive : styles.modeBtnInactive]}><Text style={{ color: form.splitMode === "equal" ? colors.textDark : colors.text }}>=</Text></TouchableOpacity>
+                                                <TouchableOpacity onPress={() => setForm((f) => ({ ...f, splitMode: "value" }))} style={[styles.modeBtn, form.splitMode === "value" ? styles.modeBtnActive : styles.modeBtnInactive]}><Text style={{ color: form.splitMode === "value" ? colors.textDark : colors.text }}>1.23</Text></TouchableOpacity>
+                                                <TouchableOpacity onPress={() => setForm((f) => ({ ...f, splitMode: "percent" }))} style={[styles.modeBtn, form.splitMode === "percent" ? styles.modeBtnActive : styles.modeBtnInactive]}><Text style={{ color: form.splitMode === "percent" ? colors.textDark : colors.text }}>%</Text></TouchableOpacity>
                                             </View>
 
                                             <View style={{ gap: 8 }}>
                                                 {selectedFriends.filter((f) => f.owing).map((f) => (
                                                     <View key={f._id} style={styles.splitRow}>
-                                                        <Text style={{color:colors.text}}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
+                                                        <Text style={{ color: colors.text }}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
                                                         {form.splitMode === "percent" ? (
                                                             <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.owePercent ?? "")} onChangeText={(v) => handleOwePercentChange(f._id, v)} placeholder="Percent" />
                                                         ) : form.splitMode === "value" ? (
                                                             <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.oweAmount ?? "")} onChangeText={(v) => handleOweChange(f._id, v)} placeholder="Amount" />
                                                         ) : (
-                                                            <Text style={{color:colors.text}}>{Number(f.oweAmount || 0).toFixed(2)}</Text>
+                                                            <Text style={{ color: colors.text }}>{Number(f.oweAmount || 0).toFixed(2)}</Text>
                                                         )}
                                                     </View>
                                                 ))}
@@ -778,7 +797,7 @@ export default function ExpenseBottomSheet({
         return (
             <BottomSheetLayout
                 innerRef={innerRef}
-                title={`${isEditing ? "Edit" : ""} ${form.typeOf === "expense" ? "Expense": "Settlement"}`.trim()}
+                title={`${isEditing ? "Edit" : ""} ${form.typeOf === "expense" ? "Expense" : "Settlement"}`.trim()}
                 onClose={onClose}
                 footerOptions={{ ...footerOptions, primaryDisabled: true, busy: true }}
             >
@@ -942,7 +961,7 @@ const createStyles = (c = {}) =>
         chip2Active: { backgroundColor: `${c.cta}33`, borderColor: `${c.cta}33` },
         chip2Text: { color: c.text },
         chip2TextActive: { color: c.text, fontWeight: "700" },
-        
+
         splitRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
         smallInput: { width: 100, padding: 8, borderBottomWidth: 1, borderColor: c.border || "#333", color: c.text || "#fff", textAlign: "right", borderRadius: 6, backgroundColor: c.cardAlt || "#111" },
         smallBtn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: c.cardAlt || "#111", borderWidth: 1, borderColor: c.border || "#444" },

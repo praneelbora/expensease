@@ -212,7 +212,6 @@ export default function GroupDetails() {
             }
             // optional cleanup when screen loses focus
             return () => {
-                console.log("Screen unfocused");
             };
         }, [id, fetchAll])
     );
@@ -361,7 +360,7 @@ How to join:
     const listHeader = (
         <View style={{ gap: 12 }}>
             {/* Members header */}
-            {group?.members.length>1 &&  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            {group?.members.length > 1 && <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <Text style={styles.sectionLabel}>Members</Text>
                 <TouchableOpacity
                     onPress={() => {
@@ -538,15 +537,13 @@ How to join:
                     onClose={() => addFriendsRef.current?.dismiss()}
                     onAdded={fetchGroup}
                     onNoFriends={() => {
-                        console.log('onnofriends');
-                        
                         inviteSheetRef.current?.present()
                     }} // open other bottom sheet
                 />
-                <BottomSheetAddFriend 
-                innerRef={inviteSheetRef} 
-                onAdded={async () => { await fetchGroup() }} 
-                userToken={userToken} />
+                <BottomSheetAddFriend
+                    innerRef={inviteSheetRef}
+                    onAdded={async () => { await fetchGroup() }}
+                    userToken={userToken} />
 
             </View>
         </SafeAreaView>

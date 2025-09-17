@@ -45,4 +45,3 @@ export default avatars;
 
 fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
 fs.writeFileSync(OUT_FILE, content, "utf8");
-console.log("Generated", OUT_FILE, "with", files.length, "avatars.");

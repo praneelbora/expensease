@@ -13,8 +13,6 @@ export default function ThemeSettingsScreen() {
     const router = useRouter();
     const { theme, preference, setPreference } = useTheme();
     const styles = useMemo(() => createStyles(theme), [theme]);
-    console.log();
-
     const onSelect = (pref) => {
         setPreference(pref);
         // little confirmation

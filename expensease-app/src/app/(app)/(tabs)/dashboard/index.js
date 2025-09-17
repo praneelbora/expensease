@@ -10,18 +10,20 @@ import {
     Dimensions,
     FlatList,
     Modal,
+    Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { useAuth } from "context/AuthContext";
-import { getAllExpenses } from "services/ExpenseService";
 import { createPaymentMethod } from "services/PaymentMethodService";
 
 import Header from "~/header";
 import ExpenseRow from "~/expenseRow";
 import { useTheme } from "context/ThemeProvider";
+
+import { FetchProvider, useFetch } from "context/FetchContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -36,7 +38,31 @@ function safeFormatMoney(ccy, value = 0) {
     }
 }
 
-export default function DashboardScreen() {
+/* -----------------------
+   Small Skeleton helpers
+   ----------------------- */
+function SkeletonBox({ width = "100%", height = 12, style = {}, borderRadius = 8 }) {
+    return <View style={[{ width, height, borderRadius, backgroundColor: style?.backgroundColor || "#E6EEF8" }, style]} />;
+}
+
+function SkeletonRow({ theme, style }) {
+    return (
+        <View style={[{ flexDirection: "row", gap: 12, alignItems: "center" }, style]}>
+            <SkeletonBox width={56} height={56} borderRadius={10} style={{ backgroundColor: theme.colors.border }} />
+            <View style={{ flex: 1 }}>
+                <SkeletonBox width="60%" height={14} borderRadius={6} style={{ backgroundColor: theme.colors.border }} />
+                <View style={{ height: 8 }} />
+                <SkeletonBox width="40%" height={12} borderRadius={6} style={{ backgroundColor: theme.colors.border }} />
+            </View>
+        </View>
+    );
+}
+
+/**
+ * DashboardScreenInner
+ * - consumes FetchContext via useFetch()
+ */
+function DashboardScreenInner() {
     const router = useRouter();
     const { theme } = useTheme();
     const styles = useMemo(() => createStyles(theme), [theme]);
@@ -50,11 +76,20 @@ export default function DashboardScreen() {
         fetchPaymentMethods = async () => { },
     } = useAuth() || {};
 
-    const [expenses, setExpenses] = useState([]);
-    const [userId, setUserId] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    // FetchContext values (expenses, loading, refreshing, fetchExpenses, refreshAll)
+    const {
+        expenses,
+        setExpenses,
+        userId,
+        loading,
+        refreshing,
+        fetchExpenses,
+        refreshAll,
+        page,
+        setPage,
+    } = useFetch();
 
+    // local UI state
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [selectedPM, setSelectedPM] = useState(null);
@@ -70,45 +105,25 @@ export default function DashboardScreen() {
     // Summary range selector state
     const [summaryRange, setSummaryRange] = useState("thisMonth");
 
-    const fetchExpenses = useCallback(async () => {
-        try {
-            const data = await getAllExpenses(userToken);
-            setExpenses(data?.expenses || []);
-            setUserId(data?.id || null);
-        } catch (error) {
-            console.error("Failed to load expenses:", error);
-        } finally {
-            setLoading(false);
-        }
-    }, [userToken]);
-    useFocusEffect(
-        useCallback(() => {
-            fetchExpenses();
-            // optional cleanup when screen loses focus
-            return () => {
-                console.log("Screen unfocused");
-            };
-        }, [fetchExpenses])
-    );
-
-
-
     const onRefresh = useCallback(async () => {
-        setRefreshing(true);
         try {
-            await Promise.all([fetchExpenses(), fetchPaymentMethods()]);
-        } finally {
-            setRefreshing(false);
+            await refreshAll();
+        } catch (e) {
+            console.warn("onRefresh failed:", e);
         }
-    }, [fetchExpenses, fetchPaymentMethods]);
+    }, [refreshAll]);
 
     const itemsPerPage = 2;
     const totalPages = Math.max(1, Math.ceil((paymentMethods.length + 1) / itemsPerPage));
-    const [page, setPage] = useState(0);
+    const [localPage, setLocalPage] = useState(0);
+
+    useEffect(() => {
+        setLocalPage(page || 0);
+    }, [page]);
 
     const onMomentumEnd = (e) => {
         const p = Math.round(e?.nativeEvent?.contentOffset?.x / SCREEN_WIDTH) || 0;
-        setPage(Math.min(p, totalPages - 1));
+        setLocalPage(Math.min(p, totalPages - 1));
     };
 
     function filterExpensesByRange(expensesList, range) {
@@ -116,13 +131,13 @@ export default function DashboardScreen() {
         const start = new Date(now);
 
         if (range === "thisMonth") {
-            start.setDate(1); // beginning of this month
+            start.setDate(1);
         } else if (range === "last3m") {
-            start.setMonth(now.getMonth() - 2, 1); // include last 3 months
+            start.setMonth(now.getMonth() - 2, 1);
         } else if (range === "thisYear") {
-            start.setMonth(0, 1); // start of this year
+            start.setMonth(0, 1);
         } else {
-            return expensesList; // fallback: all
+            return expensesList;
         }
 
         start.setHours(0, 0, 0, 0);
@@ -138,7 +153,7 @@ export default function DashboardScreen() {
         pmJustAddedRef.current = false;
         requestAnimationFrame(() => {
             horizRef.current?.scrollTo({ x: 0, animated: true });
-            setPage(0);
+            setLocalPage(0);
         });
     }, [paymentMethods?.length]);
 
@@ -148,14 +163,21 @@ export default function DashboardScreen() {
             await createPaymentMethod(payload, userToken);
             setShowPaymentModal(false);
             pmJustAddedRef.current = true;
-            await fetchPaymentMethods();
+            await Promise.all([fetchPaymentMethods(), fetchExpenses({ page: 0, replace: true })]);
         } catch (e) {
             console.error(e);
         } finally {
             setSubmitting(false);
         }
     };
-
+    useFocusEffect(
+        useCallback(() => {
+            fetchExpenses({ page: 0, replace: true }).catch(() => { });
+            return () => {
+                // optional cleanup
+            };
+        }, [fetchExpenses])
+    );
     const currencyDigits = (code, locale = "en-IN") => {
         try {
             const fmt = new Intl.NumberFormat(locale, {
@@ -178,8 +200,6 @@ export default function DashboardScreen() {
 
     const statsByRange = useMemo(() => {
         const filtered = filterExpensesByRange(expenses || [], summaryRange);
-
-        // helper: should PM be excluded for this user + expense + optional userSplit
         const pmIsExcludedForUser = (pm, exp, userSplitForThisUser) => {
             if (!pm) return false;
             const pmObj =
@@ -191,7 +211,7 @@ export default function DashboardScreen() {
             if (!pmObj) return false;
             if (pmObj.excludeFromSummaries === true) {
                 const userIsPartOfTransaction = !!userSplitForThisUser || String(exp.createdBy) === String(userId);
-                return !userIsPartOfTransaction; // exclude only when user not part
+                return !userIsPartOfTransaction;
             }
             return false;
         };
@@ -213,7 +233,6 @@ export default function DashboardScreen() {
                 const share = Number(userSplit?.oweAmount);
 
                 if (exp.groupId) {
-                    // group share: only add user's oweAmount; prefer split-level PM then fallback to top-level
                     if (userSplit?.owing && Number.isFinite(share)) {
                         const pmForThisShare = userSplit?.paidFromPaymentMethodId || exp.paidFromPaymentMethodId;
                         if (!pmIsExcludedForUser(pmForThisShare, exp, userSplit)) {
@@ -223,7 +242,6 @@ export default function DashboardScreen() {
                         }
                     }
                 } else if (exp.splits?.length > 0) {
-                    // friend split (non-group)
                     if (userSplit?.owing && Number.isFinite(share)) {
                         const pmForThisShare = userSplit?.paidFromPaymentMethodId || exp.paidFromPaymentMethodId;
                         if (!pmIsExcludedForUser(pmForThisShare, exp, userSplit)) {
@@ -233,7 +251,6 @@ export default function DashboardScreen() {
                         }
                     }
                 } else {
-                    // personal expense: check top-level PM
                     const pmTop = exp.paidFromPaymentMethodId;
                     if (!pmIsExcludedForUser(pmTop, exp, null)) {
                         acc.personal.amount[code] = (acc.personal.amount[code] || 0) + amt;
@@ -251,34 +268,23 @@ export default function DashboardScreen() {
         return acc;
     }, [expenses, userId, summaryRange]);
 
-
-
     const deltas = useMemo(() => {
         if (!expenses?.length) return { total: null, personal: null, group: null, friend: null };
 
         const now = new Date();
         const currentYear = now.getFullYear();
 
-        // local helper: check if a payment method (object or id) should be excluded for the current user
-        // pm may be an object or an id. exp is the expense object (used to find populated pm if present).
         const pmIsExcludedForUser_local = (pm, exp, userSplitForThisUser) => {
             if (!pm) return false;
-
-            // If pm is an object, use it. If pm is an id, try to see if expense contains a populated object
             const pmObj = typeof pm === "object"
                 ? pm
                 : (exp?.paidFromPaymentMethodId && typeof exp.paidFromPaymentMethodId === "object"
                     ? exp.paidFromPaymentMethodId
                     : null);
-
-            if (!pmObj) {
-                // no populated pm object available -> conservatively treat as included
-                return false;
-            }
-
+            if (!pmObj) return false;
             if (pmObj.excludeFromSummaries === true) {
                 const userIsPartOfTransaction = !!userSplitForThisUser || String(exp.createdBy) === String(userId);
-                return !userIsPartOfTransaction; // exclude only when user is NOT part
+                return !userIsPartOfTransaction;
             }
             return false;
         };
@@ -307,22 +313,17 @@ export default function DashboardScreen() {
                 const d = new Date(exp.date);
                 const userSplit = exp.splits?.find((s) => String(s.friendId?._id || s.friendId) === String(userId));
 
-                // Calculate share and determine the payment method that applies to this share
                 let share = 0;
                 let pmForThisShare = null;
 
                 if (exp.groupId) {
-                    // group expense: user share comes from userSplit oweAmount if they owe
                     if (userSplit?.owing) {
                         share = Number(userSplit?.oweAmount) || 0;
-                        console.log(share);
-
                         pmForThisShare = userSplit?.paidFromPaymentMethodId || exp.paidFromPaymentMethodId;
                     } else {
                         share = 0;
                     }
                 } else if (exp.splits?.length > 0) {
-                    // friend split (non-group)
                     if (userSplit?.owing) {
                         share = Number(userSplit?.oweAmount) || 0;
                         pmForThisShare = userSplit?.paidFromPaymentMethodId || exp.paidFromPaymentMethodId;
@@ -330,17 +331,11 @@ export default function DashboardScreen() {
                         share = 0;
                     }
                 } else {
-                    // personal expense
                     share = Number(exp.amount) || 0;
                     pmForThisShare = exp.paidFromPaymentMethodId;
                 }
 
                 if (share <= 0) continue;
-                if (pmIsExcludedForUser_local(pmForThisShare, exp, userSplit))
-                    console.log(exp);
-
-
-                // Respect payment method exclusion: skip this share if its PM is excluded for this user
                 if (pmIsExcludedForUser_local(pmForThisShare, exp, userSplit)) continue;
 
                 let bucketKey, bucketDate;
@@ -378,7 +373,6 @@ export default function DashboardScreen() {
                 const prevAvg = prev[typeKey] / prev.days.size;
                 if (prevAvg === 0) return null;
                 const pct = ((lastAvg - prevAvg) / prevAvg) * 100;
-                // Note: keep colour logic consistent with your existing code (you can invert if desired)
                 return {
                     text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% from last month`,
                     color: pct <= 0 ? theme.colors.positive : theme.colors.negative,
@@ -438,6 +432,9 @@ export default function DashboardScreen() {
         return Object.entries(bucket);
     }, [expenses]);
 
+    /* -----------------------
+       Render
+       ----------------------- */
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <Header main />
@@ -447,9 +444,36 @@ export default function DashboardScreen() {
                     refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />}
                     showsVerticalScrollIndicator={false}
                 >
+                    {/* SKELETON: show when loading */}
                     {loading ? (
-                        <View style={styles.centerBox}>
-                            <Feather name="loader" size={24} color={theme.colors.text} />
+                        <View>
+                            {/* summary skeleton row */}
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+                                <SkeletonBox width="48%" height={80} borderRadius={12} style={{ backgroundColor: theme.colors.border }} />
+                                <SkeletonBox width="48%" height={80} borderRadius={12} style={{ backgroundColor: theme.colors.border }} />
+                            </View>
+
+                            {/* cards grid skeleton */}
+                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+                                {Array.from({ length: 4 }).map((_, i) => (
+                                    <View key={i} style={{ width: (SCREEN_WIDTH - 16 * 2 - 12) / 2 }}>
+                                        <SkeletonBox width="100%" height={84} borderRadius={12} style={{ backgroundColor: theme.colors.border }} />
+                                    </View>
+                                ))}
+                            </View>
+
+                            {/* recent list skeleton */}
+                            <View style={{ marginTop: 8 }}>
+                                <View style={{ height: 20, width: 160, marginBottom: 12 }}>
+                                    <SkeletonBox width="100%" height={16} borderRadius={6} style={{ backgroundColor: theme.colors.border }} />
+                                </View>
+
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <View key={i} style={{ marginBottom: 12 }}>
+                                        <SkeletonRow theme={theme} />
+                                    </View>
+                                ))}
+                            </View>
                         </View>
                     ) : expenses.length === 0 ? (
                         <View style={styles.emptyCard}>
@@ -468,7 +492,6 @@ export default function DashboardScreen() {
                                 <View style={styles.rowBetween}>
                                     <Text style={styles.sectionLabel}>Summary</Text>
 
-                                    {/* Range selector */}
                                     <View style={styles.rangeRow}>
                                         {[
                                             { key: "thisMonth", label: "This Month" },
@@ -576,7 +599,7 @@ export default function DashboardScreen() {
                                                     <ExpenseRow
                                                         expense={item}
                                                         userId={userId}
-                                                        update={fetchExpenses}
+                                                        update={() => fetchExpenses({ page: 0, replace: true })}
                                                     />
                                                 )}
                                             />
@@ -588,7 +611,7 @@ export default function DashboardScreen() {
                     )}
                 </ScrollView>
 
-                {/* Modals */}
+                {/* Modals (unchanged) */}
                 <Modal visible={!!showExpenseModal} transparent animationType="slide" onRequestClose={() => setShowExpenseModal(false)}>
                     <View style={styles.modalBackdrop}>
                         <View style={styles.modalCard}>
@@ -631,6 +654,18 @@ export default function DashboardScreen() {
                 </Modal>
             </View>
         </SafeAreaView>
+    );
+}
+
+/**
+ * Wrap DashboardScreenInner with FetchProvider so the screen can use useFetch()
+ * Alternatively you can move <FetchProvider> up to your tabs layout so it's available app-wide.
+ */
+export default function DashboardScreen() {
+    return (
+        <FetchProvider>
+            <DashboardScreenInner />
+        </FetchProvider>
     );
 }
 

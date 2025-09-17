@@ -454,8 +454,6 @@ export default function FriendDetails() {
 
     const fetchData = useCallback(async () => {
         try {
-            console.log('fetchData');
-
             const data = await getFriendDetails(id, userToken);
             setFriend(data.friend);
             setUserId(data.id);
@@ -506,10 +504,8 @@ export default function FriendDetails() {
     // inside FriendDetails (already present in your file)
     const handleSettleSubmit = async (payload) => {
         if (!payload) return;
-        console.log('handleSettleSubmit:', payload);
         try {
             const { payerId: payerIdPayload, receiverId: receiverIdPayload, amount: amt, description, currency, meta, groupId } = payload;
-            console.log(payerIdPayload, receiverIdPayload, amt);
 
             if (!payerIdPayload || !receiverIdPayload || !(Number(amt) > 0)) return;
 
@@ -525,7 +521,6 @@ export default function FriendDetails() {
                 },
                 userToken
             );
-            console.log(response);
 
             // optional: close bottom sheet (if your sheet supports dismiss)
             settleRef.current?.dismiss?.();

@@ -48,8 +48,6 @@ const BtmShtSettle = ({
     const { theme } = useTheme?.() || {};
     const colors = theme?.colors || {};
     const styles = useMemo(() => createStyles(colors), [colors]);
-    console.log('transaction: ', transactions);
-
     // UI state 
     const [settleMode, setSettleMode] = useState("suggested"); // 'suggested' | 'custom'
     const [confirmationVisible, setConfirmationVisible] = useState(false);
@@ -245,17 +243,6 @@ const BtmShtSettle = ({
 
     const prunedTxns = useMemo(() => pruneSettlementLists(normalizedTxns), [normalizedTxns]);
 
-    // (optional) small debug logs — remove when happy
-    useEffect(() => {
-        // helpful while debugging to ensure normalization worked
-        // eslint-disable-next-line no-console
-        console.log("BtmShtSettle: prunedTxns:", prunedTxns);
-        // eslint-disable-next-line no-console
-        console.log("BtmShtSettle: grouped:", (prunedTxns || []).reduce((acc, tx) => {
-            (acc[tx.type] ||= []).push(tx);
-            return acc;
-        }, {}));
-    }, [prunedTxns]);
 
     // grouped by type for sections order
     const grouped = useMemo(() => {
@@ -378,7 +365,6 @@ const BtmShtSettle = ({
                 currency,
                 meta: metaToSend,
             };
-            console.log('payload', payload);
 
             await onSubmit?.(payload);
 

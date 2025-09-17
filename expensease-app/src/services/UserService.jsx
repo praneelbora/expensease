@@ -14,8 +14,6 @@ export async function googleLoginMobile(idToken, pushToken, platform) {
         pushToken,
         platform
     });
-    console.log(data);
-    
     const authToken = data?.responseBody?.["x-auth-token"] || data?.accessToken;
     if (!authToken) {
         throw new Error(data?.error || "Google login failed.");
@@ -191,9 +189,7 @@ export async function saveUserPushToken(token, platform) {
 // src/services/UserService.js
 export async function logToServer(payload = {}, userToken = null) {
     try {
-        // console.log(payload);
         const data = await api.post(`${BASE_USERS}/logging`, payload);
-        // console.log("✅ Logging success:", data);
         return data;
     } catch (err) {
         console.error("❌ Logging failed:", err);

@@ -217,7 +217,7 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
                         console.warn("updateExpense failed:", error);
                     }
                 }}
-                onDelete={async (id) => {
+                onDeleteExpense={async (id) => {
                     try {
                         await deleteExpense(id);
                         update()

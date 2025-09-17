@@ -38,13 +38,10 @@ export const settleExpense = async ({ payerId, receiverId, amount, description, 
         }
     }
     else
-        console.log('no meta ids');
-
-    // If meta contains groups object (older shape), prefer keys of groups
-    if (!groupIds && meta?.groups && typeof meta.groups === "object") {
-        console.log('meta.groups: ', meta.groups);
-        groupIds = Object.keys(meta.groups);
-    }
+        // If meta contains groups object (older shape), prefer keys of groups
+        if (!groupIds && meta?.groups && typeof meta.groups === "object") {
+            groupIds = Object.keys(meta.groups);
+        }
 
     const body = {
         fromUserId: payerId,
@@ -59,8 +56,6 @@ export const settleExpense = async ({ payerId, receiverId, amount, description, 
         ...(meta?.groupId ? { groupId: meta.groupId } : {}),
         ...(meta ? { meta } : {}),
     };
-    console.log('body: ',body);
-
     return api.post(`${BASE2}/settle`, body);
 };
 

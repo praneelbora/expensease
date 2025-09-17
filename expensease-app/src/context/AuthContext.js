@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import { useRouter, useSegments } from "expo-router";
 
 import { fetchUserData, getUserCategories } from "../services/UserService";
 // import { setGAUserId } from "../utils/analytics";
@@ -16,29 +16,43 @@ const TOKEN_KEY = "userToken";
 async function setSecureItem(key, value) {
     try {
         await SecureStore.setItemAsync(key, value);
-    } catch {
-        await AsyncStorage.setItem(key, value);
+    } catch (err) {
+        try {
+            await AsyncStorage.setItem(key, value);
+        } catch (e) {
+            console.warn("setSecureItem fallback failed:", e);
+        }
     }
 }
 async function getSecureItem(key) {
     try {
         const v = await SecureStore.getItemAsync(key);
         if (v != null) return v;
-    } catch {
-        // fallthrough
+    } catch (e) {
+        // fallthrough to AsyncStorage
     }
-    return AsyncStorage.getItem(key);
+    try {
+        return await AsyncStorage.getItem(key);
+    } catch (e) {
+        console.warn("getSecureItem AsyncStorage fallback failed:", e);
+        return null;
+    }
 }
 async function deleteSecureItem(key) {
     try {
         await SecureStore.deleteItemAsync(key);
     } catch {
-        await AsyncStorage.removeItem(key);
+        try {
+            await AsyncStorage.removeItem(key);
+        } catch (e) {
+            console.warn("deleteSecureItem fallback failed:", e);
+        }
     }
 }
 
 export const AuthProvider = ({ children }) => {
     const router = useRouter();
+    const segments = useSegments(); // array of route segments, e.g. ['dashboard', 'settings']
 
     // core states
     const [user, setUser] = useState(null);
@@ -48,7 +62,8 @@ export const AuthProvider = ({ children }) => {
     const [hydrated, setHydrated] = useState(false);
 
     // authLoading -> true while fetching user/payment/categories after token is present
-    const [authLoading, setAuthLoading] = useState(false);
+    // start false; we'll set true only while fetchData runs
+    const [authLoading, setAuthLoading] = useState(true);
 
     // other app-level states
     const [categories, setCategories] = useState([]);
@@ -60,11 +75,30 @@ export const AuthProvider = ({ children }) => {
 
     const version = "0.0.1";
 
-    // --- public: set token + persist ---
-    const setAndPersistUserToken = async (token) => {
-        // set local state first so UI can react immediately
+    // --- public: set token + persist + normalize ---
+    const setAndPersistUserToken = async (rawToken) => {
+        let token = rawToken;
+        if (token && typeof token === "object") {
+            token =
+                token.token ||
+                token.accessToken ||
+                token.idToken ||
+                token.authToken ||
+                token.access_token ||
+                token.id_token ||
+                null;
+            if (!token) {
+                console.warn(
+                    "setAndPersistUserToken: token object had no common token field — stringifying."
+                );
+                token = JSON.stringify(rawToken);
+            }
+        }
+
+        // Update local state immediately so UI can react
         setUserToken(token);
 
+        // persist or delete
         if (token) {
             try {
                 await setSecureItem(TOKEN_KEY, token);
@@ -83,8 +117,7 @@ export const AuthProvider = ({ children }) => {
     // --- load user once; optionally set GA (keeps the method separate) ---
     const loadUserData = async (setGA = false) => {
         try {
-            setAuthLoading(true);
-            const u = await fetchUserData();
+            const u = await fetchUserData(userToken);
             setUser(u);
             // if (setGA && u?._id) setGAUserId(u._id);
         } catch (e) {
@@ -112,7 +145,6 @@ export const AuthProvider = ({ children }) => {
         const usage = user?.preferredCurrencyUsage ?? {};
         const list = Array.isArray(user?.preferredCurrencies) ? user.preferredCurrencies : [];
 
-        // If user has defaultCurrency, use it; else first from list; else empty
         setDefaultCurrency(user?.defaultCurrency || list[0] || "");
 
         const sorted = [...list]
@@ -124,16 +156,9 @@ export const AuthProvider = ({ children }) => {
 
     // fetch helper: fetch user, categories, payment methods when token present
     const fetchData = async (token) => {
-        setAuthLoading(true);
         try {
-            // fetch user profile
             const fetchedUser = await fetchUserData(token);
             setUser(fetchedUser);
-
-            // optionally set GA id
-            // if (fetchedUser?._id) setGAUserId(fetchedUser._id);
-
-            // fetch payment methods
             try {
                 setLoadingPaymentMethods(true);
                 const pms = await listPaymentMethods(token);
@@ -154,7 +179,11 @@ export const AuthProvider = ({ children }) => {
                 setCategories([]);
             }
         } catch (e) {
-            console.warn("fetchData failed:", e?.message || e);
+            console.warn("fetchData failed (maybe invalid token):", e?.message || e);
+            // If you can detect 401 from your service error, clear token & redirect to login
+            if (e?.response?.status === 401) {
+                await setAndPersistUserToken(null);
+            }
         } finally {
             setAuthLoading(false);
         }
@@ -166,10 +195,8 @@ export const AuthProvider = ({ children }) => {
             try {
                 const token = await getSecureItem(TOKEN_KEY);
                 if (token) {
-                    // set token; the effect below will fetch data
                     setUserToken(token);
                 } else {
-                    // no token found -> not authenticated
                     setUserToken(null);
                 }
             } catch (e) {
@@ -196,6 +223,37 @@ export const AuthProvider = ({ children }) => {
         fetchData(userToken);
     }, [userToken]);
 
+    // redirect when auth state stabilizes (hydrated + not loading)
+    useEffect(() => {
+        if (!hydrated) return;
+
+        // Determine the current top-level route segment (if any)
+        const currentRoot = (segments && segments.length > 0 && segments[0]) || "";
+
+        // Define auth entry routes where redirecting to app is appropriate
+        const AUTH_ENTRY_ROUTES = ["", "index", "login", "/"];
+
+        // When we have a token and user loaded, navigate to the app root (tabs)
+        if (userToken && !authLoading && user && AUTH_ENTRY_ROUTES.includes(String(currentRoot).toLowerCase())) {
+            try {
+                router.replace("dashboard");
+            } catch (e) {
+                console.warn("Auth -> navigation failed:", e);
+            }
+            return;
+        }
+
+        // If there's NO token (user is not logged in) and bootstrap finished & not loading auth,
+        // redirect to login (index) unless we're already on an auth entry route.
+        if (!userToken && !authLoading && !AUTH_ENTRY_ROUTES.includes(String(currentRoot).toLowerCase())) {
+            try {
+                router.replace("/");
+            } catch (e) {
+                console.warn("Auth -> navigation to login failed:", e);
+            }
+        }
+    }, [hydrated, userToken, authLoading, user, router, segments]);
+
     // memoize context value to avoid extra re-renders
     const value = useMemo(
         () => ({
@@ -219,7 +277,6 @@ export const AuthProvider = ({ children }) => {
             paymentMethods,
             setPaymentMethods,
             fetchPaymentMethods: async () => {
-                // convenience wrapper that uses current token
                 try {
                     setLoadingPaymentMethods(true);
                     const pms = await listPaymentMethods(userToken);

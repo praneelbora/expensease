@@ -129,7 +129,6 @@ export default function GroupsScreen() {
             }
             // optional cleanup when screen loses focus
             return () => {
-                console.log("Screen unfocused");
             };
         }, [userToken, fetchGroups])
     );

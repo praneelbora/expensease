@@ -198,7 +198,6 @@ export default function FriendsScreen() {
             })();
             // optional cleanup when screen loses focus
             return () => {
-                console.log("Screen unfocused");
             };
         }, [pullReceived, pullFriends, pullExpenses, pullLoans])
     );
