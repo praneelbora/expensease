@@ -114,7 +114,7 @@ export default function ExpenseBottomSheet({
 
     // initialize/reset when expense changes
     useEffect(() => {
-        setIsEditing(true);
+        setIsEditing(false);
         setConfirmDelete(false);
         setViewSplits(false);
         setShowHistory(false);
