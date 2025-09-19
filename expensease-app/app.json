@@ -6,7 +6,7 @@
         "scheme": "expensease",
         "orientation": "portrait",
         "icon": "./assets/default/icon.png",
-        "userInterfaceStyle": "light",
+        "userInterfaceStyle": "automatic",
         "newArchEnabled": true,
         "splash": {
             "image": "./assets/default/splash-icon.png",
@@ -17,6 +17,7 @@
             "bundleIdentifier": "com.boratechnologies.expensease",
             "googleServicesFile": "./GoogleService-Info.plist",
             "supportsTablet": true,
+            "icon": "./assets/default/ios/icon-ios-10241x.png",
             "associatedDomains": [
                 "applinks:expensease.in"
             ],
@@ -25,7 +26,8 @@
                     "remote-notification"
                 ]
             },
-            "appleTeamId": "2TA4D4M36W"
+            "appleTeamId": "2TA4D4M36W",
+            "userInterfaceStyle": "automatic"
         },
         "android": {
             "package": "com.praneelbora.expensease",
@@ -44,7 +46,12 @@
                         "DEFAULT"
                     ]
                 }
-            ]
+            ],
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/default/android/adaptive-foreground.png",
+                "backgroundColor": "#ffffff",
+                "userInterfaceStyle": "automatic"
+            }
         },
         "web": {
             "favicon": "./assets/default/favicon.png"

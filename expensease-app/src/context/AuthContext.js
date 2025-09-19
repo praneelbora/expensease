@@ -1,5 +1,5 @@
 // src/context/AuthContext.js
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, useSegments } from "expo-router";
@@ -52,7 +52,7 @@ async function deleteSecureItem(key) {
 
 export const AuthProvider = ({ children }) => {
     const router = useRouter();
-    const segments = useSegments(); // array of route segments, e.g. ['dashboard', 'settings']
+    const segments = useSegments();
 
     // core states
     const [user, setUser] = useState(null);
@@ -62,8 +62,8 @@ export const AuthProvider = ({ children }) => {
     const [hydrated, setHydrated] = useState(false);
 
     // authLoading -> true while fetching user/payment/categories after token is present
-    // start false; we'll set true only while fetchData runs
-    const [authLoading, setAuthLoading] = useState(true);
+    // Start false; we'll set true only while fetchData runs
+    const [authLoading, setAuthLoading] = useState(false);
 
     // other app-level states
     const [categories, setCategories] = useState([]);
@@ -74,6 +74,10 @@ export const AuthProvider = ({ children }) => {
     const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
 
     const version = "0.0.1";
+
+    // refs to track previous values so we only redirect on meaningful changes
+    const prevHydrated = useRef(false);
+    const prevUserToken = useRef(null);
 
     // --- public: set token + persist + normalize ---
     const setAndPersistUserToken = async (rawToken) => {
@@ -95,10 +99,9 @@ export const AuthProvider = ({ children }) => {
             }
         }
 
-        // Update local state immediately so UI can react
+        // Update state immediately so UI reacts
         setUserToken(token);
 
-        // persist or delete
         if (token) {
             try {
                 await setSecureItem(TOKEN_KEY, token);
@@ -114,23 +117,20 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // --- load user once; optionally set GA (keeps the method separate) ---
+    // --- load user once ---
     const loadUserData = async (setGA = false) => {
         try {
             const u = await fetchUserData(userToken);
             setUser(u);
-            // if (setGA && u?._id) setGAUserId(u._id);
         } catch (e) {
             console.warn("loadUserData failed:", e?.message || e);
         } finally {
-            setAuthLoading(false);
         }
     };
 
     const logout = async () => {
         setUser(null);
         await setAndPersistUserToken(null);
-        // optionally clear other persisted user data
         router.replace("/");
     };
 
@@ -159,6 +159,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const fetchedUser = await fetchUserData(token);
             setUser(fetchedUser);
+
             try {
                 setLoadingPaymentMethods(true);
                 const pms = await listPaymentMethods(token);
@@ -170,7 +171,6 @@ export const AuthProvider = ({ children }) => {
                 setLoadingPaymentMethods(false);
             }
 
-            // fetch categories
             try {
                 const cats = await getUserCategories(token);
                 setCategories(Array.isArray(cats) ? cats : []);
@@ -180,7 +180,6 @@ export const AuthProvider = ({ children }) => {
             }
         } catch (e) {
             console.warn("fetchData failed (maybe invalid token):", e?.message || e);
-            // If you can detect 401 from your service error, clear token & redirect to login
             if (e?.response?.status === 401) {
                 await setAndPersistUserToken(null);
             }
@@ -189,7 +188,7 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // --- initial bootstrap: read token once from secure storage (or AsyncStorage fallback) ---
+    // --- initial bootstrap: read token once from secure storage ---
     useEffect(() => {
         (async () => {
             try {
@@ -198,63 +197,86 @@ export const AuthProvider = ({ children }) => {
                     setUserToken(token);
                 } else {
                     setUserToken(null);
+                    setAuthLoading(false);
                 }
             } catch (e) {
                 console.warn("Auth bootstrap read token failed:", e);
                 setUserToken(null);
+                setAuthLoading(false);
             } finally {
-                // mark bootstrap finished (hydrated) regardless of token presence
                 setHydrated(true);
             }
         })();
-        // run only once on mount
     }, []);
 
     // when token present (or changes), load remote data
     useEffect(() => {
         if (!userToken) {
-            // if logging out, clear user & categories & payments
             setUser(null);
             setCategories([]);
             setPaymentMethods([]);
+            setAuthLoading(false);
             return;
         }
-        // fetch profile + categories + payment methods
         fetchData(userToken);
     }, [userToken]);
 
-    // redirect when auth state stabilizes (hydrated + not loading)
+    // redirect when auth state stabilizes
+    // Only run redirects when hydration just finished or token changed (so routine navigation inside app won't trigger replacement)
     useEffect(() => {
-        if (!hydrated) return;
-
-        // Determine the current top-level route segment (if any)
-        const currentRoot = (segments && segments.length > 0 && segments[0]) || "";
-
-        // Define auth entry routes where redirecting to app is appropriate
-        const AUTH_ENTRY_ROUTES = ["", "index", "login", "/"];
-
-        // When we have a token and user loaded, navigate to the app root (tabs)
-        if (userToken && !authLoading && user && AUTH_ENTRY_ROUTES.includes(String(currentRoot).toLowerCase())) {
-            try {
-                router.replace("dashboard");
-            } catch (e) {
-                console.warn("Auth -> navigation failed:", e);
-            }
+        // we need segments and router, but avoid redirect spam — only when meaningful change happens
+        if (!hydrated) {
+            // still bootstrapping storage — do nothing
+            prevHydrated.current = hydrated;
+            prevUserToken.current = userToken;
             return;
         }
 
-        // If there's NO token (user is not logged in) and bootstrap finished & not loading auth,
-        // redirect to login (index) unless we're already on an auth entry route.
-        if (!userToken && !authLoading && !AUTH_ENTRY_ROUTES.includes(String(currentRoot).toLowerCase())) {
-            try {
-                router.replace("/");
-            } catch (e) {
-                console.warn("Auth -> navigation to login failed:", e);
+        const currentRoot = (segments && segments.length > 0 && segments[0]) || "";
+        const currentRootLower = String(currentRoot).toLowerCase();
+        // auth entry routes where redirecting to app is appropriate
+        const AUTH_ENTRY_ROUTES = ["", "index", "login", "/"];
+
+        // detect meaningful changes
+        const justHydrated = hydrated && !prevHydrated.current;
+        const tokenBecameTruthy = userToken && !prevUserToken.current;
+        const tokenBecameFalsy = !userToken && prevUserToken.current;
+        // update prev refs at end of this effect (so checks are accurate)
+        try {
+            // If we now have a token and user data and we're on an auth entry route, redirect to dashboard
+            if ((justHydrated || tokenBecameTruthy) && userToken && !authLoading && user && AUTH_ENTRY_ROUTES.includes(currentRootLower)) {
+                try {
+                    router.replace("dashboard");
+                } catch (e) {
+                    console.warn("Auth -> navigation to dashboard failed:", e);
+                }
+                // update prev refs after redirect attempt
+                prevHydrated.current = hydrated;
+                prevUserToken.current = userToken;
+                return;
             }
+
+            // If we don't have a token (logged out) and bootstrap/ token-change just happened, redirect to login (unless already on auth routes)
+            if ((justHydrated || tokenBecameFalsy) && !userToken && !authLoading && !AUTH_ENTRY_ROUTES.includes(currentRootLower)) {
+                try {
+                    setAuthLoading(false);
+                    router.replace("/");
+                } catch (e) {
+                    console.warn("Auth -> navigation to login failed:", e);
+                }
+                prevHydrated.current = hydrated;
+                prevUserToken.current = userToken;
+                return;
+            }
+
+            // otherwise do nothing — avoid redirecting during normal navigation inside the app
+        } finally {
+            prevHydrated.current = hydrated;
+            prevUserToken.current = userToken;
         }
     }, [hydrated, userToken, authLoading, user, router, segments]);
 
-    // memoize context value to avoid extra re-renders
+    // memoize context value
     const value = useMemo(
         () => ({
             version,
@@ -264,9 +286,9 @@ export const AuthProvider = ({ children }) => {
             logout,
 
             userToken,
-            setUserToken: setAndPersistUserToken, // external API to set token (persists)
-            hydrated, // true when initial bootstrap (token read) finished
-            authLoading, // true while fetching user/payment/categories
+            setUserToken: setAndPersistUserToken,
+            hydrated,
+            authLoading,
 
             categories,
             setCategories,

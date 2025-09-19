@@ -22,6 +22,7 @@ import { getSymbol } from "../utils/currencies";
 import { useTheme } from "context/ThemeProvider";
 import { getCategoryLabel, getCategoryOptions } from "../utils/categoryOptions";
 import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
+import DateTimePickerModal from "react-native-modal-datetime-picker";
 
 /**
  * Props:
@@ -72,6 +73,19 @@ export default function ExpenseBottomSheet({
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [viewSplits, setViewSplits] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
+    // date picker modal control
+    const [showDatePicker, setShowDatePicker] = useState(false);
+
+    // readable label for the input (e.g. "19 Sep 2025")
+    const formatReadable = (isoStr) => {
+        if (!isoStr) return "";
+        try {
+            const d = new Date(isoStr);
+            return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+        } catch {
+            return isoStr;
+        }
+    };
 
     const _id = expense?._id;
 
@@ -537,7 +551,7 @@ export default function ExpenseBottomSheet({
 
     // Top view when not editing
     const topView = (
-        <View style={{ gap: 10 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingTop: 16, gap: 10 }}>
             {form.description ? <Text style={styles.titleText}>{form.description}</Text> : null}
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <Text style={styles.amountText}>{getSymbol(form.currency)} {fmtMoney(form.amount)}</Text>
@@ -629,7 +643,7 @@ export default function ExpenseBottomSheet({
                     )}
                 </>
             )}
-        </View>
+        </ScrollView>
     );
 
     // main editing UI
@@ -683,21 +697,49 @@ export default function ExpenseBottomSheet({
 
                         <View style={{ flex: 1 }}>
                             <Text style={styles.label}>Date</Text>
-                            <TextInput style={styles.input} placeholder="YYYY-MM-DD" value={form.date} onChangeText={(d) => setForm((f) => ({ ...f, date: d }))} />
-                        </View>
 
-                        {form.mode === "personal" && (
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.label}>Payment Account</Text>
-                                <TouchableOpacity style={styles.selector} onPress={() => {
-                                    setPaymentModal({ open: true, context: "personal", friendId: null });
-                                    paymentSheetRef.current?.present?.();
-                                }}>
-                                    <Text style={styles.selectorText}>{personalPaymentMethod ? (paymentMethods.find((p) => p._id === personalPaymentMethod)?.label || personalPaymentMethod) : "Payment Account"}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        )}
+                            <TouchableOpacity
+                                onPress={() => setShowDatePicker(true)}
+                                style={[styles.input, { justifyContent: "center" }]}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={{ color: form.date ? (colors.text || "#fff") : (colors.muted || "#888") }}>
+                                    {form.date ? formatReadable(form.date) : "Select date"}
+                                </Text>
+                            </TouchableOpacity>
+
+                            <DateTimePickerModal
+                                isVisible={showDatePicker}
+                                mode="date"
+                                date={form.date ? new Date(form.date) : new Date()}
+                                // optional: restrict to past dates only
+                                // maximumDate={new Date()}
+                                onConfirm={(date) => {
+                                    setShowDatePicker(false);
+                                    // keep the same YYYY-MM-DD input format used elsewhere
+                                    const yyyy = date.getFullYear();
+                                    const mm = String(date.getMonth() + 1).padStart(2, "0");
+                                    const dd = String(date.getDate()).padStart(2, "0");
+                                    setForm((f) => ({ ...f, date: `${yyyy}-${mm}-${dd}` }));
+                                }}
+                                onCancel={() => setShowDatePicker(false)}
+                            />
+                        </View>
                     </View>
+
+
+                    {form.mode === "personal" && (
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.label}>Payment Account</Text>
+                            <TouchableOpacity style={styles.selector} onPress={() => {
+                                setPaymentModal({ open: true, context: "personal", friendId: null });
+                                paymentSheetRef.current?.present?.();
+                            }}>
+                                <Text style={styles.selectorText}>{personalPaymentMethod ? (paymentMethods.find((p) => p._id === personalPaymentMethod)?.label || personalPaymentMethod) : "Payment Account"}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
 
                     {/* Split editing */}
                     {form.mode === "split" && (

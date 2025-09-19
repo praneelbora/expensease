@@ -1,5 +1,5 @@
 // src/screens/Login.js
-import React, { useEffect, useState, useContext, useMemo } from "react";
+import React, { useEffect, useState, useContext, useMemo, useRef } from "react";
 import {
     StyleSheet,
     View,
@@ -12,10 +12,6 @@ import {
     Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-// If android-credential-manager isn't installed for other platforms, keep these imports
-// only if you're sure Android builds include the library. Otherwise consider dynamic require.
-import { CredentialManager } from "android-credential-manager";
-import { GoogleProvider, GoogleButtonProvider } from "android-credential-manager/build/loginProviders/LoginProviders";
 
 import { useAuth } from "context/AuthContext";
 import { useTheme } from "context/ThemeProvider";
@@ -23,30 +19,33 @@ import { NotificationContext } from "context/NotificationContext";
 import { router } from "expo-router";
 import { checkAppVersion, googleLoginMobile } from "services/UserService";
 
-// Providers for android-credential-manager (only used on Android)
-const implicitProvider = new GoogleProvider({
-    serverClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    authorizedAccountsOnly: false,
-    autoSelect: false,
-});
-const explicitProvider = new GoogleButtonProvider({
-    serverClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    authorizedAccountsOnly: false,
-    autoSelect: false,
-});
-
 export default function Login() {
     const insets = useSafeAreaInsets();
     const { theme } = useTheme();
     const styles = useMemo(() => createStyles(theme, insets), [theme, insets]);
 
     const { expoPushToken } = useContext(NotificationContext);
-    // match AuthContext API
     const { setUserToken, authLoading, hydrated, userToken, user, version, logout } = useAuth();
 
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
-    const [fade] = useState(new Animated.Value(0));
+
+    // animated value as ref (safer)
+    const fade = useRef(new Animated.Value(0)).current;
+
+    // refs to manage mounted state and to avoid repeated silent attempts
+    const mountedRef = useRef(true);
+    const silentAttemptedRef = useRef(false);
+
+    // store android providers if available
+    const implicitProviderRef = useRef(null);
+    const explicitProviderRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
 
     // Redirect if already logged in (after bootstrap + user loaded)
     useEffect(() => {
@@ -66,15 +65,77 @@ export default function Login() {
             duration: 450,
             useNativeDriver: true,
         }).start();
+    }, [fade]);
+
+    // Dynamic import of android-credential-manager and provider creation
+    useEffect(() => {
+        if (Platform.OS !== "android") return;
+
+        let cancelled = false;
+        (async () => {
+            try {
+                // dynamic import so bundler doesn't crash on other platforms
+                const CredModule = await import("android-credential-manager");
+                // login providers might live under build/loginProviders depending on package
+                const { GoogleProvider, GoogleButtonProvider } = await import(
+                    "android-credential-manager/build/loginProviders/LoginProviders"
+                );
+
+                if (cancelled) return;
+
+                const serverClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+                // guard against missing env
+                if (!serverClientId) {
+                    console.warn("No EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID found; skipping native credential provider creation.");
+                    return;
+                }
+
+                implicitProviderRef.current = new GoogleProvider({
+                    serverClientId,
+                    authorizedAccountsOnly: false,
+                    autoSelect: false,
+                });
+
+                explicitProviderRef.current = new GoogleButtonProvider({
+                    serverClientId,
+                    authorizedAccountsOnly: false,
+                    autoSelect: false,
+                });
+            } catch (e) {
+                // If import fails, don't crash the app — log and continue with regular web OAuth flow
+                console.warn("android-credential-manager not available or failed to load:", e);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     async function handleCredentialLogin(provider) {
         setError("");
-        try {
-            setSubmitting(true);
-            // NOTE: AuthContext no longer exposes setIsLoading; rely on local submitting or authLoading
+        if (submitting) return;
+        setSubmitting(true);
 
-            const ret = await CredentialManager.loginWithGoogle(provider);
+        try {
+            if (!provider || typeof provider !== "object") {
+                throw new Error("Credential provider not available on this platform.");
+            }
+
+            // Some native providers may throw synchronously; guard with try/catch
+            let ret;
+            try {
+                // may throw if native module not properly linked
+                ret = await provider.login?.() ?? (await provider.loginWithGoogle?.(provider));
+            } catch (nativeErr) {
+                // some versions expose different function names; try the global helper method like in original code
+                try {
+                    const CredentialManager = await import("android-credential-manager");
+                    ret = await CredentialManager.loginWithGoogle(provider);
+                } catch (e2) {
+                    throw nativeErr; // original error is more informative
+                }
+            }
 
             const idToken = ret?.idToken || ret?.token || ret?.authToken;
             const displayName = ret?.displayName || ret?.userName;
@@ -85,7 +146,6 @@ export default function Login() {
             const res = await googleLoginMobile(idToken, expoPushToken, Platform.OS, displayName, profilePicture);
             if (res?.error) throw new Error(res.error || "Server returned error during login.");
 
-            // persist token using AuthContext API (await because it persists)
             if (typeof setUserToken === "function") {
                 await setUserToken(res.userToken);
             } else {
@@ -99,25 +159,44 @@ export default function Login() {
                 router.replace("dashboard");
             }
         } catch (err) {
-            setError(err?.message || "Google login failed. Please try again.");
-            // clear any partial auth state
+            if (mountedRef.current) {
+                setError(err?.message || "Google login failed. Please try again.");
+            }
+            // clear partial auth state
             try {
                 await logout?.();
             } catch (e) {
                 console.warn("Logout after failed login errored:", e);
             }
         } finally {
-            setSubmitting(false);
+            if (mountedRef.current) setSubmitting(false);
         }
     }
 
+    // Try a silent implicit sign-in on Android, but only once and only if a provider is available.
     useEffect(() => {
-        if (Platform.OS === "android") {
-            // Try a silent implicit sign-in (non-blocking). Errors are swallowed.
-            // We explicitly don't await here so it doesn't block mount rendering.
-            handleCredentialLogin(implicitProvider).catch((e) => {
-            });
-        }
+        if (Platform.OS !== "android") return;
+        if (silentAttemptedRef.current) return;
+        const trySilent = async () => {
+            silentAttemptedRef.current = true; // mark attempted even if it fails, to avoid loops
+            // wait a tick to let providerRef be set by dynamic import effect
+            await new Promise((r) => setTimeout(r, 50));
+
+            const provider = implicitProviderRef.current;
+            if (!provider) {
+                // no native provider available; nothing to do
+                return;
+            }
+
+            try {
+                await handleCredentialLogin(provider);
+            } catch (e) {
+                // swallow errors from silent attempt — we do not want to crash or set UI visible error
+                console.warn("Silent implicit sign-in failed (ignored):", e?.message ?? e);
+            }
+        };
+
+        trySilent();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -131,7 +210,15 @@ export default function Login() {
                     <View style={styles.card}>
                         <TouchableOpacity
                             style={styles.googleBtn}
-                            onPress={() => handleCredentialLogin(explicitProvider)}
+                            onPress={() => {
+                                const provider = explicitProviderRef.current;
+                                if (provider) {
+                                    handleCredentialLogin(provider);
+                                } else {
+                                    // fallback: show a web-based login or a friendly message
+                                    setError("Native Google sign-in not available on this device. Please try the web sign-in.");
+                                }
+                            }}
                             disabled={submitting || authLoading}
                             accessibilityRole="button"
                         >

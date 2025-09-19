@@ -12,6 +12,9 @@ import {
     Platform,
     Alert,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePickerModal from "react-native-modal-datetime-picker";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -89,6 +92,35 @@ export default function NewExpenseScreen() {
 
     const [search, setSearch] = useState("");
     const [banner, setBanner] = useState(null); // {type, text}
+const [showDatePicker, setShowDatePicker] = useState(false);
+
+// parse YYYY-MM-DD to Date
+const parseISODate = (isoStr) => {
+  if (!isoStr) return new Date();
+  const parts = String(isoStr).split("-");
+  if (parts.length !== 3) return new Date(isoStr);
+  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+};
+
+// format Date to YYYY-MM-DD
+const toISODate = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+// user-friendly label for the input (e.g. "19 Sep 2025")
+const formatReadable = (isoStr) => {
+  if (!isoStr) return "";
+  try {
+    const d = parseISODate(isoStr);
+    return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return isoStr;
+  }
+};
+
 
     const [paymentModalCtx, setPaymentModalCtx] = useState({ context: "personal", friendId: null });
     const [paymentMethod, setPaymentMethod] = useState(null); // personal
@@ -813,7 +845,30 @@ export default function NewExpenseScreen() {
                                     <Text style={[styles.btnLikeText, category ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{selectedCategory || category || "Category"}</Text>
                                 </TouchableOpacity>
 
-                                <TextInput placeholder="YYYY-MM-DD" placeholderTextColor={styles.colors.mutedFallback} value={expenseDate} onChangeText={setExpenseDate} style={[styles.input, { flex: 1 }]} />
+                                <TouchableOpacity
+    onPress={() => setShowDatePicker(true)}
+    style={[styles.input, { flex: 1, justifyContent: "center" }]}
+    activeOpacity={0.7}
+  >
+    <Text style={expenseDate ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }}>
+      {expenseDate ? formatReadable(expenseDate) : "Select date"}
+    </Text>
+  </TouchableOpacity>
+
+  <DateTimePickerModal
+    isVisible={showDatePicker}
+    mode="date"
+    date={parseISODate(expenseDate)}
+    // minimumDate={new Date(2000,0,1)} // optional
+    // maximumDate={new Date()} // optional if you want to restrict to today/past
+    onConfirm={(date) => {
+      setShowDatePicker(false);
+      setExpenseDate(toISODate(date));
+    }}
+    onCancel={() => setShowDatePicker(false)}
+    // on iOS you can choose: 'spinner' | 'compact' | 'inline' via pickerStyle prop if needed
+    // Android will show a calendar dialog by default
+  />
                             </View>
 
                             {/* Personal: pick account */}
@@ -988,7 +1043,21 @@ export default function NewExpenseScreen() {
 
                     {/* Loan CTA */}
                 </ScrollView>
-
+                {/* {showDatePicker && (
+                    <DateTimePicker
+                        value={parseISODate(expenseDate)}
+                        mode="date"
+                        display={Platform.OS === "ios" ? "spinner" : "calendar"} // choose preferred display
+                        onChange={(event, selectedDate) => {
+                            // Android: event.type can be 'dismissed' or 'set'
+                            // iOS: selectedDate is provided and event is ignored
+                            setShowDatePicker(Platform.OS === "ios"); // keep open on iOS if you want (spinner), close on Android after pick
+                            if (selectedDate) {
+                                setExpenseDate(toISODate(selectedDate));
+                            }
+                        }}
+                    />
+                )} */}
                 <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
                 <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
                 <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />
