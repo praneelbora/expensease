@@ -19,6 +19,13 @@ import Header from "~/header";
 import Guide from "@/accIcons/guide.svg";
 import Logout from "@/accIcons/logout.svg";
 import Payment from "@/accIcons/payment.svg";
+import Contact from "@/accIcons/contact.svg";
+import Privacy from "@/accIcons/privacy.svg";
+import FAQ from "@/accIcons/faq.svg";
+import Sun from "@/accIcons/sun.svg";
+import Bell from "@/accIcons/bell.svg";
+import Edit from "@/accIcons/edit.svg";
+import Currency from "@/accIcons/currency.svg";
 
 import { allCurrencies } from "utils/currencies";
 
@@ -83,14 +90,12 @@ export default function AccountScreen() {
     const avatarSheetRef = useRef(null);
 
     useEffect(() => setDc(defaultCurrency || ""), [defaultCurrency]);
-    useFocusEffect(
-        useCallback(() => {
-            loadUserData()
-            // optional cleanup when screen loses focus
-            return () => {
-            };
-        }, [loadUserData])
-    );
+    useEffect(()=>{
+        console.log('a');
+        
+        loadUserData()
+    },[])
+
 
 
     // sync user avatar when user updates
@@ -179,16 +184,6 @@ export default function AccountScreen() {
                     },
                 },
             ]
-        );
-    };
-
-    // theme preference helper (kept)
-    const setThemePreference = (pref) => {
-        setPreference(pref);
-        showBanner(
-            "info",
-            `Theme: ${pref === "system" ? "System" : pref === "dark" ? "Dark" : "Light"}`,
-            1200
         );
     };
 
@@ -324,7 +319,8 @@ export default function AccountScreen() {
 
                                             {/* pen badge bottom-right (always visible) */}
                                             <View style={[styles.penBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.card }]}>
-                                                <Feather name="edit" size={12} color={theme.mode === "dark" ? "#000" : "#fff"} />
+                                                {/* <Feather name="edit" size={12} color={theme.mode === "dark" ? "#000" : "#fff"} /> */}
+                                                <Edit width={12} height={12} stroke={theme.colors.background} />
                                             </View>
                                         </TouchableOpacity>
 
@@ -366,7 +362,7 @@ export default function AccountScreen() {
                                     {/* Theme tile */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/theme")}>
                                         <View style={styles.iconWrap}>
-                                            <Feather name="sun" size={30} color={theme.colors.primary} />
+                                            <Sun width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Theme</Text>
                                     </TouchableOpacity>
@@ -374,11 +370,11 @@ export default function AccountScreen() {
                                     {/* Notifications tile (new) */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/notifications")}>
                                         <View style={styles.iconWrap}>
-                                            <Feather name="bell" size={30} color={theme.colors.primary} />
+                                            <Bell width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Notifications</Text>
                                     </TouchableOpacity>
-
+                            
                                     {/* Payment Accounts */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/paymentAccounts")}>
                                         <View style={styles.iconWrap}>
@@ -390,7 +386,7 @@ export default function AccountScreen() {
                                     {/* Currency tile */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/currency")}>
                                         <View style={styles.iconWrap}>
-                                            <Feather name="dollar-sign" size={30} color={theme.colors.primary} />
+                                            <Currency width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Currency</Text>
                                     </TouchableOpacity>
@@ -398,7 +394,7 @@ export default function AccountScreen() {
                                     {/* FAQ tile */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/faq")}>
                                         <View style={styles.iconWrap}>
-                                            <Feather name="help-circle" size={30} color={theme.colors.primary} />
+                                            <FAQ width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>FAQ</Text>
                                     </TouchableOpacity>
@@ -406,7 +402,7 @@ export default function AccountScreen() {
                                     {/* Privacy tile */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/privacy")}>
                                         <View style={styles.iconWrap}>
-                                            <Feather name="shield" size={30} color={theme.colors.primary} />
+                                            <Privacy width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Privacy</Text>
                                     </TouchableOpacity>
@@ -414,7 +410,7 @@ export default function AccountScreen() {
                                     {/* Contact tile */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/contact")}>
                                         <View style={styles.iconWrap}>
-                                            <Feather name="mail" size={30} color={theme.colors.primary} />
+                                            <Contact width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Contact</Text>
                                     </TouchableOpacity>
