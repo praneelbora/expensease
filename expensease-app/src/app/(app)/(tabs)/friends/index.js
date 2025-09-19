@@ -18,11 +18,10 @@ import avatars from "@/avatars";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
-import { Feather } from "@expo/vector-icons";
 import Header from "~/header";
 import SearchBar from "~/searchBar";
 import BottomSheetAddFriend from "~/btmShtAddFriend";
-
+import Plus from "@/accIcons/plus.svg";
 // ==== adjust these paths for your app structure ====
 import { useAuth } from "context/AuthContext";
 import {
@@ -687,7 +686,7 @@ export default function FriendsScreen() {
 
                 {/* Floating Add button for smaller screens */}
                 <TouchableOpacity onPress={() => addFriendRef.current?.present()} style={[styles.fab, { backgroundColor: theme?.colors?.primary ?? "#00C49F" }]} accessibilityLabel="Add friend">
-                    <Feather name="plus" size={24} color={theme?.colors?.inverseText ?? "#121212"} />
+                    <Plus width={24} height={24} color={theme?.colors?.inverseText ?? "#121212"} />
                 </TouchableOpacity>
 
                 <BottomSheetAddFriend innerRef={addFriendRef} onAdded={async () => { await pullReceived(); await pullFriends(); }} userToken={userToken} />

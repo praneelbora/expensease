@@ -10,9 +10,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-
+import UserCheck from "@/accIcons/userCheck.svg";
+import FileText from "@/accIcons/fileText.svg";
 import Header from "~/header";
 import { useTheme } from "context/ThemeProvider";
 import { useAuth } from "context/AuthContext"; // optional
@@ -54,21 +54,16 @@ export default function TermsScreen() {
 
             <View style={styles.actionsRow}>
               <TouchableOpacity style={styles.primaryBtn} onPress={handleCTA} activeOpacity={0.85}>
-                <Feather name="user-check" size={16} color="#fff" style={{ marginRight: 8 }} />
+                <UserCheck width={16} height={16} color="#fff" style={{ marginRight: 8 }} />
                 <Text style={styles.primaryBtnText}>{userToken ? "Open Dashboard" : "Create free account"}</Text>
               </TouchableOpacity>
-
-              {/* <TouchableOpacity style={styles.ghostBtn} onPress={() => router.push("/account/privacy")} activeOpacity={0.85}>
-                <Feather name="shield" size={16} color={theme.colors.text} style={{ marginRight: 8 }} />
-                <Text style={styles.ghostBtnText}>Privacy & Data</Text>
-              </TouchableOpacity> */}
             </View>
           </View>
 
           <View style={styles.heroAside}>
             <View style={styles.highlight}>
               <View style={styles.iconWrap}>
-                <Feather name="file-text" size={18} color={theme.colors.primary} />
+                <FileText width={18} height={18} color={theme.colors.primary} />
               </View>
               <View style={styles.highlightTextWrap}>
                 <Text style={styles.highlightTitle}>Quick summary</Text>

@@ -13,7 +13,6 @@ import {
     Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
 import BottomSheetLayout from "./btmShtHeaderFooter"; // your reusable layout
 import SheetCurrencies from "~/shtCurrencies";
 import SheetCategories from "~/shtCategories";
@@ -23,7 +22,7 @@ import { useTheme } from "context/ThemeProvider";
 import { getCategoryLabel, getCategoryOptions } from "../utils/categoryOptions";
 import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
-
+import ChevronDown from "@/accIcons/chevronDown.svg"; // should exist in your accIcons folder
 /**
  * Props:
  * - innerRef (ref for the bottom sheet)
@@ -665,7 +664,7 @@ export default function ExpenseBottomSheet({
                             <Text style={styles.label}>Currency</Text>
                             <TouchableOpacity style={styles.selector} onPress={() => currencySheetRef.current?.present?.()}>
                                 <Text style={styles.selectorText}>{form.currency}</Text>
-                                <Feather name="chevron-down" size={16} color={colors.muted || "#aaa"} />
+                                <ChevronDown width={16} height={16} color={colors.muted || "#aaa"} />
                             </TouchableOpacity>
                         </View>
                         <View style={{ flex: 1 }}>
@@ -691,7 +690,7 @@ export default function ExpenseBottomSheet({
                             <Text style={styles.label}>Category</Text>
                             <TouchableOpacity style={styles.selector} onPress={() => categorySheetRef.current?.present?.()}>
                                 <Text style={styles.selectorText}>{form.category ? getCategoryLabel(form.category) : "Category"}</Text>
-                                <Feather name="chevron-down" size={16} color={colors.muted || "#aaa"} />
+                                <ChevronDown width={16} height={16} color={colors.muted || "#aaa"} />
                             </TouchableOpacity>
                         </View>
 

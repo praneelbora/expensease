@@ -11,7 +11,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { Feather } from "@expo/vector-icons";
+
+import Currency from "@/accIcons/currency.svg"; // Example SVG import
+import Check from "@/accIcons/check.svg"; // Example SVG import
 import Header from "~/header";
 import SearchBar from "~/searchBar";
 import { useTheme } from "context/ThemeProvider";
@@ -125,7 +127,7 @@ export default function CurrencySettingsScreen() {
                         {currentDefaultMeta && currentDefaultMeta.symbol ? (
                             <Text style={styles.symbolText}>{currentDefaultMeta.symbol}</Text>
                         ) : (
-                            <Feather name="dollar-sign" size={26} color={theme.colors.primary} />
+                            <Currency height={26} width={26} color={theme.colors.primary} />
                         )}
                     </View>
                     <View style={{ flex: 1 }}>
@@ -174,7 +176,7 @@ export default function CurrencySettingsScreen() {
                                     </Text>
                                     <Text style={styles.subtitleSmall}>{item.code}</Text>
                                 </View>
-                                {active ? <Feather name="check" size={18} color={theme.colors.primary} /> : null}
+                                {active ? <Check height={18} width={18} color={theme.colors.primary} /> : null}
                             </TouchableOpacity>
                         );
                     }}

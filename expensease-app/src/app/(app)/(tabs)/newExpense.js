@@ -12,13 +12,11 @@ import {
     Platform,
     Alert,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Feather } from "@expo/vector-icons";
 import Header from "~/header";
 import { getSymbol, getDigits, formatMoney, allCurrencies } from "utils/currencies";
 import { categoryMap } from "utils/categories";

@@ -20,14 +20,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-
+import Plus from "@/accIcons/plus.svg"; // should exist in your accIcons folder
 // ===== hook up to your app =====
 import { useAuth } from "context/AuthContext";
 import { getGroupDetails, getGroupExpenses } from "services/GroupService";
 import { settleExpense } from "services/ExpenseService";
 import { getSymbol, allCurrencies } from "utils/currencies";
 import { useTheme } from "context/ThemeProvider";
-
+import Eye from "@/accIcons/eye.svg";
+import EyeOff from "@/accIcons/eyeOff.svg";
+import Copy from "@/accIcons/copy.svg";
+import Send from "@/accIcons/send.svg";
+import Settings from "@/accIcons/settings.svg";
+/* ============ constants & helpers ============ */
 /* ----------------- helpers ----------------- */
 const currencyDigits = (code, locale = "en-IN") => {
     try {
@@ -367,7 +372,11 @@ How to join:
                         setShowMembers((s) => !s);
                     }}
                 >
-                    <Feather name={showMembers ? "eye" : "eye-off"} size={18} color={theme?.colors?.primary ?? "#60DFC9"} />
+                    {showMembers?
+                    <Eye width={18} height={18} color={theme?.colors?.primary ?? "#60DFC9"} />
+                    :
+                    <EyeOff width={18} height={18} color={theme?.colors?.primary ?? "#60DFC9"} />
+                    }
                 </TouchableOpacity>
             </View>}
 
@@ -429,7 +438,7 @@ How to join:
                             router.push({ pathname: "/groups/settings", params: { id: group._id } });
                         }}
                     >
-                        <Feather name="settings" size={20} color={theme?.colors?.text ?? "#EBF1D5"} />
+                        <Settings  width={20} height={20} color={theme?.colors?.primary ?? "#60DFC9"} />
                     </TouchableOpacity>
                 }
             />
@@ -475,13 +484,13 @@ How to join:
 
                                                 <View style={{ flexDirection: "row", gap: 8 }}>
                                                     <TouchableOpacity onPress={handleCopyCode} style={{ paddingHorizontal: 8, paddingVertical: 6 }}>
-                                                        <Feather name="copy" size={18} color={theme?.colors?.primary ?? "#60DFC9"} />
+                                                        <Copy width={18} height={18} color={theme?.colors?.primary ?? "#60DFC9"} />
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
                                                         onPress={handleShareInvite}
                                                         style={{ paddingHorizontal: 8, paddingVertical: 6 }}
                                                     >
-                                                        <Feather name="send" size={18} color={theme?.colors?.primary ?? "#60DFC9"} />
+                                                        <Send width={18} height={18} color={theme?.colors?.primary ?? "#60DFC9"} />
                                                     </TouchableOpacity>
                                                 </View>
                                             </View>
@@ -517,7 +526,7 @@ How to join:
                 {/* FAB */}
                 {!loadingExpenses && (expenses?.length || 0) > 0 && (
                     <TouchableOpacity style={[styles.fab, { backgroundColor: theme?.colors?.primary ?? "#00C49F" }]} onPress={() => router.push({ pathname: "/newExpense", params: { groupId: id } })}>
-                        <Feather name="plus" size={22} color={theme?.colors?.inverseText ?? "#121212"} />
+                        <Plus width={22} height={22} color={theme?.colors?.inverseText ?? "#121212"} />
                         <Text style={styles.fabText}>Add Expense</Text>
                     </TouchableOpacity>
                 )}

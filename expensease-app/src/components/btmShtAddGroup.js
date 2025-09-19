@@ -9,7 +9,6 @@ import {
     ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
 import MainBottomSheet from "./mainBottomSheet";
 import { useTheme } from "context/ThemeProvider";
 

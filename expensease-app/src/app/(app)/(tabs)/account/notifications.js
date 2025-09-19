@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { Feather } from "@expo/vector-icons";
 import Header from "~/header";
 import { useTheme } from "context/ThemeProvider";
 import { useRouter } from "expo-router";

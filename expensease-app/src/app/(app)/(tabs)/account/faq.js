@@ -16,7 +16,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-
+import ChevronUp from "@/accIcons/chevronUp.svg"; // Example SVG import
+import ChevronDown from "@/accIcons/chevronDown.svg"; // Example SVG import
 import Header from "~/header";
 import { useTheme } from "context/ThemeProvider";
 import SearchBar from "~/searchBar"; // <-- using your component
@@ -139,7 +140,11 @@ export default function FAQScreen() {
                                                 <Text style={styles.faqQ}>{item.q}</Text>
                                             </View>
                                             <View>
-                                                <Feather name={isOpen ? "chevron-up" : "chevron-down"} size={20} color={theme.colors.muted} />
+                                                {isOpen?
+                                                <ChevronUp height={20} width={20} color={theme.colors.muted}/>
+                                                :
+                                                <ChevronDown height={20} width={20} color={theme.colors.muted}/>
+                                                }
                                             </View>
                                         </TouchableOpacity>
 
@@ -147,10 +152,11 @@ export default function FAQScreen() {
                                             <View style={styles.faqBody}>
                                                 {renderAnswer(item.a)}
 
-                                                <View style={styles.helpRow}>
+                                                {/* <View style={styles.helpRow}>
                                                     <Text style={styles.helpText}>Was this helpful?</Text>
 
                                                     <TouchableOpacity onPress={() => markHelpful(item.id, "up")} style={[styles.helpBtn, feedback[item.id] === "up" && styles.helpBtnActiveUp]} accessibilityRole="button">
+                                                    //FEATHER DOESNT WORK FOR ANDROID
                                                         <Feather name="thumbs-up" size={16} color={feedback[item.id] === "up" ? "#0f766e" : theme.colors.text} />
                                                         <Text style={[styles.helpBtnText, feedback[item.id] === "up" && { color: "#0f766e" }]}>Yes</Text>
                                                     </TouchableOpacity>
@@ -160,8 +166,8 @@ export default function FAQScreen() {
                                                         <Text style={[styles.helpBtnText, feedback[item.id] === "down" && { color: "#be123c" }]}>No</Text>
                                                     </TouchableOpacity>
 
-                                                </View>
-                                                {feedback[item.id] && <Text style={styles.feedbackThanks}>Thanks — your feedback helps us improve.</Text>}
+                                                </View> */}
+                                                {/* {feedback[item.id] && <Text style={styles.feedbackThanks}>Thanks — your feedback helps us improve.</Text>} */}
                                             </View>
                                         )}
                                     </View>

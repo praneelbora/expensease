@@ -8,14 +8,16 @@ import {
     FlatList,
     ActivityIndicator,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MainBottomSheet from "./mainBottomSheet";
 import { getFriends } from "services/FriendService";
 import { addMembersToGroup } from "services/GroupService";
 import { useAuth } from "context/AuthContext";
 import { useTheme } from "context/ThemeProvider";
-
+import Users from "@/accIcons/users.svg";
+import Search from "@/accIcons/search.svg";
+import CheckCircle from "@/accIcons/circleCheck.svg";
+import Circle from "@/accIcons/circle.svg";
 export default function BottomSheetAddFriends({
     innerRef,
     groupId,
@@ -111,7 +113,7 @@ export default function BottomSheetAddFriends({
 
     const renderNoFriends = () => (
         <View style={{ padding: 24, alignItems: "center" }}>
-            <Feather name="users" size={48} color={colors.muted || "#888"} />
+            <Users width={48} height={48} color={colors.muted || "#888"} />
             <Text style={{ color: colors.text || "#EBF1D5", fontSize: 18, fontWeight: "700", marginTop: 12 }}>
                 You have not added any friends yet
             </Text>
@@ -182,7 +184,7 @@ export default function BottomSheetAddFriends({
 
                 {/* Search input */}
                 <View style={styles.searchWrap}>
-                    <Feather name="search" size={18} color={colors.muted || "#aaa"} />
+                    <Search width={18} height={18} color={colors.muted || "#aaa"} />
                     <TextInput
                         placeholder="Search friends"
                         placeholderTextColor={colors.muted || "#777"}
@@ -227,9 +229,9 @@ export default function BottomSheetAddFriends({
                                         style={styles.iconWrap}
                                     >
                                         {isSelected ? (
-                                            <Feather name="check-circle" size={22} color={colors.cta || colors.primary} />
+                                            <CheckCircle width={22} height={22} color={colors.cta || colors.primary} />
                                         ) : (
-                                            <Feather name="circle" size={22} color={colors.muted || "#777"} />
+                                            <Circle width={22} height={22} color={colors.muted || "#777"} />
                                         )}
                                     </TouchableOpacity>
                                 </TouchableOpacity>

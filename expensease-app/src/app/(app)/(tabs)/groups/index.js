@@ -14,8 +14,7 @@ import SearchBar from "~/searchBar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
-import { Feather } from "@expo/vector-icons";
-
+import Plus from "@/accIcons/plus.svg";
 // ===== adjust these paths to your project =====
 import { useAuth } from "/context/AuthContext";
 import { getAllGroups, getGroupExpenses, joinGroup, createGroup } from "/services/GroupService";
@@ -377,7 +376,7 @@ export default function GroupsScreen() {
 
                 {/* Floating create button (mobile) */}
                 <TouchableOpacity accessibilityLabel="Create group" onPress={() => groupsRef.current?.present()} style={styles.fab}>
-                    <Feather name="plus" size={24} color={theme?.colors?.inverseText ?? "#121212"} />
+                    <Plus width={24} height={24} color={theme?.colors?.inverseText ?? "#121212"} />
                 </TouchableOpacity>
 
                 <BottomSheetGroups

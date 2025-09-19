@@ -8,6 +8,7 @@ import { StatusBar } from "expo-status-bar";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import Header from "~/header";
+import Plus from "@/accIcons/plus";
 import BottomSheetPaymentAccount from "~/btmShtPayAcc";
 import BottomSheetEditBalance from "~/btmShtEditBal";
 
@@ -210,7 +211,7 @@ export default function PaymentAccountsScreen() {
                         }}
                         style={styles.addBtn}
                     >
-                        <Feather name="plus" size={18} color={styles.colors.textFallback} />
+                        <Plus width={18} height={20} color={styles.colors.textFallback} />
                         <Text style={{ color: styles.colors.textFallback, fontWeight: "700" }}>Add Account</Text>
                     </TouchableOpacity>
                 </View>

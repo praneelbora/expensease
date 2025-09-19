@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
 
 import { useAuth } from "context/AuthContext";
 import { createPaymentMethod } from "services/PaymentMethodService";

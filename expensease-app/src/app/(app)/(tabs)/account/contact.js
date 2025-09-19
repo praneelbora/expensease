@@ -15,7 +15,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as Linking from "expo-linking";
 import * as Clipboard from "expo-clipboard";
-import { Feather } from "@expo/vector-icons";
+import Contact from "@/accIcons/contact.svg"; // Example SVG import
+import Send from "@/accIcons/send.svg"; // Example SVG import
+import Copy from "@/accIcons/copy.svg"; // Example SVG import
 import { useRouter } from "expo-router";
 
 import Header from "~/header";
@@ -144,7 +146,7 @@ export default function ContactScreen() {
             <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
                 <View style={styles.hero}>
                     <View style={styles.heroIcon}>
-                        <Feather name="mail" size={20} color={theme.colors.onPrimary ?? "#000"} />
+                        <Contact height={20} width={20} color={theme.colors.textDark ?? "#000"} />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.lead}>
@@ -238,12 +240,12 @@ export default function ContactScreen() {
                             accessibilityRole="button"
                             accessibilityLabel="Send message"
                         >
-                            <Feather name="send" size={16} color="#fff" style={{ marginRight: 8 }} />
+                            <Send width={16} height={16} color="#fff" style={{ marginRight: 8 }} />
                             <Text style={styles.primaryBtnText}>{submitting ? "Preparing..." : "Email support"}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity onPress={handleCopyEmail} style={styles.ghostBtn} accessibilityRole="button" accessibilityLabel="Copy support email">
-                            <Feather name="copy" size={16} color={theme.colors.text} style={{ marginRight: 8 }} />
+                            <Copy width={16} height={16} color={theme.colors.text} style={{ marginRight: 8 }} />
                             <Text style={styles.ghostBtnText}>{copied ? "Copied!" : "Copy email"}</Text>
                         </TouchableOpacity>
                     </View>

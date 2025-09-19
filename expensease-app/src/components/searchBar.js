@@ -1,9 +1,8 @@
 // components/SearchBar.js
 import React from "react";
 import { View, TextInput, StyleSheet } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { useTheme } from "context/ThemeProvider";
-
+import Search from "@/accIcons/search.svg";
 export default function SearchBar({
     value,
     onChangeText,
@@ -24,9 +23,9 @@ export default function SearchBar({
                 style,
             ]}
         >
-            <Feather
-                name="search"
-                size={18}
+            <Search
+                width={18}
+                height={18}
                 color={colors.muted}
                 style={{ marginRight: 8 }}
             />

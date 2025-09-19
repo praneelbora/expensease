@@ -12,7 +12,7 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "context/ThemeProvider";
 import { getSymbol } from "utils/currencies";
 import { getPMIcon } from "./pmIcons";
-
+import Edit from "@/accIcons/edit.svg"; // should exist in your accIcons folder
 /**
  * Props:
  * - method (payment method object)
@@ -106,11 +106,11 @@ export default function PaymentMethodCard({
                 <View style={styles.peekWrap}>
                     <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignContent: 'center', alignItems: 'center' }}>
                         <Text style={styles.peekTitle}>Current Balances</Text>
-                        <View style={styles.peekActions}>
+                        {/* <View style={styles.peekActions}>
                             <TouchableOpacity onPress={handleToggleReveal} style={styles.iconBtnSmall} accessibilityLabel="Toggle reveal">
                                 <Feather name={revealed ? "eye" : "eye-off"} size={16} color={styles.palette.primaryFallback} />
                             </TouchableOpacity>
-                        </View>
+                        </View> */}
                     </View>
 
                     <View style={styles.peekList}>
@@ -138,7 +138,7 @@ export default function PaymentMethodCard({
 
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <Pressable onPress={() => onEdit?.(method)} style={styles.iconBtnSquare} android_ripple={{ color: "#00000010" }}>
-                        <Feather name="edit-2" size={18} color={styles.palette.textFallback} />
+                        <Edit width={18} height={18} color={styles.palette.textFallback} />
                     </Pressable>
                 </View>
             </View>
@@ -210,7 +210,7 @@ const createStyles = (theme = {}) => {
         badgeIndigo: { borderColor: "#7c3aed" },
         badgeText: { color: palette.primary, fontSize: 11, fontWeight: "700" },
 
-        peekWrap: { marginTop: 12 },
+        peekWrap: { marginTop: 12, gap: 4 },
         peekTitle: { color: palette.muted, fontSize: 13, fontWeight: "700" },
         peekList: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
         peekItem: { flexDirection: "row", alignItems: "baseline", gap: 8, backgroundColor: palette.background, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: palette.border, marginRight: 8 },

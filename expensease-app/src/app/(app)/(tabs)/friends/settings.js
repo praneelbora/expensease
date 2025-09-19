@@ -14,7 +14,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Feather } from "@expo/vector-icons";
 
 import { useAuth } from "context/AuthContext";
 import {

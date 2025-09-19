@@ -12,9 +12,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-
+import Grid from "@/accIcons/grid.svg";
+import Privacy from "@/accIcons/privacy.svg";
+import Contact from "@/accIcons/contact.svg";
+import FAQ from "@/accIcons/faq.svg";
 import Header from "~/header";
 import { useTheme } from "context/ThemeProvider";
 import { useAuth } from "context/AuthContext"; // optional; safe to remove if not present
@@ -73,12 +75,12 @@ export default function PrivacyPolicyScreen() {
 
                         <View style={styles.actionsRow}>
                             <TouchableOpacity style={styles.primaryBtn} onPress={handleCTA} activeOpacity={0.85}>
-                                <Feather name="grid" size={16} color="#fff" style={{ marginRight: 8 }} />
+                                <Grid width={16} height={16} color="#fff" style={{ marginRight: 8 }} />
                                 <Text style={styles.primaryBtnText}>{userToken ? "Open Dashboard" : "Create free account"}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity style={styles.ghostBtn} onPress={handleContact} activeOpacity={0.85}>
-                                <Feather name="mail" size={16} color={theme.colors.text} style={{ marginRight: 8 }} />
+                                <Contact name="mail" height={16} width={16} color={theme.colors.text} style={{ marginRight: 8 }} />
                                 <Text style={styles.ghostBtnText}>Contact support</Text>
                             </TouchableOpacity>
                         </View>
@@ -87,7 +89,7 @@ export default function PrivacyPolicyScreen() {
                     <View style={styles.heroAside}>
                         <View style={styles.highlight}>
                             <View style={styles.iconWrap}>
-                                <Feather name="shield" size={20} color={theme.colors.primary} />
+                                <Privacy height={20} width={20} color={theme.colors.primary} />
                             </View>
                             <View style={styles.highlightTextWrap}>
                                 <Text style={styles.highlightTitle}>Highlights</Text>
@@ -96,19 +98,16 @@ export default function PrivacyPolicyScreen() {
                                 {/* Quick links inside highlight card */}
                                 <View style={styles.quickLinks}>
                                     <TouchableOpacity onPress={() => router.push("/account/faq")} style={styles.quickLinkBtn}>
-                                        <Feather name="help-circle" size={14} color={theme.colors.primary} />
+                                        <FAQ width={14} height={14} color={theme.colors.primary} />
                                         <Text style={styles.quickLinkText}>FAQs</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity onPress={() => router.push("/account/contact")} style={styles.quickLinkBtn}>
-                                        <Feather name="mail" size={14} color={theme.colors.primary} />
+                                        <Contact width={14} height={14} color={theme.colors.primary} />
                                         <Text style={styles.quickLinkText}>Contact</Text>
                                     </TouchableOpacity>
 
-                                    {/* <TouchableOpacity onPress={() => router.push("/account/privacy")} style={styles.quickLinkBtn}>
-                    <Feather name="shield" size={14} color={theme.colors.primary} />
-                    <Text style={styles.quickLinkText}>Privacy</Text>
-                  </TouchableOpacity> */}
+                                    
                                 </View>
                             </View>
                         </View>

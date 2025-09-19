@@ -11,12 +11,11 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
 import BottomSheetLayout from "./btmShtHeaderFooter"; // <--- use the reusable layout
 import { getSymbol } from "../utils/currencies";
 import { useTheme } from "context/ThemeProvider";
 import SheetCurrencies from "~/shtCurrencies";
-
+import ChevronDown from "@/accIcons/chevronDown.svg"; // should exist in your accIcons folder
 /**
  * Props:
  * - innerRef (ref passed to MainBottomSheet)
@@ -138,7 +137,7 @@ export default function PaymentMethodBalanceBottomSheet({
               activeOpacity={0.8}
             >
               <Text style={styles.rowButtonText}>{currency}</Text>
-              <Feather name="chevron-down" size={18} color={colors.muted || "#aaa"} />
+              <ChevronDown width={16} height={16} color={colors.muted || "#aaa"} />
             </TouchableOpacity>
 
             {/* Action (credit/debit) */}

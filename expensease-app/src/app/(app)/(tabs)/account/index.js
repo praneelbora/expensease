@@ -14,7 +14,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as Clipboard from "expo-clipboard";
-import { Feather } from "@expo/vector-icons";
 import Header from "~/header";
 import Guide from "@/accIcons/guide.svg";
 import Logout from "@/accIcons/logout.svg";
@@ -319,7 +318,6 @@ export default function AccountScreen() {
 
                                             {/* pen badge bottom-right (always visible) */}
                                             <View style={[styles.penBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.card }]}>
-                                                {/* <Feather name="edit" size={12} color={theme.mode === "dark" ? "#000" : "#fff"} /> */}
                                                 <Edit width={12} height={12} stroke={theme.colors.background} />
                                             </View>
                                         </TouchableOpacity>

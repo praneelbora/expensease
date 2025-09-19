@@ -17,7 +17,8 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import Header from "~/header";
 import ExpenseRow from "~/expenseRow";
-
+import Settings from "@/accIcons/settings.svg";
+import Plus from "@/accIcons/plus.svg";
 // ===== adjust these to your project =====
 import { useAuth } from "context/AuthContext";
 import { getFriendDetails } from "services/FriendService";
@@ -654,7 +655,7 @@ export default function FriendDetails() {
             <Header showBack title={''} button={<TouchableOpacity
                 onPress={() => router.push({ pathname: "/friends/settings", params: { id: friend?._id } })}
             >
-                <Feather name="settings" size={20} color={styles.colors.textFallback} />
+                <Settings width={20} height={20} color={styles.colors.textFallback} />
             </TouchableOpacity>} />
 
             {activeTab === "expenses" ? (
@@ -816,7 +817,7 @@ export default function FriendDetails() {
                     style={styles.fab}
                     onPress={() => router.push({ pathname: "/newExpense", params: { friendId: id } })}
                 >
-                    <Feather name="plus" size={22} color="#121212" />
+                    <Plus width={22} height={22} color="#121212" />
                     <Text style={styles.fabText}>Add Expense</Text>
                 </TouchableOpacity>
             )}

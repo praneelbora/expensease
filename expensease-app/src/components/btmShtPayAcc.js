@@ -17,10 +17,9 @@ import {
 } from "react-native";
 import BottomSheetLayout from "./btmShtHeaderFooter"; // <- new layout component
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
 import { useTheme } from "context/ThemeProvider";
 import { PM_ICON_CHOICES } from "./pmIcons";
-
+import ChevronDown from "@/accIcons/chevronDown.svg"; // should exist in your accIcons folder
 /**
  * Props:
  * - innerRef
@@ -258,7 +257,7 @@ const BottomSheetPaymentAccount = ({
           <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>Type</Text>
           <TouchableOpacity onPress={() => setTypeModalVisible(true)} style={styles.customSelect}>
             <Text style={styles.customSelectText}>{TYPE_OPTIONS.find((o) => o.value === type)?.label || "Select"}</Text>
-            <Feather name="chevron-down" size={18} color={colors.muted || "#999"} />
+            <ChevronDown width={18} height={18} color={colors.muted || "#999"} />
           </TouchableOpacity>
 
           {/* Type modal */}

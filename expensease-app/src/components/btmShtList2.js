@@ -1,13 +1,13 @@
 // components/BottomSheetList.js
 import React, { useState, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, TextInput } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MainBottomSheet from "./mainBottomSheet";
 import CategoryIcon from "./categoryIcon"; // ensure this points to your CategoryIcon component
 import { useTheme } from "context/ThemeProvider";
-
+import Check from "@/accIcons/check.svg"; // should exist in your accIcons folder
+import Search from "@/accIcons/search.svg"; // should exist in your accIcons folder
 const BottomSheetList = ({
     innerRef,
     onClose,
@@ -58,7 +58,7 @@ const BottomSheetList = ({
             {/* Search */}
             {withSearch && (
                 <View style={styles.searchWrap}>
-                    <Feather name="search" size={18} color={colors.muted ?? "#aaa"} style={{ marginRight: 8 }} />
+                    <Search width={18} height={18} color={colors.muted ?? "#aaa"} style={{ marginRight: 8 }} />
                     <TextInput
                         placeholder={searchPlaceholder}
                         placeholderTextColor={colors.muted ?? "#777"}
@@ -97,7 +97,7 @@ const BottomSheetList = ({
                                 {extraRightKey && (
                                     <Text style={styles.code}>{opt[extraRightKey]}</Text>
                                 )}
-                                {active ? <Feather name="check" size={18} color={colors.cta ?? "#00C49F"} /> : null}
+                                {active ? <Check width={18} height={18} color={colors.cta ?? "#00C49F"} /> : null}
                             </View>
                         </TouchableOpacity>
                     );
