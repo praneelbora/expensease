@@ -590,22 +590,6 @@ export default function FriendDetails() {
         return list;
     }, [userId, user?.name, friend]);
 
-    // Optional default prefill: pick first settlement item (if any)
-    const prefill = useMemo(() => {
-        if (!settlementLists || settlementLists.length === 0) return null;
-        // choose first and map into expected prefill shape
-        const first = settlementLists[0];
-        return {
-            payerId: first.from,
-            receiverId: first.to,
-            amount: Number(first.amount || 0),
-            currency: first.currency,
-            description: first.type ? `Settle: ${first.type}` : "Settlement",
-            meta: first,
-        };
-    }, [settlementLists]);
-    // Compact summary breakdown: net -> personal -> group
-    // Compact summary breakdown: net -> personal -> group (combined into single-line owe/owed)
     const oweSummary = useMemo(() => {
         const netMap = netExpenseBalanceMap || {};
         const personalMap = personalExpenseBalanceMap || {};
@@ -652,7 +636,7 @@ export default function FriendDetails() {
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <StatusBar style={styles.statusBar} />
-            <Header showBack title={friend.name} button={<TouchableOpacity
+            <Header showBack title={friend?.name} button={<TouchableOpacity
                 onPress={() => router.push({ pathname: "/friends/settings", params: { id: friend?._id } })}
             >
                 <Settings width={20} height={20} color={styles.colors.textFallback} />
@@ -712,9 +696,9 @@ export default function FriendDetails() {
                                     </View>
                                 ) : null}
                             </View>
-                            <TouchableOpacity style={[styles.outlineBtn2, { marginTop: 4 }]} onPress={() => settleSheetRef.current?.present()}>
+                            {settlementLists.length>0 && <TouchableOpacity style={[styles.outlineBtn2, { marginTop: 4 }]} onPress={() => settleSheetRef.current?.present()}>
                                 <Text style={styles.outlineBtnText2}>Settle</Text>
-                            </TouchableOpacity>
+                            </TouchableOpacity>}
                         </View>
 
                     }
