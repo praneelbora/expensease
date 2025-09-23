@@ -77,8 +77,6 @@ async function makeIcon(dest, sizePx) {
     tasks.push(makeIcon(adaptiveFg, 512).then(()=>console.log('Created', adaptiveFg)));
 
     await Promise.all(tasks);
-    console.log('All icons generated into', OUT);
-    console.log('Now update your app.json/app.config.js to point to the icons (see README).');
   } catch (err) {
     console.error('Error generating icons:', err);
     process.exit(1);

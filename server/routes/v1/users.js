@@ -709,15 +709,77 @@ router.get("/suggestions", auth, async (req, res) => {
   }
 });
 
+// POST /login
 router.post("/login", async (req, res) => {
-  const { email, pushToken, platform } = req.body;
-  console.log(req.body);
+  const { email, password, pushToken, platform } = req.body;
+  console.log("login body:", req.body);
 
   if (!email) return res.status(400).json({ error: "Missing email id" });
 
+  // --- Single test-account enforcement ---
+  const TEST_EMAIL = "mail.expensease@gmail.com";
+  const TEST_PLAIN_PASSWORD = "expenseasetesting"; // consider moving to process.env.TEST_PW or hashing in DB
+
   try {
-    if (email !== "praneelbora@gmail.com" && email !== "praneelbora9@gmail.com" && email !== "developerpraneel@gmail.com" && email !== 'testlogin@expensease.in')
-      if (!email) return res.status(400).json({ error: "Not a developer ACcount" });
+    // If it's the special test account, require the exact password
+    if (email === TEST_EMAIL) {
+      if (!password) return res.status(400).json({ error: "Missing password for test account" });
+
+      // Plaintext check (simple). Replace with bcrypt.compare if you store a hash.
+      if (password !== TEST_PLAIN_PASSWORD) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // find or create user for the test account
+      let user = await User.findOne({ email });
+      let newUser = false;
+      if (!user) {
+        newUser = true;
+        user = await User.create({ email, name: "TEST USER" });
+
+        await PaymentMethod.create({
+          userId: user._id,
+          label: "Cash",
+          type: "cash",
+          supportedCurrencies: [],
+          balances: { INR: { available: 0, pending: 0 } },
+          capabilities: ["send", "receive"],
+          isDefaultSend: true,
+          isDefaultReceive: true,
+          provider: "manual",
+          status: "verified",
+        });
+      }
+
+      if (pushToken) {
+        await savePushToken({ userId: user._id, token: pushToken, platform });
+      }
+
+      const authToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "100d" });
+
+      return res.status(200).json({
+        responseBody: { "x-auth-token": authToken },
+        user: { id: user._id, name: user.name, email: user.email, picture: user.picture },
+        userId: user._id, // explicit userId field as requested
+        newUser,
+      });
+    }
+
+    // --- Non-test / developer flow (existing behavior) ---
+    // allow only certain developer emails to use the dev auto-create flow
+    const devEmails = [
+      "praneelbora@gmail.com",
+      "praneelbora9@gmail.com",
+      "developerpraneel@gmail.com",
+      "testlogin@expensease.in",
+      "mail.expensease@gmail.com"
+    ];
+
+    if (!devEmails.includes(email)) {
+      return res.status(403).json({ error: "Not a developer account" });
+    }
+
+    // For dev emails we keep the previous behavior: create user if not exists
     let user = await User.findOne({ email });
     let newUser = false;
     if (!user) {
@@ -727,33 +789,56 @@ router.post("/login", async (req, res) => {
         userId: user._id,
         label: "Cash",
         type: "cash",
-        supportedCurrencies: [], // any currency
-        balances: {
-          INR: { available: 0, pending: 0 }
-        },
+        supportedCurrencies: [],
+        balances: { INR: { available: 0, pending: 0 } },
         capabilities: ["send", "receive"],
-        isDefaultSend: true,       // optional: treat cash as default send
-        isDefaultReceive: true,    // optional: treat cash as default receive
+        isDefaultSend: true,
+        isDefaultReceive: true,
         provider: "manual",
-        status: "verified"         // cash doesn’t need verification
+        status: "verified",
       });
     }
 
     if (pushToken) {
       await savePushToken({ userId: user._id, token: pushToken, platform });
     }
+
     const authToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "100d" });
 
-    res.status(200).json({
+    return res.status(200).json({
       responseBody: { "x-auth-token": authToken },
       user: { id: user._id, name: user.name, email: user.email, picture: user.picture },
+      userId: user._id,
       newUser,
     });
   } catch (err) {
     console.error(" login failed:", err);
-    res.status(401).json({ error: "Invalid or expired Google code" });
+    return res.status(500).json({ error: "Server error" });
   }
 });
+
+// POST /dev-login
+router.post("/dev-login", async (req, res) => {
+  const { email, pushToken, platform } = req.body;
+  if (!email) return res.status(400).json({ error: "Missing email id" });
+  try {
+    // Find or create user (same behavior as /login)
+    let user = await User.findOne({ email });
+    // Sign JWT (same expiry as your /login)
+    const authToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "100d" });
+
+    // Keep return format identical to /login
+    return res.status(200).json({
+      responseBody: { "x-auth-token": authToken },
+      user: { id: user._id, name: user.name, email: user.email, picture: user.picture },
+      userId: user._id
+    });
+  } catch (err) {
+    console.error("dev-login failed:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 
 router.get("/version", async (req, res) => {
   try {
@@ -772,6 +857,10 @@ router.get("/version", async (req, res) => {
     res.json({
       minimumIOSVersion: adminDoc.minimumIOSVersion,
       minimumAndroidVersion: adminDoc.minimumAndroidVersion,
+      androidVersionReview: adminDoc.androidVersionReview || null,
+      iosVersionReview: adminDoc.iosVersionReview || null,
+      newIOSVersion: adminDoc.newIOSVersion || null,
+      newAndroidVersion: adminDoc.newAndroidVersion || null,
     });
   } catch (e) {
     console.error("Error fetching version:", e);

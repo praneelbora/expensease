@@ -652,7 +652,7 @@ export default function FriendDetails() {
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <StatusBar style={styles.statusBar} />
-            <Header showBack title={''} button={<TouchableOpacity
+            <Header showBack title={friend.name} button={<TouchableOpacity
                 onPress={() => router.push({ pathname: "/friends/settings", params: { id: friend?._id } })}
             >
                 <Settings width={20} height={20} color={styles.colors.textFallback} />
@@ -673,61 +673,50 @@ export default function FriendDetails() {
                     contentContainerStyle={styles.listContent}
                     ListHeaderComponent={
                         <View style={styles.headerRow}>
-                            <View>
+                            <View style={{ flex: 1 }}>
+                                {/* NET (dominant / larger) */}
+                                {oweSummary.netLines && (oweSummary.netLines.oweLine || oweSummary.netLines.owedLine) ? (
+                                    <View style={{ marginBottom: 8 }}>
+                                        {oweSummary.netLines.oweLine ? (
+                                            <Text style={[styles.balanceLine, styles.neg]}>{oweSummary.netLines.oweLine}</Text>
+                                        ) : null}
+                                        {oweSummary.netLines.owedLine ? (
+                                            <Text style={[styles.balanceLine, styles.pos]}>{oweSummary.netLines.owedLine}</Text>
+                                        ) : null}
+                                    </View>
+                                ) : null}
 
-                                <Text style={styles.headerText}>{friend?.name}</Text>
-                                <View style={{ flex: 1, marginTop: 8 }}>
-                                    {/* NET (dominant / larger) */}
-                                    {oweSummary.netLines && (oweSummary.netLines.oweLine || oweSummary.netLines.owedLine) ? (
-                                        <View style={{ marginBottom: 8 }}>
-                                            {oweSummary.netLines.oweLine ? (
-                                                <Text style={[styles.balanceLine, styles.neg]}>{oweSummary.netLines.oweLine}</Text>
-                                            ) : null}
-                                            {oweSummary.netLines.owedLine ? (
-                                                <Text style={[styles.balanceLine, styles.pos]}>{oweSummary.netLines.owedLine}</Text>
-                                            ) : null}
-                                        </View>
-                                    ) : null}
+                                {/* PERSONAL (single-line, smaller) */}
+                                {(oweSummary.personalLines?.oweLine || oweSummary.personalLines?.owedLine) ? (
+                                    <View style={{ marginBottom: 6 }}>
+                                        <Text style={[styles.summaryText, styles.smallSectionTitle]}>PERSONAL SETTLEMENTS</Text>
+                                        {oweSummary.personalLines.oweLine ? (
+                                            <Text style={[styles.smallInfo, styles.neg]}>{oweSummary.personalLines.oweLine}</Text>
+                                        ) : null}
+                                        {oweSummary.personalLines.owedLine ? (
+                                            <Text style={[styles.smallInfo, styles.pos]}>{oweSummary.personalLines.owedLine}</Text>
+                                        ) : null}
+                                    </View>
+                                ) : null}
 
-                                    {/* PERSONAL (single-line, smaller) */}
-                                    {(oweSummary.personalLines?.oweLine || oweSummary.personalLines?.owedLine) ? (
-                                        <View style={{ marginBottom: 6 }}>
-                                            <Text style={[styles.summaryText, styles.smallSectionTitle]}>PERSONAL SETTLEMENTS</Text>
-                                            {oweSummary.personalLines.oweLine ? (
-                                                <Text style={[styles.smallInfo, styles.neg]}>{oweSummary.personalLines.oweLine}</Text>
-                                            ) : null}
-                                            {oweSummary.personalLines.owedLine ? (
-                                                <Text style={[styles.smallInfo, styles.pos]}>{oweSummary.personalLines.owedLine}</Text>
-                                            ) : null}
-                                        </View>
-                                    ) : null}
-
-                                    {/* GROUPS (single-line, smaller) */}
-                                    {(oweSummary.groupLines?.oweLine || oweSummary.groupLines?.owedLine) ? (
-                                        <View style={{ marginBottom: 6 }}>
-                                            <Text style={[styles.summaryText, styles.smallSectionTitle]}>GROUPS SETTLEMENTS</Text>
-                                            {oweSummary.groupLines.oweLine ? (
-                                                <Text style={[styles.smallInfo, styles.neg]}>{oweSummary.groupLines.oweLine}</Text>
-                                            ) : null}
-                                            {oweSummary.groupLines.owedLine ? (
-                                                <Text style={[styles.smallInfo, styles.pos]}>{oweSummary.groupLines.owedLine}</Text>
-                                            ) : null}
-                                        </View>
-                                    ) : null}
-                                </View>
+                                {/* GROUPS (single-line, smaller) */}
+                                {(oweSummary.groupLines?.oweLine || oweSummary.groupLines?.owedLine) ? (
+                                    <View style={{ marginBottom: 6 }}>
+                                        <Text style={[styles.summaryText, styles.smallSectionTitle]}>GROUPS SETTLEMENTS</Text>
+                                        {oweSummary.groupLines.oweLine ? (
+                                            <Text style={[styles.smallInfo, styles.neg]}>{oweSummary.groupLines.oweLine}</Text>
+                                        ) : null}
+                                        {oweSummary.groupLines.owedLine ? (
+                                            <Text style={[styles.smallInfo, styles.pos]}>{oweSummary.groupLines.owedLine}</Text>
+                                        ) : null}
+                                    </View>
+                                ) : null}
                             </View>
-
-                            {/* Row spanning full width below headerRow — settle button */}
-                            <View style={styles.settleRow}>
-                                {Object.values(netExpenseBalanceMap || {}).some((v) => Math.abs(v) > 0) ? (
-                                    <TouchableOpacity style={styles.settleBtnWrap} onPress={() => settleRef?.current?.present?.()}>
-                                        <Text style={styles.settleBtnText}>Settle</Text>
-                                    </TouchableOpacity>
-                                ) : (
-                                    <></>
-                                )}
-                            </View>
+                            <TouchableOpacity style={[styles.outlineBtn2, { marginTop: 4 }]} onPress={() => settleSheetRef.current?.present()}>
+                                <Text style={styles.outlineBtnText2}>Settle</Text>
+                            </TouchableOpacity>
                         </View>
+
                     }
 
 
@@ -875,7 +864,7 @@ const createStyles = (theme = {}) => {
 
         listContent: { paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8, flexGrow: 1 },
 
-        headerRow: { flex: 1, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 0, paddingBottom: 12 },
+        headerRow: { flex: 1, flexDirection: "column", justifyContent: "space-between", paddingHorizontal: 0, paddingBottom: 12 },
         balanceColumn: { flexDirection: "column", flex: 1 },
         actionsColumn: { justifyContent: "center" },
 
@@ -1009,6 +998,8 @@ const createStyles = (theme = {}) => {
             primaryFallback: colors.primary,
             ctaFallback: colors.cta,
         },
+        outlineBtn2: { borderWidth: 1, borderColor: theme?.colors?.primary ?? "#60DFC9", paddingHorizontal: 20, paddingVertical: 6, borderRadius: 8, backgroundColor: "transparent", alignItems: 'center', textAlign: 'center' },
+        outlineBtnText2: { color: theme?.colors?.primary ?? "#60DFC9", fontWeight: "700" },
 
     });
 

@@ -9,6 +9,8 @@ import {
     RefreshControl,
     Platform,
     Share,
+    Switch,
+    Alert
 } from "react-native";
 import Header from "~/header";
 import ExpenseRow from "~/expenseRow";
@@ -77,12 +79,32 @@ export default function GroupDetails() {
     const [selectedMember, setSelectedMember] = useState(null);
     const [copiedHeader, setCopiedHeader] = useState(false);
     const [showSettle, setShowSettle] = useState(false);
+    // show only debts involving me by default; toggle to reveal others
+    const [showOthers, setShowOthers] = useState(false);
+
+    // only show transactions involving me unless showOthers is true
+    const visibleSimplified = useMemo(() => {
+        if (!Array.isArray(simplifiedTransactions)) return [];
+        if (showOthers) return simplifiedTransactions;
+        return simplifiedTransactions.filter((t) => String(t.from) === String(userId) || String(t.to) === String(userId));
+    }, [simplifiedTransactions, userId, showOthers]);
+
+    const visiblePairwise = useMemo(() => {
+        if (!Array.isArray(pairwiseNetTransactions)) return [];
+        if (showOthers) return pairwiseNetTransactions;
+        return pairwiseNetTransactions.filter((t) => String(t.from) === String(userId) || String(t.to) === String(userId));
+    }, [pairwiseNetTransactions, userId, showOthers]);
+
+    // counts of hidden items (to show "Show X more")
+    const hiddenSimplifiedCount = (simplifiedTransactions?.length || 0) - (visibleSimplified?.length || 0);
+    const hiddenPairwiseCount = (pairwiseNetTransactions?.length || 0) - (visiblePairwise?.length || 0);
 
     // Data
     const [group, setGroup] = useState(null);
     const [expenses, setExpenses] = useState([]);
     const [userId, setUserId] = useState(null);
     const [privacy, setPrivacy] = useState(false);
+    const [showSimplified, setShowSimplified] = useState(true);
 
     // currency options for any modals
     const currencyOptions = useMemo(() => {
@@ -93,6 +115,10 @@ export default function GroupDetails() {
             .map((c) => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
     }, [defaultCurrency, preferredCurrencies]);
 
+    useEffect(() => {
+        // default to true to preserve legacy behaviour for groups without this setting
+        setShowSimplified(group?.settings?.simplifyDebts ?? true);
+    }, [group?.settings?.simplifyDebts]);
     // compute per-member net map: memberId -> { [currency]: net }
     const calculateDebt = useCallback((list = [], members = []) => {
         const map = {};
@@ -172,6 +198,109 @@ export default function GroupDetails() {
         },
         [group?.members, userId]
     );
+    // --- pairwise transaction builders (paste after simplifyDebts) ---
+    const buildPairwiseTransactionsFromExpenses = (groupExpenses) => {
+        if (!groupExpenses) return [];
+
+        const txs = [];
+
+        for (const exp of groupExpenses) {
+            const currency = exp.currency || "INR";
+            const payers = (exp.splits || []).filter((s) => s.payAmount > 0 && s.paying && s.friendId);
+            const payersTotal = payers.reduce((acc, p) => acc + (p.payAmount || 0), 0);
+            const owers = (exp.splits || []).filter((s) => s.oweAmount > 0 && s.owing && s.friendId);
+
+            if (payers.length === 0 || owers.length === 0) continue;
+
+            for (const o of owers) {
+                const oweAmt = Number(o.oweAmount || 0);
+                if (!oweAmt) continue;
+
+                if (payersTotal === 0) {
+                    const equalShare = oweAmt / payers.length;
+                    for (const p of payers) {
+                        if (o.friendId._id === p.friendId._id) continue;
+                        txs.push({
+                            from: o.friendId._id,
+                            to: p.friendId._id,
+                            amount: equalShare,
+                            currency,
+                            meta: { expenseId: exp._id, description: exp.description || exp.title || "" },
+                        });
+                    }
+                } else {
+                    for (const p of payers) {
+                        if (o.friendId._id === p.friendId._id) continue;
+                        const share = (p.payAmount || 0) / payersTotal;
+                        const amount = share * oweAmt;
+                        if (amount > 0) {
+                            txs.push({
+                                from: o.friendId._id,
+                                to: p.friendId._id,
+                                amount,
+                                currency,
+                                meta: { expenseId: exp._id, description: exp.description || exp.title || "" },
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        return txs;
+    };
+
+    const buildPairwiseNetTransactions = (groupExpenses, roundDigits = 2) => {
+        const pairMap = {}; // key = `${from}|${to}|${currency}` -> amount
+        const raw = buildPairwiseTransactionsFromExpenses(groupExpenses);
+        const pow = 10 ** roundDigits;
+        const r = (v) => Math.round((Number(v) + Number.EPSILON) * pow) / pow;
+
+        raw.forEach((tx) => {
+            const key = `${tx.from}|${tx.to}|${tx.currency}`;
+            pairMap[key] = (pairMap[key] || 0) + Number(tx.amount || 0);
+        });
+
+        // create unordered pairs map for netting
+        const netMap = {}; // `${a}|${b}|${currency}` -> { aToB, bToA }
+        Object.keys(pairMap).forEach((key) => {
+            const [from, to, currency] = key.split("|");
+            const unorderedKey = [from < to ? from : to, from < to ? to : from, currency].join("|");
+            if (!netMap[unorderedKey]) netMap[unorderedKey] = { aToB: 0, bToA: 0 };
+            const [a, b] = unorderedKey.split("|");
+            if (from === a && to === b) {
+                netMap[unorderedKey].aToB += pairMap[key];
+            } else {
+                netMap[unorderedKey].bToA += pairMap[key];
+            }
+        });
+
+        const result = [];
+        Object.entries(netMap).forEach(([k, v]) => {
+            const [a, b, currency] = k.split("|");
+            const aToB = r(v.aToB || 0);
+            const bToA = r(v.bToA || 0);
+            const net = r(aToB - bToA);
+            if (net > 0) result.push({ from: a, to: b, amount: net, currency });
+            else if (net < 0) result.push({ from: b, to: a, amount: Math.abs(net), currency });
+            // net == 0 => ignore
+        });
+
+        return result;
+    };
+
+    // helpful name mapper
+    const getMemberName = (memberId) => {
+        if (memberId == userId) return "You";
+        return group?.members?.find((m) => m._id === memberId)?.name || "Member";
+    };
+
+    const pairwiseNetTransactions = useMemo(() => {
+        if (!expenses || expenses.length === 0 || !group?.members) return [];
+        const all = buildPairwiseNetTransactions(expenses);
+        // enforce admin privacy if needed:
+        return privacy ? all.filter((t) => t.from === userId || t.to === userId) : all;
+    }, [expenses, group?.members, privacy, userId]);
 
     // ===== fetchers =====
     const fetchGroup = useCallback(async () => {
@@ -331,7 +460,25 @@ How to join:
             });
         }
     };
+    // simplified: only mine vs others
+    const mySimplifiedTransactions = useMemo(() => {
+        if (!Array.isArray(simplifiedTransactions)) return [];
+        return simplifiedTransactions.filter(t => t.from === userId || t.to === userId);
+    }, [simplifiedTransactions, userId]);
 
+    const otherSimplifiedCount = useMemo(() => {
+        return Math.max(0, (simplifiedTransactions?.length || 0) - (mySimplifiedTransactions?.length || 0));
+    }, [simplifiedTransactions, mySimplifiedTransactions]);
+
+    // pairwise: only mine vs others
+    const myPairwiseTransactions = useMemo(() => {
+        if (!Array.isArray(pairwiseNetTransactions)) return [];
+        return pairwiseNetTransactions.filter(t => t.from === userId || t.to === userId);
+    }, [pairwiseNetTransactions, userId]);
+
+    const otherPairwiseCount = useMemo(() => {
+        return Math.max(0, (pairwiseNetTransactions?.length || 0) - (myPairwiseTransactions?.length || 0));
+    }, [pairwiseNetTransactions, myPairwiseTransactions]);
 
     // ===== render helpers =====
     const renderExpense = ({ item: exp }) => {
@@ -364,62 +511,83 @@ How to join:
 
     const listHeader = (
         <View style={{ gap: 12 }}>
-            {/* Members header */}
-            {group?.members.length > 1 && <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={styles.sectionLabel}>Members</Text>
-                <TouchableOpacity
-                    onPress={() => {
-                        setShowMembers((s) => !s);
-                    }}
-                >
-                    {showMembers?
-                    <Eye width={18} height={18} color={theme?.colors?.primary ?? "#60DFC9"} />
-                    :
-                    <EyeOff width={18} height={18} color={theme?.colors?.primary ?? "#60DFC9"} />
-                    }
-                </TouchableOpacity>
-            </View>}
-
-            {showMembers && (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {(group?.members || []).map((m) => {
-                        const active = selectedMember === m._id;
-                        return (
-                            <TouchableOpacity key={m._id} onPress={() => setSelectedMember(active ? null : m._id)} style={[styles.chip, active && styles.chipActive]}>
-                                <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
-                                    {m.name}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-            )}
-
             {/* Debt Summary */}
-            {expenses.length > 0 && simplifiedTransactions.length > 0 && (
-                <View style={{ gap: 6 }}>
+            {expenses.length > 0 && ((showSimplified && (simplifiedTransactions || []).length > 0) || (!showSimplified && (pairwiseNetTransactions || []).length > 0) || (simplifiedTransactions?.length === 0 && pairwiseNetTransactions?.length === 0)) && (
+                <View style={{ gap: 4 }}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                         <Text style={styles.sectionLabel}>Debt Summary</Text>
-                        <TouchableOpacity style={styles.outlineBtn} onPress={() => settleSheetRef.current?.present()}>
-                            <Text style={styles.outlineBtnText}>Settle</Text>
-                        </TouchableOpacity>
-                    </View>
+                        <View style={{ flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                            {showSimplified && otherSimplifiedCount > 0 && !showOthers && (
+                                <TouchableOpacity onPress={() => setShowOthers(true)}>
+                                    <Text style={{ fontWeight: '500', fontSize: 12, textDecorationLine: 'underline', color: theme.colors.text, }}>{`Show more`}</Text>
+                                </TouchableOpacity>
+                            )}
+                            {!showSimplified && otherPairwiseCount > 0 && !showOthers && (
+                                <TouchableOpacity onPress={() => setShowOthers(true)}>
+                                    <Text style={{ fontWeight: '500', fontSize: 12, textDecorationLine: 'underline', color: theme.colors.text, }}>{`Show more`}</Text>
+                                </TouchableOpacity>
+                            )}
 
-                    {simplifiedTransactions.map((t, i) => {
-                        const amtTxt = `${getSymbol(t.currency)} ${t.amount.toFixed(2)}`;
-                        const youPay = t.from === userId;
-                        const youReceive = t.to === userId;
-                        return (
-                            <Text key={i} style={{ color: youPay || youReceive ? theme?.colors?.text ?? "#EBF1D5" : theme?.colors?.muted ?? "#81827C" }}>
-                                {t.from === userId ? "You" : t.fromName} {youPay ? "owe" : "owes"} {t.to === userId ? "You" : t.toName}{" "}
-                                <Text style={{ color: youPay ? (theme?.colors?.negative ?? "#EA4335") : youReceive ? (theme?.colors?.positive ?? "#60DFC9") : theme?.colors?.muted ?? "#EBF1D5" }}>
-                                    {amtTxt}
-                                </Text>
-                            </Text>
-                        );
-                    })}
+                            {showOthers && (
+                                <TouchableOpacity onPress={() => setShowOthers(false)}>
+                                    <Text style={{ fontWeight: '500', fontSize: 12, textDecorationLine: 'underline', color: theme.colors.text, }}>Show less</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    </View>
+                    <View>
+                        {showSimplified ? (
+                            // simplified view
+                            (showOthers ? simplifiedTransactions : mySimplifiedTransactions)?.length > 0 ? (
+                                (showOthers ? simplifiedTransactions : mySimplifiedTransactions).map((t, i) => {
+                                    const amtTxt = `${getSymbol(t.currency)} ${t.amount.toFixed(2)}`;
+                                    const youPay = t.from === userId;
+                                    const youReceive = t.to === userId;
+                                    return (
+                                        <Text key={`simp-${i}`} style={{ color: youPay || youReceive ? theme?.colors?.text ?? "#EBF1D5" : theme?.colors?.muted ?? "#81827C" }}>
+                                            {t.from === userId ? "You" : t.fromName} {youPay ? "owe" : "owes"} {t.to === userId ? "You" : t.toName}{" "}
+                                            <Text style={{ color: youPay ? (theme?.colors?.negative ?? "#EA4335") : youReceive ? (theme?.colors?.positive ?? "#60DFC9") : theme?.colors?.muted ?? "#EBF1D5" }}>
+                                                {amtTxt}
+                                            </Text>
+                                        </Text>
+                                    );
+                                })
+                            ) : (
+                                <Text style={[styles.sub, { marginTop: 6 }]}>No simplified transactions relevant to you.</Text>
+                            )
+                        ) : (
+                            // pairwise view
+                            (showOthers ? pairwiseNetTransactions : myPairwiseTransactions)?.length > 0 ? (
+                                (showOthers ? pairwiseNetTransactions : myPairwiseTransactions).map((t, i) => {
+                                    const nameFrom = getMemberName(t.from);
+                                    const nameTo = getMemberName(t.to);
+                                    const youPay = t.from === userId;
+                                    const youReceive = t.to === userId;
+                                    const amount = Number(t.amount || 0).toFixed(2);
+                                    return (
+                                        <View key={`pair-${i}`} style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+                                            <Text style={{ color: youPay || youReceive ? theme?.colors?.text ?? "#EBF1D5" : theme?.colors?.muted ?? "#81827C" }}>
+                                                {youPay ? `You owe ${nameTo}` : youReceive ? `${nameFrom} owes you` : `${nameFrom} owes ${nameTo}`}
+                                            </Text>
+                                            <Text style={{ color: youPay ? (theme?.colors?.negative ?? "#EA4335") : youReceive ? (theme?.colors?.positive ?? "#60DFC9") : theme?.colors?.muted ?? "#EBF1D5" }}>
+                                                {getSymbol(t.currency)} {amount}
+                                            </Text>
+                                        </View>
+                                    );
+                                })
+                            ) : (
+                                <Text style={[styles.sub, { marginTop: 6 }]}>No pairwise debts relevant to you.</Text>
+                            )
+                        )}
+                    </View>
+                    {/* <View style={{ flexDirection: 'row', justifyContent: 'flex-start', marginTop: 4 }}> */}
+                    <TouchableOpacity style={[styles.outlineBtn2, { marginTop: 4 }]} onPress={() => settleSheetRef.current?.present()}>
+                        <Text style={styles.outlineBtnText2}>Settle</Text>
+                    </TouchableOpacity>
+                    {/* </View> */}
                 </View>
             )}
+
 
             {expenses.length > 0 && <Text style={styles.sectionLabel}>Expenses</Text>}
         </View>
@@ -438,7 +606,7 @@ How to join:
                             router.push({ pathname: "/groups/settings", params: { id: group._id } });
                         }}
                     >
-                        <Settings  width={20} height={20} color={theme?.colors?.primary ?? "#60DFC9"} />
+                        <Settings width={20} height={20} color={theme?.colors?.primary ?? "#60DFC9"} />
                     </TouchableOpacity>
                 }
             />
@@ -534,7 +702,7 @@ How to join:
                 <BottomSheetSettle
                     innerRef={settleSheetRef}
                     onClose={() => settleSheetRef.current?.dismiss()}
-                    transactions={simplifiedTransactions}
+                    transactions={showSimplified ? simplifiedTransactions : pairwiseNetTransactions}
                     onSubmit={recordSettlement}
                     onSubmitAll={recordAllSettlements}
                     group={group}
@@ -616,6 +784,8 @@ const createStyles = (theme) =>
 
         outlineBtn: { borderWidth: 1, borderColor: theme?.colors?.primary ?? "#60DFC9", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "transparent" },
         outlineBtnText: { color: theme?.colors?.primary ?? "#60DFC9", fontWeight: "700" },
+        outlineBtn2: { borderWidth: 1, borderColor: theme?.colors?.primary ?? "#60DFC9", paddingHorizontal: 20, paddingVertical: 6, borderRadius: 8, backgroundColor: "transparent", alignItems: 'center', textAlign: 'center' },
+        outlineBtnText2: { color: theme?.colors?.primary ?? "#60DFC9", fontWeight: "700" },
 
         ctaBtn: { backgroundColor: theme?.colors?.primary ?? "#00C49F", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
         ctaBtnText: { color: theme?.colors?.inverseText ?? "#EBF1D5", fontWeight: "700" },

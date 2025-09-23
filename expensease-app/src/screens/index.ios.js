@@ -10,6 +10,7 @@ import {
     ScrollView,
     ActivityIndicator,
     Animated,
+    TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
@@ -17,14 +18,13 @@ import { useTheme } from "context/ThemeProvider";
 import { useAuth } from "context/AuthContext";
 import { NotificationContext } from "context/NotificationContext";
 import { router } from "expo-router";
-import { checkAppVersion, googleLoginMobile } from "services/UserService";
+import { checkAppVersion, googleLoginMobile, mobileLogin } from "services/UserService"; // add usernamePasswordLogin in your service
 
 export default function Login() {
     const insets = useSafeAreaInsets();
     const { theme } = useTheme();
     const styles = useMemo(() => createStyles(theme, insets), [theme, insets]);
 
-    // NOTE: AuthContext exposes `authLoading`, `hydrated`, `userToken`, `user`, and `setUserToken`
     const { setUserToken, authLoading, hydrated, userToken, user, version, logout } = useAuth();
     const { expoPushToken } = useContext(NotificationContext);
 
@@ -32,22 +32,78 @@ export default function Login() {
     const [error, setError] = useState("");
     const [fade] = useState(new Animated.Value(0));
 
-    // Redirect if already logged in (after bootstrap + user loaded)
+    // New states for under-review + username/password flow
+    const [underReview, setUnderReview] = useState(false);
+    const [reviewVersion, setReviewVersion] = useState(null);
+
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
+    const [checkingVersion, setCheckingVersion] = useState(true);
+
+    // Consolidated redirect + version-check logic
     useEffect(() => {
-        // only redirect after initial bootstrap completed
+        let mounted = true;
+
+        // Only act after AuthContext bootstrap so we know logged-in state
         if (!hydrated) return;
 
-        if (userToken && !authLoading && user) {
+        (async () => {
             try {
-                router.replace("dashboard");
-            } catch (e) {
-                console.warn("Failed to redirect to dashboard:", e);
-            }
-        }
-    }, [hydrated, userToken, authLoading, user]);
+                // run the admin version check
+                const resp = await checkAppVersion(version, Platform.OS);
 
+                if (!mounted) return;
+
+                // 1) If outdated -> block everything and route to updateScreen
+                if (resp?.outdated) {
+                    try {
+                        router.replace("updateScreen");
+                    } catch (e) {
+                        console.warn("[Login] Failed to route to updateScreen:", e);
+                    }
+                    return;
+                }
+
+                // 2) Not outdated: if user is already logged in, go to dashboard
+                if (userToken && !authLoading && user) {
+                    try {
+                        router.replace("dashboard");
+                    } catch (e) {
+                        console.warn("[Login] Failed to route to dashboard:", e);
+                    }
+                    return;
+                }
+
+                // 3) Otherwise surface underReview flag (username/password flow)
+                setUnderReview(!!resp?.underReview);
+            } catch (err) {
+                console.warn("[Login] Version check failed:", err);
+                // conservative fallback: do not block login; allow logged-in redirect if present
+                if (userToken && !authLoading && user) {
+                    try {
+                        router.replace("dashboard");
+                    } catch (e) {
+                        console.warn("[Login] Failed to route to dashboard after version-check error:", e);
+                    }
+                } else {
+                    setUnderReview(false);
+                }
+            } finally {
+                if (mounted) setCheckingVersion(false); // DONE: allow UI to render
+            }
+        })();
+
+        return () => {
+            mounted = false;
+        };
+        // dependencies:
+        // - hydrated to wait for auth bootstrap before deciding
+        // - version to re-run when remote version policy changes
+        // - userToken/authLoading/user to immediately redirect when login state becomes available
+    }, [hydrated, version, userToken, authLoading, user]);
+
+    // Configure Google Signin and animate
     useEffect(() => {
-        // Configure Google Signin - webClientId MUST be your Web OAuth Client ID (server expects same aud)
         GoogleSignin.configure({
             webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
             iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
@@ -56,6 +112,9 @@ export default function Login() {
 
         Animated.timing(fade, { toValue: 1, duration: 420, useNativeDriver: true }).start();
     }, []);
+
+    // NOTE: removed the duplicate "check app version on mount" useEffect that used to re-run checkAppVersion.
+    // Having both caused racing and UI flashes.
 
     const handleGoogleLogin = async () => {
         setError("");
@@ -74,13 +133,13 @@ export default function Login() {
             const res = await googleLoginMobile(idToken, expoPushToken, Platform.OS, name, photo);
             if (res?.error) throw new Error(res.error || "Server error");
 
-            // Persist token (setUserToken is async in our AuthContext)
             if (typeof setUserToken === "function") {
                 await setUserToken(res.userToken);
             } else {
                 console.warn("setUserToken is not a function");
             }
 
+            // After login, re-check version and redirect
             const response = await checkAppVersion(version, Platform.OS);
             if (response?.outdated) {
                 router.replace("updateScreen");
@@ -89,7 +148,6 @@ export default function Login() {
             }
         } catch (err) {
             setError(err?.message || "Google login failed. Please try again.");
-            // ensure we clear any partially stored auth state
             try {
                 await logout?.();
             } catch (e) {
@@ -99,6 +157,57 @@ export default function Login() {
             setSubmitting(false);
         }
     };
+
+    // Handler for username/password login (shown when underReview === true)
+    const handleUsernameLogin = async () => {
+        setError("");
+        if (!username?.trim() || !password) {
+            setError("Please enter email and password.");
+            return;
+        }
+
+        try {
+            setSubmitting(true);
+            // Replace usernamePasswordLogin with your actual service function.
+            // Expected to return { userToken } on success or { error } on failure.
+            const res = await mobileLogin(username.trim(), password, expoPushToken, Platform.OS);
+            if (res?.error) throw new Error(res.error || "Login failed");
+
+            if (typeof setUserToken === "function") {
+                await setUserToken(res.userToken);
+            }
+
+            const response = await checkAppVersion(version, Platform.OS);
+            if (response?.outdated) {
+                router.replace("updateScreen");
+            } else {
+                router.replace("dashboard");
+            }
+        } catch (err) {
+            setError(err?.message || "Login failed. Please try again.");
+            try {
+                await logout?.();
+            } catch (e) {
+                console.warn("Logout after failed login errored:", e);
+            }
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    // -------- Prevent UI flash: show loader while we're deciding redirect -----------
+    // Show loading when:
+    // - Auth bootstrap not finished (hydrated === false), or
+    // - We're checking app-version from server, or
+    // - The app thinks there's a logged-in token but user/authLoading still resolving.
+    if (!hydrated || checkingVersion || (userToken && (authLoading || !user))) {
+        return (
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme?.colors?.background }}>
+                <ActivityIndicator />
+            </View>
+        );
+    }
+    // -------------------------------------------------------------------------------
 
     return (
         <View style={styles.wrapper}>
@@ -127,6 +236,45 @@ export default function Login() {
                             </TouchableOpacity>
                         </View>
 
+                        {/* If version is under review, show username/password fields */}
+                        {underReview ? (
+                            <>
+                                <TextInput
+                                    value={username}
+                                    onChangeText={setUsername}
+                                    placeholder="Email"
+                                    placeholderTextColor={theme.colors.muted}
+                                    style={styles.input}
+                                    autoCapitalize="none"
+                                    keyboardType="email-address"
+                                    textContentType="username"
+                                    editable={!submitting}
+                                />
+                                <TextInput
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    placeholder="Password"
+                                    placeholderTextColor={theme.colors.muted}
+                                    style={styles.input}
+                                    secureTextEntry
+                                    textContentType="password"
+                                    editable={!submitting}
+                                />
+
+                                <TouchableOpacity
+                                    style={[styles.secondaryBtn, styles.signInBtn]}
+                                    onPress={handleUsernameLogin}
+                                    disabled={submitting || authLoading}
+                                >
+                                    {submitting ? (
+                                        <ActivityIndicator />
+                                    ) : (
+                                        <Text style={styles.secondaryText}>Sign in</Text>
+                                    )}
+                                </TouchableOpacity>
+                            </>
+                        ) : null}
+
                         {error ? <Text style={styles.error}>{error}</Text> : null}
 
                         <View style={styles.footerRow}>
@@ -136,7 +284,6 @@ export default function Login() {
                             </TouchableOpacity>
                         </View>
 
-                        {/* Optional: show a secondary loading row when authLoading is true */}
                         {authLoading && !submitting ? (
                             <View style={styles.loadingRow}>
                                 <ActivityIndicator />
@@ -187,6 +334,16 @@ const createStyles = (theme, insets) =>
         hint: { color: theme.colors.muted, fontSize: 13, marginTop: 12, textAlign: "center" },
         error: { color: "#F43F5E", marginBottom: 12 },
         secondaryBtn: { marginTop: 12 },
+        signInBtn: {
+            height: 44,
+            width: "100%",
+            borderRadius: 10,
+            backgroundColor: theme.colors.card, // subtle background; adjust if you want a primary button
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: "#E6EEF8",
+        },
         secondaryText: { color: theme.colors.primary, fontWeight: "600" },
         loadingRow: { flexDirection: "row", alignItems: "center", marginTop: 12 },
         loadingText: { marginLeft: 8, color: theme.colors.muted },
@@ -194,4 +351,15 @@ const createStyles = (theme, insets) =>
         footerRow: { marginTop: 18, flexDirection: "row", alignItems: "center" },
         footerText: { color: theme?.colors?.muted ?? "#94A3B8", fontSize: 12 },
         linkText: { color: theme?.colors?.primary ?? "#0B5FFF", fontWeight: "700" },
+        input: {
+            width: "100%",
+            height: 44,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: "#E6EEF8",
+            paddingHorizontal: 12,
+            marginTop: 10,
+            color: theme.colors.text,
+            backgroundColor: theme.colors.background, // keep it subtle
+        },
     });

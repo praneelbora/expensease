@@ -37,6 +37,9 @@ export const updateGroupName = (groupId, name) =>
 export const updateGroupPrivacySetting = (groupId, enforcePrivacy) =>
     api.put(`${BASE}/${groupId}/privacy`, { enforcePrivacy });
 
+export const updateGroupSimplifySetting = (groupId, simplifyDebts) =>
+    api.put(`${BASE}/${groupId}/settings/simplify-debts`, { simplifyDebts });
+
 // --- Member management ---
 
 export const addMembersToGroup = (groupId, memberIds) =>
@@ -50,6 +53,7 @@ export const promoteMember = (groupId, memberId) =>
 
 export const demoteMember = (groupId, memberId) =>
     api.post(`${BASE}/${groupId}/demote`, { memberId });
+
 
 // --- Group expenses ---
 

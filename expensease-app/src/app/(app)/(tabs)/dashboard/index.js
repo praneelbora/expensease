@@ -53,6 +53,7 @@ function SkeletonRow({ theme, style }) {
                 <View style={{ height: 8 }} />
                 <SkeletonBox width="40%" height={12} borderRadius={6} style={{ backgroundColor: theme.colors.border }} />
             </View>
+            <SkeletonBox width={56} height={56} borderRadius={10} style={{ backgroundColor: theme.colors.border }} />
         </View>
     );
 }
@@ -374,7 +375,7 @@ function DashboardScreenInner() {
                 const pct = ((lastAvg - prevAvg) / prevAvg) * 100;
                 return {
                     text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% from last month`,
-                    color: pct <= 0 ? theme.colors.positive : theme.colors.negative,
+                    color: pct <= 0 ? theme.colors.positive : theme.colors.muted,
                 };
             }
 
@@ -388,7 +389,7 @@ function DashboardScreenInner() {
                 const pct = ((lastAvg - prevAvg) / prevAvg) * 100;
                 return {
                     text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% from last 3 months`,
-                    color: pct >= 0 ? theme.colors.negative : theme.colors.positive,
+                    color: pct >= 0 ? theme.colors.muted : theme.colors.positive,
                 };
             }
 
@@ -402,7 +403,7 @@ function DashboardScreenInner() {
                 const pct = ((thisAvg - prevAvg) / prevAvg) * 100;
                 return {
                     text: `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}% vs last year`,
-                    color: pct >= 0 ? theme.colors.negative : theme.colors.positive,
+                    color: pct >= 0 ? theme.colors.muted : theme.colors.positive,
                 };
             }
 
@@ -422,7 +423,7 @@ function DashboardScreenInner() {
         (expenses || [])
             .filter((e) => e.typeOf === "expense")
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .slice(0, 7)
+            .slice(0, 6)
             .forEach((e) => {
                 const d = new Date(e.date);
                 const key = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(d);
@@ -431,7 +432,7 @@ function DashboardScreenInner() {
         return Object.entries(bucket);
     }, [expenses]);
 
-    /* -----------------------
+    /* -----------------------x
        Render
        ----------------------- */
     return (
@@ -443,16 +444,30 @@ function DashboardScreenInner() {
                     refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />}
                     showsVerticalScrollIndicator={false}
                 >
-                    {/* SKELETON: show when loading */}
                     {loading ? (
-                        <View>
-                            {/* summary skeleton row */}
-                            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-                                <SkeletonBox width="48%" height={80} borderRadius={12} style={{ backgroundColor: theme.colors.border }} />
-                                <SkeletonBox width="48%" height={80} borderRadius={12} style={{ backgroundColor: theme.colors.border }} />
+                        <View style={{ marginBottom: 16 }}>
+                            {/* Summary header + two large boxes */}
+                            <View style={styles.rowBetween}>
+                                <Text style={styles.sectionLabel}>Summary</Text>
+                                <View style={styles.rangeRow}>
+                                    {[
+                                        { key: "thisMonth", label: "This Month" },
+                                        { key: "last3m", label: "Last 3M" },
+                                        { key: "thisYear", label: "This Year" },
+                                    ].map((opt) => (
+                                        <TouchableOpacity
+                                            key={opt.key}
+                                            style={[styles.rangeBtn, summaryRange === opt.key && styles.rangeBtnActive]}
+                                            onPress={() => setSummaryRange(opt.key)}
+                                        >
+                                            <Text style={[styles.rangeBtnText, summaryRange === opt.key && styles.rangeBtnTextActive]}>{opt.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
                             </View>
 
-                            {/* cards grid skeleton */}
+
+                            {/* cards grid skeleton (same grid & sizes as final UI) */}
                             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
                                 {Array.from({ length: 4 }).map((_, i) => (
                                     <View key={i} style={{ width: (SCREEN_WIDTH - 16 * 2 - 12) / 2 }}>
@@ -461,18 +476,21 @@ function DashboardScreenInner() {
                                 ))}
                             </View>
 
-                            {/* recent list skeleton */}
-                            <View style={{ marginTop: 8 }}>
-                                <View style={{ height: 20, width: 160, marginBottom: 12 }}>
-                                    <SkeletonBox width="100%" height={16} borderRadius={6} style={{ backgroundColor: theme.colors.border }} />
-                                </View>
-
-                                {Array.from({ length: 5 }).map((_, i) => (
-                                    <View key={i} style={{ marginBottom: 12 }}>
-                                        <SkeletonRow theme={theme} />
-                                    </View>
-                                ))}
+                            {/* Recent Expenses header */}
+                            <View style={{ height: 20, width: 160, marginBottom: 12 }}>
+                                <SkeletonBox width="100%" height={16} borderRadius={6} style={{ backgroundColor: theme.colors.border }} />
                             </View>
+
+                            {/* Render day headers + 6 skeleton rows to match recentByDay up to 6 items */}
+                            {Array.from({ length: 2 }).map((_, dayIndex) => (
+                                <View key={`day-${dayIndex}`} style={{ marginBottom: 0 }}>
+                                    {Array.from({ length: 3 }).map((__, i) => (
+                                        <View key={i} style={{ marginBottom: 12 }}>
+                                            <SkeletonRow theme={theme} />
+                                        </View>
+                                    ))}
+                                </View>
+                            ))}
                         </View>
                     ) : expenses.length === 0 ? (
                         <View style={styles.emptyCard}>
@@ -521,11 +539,6 @@ function DashboardScreenInner() {
                                             {Object.keys(statsByRange.total).length === 0 && <Text style={styles.cardValue}>—</Text>}
                                         </View>
                                         {deltas.total && <Text style={[styles.cardMeta, deltas.total ? { color: deltas.total.color } : { color: theme.colors.muted }]}>{deltas.total ? `${deltas.total.text}` : ""}</Text>}
-                                        {statsByRange.personal.count + statsByRange.group.count + statsByRange.friend.count > 0 && (
-                                            <Text style={[styles.cardMeta, { color: theme.colors.muted }]}>
-                                                {statsByRange.personal.count + statsByRange.group.count + statsByRange.friend.count} transactions
-                                            </Text>
-                                        )}
                                     </TouchableOpacity>
 
                                     {/* Personal */}
@@ -540,7 +553,6 @@ function DashboardScreenInner() {
                                                 ))}
                                             </View>
                                             {deltas.personal && <Text style={[styles.cardMeta, deltas.personal ? { color: deltas.personal.color } : { color: theme.colors.muted }]}>{deltas.personal ? `${deltas.personal.text}` : ""}</Text>}
-                                            <Text style={[styles.cardMeta, { color: theme.colors.muted }]}>{statsByRange.personal.count} transactions</Text>
                                         </TouchableOpacity>
                                     )}
 
@@ -556,7 +568,6 @@ function DashboardScreenInner() {
                                                 ))}
                                             </View>
                                             {deltas.group && <Text style={[styles.cardMeta, deltas.group ? { color: deltas.group.color } : { color: theme.colors.muted }]}>{deltas.group ? `${deltas.group.text}` : ""}</Text>}
-                                            <Text style={[styles.cardMeta, { color: theme.colors.muted }]}>{statsByRange.group.count} transactions</Text>
                                         </TouchableOpacity>
                                     )}
 
@@ -572,7 +583,6 @@ function DashboardScreenInner() {
                                                 ))}
                                             </View>
                                             {deltas.friend && <Text style={[styles.cardMeta, deltas.friend ? { color: deltas.friend.color } : { color: theme.colors.muted }]}>{deltas.friend ? `${deltas.friend.text}` : ""}</Text>}
-                                            <Text style={[styles.cardMeta, { color: theme.colors.muted }]}>{statsByRange.friend.count} transactions</Text>
                                         </TouchableOpacity>
                                     )}
                                 </View>
@@ -583,9 +593,9 @@ function DashboardScreenInner() {
                                 <View style={{}}>
                                     <View style={styles.rowBetween}>
                                         <Text style={styles.sectionLabel}>Recent Expenses</Text>
-                                        <TouchableOpacity onPress={() => router.push("/expenses")} activeOpacity={0.7}>
+                                        {/* <TouchableOpacity onPress={() => router.push("/expenses")} activeOpacity={0.7}>
                                             <Text style={[styles.linkText, { color: theme.colors.primary }]}>View All</Text>
-                                        </TouchableOpacity>
+                                        </TouchableOpacity> */}
                                     </View>
 
                                     {recentByDay.map(([day, list]) => (
@@ -604,6 +614,13 @@ function DashboardScreenInner() {
                                             />
                                         </View>
                                     ))}
+
+                                    {/* NEW CTA: View all expenses button below the recent list */}
+                                    <View style={{ alignItems: "center", marginTop: 12 }}>
+                                        <TouchableOpacity style={styles.viewAllCta} onPress={() => router.push("/expenses")} activeOpacity={0.8}>
+                                            <Text style={styles.viewAllCtaText}>View all expenses</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                             )}
                         </>
@@ -750,4 +767,18 @@ const createStyles = (theme) =>
         modalBody: { color: theme.colors.muted, marginBottom: 12 },
         modalBtn: { backgroundColor: theme.colors.card, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, alignSelf: "flex-start", borderWidth: 1, borderColor: theme.colors.border },
         modalBtnText: { color: theme.colors.text, fontWeight: "600" },
+
+        /* NEW styles for the small CTA below Recent Expenses */
+        viewAllCta: {
+            backgroundColor: "transparent",
+            borderRadius: 8,
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderWidth: 1,
+            borderColor: theme.colors.border,
+        },
+        viewAllCtaText: {
+            color: theme.colors.primary,
+            fontWeight: "700",
+        },
     });

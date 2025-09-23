@@ -37,6 +37,8 @@ export default function Header({
     leftSlot,
     button,
     filterBtnActive = false,
+    showText,
+    onTextPress,
 }) {
     const router = useRouter();
     const { theme } = useTheme();
@@ -128,6 +130,11 @@ export default function Header({
                 {showBell && (
                     <Pressable onPress={onBellPress} hitSlop={10} style={styles.iconBtn}>
                         <Bell size={18} color={theme.colors.muted} />
+                    </Pressable>
+                )}
+                {showText && (
+                    <Pressable onPress={onTextPress} hitSlop={10} style={styles.iconBtn}>
+                        <Text style={{ color: theme.colors.text, fontWeight: '700', letterSpacing: 0.5 }}>{showText}</Text>
                     </Pressable>
                 )}
 

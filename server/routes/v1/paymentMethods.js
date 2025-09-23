@@ -554,37 +554,47 @@ router.post('/public/friends', auth, async (req, res) => {
         }
 
         ids = [...new Set(ids.map((s) => String(s).trim()).filter(Boolean))]; // unique, trimmed
-        ids = ids.map((id) => {
-            if (id == 'me') return req.user.id
-            else return id
-        })
+
+        // map 'me' to current user id (if present)
+        ids = ids.map((id) => (id === 'me' ? String(req.user.id) : id));
+
         const validIds = ids.filter(isValidObjectId);
         if (validIds.length === 0) {
+            // keep previous behaviour: return empty array (or object?). Original returned [] — keep that.
             return res.json([]);
         }
 
-        // Only fetch paymentMethods that can RECEIVE (no sensitive projection here; we sanitize below)
+        // Fetch all payment methods for requested users; we'll filter per-user visibility in JS
         const paymentMethods = await PaymentMethod.find({
-            userId: { $in: validIds },
-            $or: [
-                { visibleForOthers: { $exists: false } }, // legacy docs with no field
-                { visibleForOthers: true }                // explicitly set true
-            ]
+            userId: { $in: validIds }
         }).sort({ createdAt: -1 });
 
-        // Group by friendId
+        // initialize grouped result with same shape as before: id -> []
         const grouped = Object.fromEntries(validIds.map((id) => [id, []]));
+
         for (const acc of paymentMethods) {
             const key = String(acc.userId);
             if (!grouped[key]) grouped[key] = [];
-            grouped[key].push(sanitizePaymentMethodPublic(acc));
+
+            // missing visibleForOthers => treat as visible (legacy)
+            const isVisible = acc.visibleForOthers === undefined ? true : !!acc.visibleForOthers;
+
+            if (String(key) === String(req.user.id)) {
+                // for the requesting user (mapped from 'me'), include ALL methods
+                grouped[key].push(sanitizePaymentMethodPublic(acc));
+            } else {
+                // for other users include only visible ones
+                if (isVisible) grouped[key].push(sanitizePaymentMethodPublic(acc));
+            }
         }
-        res.json(grouped);
+
+        return res.json(grouped);
     } catch (err) {
         console.error('public/friends error:', err);
         res.status(500).json({ error: 'Failed to fetch friend paymentMethod details' });
     }
 });
+
 
 // ───────────────────────────────────────────────────────────────────────────────
 // List transactions (filterable + cursor pagination)

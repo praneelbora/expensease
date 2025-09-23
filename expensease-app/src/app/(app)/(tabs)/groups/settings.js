@@ -26,7 +26,9 @@ import {
     deleteGroup,
     getGroupExpenses,
     updateGroupPrivacySetting,
+    updateGroupSimplifySetting,
 } from "services/GroupService";
+
 import {
     getFriends,
     sendFriendRequest,
@@ -73,6 +75,9 @@ export default function GroupSettingsScreen() {
     const [busyAction, setBusyAction] = useState(false);
     const addFriendsRef = useRef(null);
 
+    // new: simplifyDebts flag in UI
+    const [showSimplified, setShowSimplified] = useState(true);
+
     // ===== helpers =====
     const currencyDigits = (code) => {
         try {
@@ -99,6 +104,8 @@ export default function GroupSettingsScreen() {
         setGroup(data);
         setNewGroupName(data?.name || "");
         setAdminEnforcedPrivacy(Boolean(data?.settings?.enforcePrivacy));
+        // load simplify option from backend settings (default to true for legacy)
+        setShowSimplified(Boolean(data?.settings?.simplifyDebts ?? true));
     }, [id, userToken]);
 
     const fetchExpenses = useCallback(async () => {
@@ -184,6 +191,24 @@ export default function GroupSettingsScreen() {
             await fetchGroup();
         } catch (e) {
             Alert.alert("Rename failed", e?.message || "Please try again.");
+        }
+    };
+
+    // Simplify toggle handler (optimistic + persist)
+    const onToggleSimplified = async (next) => {
+        // optimistic UI
+        setShowSimplified(next);
+
+        try {
+            // persist to server; service currently expects (groupId, simplifyDebts)
+            await updateGroupSimplifySetting(id, next, userToken);
+            // refresh group to pick up authoritative settings
+            await fetchGroup();
+        } catch (err) {
+            console.warn("Could not persist simplifyDebts:", err?.message || err);
+            // rollback on error
+            setShowSimplified((prev) => !prev);
+            Alert.alert("Update failed", "Could not update simplify transactions setting. Please try again.");
         }
     };
 
@@ -397,7 +422,12 @@ export default function GroupSettingsScreen() {
                                 <View style={styles.section}>
                                     <View style={styles.privacyBox}>
                                         <Text style={styles.privacyTitle}>Enforce privacy mode</Text>
-                                        <Switch value={adminEnforcedPrivacy} onValueChange={togglePrivacy} trackColor={theme?.colors?.primary} ios_backgroundColor={theme?.colors?.primary} thumbColor={theme?.colors?.text ?? "#60DFC9"} />
+                                        <Switch
+                                            value={adminEnforcedPrivacy}
+                                            onValueChange={togglePrivacy}
+                                            trackColor={{ true: theme?.colors?.primary ?? "#60DFC9" }}
+                                            thumbColor={theme?.colors?.text ?? "#60DFC9"}
+                                        />
                                     </View>
                                     <Text style={styles.privacyDesc}>When enabled, members only see expenses they’re involved in.</Text>
                                 </View>
@@ -406,6 +436,36 @@ export default function GroupSettingsScreen() {
                                     <Text style={styles.privacyNoticeText}>🔒 Privacy is enforced by the admin. You’ll only see expenses that involve you.</Text>
                                 </View>
                             ) : null}
+
+                            {/* Simplify transactions toggle */}
+                            {isOwner ? (
+                                <View style={styles.section}>
+                                    <View style={styles.privacyBox}>
+                                        <Text style={styles.privacyTitle}>Simplify transactions</Text>
+                                        <Switch
+                                            value={showSimplified}
+                                            onValueChange={onToggleSimplified}
+                                            trackColor={{ true: theme?.colors?.primary ?? "#60DFC9" }}
+                                            thumbColor={theme?.colors?.text ?? "#60DFC9"}
+                                        />
+                                    </View>
+                                    <Text style={styles.privacyDesc}>
+                                        When enabled, the app will minimize the number of transfers between members (transitive netting).
+                                    </Text>
+                                </View>
+                            ) : (
+                                <View style={styles.section}>
+                                    <View style={styles.privacyBox}>
+                                        <Text style={styles.privacyTitle}>Simplify transactions</Text>
+                                        <Text style={{ color: theme?.colors?.muted ?? "#9aa08e" }}>
+                                            {showSimplified ? "Enabled" : "Disabled"}
+                                        </Text>
+                                    </View>
+                                    <Text style={styles.privacyDesc}>
+                                        This setting is controlled by the group admin.
+                                    </Text>
+                                </View>
+                            )}
 
                             {/* Danger Zone */}
                             <View style={styles.dangerZone}>

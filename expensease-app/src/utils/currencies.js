@@ -17,7 +17,7 @@ export const getDigits = (code = "INR") =>
 
 export const formatMoney = (code, v = 0) => {
     const c = currencyMap[code];
-    const symbol = c?.symbolNative || c?.symbol || "";
+    const symbol = c?.symbol || c?.symbolNative || "";
     const digits = c?.decimalDigits ?? 2;
     return `${symbol} ${Number(v || 0).toFixed(digits)}`;
 };

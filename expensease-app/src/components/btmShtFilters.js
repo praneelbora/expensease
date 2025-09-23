@@ -248,7 +248,7 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                 </View>
 
                 {/* Date */}
-                <Text style={styles.sectionLabel}>Date</Text>
+                {/* <Text style={styles.sectionLabel}>Date</Text>
                 <View style={styles.chipsRow}>
                     <TouchableOpacity
                         style={[styles.chip, local.date === "week" && styles.chipActive]}
@@ -275,10 +275,8 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                         <Text style={[styles.chipText, local.date === "custom" && styles.chipTextActive]}>Custom</Text>
                     </TouchableOpacity>
                 </View>
-
-                {/* custom From / To controls */}
                 {local.date === "custom" && (
-                    <View style={{}}>{/* small container */}
+                    <View style={{}}>
                         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                             <TouchableOpacity style={[styles.chip, { flex: 1 }]} onPress={() => openCustomPicker('from')}>
                                 <Text style={[styles.chipText, local.dateRange?.from && styles.chipTextActive]}>
@@ -295,7 +293,7 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
 
                         <Text style={styles.sectionHint}>Tap a field to pick a date. 'From' time is set to start of day and 'To' to end of day automatically.</Text>
                     </View>
-                )}
+                )} */}
 
                 {/* Footer Actions */}
 
@@ -309,11 +307,14 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                 date={pickerValue}
                 onConfirm={onPickerConfirm}
                 onCancel={onPickerCancel}
-                // Customize appearance for iOS/Android
                 headerTextIOS={pickerMode === 'from' ? 'Pick start date' : 'Pick end date'}
                 confirmTextIOS="Done"
                 cancelTextIOS="Cancel"
-                isDarkModeEnabled={theme?.dark ?? false}
+                // Android: prefer spinner and force light-mode for readable text
+                display={Platform.OS === "android" ? "spinner" : undefined}
+                isDarkModeEnabled={Platform.OS === 'android' ? false : !!theme?.dark}
+                // iOS: optionally set textColor if your datetimepicker version supports it
+                {...(Platform.OS === 'ios' && { textColor: theme?.colors?.text })}
             />
 
         </BottomSheetLayout>

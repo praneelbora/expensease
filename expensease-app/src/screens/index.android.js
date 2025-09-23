@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useContext, useMemo } from "react";
+// src/screens/Login.js
+import React, { useEffect, useState, useContext, useMemo, useRef } from "react";
 import {
     StyleSheet,
     View,
@@ -9,8 +10,11 @@ import {
     KeyboardAvoidingView,
     ScrollView,
     Animated,
+    TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// Keep native imports only if Android builds include the library
 import { CredentialManager } from "android-credential-manager";
 import { GoogleProvider, GoogleButtonProvider } from "android-credential-manager/build/loginProviders/LoginProviders";
 
@@ -18,8 +22,9 @@ import { useAuth } from "context/AuthContext";
 import { useTheme } from "context/ThemeProvider";
 import { NotificationContext } from "context/NotificationContext";
 import { router } from "expo-router";
-import { checkAppVersion, googleLoginMobile } from "services/UserService";
+import { checkAppVersion, googleLoginMobile, mobileLogin } from "services/UserService"; // add mobileLogin
 
+// Providers for android-credential-manager (only used on Android)
 const implicitProvider = new GoogleProvider({
     serverClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     authorizedAccountsOnly: false,
@@ -37,83 +42,282 @@ export default function Login() {
     const styles = useMemo(() => createStyles(theme, insets), [theme, insets]);
 
     const { expoPushToken } = useContext(NotificationContext);
-    const { userToken, setUserToken, isLoading, setIsLoading, version, logout } = useAuth();
+    const { setUserToken, authLoading, hydrated, userToken, user, version, logout } = useAuth();
 
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
-    const [fade] = useState(new Animated.Value(0));
+    const [checkingVersion, setCheckingVersion] = useState(true);
+
+    // Animated value as ref and mounted guard
+    const fade = useRef(new Animated.Value(0)).current;
+    const mountedRef = useRef(true);
+
+    // Prevent repeating silent attempts
+    const silentAttemptedRef = useRef(false);
+    // Count attempts for debugging
+    const attemptCounterRef = useRef(0);
+
+    // New: under-review flows and username/password state
+    const [underReview, setUnderReview] = useState(false);
+    const [reviewVersion, setReviewVersion] = useState(null);
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
 
     useEffect(() => {
-        console.log("[Login] Mounted. Current userToken:", userToken);
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
+    // Redirect if already logged in (after bootstrap + user loaded)
+    // Consolidated version-check + logged-in redirect effect for src/screens/Login.js
+    useEffect(() => {
+        // only act after auth bootstrap so we know logged-in state
+        if (!hydrated) return;
+
+        let mounted = true;
+
+        (async () => {
+            try {
+                const resp = await checkAppVersion(version, Platform.OS);
+                if (!mounted) return;
+
+                // 1) If admin marks the app outdated -> redirect to update screen
+                if (resp?.outdated) {
+                    try {
+                        router.replace("updateScreen");
+                    } catch (e) {
+                        console.warn("[Login] Failed to route to updateScreen:", e);
+                    }
+                    return;
+                }
+
+                // 2) If not outdated and user is already logged in -> go to dashboard
+                if (userToken && !authLoading && user) {
+                    try {
+                        router.replace("dashboard");
+                    } catch (e) {
+                        console.warn("[Login] Failed to route to dashboard:", e);
+                    }
+                    return;
+                }
+
+                // 3) Otherwise surface underReview flag to show username/password fallback
+                setUnderReview(!!resp?.underReview);
+            } catch (err) {
+                console.warn("[Login] Version check failed:", err);
+                // conservative fallback: if logged in, redirect to dashboard; else allow login
+                if (userToken && !authLoading && user) {
+                    try {
+                        router.replace("dashboard");
+                    } catch (e) {
+                        console.warn("[Login] Failed to route to dashboard after version-check error:", e);
+                    }
+                } else {
+                    setUnderReview(false);
+                }
+            } finally {
+                if (mounted) setCheckingVersion(false); // DONE: allow UI to render
+            }
+        })();
+
+        return () => {
+            mounted = false;
+        };
+        // dependencies: wait for hydrated, re-run when version or auth state changes
+    }, [hydrated, version, userToken, authLoading, user]);
+
+
+    useEffect(() => {
         Animated.timing(fade, {
             toValue: 1,
             duration: 450,
             useNativeDriver: true,
         }).start();
-    }, []);
+    }, [fade]);
 
-    async function handleCredentialLogin(provider) {
-        setError("");
-        console.log("[Login] Starting credential login with provider:", provider?.constructor?.name);
+    // Conservative detection of "no account / cancelled" errors
+    function isNoAccountOrCancelledError(err) {
+        if (!err) return false;
+        const msg = String(err?.message || err).toLowerCase();
+        const indicators = [
+            "no account",
+            "no accounts",
+            "account not found",
+            "user canceled",
+            "user cancelled",
+            "canceled",
+            "cancelled",
+            "sign in canceled",
+            "sign-in aborted",
+            "operation canceled",
+            "not authorized",
+            "status code: 12500",
+            "developer error",
+            "sign in failed",
+        ];
+        return indicators.some((i) => msg.includes(i));
+    }
+
+    // THE native login flow (Google via CredentialManager)
+    async function handleCredentialLogin(provider, { isSilent = false } = {}) {
+        if (!isSilent) setError("");
+        // rate limit duplicate submits
+        if (submitting) {
+            return;
+        }
+
+        if (!provider) {
+            const msg = "Native Google sign-in not available on this device.";
+            console.warn("[Login] " + msg);
+            if (!isSilent && mountedRef.current) setError(msg);
+            return;
+        }
+        if (userToken && !isSilent) {
+            return;
+        }
+        attemptCounterRef.current += 1;
         try {
             setSubmitting(true);
-            setIsLoading?.(true);
-
             const ret = await CredentialManager.loginWithGoogle(provider);
-            console.log("[Login] Credential manager response:", ret);
-
             const idToken = ret?.idToken || ret?.token || ret?.authToken;
             const displayName = ret?.displayName || ret?.userName;
             const profilePicture = ret?.profilePictureUri || ret?.photoUrl;
-            console.log("[Login] Parsed idToken:", !!idToken, "name:", displayName, "photo:", profilePicture);
 
-            if (!idToken) throw new Error("Failed to obtain Google id token from native provider.");
+            if (!idToken) {
+                throw new Error("Failed to obtain Google id token from native provider.");
+            }
 
             const res = await googleLoginMobile(idToken, expoPushToken, Platform.OS, displayName, profilePicture);
-            console.log("[Login] Backend login response:", res);
+            if (res?.error) throw new Error(res.error || "Server returned error during login.");
 
-            if (res?.error) throw new Error(res.error);
+            if (typeof setUserToken === "function") {
+                await setUserToken(res.userToken);
+            }
 
-            setUserToken?.(res.userToken);
-            console.log("[Login] Token set. Checking app version...");
             const response = await checkAppVersion(version, Platform.OS);
-            if (response.outdated) {
-                console.log("[Login] App outdated → redirecting to updateScreen");
+            if (response?.outdated) {
                 router.replace("updateScreen");
             } else {
-                console.log("[Login] App version ok → redirecting to dashboard");
                 router.replace("dashboard");
             }
         } catch (err) {
-            console.log("[Login] Google login error:", err);
-            setError(err?.message || "Google login failed. Please try again.");
+            console.warn("[Login] Credential login error:", err?.message || err);
+
+            const noAccountOrCancelled = isNoAccountOrCancelledError(err);
+
+            if (isSilent && noAccountOrCancelled) {
+            } else {
+                if (mountedRef.current) setError(err?.message || "Google login failed. Please try again.");
+
+                if (!isSilent) {
+                    try {
+                        await logout?.();
+                    } catch (e) {
+                        console.warn("[Login] logout after failed explicit login errored:", e);
+                    }
+                }
+            }
         } finally {
-            setSubmitting(false);
-            setIsLoading?.(false);
-            console.log("[Login] Credential login finished");
+            if (mountedRef.current) setSubmitting(false);
         }
     }
 
+    // Silent implicit sign-in - run only once, and only after AuthContext is hydrated & not loading
     useEffect(() => {
-        if (Platform.OS === "android") {
-            console.log("[Login] Android platform detected. Checking silent login...");
-            if (!userToken) {
-                console.log("[Login] No userToken found. Attempting silent login via implicitProvider");
-                handleCredentialLogin(implicitProvider).catch((err) => {
-                    console.log("[Login] Silent login failed (ignored):", err?.message || err);
-                });
+        if (Platform.OS !== "android") {
+            return;
+        }
+
+        if (!hydrated || authLoading) {
+            return;
+        }
+
+        if (userToken) {
+            return;
+        }
+
+        if (silentAttemptedRef.current) {
+            return;
+        }
+
+        silentAttemptedRef.current = true;
+
+        handleCredentialLogin(implicitProvider, { isSilent: true }).catch((e) => {
+            console.warn("[Login] silent implicit sign-in threw (should be handled):", e?.message || e);
+        });
+
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hydrated, authLoading, userToken]);
+
+    // New: check app version on mount and whenever `version` changes
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const resp = await checkAppVersion(version, Platform.OS);
+                if (!mounted) return;
+                const rv = resp?.underReview || null;
+                setUnderReview(rv);
+            } catch (e) {
+                console.warn("[Login] Failed to check app version:", e);
+                setUnderReview(false);
+                setReviewVersion(null);
+            }
+        })();
+        return () => {
+            mounted = false;
+        };
+    }, [version]);
+
+    // New: username/password login handler (shown only when underReview === true)
+    const handleUsernameLogin = async () => {
+        setError("");
+        if (!username?.trim() || !password) {
+            setError("Please enter username and password.");
+            return;
+        }
+
+        if (submitting) return;
+
+        try {
+            setSubmitting(true);
+            const res = await mobileLogin(username.trim(), password, expoPushToken, Platform.OS);
+            if (res?.error) throw new Error(res.error || "Login failed");
+
+            if (typeof setUserToken === "function") {
+                await setUserToken(res.userToken);
+            }
+
+            const response = await checkAppVersion(version, Platform.OS);
+            if (response?.outdated) {
+                router.replace("updateScreen");
             } else {
                 router.replace("dashboard");
             }
+        } catch (err) {
+            setError(err?.message || "Login failed. Please try again.");
+            try {
+                await logout?.();
+            } catch (e) {
+                console.warn("[Login] logout after failed username login errored:", e);
+            }
+        } finally {
+            if (mountedRef.current) setSubmitting(false);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userToken]);
+    };
+
+    if (checkingVersion) {
+        return (
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme?.colors?.background }}>
+                <ActivityIndicator />
+            </View>
+        );
+    }
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={{ flex: 1 }}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
             <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
                 <Animated.View style={[styles.wrapper, { paddingTop: (insets?.top || 0) + 24, opacity: fade }]}>
                     <Text style={styles.appName}>Expensease</Text>
@@ -122,16 +326,50 @@ export default function Login() {
                     <View style={styles.card}>
                         <TouchableOpacity
                             style={styles.googleBtn}
-                            onPress={() => handleCredentialLogin(explicitProvider)}
-                            disabled={submitting}
+                            onPress={() => handleCredentialLogin(explicitProvider, { isSilent: false })}
+                            disabled={submitting || authLoading}
                             accessibilityRole="button"
                         >
-                            {submitting || isLoading ? (
-                                <ActivityIndicator />
-                            ) : (
-                                <Text style={styles.googleText}>Continue with Google</Text>
-                            )}
+                            {submitting || authLoading ? <ActivityIndicator /> : <Text style={styles.googleText}>Continue with Google</Text>}
                         </TouchableOpacity>
+
+                        {/* If under review, show username/password form */}
+                        {underReview ? (
+                            <>
+                                <TextInput
+                                    value={username}
+                                    onChangeText={setUsername}
+                                    placeholder="Email"
+                                    placeholderTextColor={theme?.colors?.muted}
+                                    style={styles.input}
+                                    autoCapitalize="none"
+                                    keyboardType="email-address"
+                                    textContentType="username"
+                                    editable={!submitting}
+                                />
+                                <TextInput
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    placeholder="Password"
+                                    placeholderTextColor={theme?.colors?.muted}
+                                    style={styles.input}
+                                    secureTextEntry
+                                    textContentType="password"
+                                    editable={!submitting}
+                                />
+
+                                <TouchableOpacity
+                                    style={[styles.secondaryBtn, styles.signInBtn]}
+                                    onPress={handleUsernameLogin}
+                                    disabled={submitting || authLoading}
+                                >
+                                    {submitting ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Sign in</Text>}
+                                </TouchableOpacity>
+                            </>
+                        ) : null}
+
+                        {error ? <Text style={styles.error}>{error}</Text> : null}
+
                         <View style={styles.footerRow}>
                             <Text style={styles.footerText}>By continuing you agree to our</Text>
                             <TouchableOpacity onPress={() => router.push("/terms")}>
@@ -183,4 +421,28 @@ const createStyles = (theme, insets) =>
         footerRow: { marginTop: 18, flexDirection: "row", alignItems: "center" },
         footerText: { color: theme?.colors?.muted ?? "#94A3B8", fontSize: 12 },
         linkText: { color: theme?.colors?.primary ?? "#0B5FFF", fontWeight: "700" },
+        hint: { color: theme?.colors?.muted ?? "#475569", fontSize: 13 },
+        input: {
+            width: "100%",
+            height: 44,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: "#E6EEF8",
+            paddingHorizontal: 12,
+            marginTop: 10,
+            color: theme?.colors?.text ?? "#0F172A",
+            backgroundColor: theme?.colors?.background ?? "#fff",
+        },
+        secondaryBtn: { marginTop: 12 },
+        signInBtn: {
+            height: 44,
+            width: "100%",
+            borderRadius: 10,
+            backgroundColor: theme?.colors?.card ?? "#fff",
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: "#E6EEF8",
+        },
+        secondaryText: { color: theme?.colors?.primary ?? "#0B5FFF", fontWeight: "600" },
     });

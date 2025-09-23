@@ -80,7 +80,7 @@ export default function NewExpenseScreen() {
     const [desc, setDesc] = useState(TEST_MODE ? "TEST_DESCRIPTION" : "");
     const [currency, setCurrency] = useState(defaultCurrency);
     const [amount, setAmount] = useState(TEST_MODE ? 99 : ""); // keep string for controlled TextInput
-    const [category, setCategory] = useState(TEST_MODE ? "TEST_CATEGORY" : "");
+    const [category, setCategory] = useState(TEST_MODE ? "TEST_CATEGORY" : "default");
     const [expenseDate, setExpenseDate] = useState(todayISO());
 
     const [groupSelect, setGroupSelect] = useState(null);
@@ -90,37 +90,13 @@ export default function NewExpenseScreen() {
 
     const [search, setSearch] = useState("");
     const [banner, setBanner] = useState(null); // {type, text}
-const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
 
-// parse YYYY-MM-DD to Date
-const parseISODate = (isoStr) => {
-  if (!isoStr) return new Date();
-  const parts = String(isoStr).split("-");
-  if (parts.length !== 3) return new Date(isoStr);
-  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-};
+    // Tab state: 'paid' | 'owed'
+    const [activeTab, setActiveTab] = useState("");
 
-// format Date to YYYY-MM-DD
-const toISODate = (date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
-// user-friendly label for the input (e.g. "19 Sep 2025")
-const formatReadable = (isoStr) => {
-  if (!isoStr) return "";
-  try {
-    const d = parseISODate(isoStr);
-    return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-  } catch {
-    return isoStr;
-  }
-};
-
-
-    const [paymentModalCtx, setPaymentModalCtx] = useState({ context: "personal", friendId: null });
+    const paymentModalCtxInitial = { context: "personal", friendId: null };
+    const [paymentModalCtx, setPaymentModalCtx] = useState(paymentModalCtxInitial);
     const [paymentMethod, setPaymentMethod] = useState(null); // personal
 
     const hasPreselectedGroup = useRef(false);
@@ -444,13 +420,159 @@ const formatReadable = (isoStr) => {
         setSelectedFriends((prev) => prev.map((f) => (f._id === friendId ? { ...f, payAmount: a } : f)));
     };
 
-    // react to amount change: reset split mode-derived fields
+    // react to amount change: reset split mode-derived fields (but set sensible defaults when needed)
+    // replace the previous "reset on amount change" effect with this smarter one
+    // update on amount change: recompute equal splits when appropriate, but do not
+    // override user choices when mode !== "equal".
     useEffect(() => {
-        setMode("equal");
-        setSelectedFriends((prev) =>
-            prev.map((f) => ({ ...f, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }))
-        );
-    }, [amount]);
+        setSelectedFriends((prev = []) => {
+            const total = num(amount);
+
+            if (!Array.isArray(prev) || prev.length === 0) return prev;
+
+            // copy to avoid mutating state objects
+            const current = prev.map((f) => ({ ...f }));
+
+            // who are explicitly paying / owing
+            const payers = current.filter((f) => f.paying);
+            const owers = current.filter((f) => f.owing);
+
+            // If UI is in equal mode, recompute equal distributions for both sides
+            // (payers -> payAmount, owers -> oweAmount). If mode !== 'equal', leave
+            // existing numerical values untouched.
+            if (mode === "equal") {
+                // Recompute payAmounts if there are payers
+                if (payers.length > 0) {
+                    const Np = payers.length;
+                    const baseP = Math.floor((total / Np) * 100) / 100;
+                    const leftoverP = Number((total - baseP * Np).toFixed(2));
+                    let idxP = 0;
+                    return current.map((f) => {
+                        if (!f.paying) return { ...f, payAmount: 0 };
+                        idxP += 1;
+                        const val = idxP === Np ? Number((baseP + leftoverP).toFixed(2)) : baseP;
+                        return { ...f, payAmount: val };
+                    });
+                }
+
+                // If no payers but there are owers -> recompute equal owe amounts
+                if (owers.length > 0) {
+                    const No = owers.length;
+                    const baseO = Math.floor((total / No) * 100) / 100;
+                    const leftoverO = Number((total - baseO * No).toFixed(2));
+                    let idxO = 0;
+                    return current.map((f) => {
+                        if (!f.owing) return { ...f, oweAmount: 0, owePercent: undefined };
+                        idxO += 1;
+                        const val = idxO === No ? Number((baseO + leftoverO).toFixed(2)) : baseO;
+                        return { ...f, oweAmount: val, owePercent: undefined };
+                    });
+                }
+
+                // neither payers nor owers: nothing to recompute, keep previous
+                return current.map((f) => ({ ...f, payAmount: f.payAmount || 0, oweAmount: f.oweAmount || 0 }));
+            }
+
+            // mode !== 'equal' -> preserve existing numeric values (don't overwrite manual edits)
+            // BUT if there are no payers/owers and user hasn't interacted, optionally keep neutral defaults:
+            const hasAnyPayers = payers.length > 0;
+            const hasAnyOwers = owers.length > 0;
+
+            if (!hasAnyPayers && !hasAnyOwers) {
+                // keep neutral default: no auto-assign here to avoid surprising the user
+                // (other existing code already sets sensible defaults when selection changes)
+                return current;
+            }
+
+            // if there are payers but mode !== 'equal' we leave payAmount as-is (user likely edited them)
+            // if there are owers but mode !== 'equal' we leave oweAmount as-is
+            return current;
+        });
+        // note: include mode in deps so equal recompute runs when mode flips to 'equal' too
+    }, [amount, mode]);
+
+
+
+    // If split and friends + amount present and no one has been marked paying/owing yet, set default:
+    // Paid by me, split owed equally among everyone (including me? usually owed by everyone equally - we'll set owes true for everyone except maybe me)
+    // auto-open "Paid" tab when only me is paying and I have >1 payment accounts
+    // auto-open "Paid" tab when only me is paying, I have >1 payment accounts,
+    // and required fields are filled (desc, category, currency, amount), and there are other friends selected
+    useEffect(() => {
+        if (expenseMode !== "split") return;
+
+        // required fields
+        if (!desc?.trim()) return;
+        if (!category) return;
+        if (!currency) return;
+        if (!(num(amount) > 0)) return;
+
+        // must have at least one other friend selected (besides me)
+        const others = selectedFriends.filter((f) => String(f._id) !== String(user?._id));
+        if (others.length === 0) return;
+
+        const payers = selectedFriends.filter((f) => f.paying);
+        if (payers.length !== 1) return;
+
+        const onlyPayer = payers[0];
+        if (String(onlyPayer._id) !== String(user?._id)) return;
+
+        // check if this payer (me) has multiple payment methods:
+        const fromSelected = Array.isArray(onlyPayer.paymentMethods) && onlyPayer.paymentMethods.length > 1;
+        // fallback to global paymentMethods available to the current user
+        const fromAuth = Array.isArray(paymentMethods) && paymentMethods.length > 1;
+
+        if (fromSelected || fromAuth) {
+            // setActiveTab("paid");
+        }
+    }, [selectedFriends, paymentMethods, expenseMode, user, desc, category, currency, amount]);
+
+    useEffect(() => {
+        if (expenseMode !== "split") return;
+        if (num(amount) <= 0) return;
+        if (!Array.isArray(selectedFriends) || selectedFriends.length === 0) return;
+
+        const hasAnyPayers = selectedFriends.some((f) => f.paying);
+        const hasAnyOwers = selectedFriends.some((f) => f.owing);
+
+        // only run when user hasn't interacted (no explicit payers and no explicit owers)
+        if (!hasAnyPayers && !hasAnyOwers) {
+            // If there's only one participant and it's me -> make me the payer
+            // Otherwise: mark others as owing by default and distribute equal owes.
+            const participantsExcludingMe = selectedFriends.filter((f) => String(f._id) !== String(user?._id));
+
+            // Build neutral baseline: don't force the current user to pay unless they are the only selected person.
+            let neutral = selectedFriends.map((f) => ({
+                ...f,
+                paying: false,
+                owing: false,
+                payAmount: 0,
+                oweAmount: 0,
+                owePercent: 0,
+            }));
+
+            if (participantsExcludingMe.length === 0) {
+                // Only me is present — make me payer and owe = 0
+                neutral = neutral.map((f) =>
+                    String(f._id) === String(user?._id)
+                        ? { ...f, paying: true, payAmount: num(amount), owing: false, oweAmount: 0, owePercent: 0 }
+                        : f
+                );
+            } else {
+                // There are others: mark others as owing (but not paying), distribute equal owe among owing people.
+                neutral = neutral.map((f) =>
+                    String(f._id) === String(user?._id)
+                        ? { ...f, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }
+                        : { ...f, paying: false, owing: true, payAmount: 0, oweAmount: 0, owePercent: 0 }
+                );
+
+                // run equal distribution for owe among those who are owing
+                neutral = distributeEqualOwe(neutral);
+            }
+
+            setSelectedFriends(neutral);
+        }
+    }, [selectedFriends.length, amount, expenseMode]);
 
     const paidTotal = useMemo(
         () => selectedFriends.filter((f) => f.paying).reduce((n, f) => n + num(f.payAmount), 0),
@@ -612,6 +734,47 @@ const formatReadable = (isoStr) => {
         mode,
         payersNeedingPM.length,
     ]);
+    // show error outlines only when user has filled required fields for split flow
+    // show error outlines only once the split-required fields are filled
+    const splitFieldsFilled = useMemo(() => {
+        return (
+            expenseMode === "split" &&
+            desc?.trim() &&
+            category &&
+            currency &&
+            num(amount) > 0 &&
+            // at least one other friend selected besides me
+            selectedFriends.filter((f) => String(f._id) !== String(user?._id)).length > 0
+        );
+    }, [expenseMode, desc, category, currency, amount, selectedFriends, user]);
+
+    // Paid-by side issues: missing payers OR paid total mismatch OR payers missing PM
+    const paidHasIssue = useMemo(() => {
+        if (!splitFieldsFilled) return false;
+        const payers = selectedFriends.filter((f) => f.paying);
+        if (payers.length === 0) return true;                     // nobody marked as paying
+        if (!isPaidValid) return true;                             // collected != amount
+        if ((payersNeedingPM || []).length > 0) return true;       // a payer has multiple PMs but did not pick one
+        return false;
+    }, [splitFieldsFilled, selectedFriends, isPaidValid, payersNeedingPM]);
+
+    // Split/owed side issues: no owers OR mode-specific mismatch
+    const splitHasIssue = useMemo(() => {
+        if (!splitFieldsFilled) return false;
+        const owrs = selectedFriends.filter((f) => f.owing);
+        if (owrs.length === 0) return true;                       // nobody owes
+        if (mode === "percent" && Number(pctTotal.toFixed(2)) !== 100) return true;
+        if (mode === "value" && Number(oweTotal.toFixed(2)) !== num(amount)) return true;
+        // equal mode: computed owe total must equal amount
+        if (mode === "equal" && Number(oweTotal.toFixed(2)) !== num(amount)) return true;
+        return false;
+    }, [splitFieldsFilled, selectedFriends, mode, oweTotal, pctTotal, amount]);
+
+
+    // final: if either side has an issue, mark the summary buttons
+    const summaryHasIssue = useMemo(() => {
+        return paidHasIssue || splitHasIssue;
+    }, [paidHasIssue, splitHasIssue]);
 
     // ---------- submit ----------
     const handleSubmit = async () => {
@@ -652,7 +815,7 @@ const formatReadable = (isoStr) => {
 
             // reset
             setDesc("");
-            setCategory("");
+            setCategory("default");
             setAmount("");
             setMode("equal");
             setSelectedFriends([]);
@@ -671,6 +834,20 @@ const formatReadable = (isoStr) => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // ---------- small helpers for UI summary ----------
+    const defaultSummaryText = useMemo(() => {
+        // default: "Paid by me — split by everyone equally"
+        const me = selectedFriends.find((f) => String(f._id) === String(user?._id));
+        const others = selectedFriends.filter((f) => String(f._id) !== String(user?._id));
+        if (!me || others.length === 0) return "";
+        return `Paid by you, split by ${others.length + 1} ${others.length + 1 === 1 ? "person" : "people"} equally`;
+    }, [selectedFriends, user]);
+
+    const editSummary = (which) => {
+        // switch to corresponding tab and let user edit
+        setActiveTab(which === "paid" ? "paid" : "owed");
     };
 
     // ---------- UI ----------
@@ -730,7 +907,7 @@ const formatReadable = (isoStr) => {
                 <ScrollView
                     style={{ flex: 1 }}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={styles.colors.ctaFallback} />}
-                    contentContainerStyle={{ paddingBottom: 24 }}
+                    contentContainerStyle={{ paddingBottom: 150 }}
                     showsVerticalScrollIndicator={false}
                 >
                     {/* Split: suggestions + selection chips */}
@@ -844,29 +1021,25 @@ const formatReadable = (isoStr) => {
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
-    onPress={() => setShowDatePicker(true)}
-    style={[styles.input, { flex: 1, justifyContent: "center" }]}
-    activeOpacity={0.7}
-  >
-    <Text style={expenseDate ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }}>
-      {expenseDate ? formatReadable(expenseDate) : "Select date"}
-    </Text>
-  </TouchableOpacity>
+                                    onPress={() => setShowDatePicker(true)}
+                                    style={[styles.input, { flex: 1, justifyContent: "center" }]}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={expenseDate ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }}>
+                                        {expenseDate ? formatReadable(expenseDate) : "Select date"}
+                                    </Text>
+                                </TouchableOpacity>
 
-  <DateTimePickerModal
-    isVisible={showDatePicker}
-    mode="date"
-    date={parseISODate(expenseDate)}
-    // minimumDate={new Date(2000,0,1)} // optional
-    // maximumDate={new Date()} // optional if you want to restrict to today/past
-    onConfirm={(date) => {
-      setShowDatePicker(false);
-      setExpenseDate(toISODate(date));
-    }}
-    onCancel={() => setShowDatePicker(false)}
-    // on iOS you can choose: 'spinner' | 'compact' | 'inline' via pickerStyle prop if needed
-    // Android will show a calendar dialog by default
-  />
+                                <DateTimePickerModal
+                                    isVisible={showDatePicker}
+                                    mode="date"
+                                    date={parseISODate(expenseDate)}
+                                    onConfirm={(date) => {
+                                        setShowDatePicker(false);
+                                        setExpenseDate(toISODate(date));
+                                    }}
+                                    onCancel={() => setShowDatePicker(false)}
+                                />
                             </View>
 
                             {/* Personal: pick account */}
@@ -881,95 +1054,140 @@ const formatReadable = (isoStr) => {
                             {/* Split flow */}
                             {expenseMode === "split" && desc && num(amount) > 0 && category ? (
                                 <>
-                                    {/* Paid by */}
-                                    <Text style={[styles.sectionLabel, { marginTop: 8 }]}>
-                                        Paid by <Text style={styles.helperSmall}> (Select the people who paid.)</Text>
-                                    </Text>
 
-                                    <View style={styles.chipsWrap}>
-                                        {selectedFriends.map((f) => {
-                                            const active = !!f.paying;
-                                            return (
-                                                <TouchableOpacity key={`pay-${f?._id}`} onPress={() => togglePaying(f?._id)} style={[styles.chip2, active && styles.chip2Active]}>
-                                                    <Text style={[styles.chip2Text, active && styles.chip2TextActive]} numberOfLines={1}>
-                                                        {f?.name}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            );
-                                        })}
+
+                                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                                        {/* Paid by button */}
+                                        <TouchableOpacity
+                                            onPress={() => setActiveTab("paid")}
+                                            style={[
+                                                styles.summaryBtn,
+                                                activeTab === "paid" && styles.summaryBtnActive,
+                                                paidHasIssue && styles.summaryBtnError, // <-- add this
+                                            ]}
+                                        >
+                                            <Text style={[styles.summaryLabel, paidHasIssue && styles.summaryLabelError]}>Paid by</Text>
+                                            <Text style={styles.summaryValue}>
+                                                {(() => {
+                                                    const payers = selectedFriends.filter((f) => f.paying);
+                                                    if (payers.length === 0) return "—";
+                                                    if (payers.length === 1) {
+                                                        const p = payers[0];
+                                                        return p._id === user._id ? "You" : p.name;
+                                                    }
+                                                    return `${payers.length} people`;
+                                                })()}
+                                            </Text>
+                                        </TouchableOpacity>
+
+                                        {/* Split by button */}
+                                        <TouchableOpacity
+                                            onPress={() => setActiveTab("owed")}
+                                            style={[
+                                                styles.summaryBtn,
+                                                activeTab === "owed" && styles.summaryBtnActive,
+                                                splitHasIssue && styles.summaryBtnError, // <-- add this
+                                            ]}
+                                        >
+                                            <Text style={[styles.summaryLabel, splitHasIssue && styles.summaryLabelError]}>Split by</Text>
+                                            <Text style={styles.summaryValue}>
+                                                {mode === "equal"
+                                                    ? "equally"
+                                                    : mode === "value"
+                                                        ? "amounts"
+                                                        : "percentages"}
+                                            </Text>
+                                        </TouchableOpacity>
                                     </View>
 
-                                    {/* Per-payer inputs / PM pick */}
-                                    {selectedFriends.filter((f) => f.paying).length > 0 && (
-                                        <View style={{ gap: 8 }}>
-                                            {selectedFriends
-                                                .filter((f) => f.paying)
-                                                .map((f) => {
-                                                    const many = Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1;
-                                                    const sel = f.paymentMethods?.find((m) => m.paymentMethodId === f.selectedPaymentMethodId);
-                                                    return (
-                                                        <View key={`pr-${f._id}`} style={styles.rowBetween}>
-                                                            <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
-                                                                {f.name}
-                                                            </Text>
-                                                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                                                {many ? (
-                                                                    <TouchableOpacity
-                                                                        onPress={() => openPaymentSheet({ context: "split", friendId: f._id })}
-                                                                        style={[
-                                                                            styles.pmBtn,
-                                                                            sel ? { borderColor: styles.colors.borderFallback, backgroundColor: "transparent" } : { borderColor: styles.colors.dangerFallback, backgroundColor: "rgba(244,67,54,0.08)" },
-                                                                        ]}
-                                                                    >
-                                                                        <Text style={[styles.pmBtnText, { color: sel ? styles.colors.textFallback : styles.colors.dangerFallback }]} numberOfLines={1}>
-                                                                            {sel ? sel.label || sel.type || "Payment Method" : "Select"}
-                                                                        </Text>
-                                                                    </TouchableOpacity>
-                                                                ) : null}
-                                                                {selectedFriends.filter((x) => x.paying).length > 1 ? (
-                                                                    <TextInput
-                                                                        placeholder="Amount"
-                                                                        placeholderTextColor={styles.colors.mutedFallback}
-                                                                        keyboardType="decimal-pad"
-                                                                        value={String(f.payAmount || "")}
-                                                                        onChangeText={(v) => setPayAmount(f._id, v)}
-                                                                        style={[styles.input, { width: 100, textAlign: "right" }]}
-                                                                    />
-                                                                ) : null}
-                                                            </View>
-                                                        </View>
-                                                    );
-                                                })}
-                                            {selectedFriends.filter((f) => f.paying).length > 1 && !isPaidValid ? (
-                                                <View style={{ alignItems: "center", marginTop: 4 }}>
-                                                    <Text style={styles.helperMono}>{fmtMoney(currency, paidTotal)} / {fmtMoney(currency, num(amount))}</Text>
-                                                    <Text style={[styles.helperMono, { color: styles.colors.mutedFallback }]}>{fmtMoney(currency, num(amount) - paidTotal)} left</Text>
-                                                </View>
-                                            ) : null}
-                                        </View>
-                                    )}
 
-                                    {/* Owed by */}
-                                    {isPaidValid && payersNeedingPM.length === 0 ? (
+
+
+
+                                    {/* Paid by tab */}
+                                    {activeTab === "paid" ? (
                                         <>
-                                            <Text style={[styles.sectionLabel, { marginTop: 10 }]}>
-                                                Owed by <Text style={styles.helperSmall}> (Select the people who owe.)</Text>
+                                            <Text style={[styles.sectionLabel, { marginTop: 8 }]}>
+                                                Paid by <Text style={styles.helperSmall}> (Select the people who paid.)</Text>
                                             </Text>
 
                                             <View style={styles.chipsWrap}>
                                                 {selectedFriends.map((f) => {
-                                                    const active = !!f.owing;
+                                                    const active = !!f.paying;
                                                     return (
-                                                        <TouchableOpacity key={`owe-${f._id}`} onPress={() => toggleOwing(f._id)} style={[styles.chip2, active && styles.chip2Active]}>
+                                                        <TouchableOpacity key={`pay-${f?._id}`} onPress={() => togglePaying(f?._id)} style={[styles.chip2, active && styles.chip2Active]}>
                                                             <Text style={[styles.chip2Text, active && styles.chip2TextActive]} numberOfLines={1}>
-                                                                {f.name}
+                                                                {f?.name}
                                                             </Text>
                                                         </TouchableOpacity>
                                                     );
                                                 })}
                                             </View>
 
-                                            {selectedFriends.filter((f) => f.owing).length > 1 ? (
+                                            {/* Per-payer inputs / PM pick */}
+                                            {selectedFriends.filter((f) => f.paying).length > 0 && (
+                                                <View style={{ gap: 8 }}>
+                                                    {selectedFriends
+                                                        .filter((f) => f.paying)
+                                                        .map((f) => {
+                                                            const many = Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1;
+                                                            const sel = f.paymentMethods?.find((m) => m.paymentMethodId === f.selectedPaymentMethodId);
+                                                            if (selectedFriends.filter((f) => f.paying).length == 1 && !many) {
+                                                                return null
+                                                            }
+                                                            return (
+                                                                <View key={`pr-${f._id}`} style={styles.rowBetween}>
+                                                                    <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
+                                                                        {f.name}
+                                                                    </Text>
+                                                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                                                        {many ? (
+                                                                            <TouchableOpacity
+                                                                                onPress={() => openPaymentSheet({ context: "split", friendId: f._id })}
+                                                                                style={[
+                                                                                    styles.pmBtn,
+                                                                                    sel ? { borderColor: styles.colors.borderFallback, backgroundColor: "transparent" } : { borderColor: styles.colors.dangerFallback, backgroundColor: "rgba(244,67,54,0.08)" },
+                                                                                ]}
+                                                                            >
+                                                                                <Text style={[styles.pmBtnText, { color: sel ? styles.colors.textFallback : styles.colors.dangerFallback }]} numberOfLines={1}>
+                                                                                    {sel ? sel.label || sel.type || "Payment Method" : "Select"}
+                                                                                </Text>
+                                                                            </TouchableOpacity>
+                                                                        ) : null}
+                                                                        {selectedFriends.filter((x) => x.paying).length > 1 ? (
+                                                                            <TextInput
+                                                                                placeholder="Amount"
+                                                                                placeholderTextColor={styles.colors.mutedFallback}
+                                                                                keyboardType="decimal-pad"
+                                                                                value={String(f.payAmount || "")}
+                                                                                onChangeText={(v) => setPayAmount(f._id, v)}
+                                                                                style={[styles.input, { width: 100, textAlign: "right" }]}
+                                                                            />
+                                                                        ) : null}
+                                                                    </View>
+                                                                </View>
+                                                            );
+                                                        })}
+                                                    {selectedFriends.filter((f) => f.paying).length > 1 && !isPaidValid ? (
+                                                        <View style={{ alignItems: "center", marginTop: 4 }}>
+                                                            <Text style={styles.helperMono}>{fmtMoney(currency, paidTotal)} / {fmtMoney(currency, num(amount))}</Text>
+                                                            <Text style={[styles.helperMono, { color: styles.colors.mutedFallback }]}>{fmtMoney(currency, num(amount) - paidTotal)} left</Text>
+                                                        </View>
+                                                    ) : null}
+                                                </View>
+                                            )}
+                                        </>
+                                    ) : null}
+
+                                    {/* Owed by tab */}
+                                    {activeTab === "owed" ? (
+
+                                        <>
+                                            <Text style={[styles.sectionLabel, { marginTop: 10 }]}>
+                                                Owed by <Text style={styles.helperSmall}> (Select the people who owe.)</Text>
+                                            </Text>
+
+                                            {selectedFriends.length > 1 ? (
                                                 <View style={{ marginTop: 8 }}>
                                                     <View style={{ flexDirection: "row", gap: 8 }}>
                                                         {["equal", "value", "percent"].map((m) => {
@@ -978,13 +1196,23 @@ const formatReadable = (isoStr) => {
                                                                 <TouchableOpacity
                                                                     key={m}
                                                                     onPress={() => {
+                                                                        // switch mode and apply the requested behavior
                                                                         setMode(m);
+
                                                                         if (m === "equal") {
-                                                                            setSelectedFriends((prev) => distributeEqualOwe(prev));
+                                                                            // mark everyone who is eligible as owing and distribute equal owe amounts
+                                                                            setSelectedFriends((prev) => {
+                                                                                const marked = prev.map((f) => ({ ...f, owing: !!f.owing || true, owePercent: undefined }));
+                                                                                return distributeEqualOwe(marked);
+                                                                            });
+                                                                        } else if (m === "value") {
+                                                                            // set each owing person's oweAmount to 0 so user enters values
+                                                                            setSelectedFriends((prev) =>
+                                                                                prev.map((f) => (f.owing ? { ...f, oweAmount: 0, owePercent: undefined } : { ...f, oweAmount: 0 }))
+                                                                            );
                                                                         } else if (m === "percent") {
-                                                                            setSelectedFriends((prev) => prev.map((f) => ({ ...f, owePercent: f.owePercent || 0, oweAmount: 0 })));
-                                                                        } else {
-                                                                            setSelectedFriends((prev) => prev.map((f) => ({ ...f, owePercent: undefined })));
+                                                                            // prepare percent inputs starting from 0%
+                                                                            setSelectedFriends((prev) => prev.map((f) => (f.owing ? { ...f, owePercent: f.owePercent ?? 0, oweAmount: 0 } : f)));
                                                                         }
                                                                     }}
                                                                     style={[styles.modeMini, active && styles.modeMiniActive]}
@@ -995,40 +1223,74 @@ const formatReadable = (isoStr) => {
                                                                 </TouchableOpacity>
                                                             );
                                                         })}
+
                                                     </View>
 
                                                     {/* Per-ower inputs based on mode */}
                                                     <View style={{ marginTop: 6, gap: 8 }}>
                                                         {selectedFriends
-                                                            .filter((f) => f.owing)
-                                                            .map((f) => (
-                                                                <View key={`ow-${f._id}`} style={styles.rowBetween}>
-                                                                    <Text style={{ color: styles.colors.textFallback }} numberOfLines={1}>
-                                                                        {f.name}
-                                                                    </Text>
-                                                                    {mode === "percent" ? (
-                                                                        <TextInput
-                                                                            placeholder="Percent"
-                                                                            placeholderTextColor={styles.colors.mutedFallback}
-                                                                            keyboardType="decimal-pad"
-                                                                            value={String(f.owePercent ?? "")}
-                                                                            onChangeText={(v) => setOwePercent(f._id, v)}
-                                                                            style={[styles.input, { width: 100, textAlign: "right" }]}
-                                                                        />
-                                                                    ) : mode === "value" ? (
-                                                                        <TextInput
-                                                                            placeholder="Amount"
-                                                                            placeholderTextColor={styles.colors.mutedFallback}
-                                                                            keyboardType="decimal-pad"
-                                                                            value={String(f.oweAmount || "")}
-                                                                            onChangeText={(v) => setOweAmount(f._id, v)}
-                                                                            style={[styles.input, { width: 100, textAlign: "right" }]}
-                                                                        />
-                                                                    ) : (
-                                                                        <Text style={{ color: styles.colors.textFallback, marginVertical: 4 }}>{f.oweAmount || 0}</Text>
-                                                                    )}
-                                                                </View>
-                                                            ))}
+                                                            .filter((f) => f.owing || mode === "equal") // show rows when equal mode too
+                                                            .map((f) => {
+                                                                const isOwing = !!f.owing;
+                                                                return (
+                                                                    <TouchableOpacity
+                                                                        key={`ow-${f._id}`}
+                                                                        onPress={() => {
+                                                                            // toggle owing flag for this friend (works in all modes)
+                                                                            setSelectedFriends((prev) => {
+                                                                                const updated = prev.map((x) => (x._id === f._id ? { ...x, owing: !x.owing } : x));
+                                                                                // re-run equal distribution if we're in equal mode
+                                                                                if (mode === "equal") return distributeEqualOwe(updated);
+                                                                                return updated;
+                                                                            });
+                                                                        }}
+                                                                        activeOpacity={0.8}
+                                                                        style={[styles.rowBetween, { paddingVertical: mode === "equal" ? 8 : 0 }]}
+                                                                    >
+                                                                        <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
+                                                                            {/* Radio (equal mode) or simple bullet */}
+                                                                            {mode === "equal" ? (
+                                                                                <View style={styles.radioWrap}>
+                                                                                    <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
+                                                                                        {isOwing ? <View style={styles.radioInner} /> : null}
+                                                                                    </View>
+                                                                                </View>
+                                                                            ) : null}
+
+                                                                            <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
+                                                                                {f.name}
+                                                                            </Text>
+                                                                        </View>
+
+                                                                        {/* Right side: input or computed value depending on mode */}
+                                                                        {mode === "percent" ? (
+                                                                            <TextInput
+                                                                                placeholder="Percent"
+                                                                                placeholderTextColor={styles.colors.mutedFallback}
+                                                                                keyboardType="decimal-pad"
+                                                                                value={String(f.owePercent ?? "")}
+                                                                                onChangeText={(v) => setOwePercent(f._id, v)}
+                                                                                style={[styles.input, { width: 100, textAlign: "right" }]}
+                                                                            />
+                                                                        ) : mode === "value" ? (
+                                                                            <TextInput
+                                                                                placeholder="Amount"
+                                                                                placeholderTextColor={styles.colors.mutedFallback}
+                                                                                keyboardType="decimal-pad"
+                                                                                value={String(f.oweAmount || "")}
+                                                                                onChangeText={(v) => setOweAmount(f._id, v)}
+                                                                                style={[styles.input, { width: 100, textAlign: "right" }]}
+                                                                            />
+                                                                        ) : (
+                                                                            // equal mode: display computed oweAmount
+                                                                            <Text style={{ color: styles.colors.textFallback, marginVertical: 4 }}>
+                                                                                {fmtMoney(currency, f.oweAmount || 0)}
+                                                                            </Text>
+                                                                        )}
+                                                                    </TouchableOpacity>
+                                                                );
+                                                            })}
+
                                                     </View>
                                                 </View>
                                             ) : null}
@@ -1041,21 +1303,6 @@ const formatReadable = (isoStr) => {
 
                     {/* Loan CTA */}
                 </ScrollView>
-                {/* {showDatePicker && (
-                    <DateTimePicker
-                        value={parseISODate(expenseDate)}
-                        mode="date"
-                        display={Platform.OS === "ios" ? "spinner" : "calendar"} // choose preferred display
-                        onChange={(event, selectedDate) => {
-                            // Android: event.type can be 'dismissed' or 'set'
-                            // iOS: selectedDate is provided and event is ignored
-                            setShowDatePicker(Platform.OS === "ios"); // keep open on iOS if you want (spinner), close on Android after pick
-                            if (selectedDate) {
-                                setExpenseDate(toISODate(selectedDate));
-                            }
-                        }}
-                    />
-                )} */}
                 <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
                 <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
                 <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />
@@ -1228,6 +1475,25 @@ const createStyles = (theme = {}) => {
             fontWeight: "700",
         },
 
+        // tabs
+        tabBtn: {
+            flex: 1,
+            paddingVertical: 10,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: palette.card,
+        },
+        tabBtnActive: {
+            backgroundColor: `${palette.cta}22`,
+        },
+        tabText: {
+            color: palette.text,
+            fontWeight: "600",
+        },
+        tabTextActive: {
+            color: palette.cta,
+        },
+
         // color tokens available for inline use
         colors: {
             backgroundFallback: palette.background,
@@ -1241,8 +1507,88 @@ const createStyles = (theme = {}) => {
             ctaFallback: palette.cta,
             dangerFallback: palette.danger,
         },
+        summaryBtn: {
+            flex: 1,
+            paddingVertical: 10,
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: palette.border,
+            backgroundColor: palette.card,
+        },
+        summaryBtnActive: {
+            borderColor: palette.cta,
+        },
+        summaryLabel: {
+            fontSize: 12,
+            color: palette.muted,
+            marginBottom: 2,
+        },
+        summaryValue: {
+            fontSize: 14,
+            color: palette.text,
+            fontWeight: "600",
+        },
+        radioWrap: { width: 28, alignItems: "center", justifyContent: "center" },
+        radioOuter: {
+            width: 18,
+            height: 18,
+            borderRadius: 18,
+            borderWidth: 2,
+            borderColor: "rgba(255,255,255,0.15)",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "transparent",
+        },
+        radioOuterActive: {
+            borderColor: palette.cta,
+            backgroundColor: `${palette.cta}22`,
+        },
+        radioInner: {
+            width: 10,
+            height: 10,
+            borderRadius: 10,
+            backgroundColor: palette.cta,
+        },
+
+        summaryBtnError: {
+
+            backgroundColor: "rgba(244,67,54,0.06)",
+        },
+        summaryLabelError: {
+            color: palette.danger,
+        },
+        summaryValueError: {
+            color: palette.danger,
+        },
+
+
+
     });
 
     s.colors = s.colors;
     return s;
+};
+
+// ---------- small date helpers (moved after styles for clarity) ----------
+const parseISODate = (isoStr) => {
+    if (!isoStr) return new Date();
+    const parts = String(isoStr).split("-");
+    if (parts.length !== 3) return new Date(isoStr);
+    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+};
+const toISODate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+};
+const formatReadable = (isoStr) => {
+    if (!isoStr) return "";
+    try {
+        const d = parseISODate(isoStr);
+        return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    } catch {
+        return isoStr;
+    }
 };

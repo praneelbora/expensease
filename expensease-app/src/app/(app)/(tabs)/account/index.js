@@ -9,8 +9,13 @@ import {
     Alert,
     UIManager,
     Platform,
+    Modal,
+    Linking,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import * as Application from "expo-application";
+import { checkAppVersion } from "services/UserService";
+
+import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as Clipboard from "expo-clipboard";
@@ -66,8 +71,8 @@ function getInitials(name) {
 
 export default function AccountScreen() {
     const router = useRouter();
-    const { logout, user, userToken, defaultCurrency, preferredCurrencies, setUser, loadUserData } = useAuth() || {};
-    const { theme, preference, setPreference } = useTheme();
+    const { logout, user, userToken, defaultCurrency, preferredCurrencies, setUser, loadUserData, version } = useAuth() || {};
+    const { theme } = useTheme();
 
     const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -83,19 +88,24 @@ export default function AccountScreen() {
     const [selectedAvatar, setSelectedAvatar] = useState(user?.avatarId || null);
     const [savingAvatar, setSavingAvatar] = useState(false);
 
+    // update/version state
+    const [updateInfo, setUpdateInfo] = useState(null); // { outdated, underReview, rawAdminPayload? }
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [updateNotes, setUpdateNotes] = useState(null);
+
     // refs
     const scrollerRef = useRef(null);
     const currencySheetRef = useRef(null);
     const avatarSheetRef = useRef(null);
 
     useEffect(() => setDc(defaultCurrency || ""), [defaultCurrency]);
-    useEffect(()=>{
-        console.log('a');
-        
-        loadUserData()
-    },[])
 
-
+    useEffect(() => {
+        // call loadUserData once to sync user if needed
+        if (typeof loadUserData === "function") {
+            loadUserData().catch(() => { });
+        }
+    }, []);
 
     // sync user avatar when user updates
     useEffect(() => {
@@ -195,75 +205,121 @@ export default function AccountScreen() {
             .map((c) => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
     }, [defaultCurrency, preferredCurrencies]);
 
-    // avatar save handler passed to sheet
-    // inside AccountScreen.js
-
-    // ---- REPLACE the above handleSaveAvatar with this implementation ----
-    const AVATAR_COST = 1; // cost in coins to change avatar
-    // Replace the existing handleSaveAvatar in app/account/index.js with this simplified version
-    // (confirmation & coin-check moved into the sheet; this avoids asking twice)
-
+    // avatar save handler
+    const AVATAR_COST = 1;
     const handleSaveAvatar = async (id) => {
         if (!id) return;
         setSavingAvatar(true);
-
         try {
-            // Server will perform atomic coin deduction & avatar set.
-            // Client just sends the requested avatarId and updates local state on success.
             const res = await updateUserProfile({ avatarId: id });
-
-            // If your updateUserProfile returns the updated user, use it to sync local context.
-            // Otherwise fall back to setting the avatarId locally and reloading user data.
             const updatedUser = res?.user || res;
-
             if (updatedUser) {
                 setSelectedAvatar(id);
-
                 if (typeof setUser === "function") {
-                    // prefer to update auth context with fresh server data if available
-                    setUser((prev = {}) => {
-                        // merge returned fields where present, but keep previous data as fallback
-                        return {
-                            ...prev,
-                            avatarId: updatedUser.avatarId ?? id,
-                            coins: typeof updatedUser.coins === "number" ? updatedUser.coins : prev.coins,
-                            name: updatedUser.name ?? prev.name,
-                            email: updatedUser.email ?? prev.email,
-                            profilePic: updatedUser.profilePic ?? prev.profilePic,
-                        };
-                    });
+                    setUser((prev = {}) => ({
+                        ...prev,
+                        avatarId: updatedUser.avatarId ?? id,
+                        coins: typeof updatedUser.coins === "number" ? updatedUser.coins : prev.coins,
+                        name: updatedUser.name ?? prev.name,
+                        email: updatedUser.email ?? prev.email,
+                        profilePic: updatedUser.profilePic ?? prev.profilePic,
+                    }));
                 } else if (typeof loadUserData === "function") {
-                    // fallback: reload full user data
                     try {
                         await loadUserData();
-                    } catch (err) {
-                        // ignore reload error; we've already updated avatar locally
-                    }
+                    } catch (_) { }
                 }
             } else {
-                // if response shape is unexpected, still update local avatar to keep UI snappy
                 setSelectedAvatar(id);
                 if (typeof loadUserData === "function") {
-                    try { await loadUserData(); } catch (_) { }
+                    try {
+                        await loadUserData();
+                    } catch (_) { }
                 }
             }
-
             showBanner("success", "Avatar updated.", 2000);
         } catch (e) {
-            // server may return insufficient-coins or other errors -> surface to user
             const msg = e?.message || (e?.error || "Failed to save avatar.");
             showBanner("error", msg, 3000);
-            throw e; // rethrow so caller (sheet) can react if needed
+            throw e;
         } finally {
             setSavingAvatar(false);
         }
     };
 
-    // open avatar sheet
     const openAvatarSheet = () => {
-        // present method depends on your MainBottomSheet API; using present() per earlier snippets
         avatarSheetRef.current?.present?.();
     };
+
+    // -------------------------------
+    // App version check (on mount)
+    // -------------------------------
+    useEffect(() => {
+        (async () => {
+            try {
+
+                const OS = Platform.OS === "ios" ? "ios" : "android";
+                const result = await checkAppVersion(version, OS);
+                // checkAppVersion returns at least { outdated, underReview }
+                setUpdateInfo(result || { outdated: false, underReview: false });
+
+                // If outdated (forced or suggested) open modal to inform user
+                if (result?.outdated) {
+                    setShowUpdateModal(true);
+                } else if (result?.underReview) {
+                    // show small banner notifying user
+                    // showBanner("info", "Your app version is under review; update may arrive soon.", 4000);
+                }
+            } catch (err) {
+                console.warn("Version check failed:", err);
+            }
+        })();
+    }, []);
+
+    // Try to fetch admin payload for store URLs and notes
+    const fetchAdminVersionPayload = async () => {
+        try {
+            const res = await fetch("/v1/admin/version");
+            if (!res.ok) {
+                return null;
+            }
+            const data = await res.json();
+            return data;
+        } catch (err) {
+            // network or different base URL — ignore and fallback
+            return null;
+        }
+    };
+
+    const handleDoUpdate = async () => {
+        // try to get store url from admin payload, else fallback to placeholder
+        try {
+            const admin = await fetchAdminVersionPayload();
+            const storeUrl = Platform.OS === "ios"
+                ? (admin?.iosStoreUrl || admin?.iosStoreUrlFallback)
+                : (admin?.androidStoreUrl || admin?.androidStoreUrlFallback);
+
+            // if releaseNotes exist, show them in modal (quick)
+            if (admin?.releaseNotes) setUpdateNotes(admin.releaseNotes);
+
+            const url = storeUrl || (Platform.OS === "ios"
+                ? "https://apps.apple.com/app/idYOUR_APP_ID"
+                : "https://play.google.com/store/apps/details?id=com.praneelbora.expensease");
+
+            const opened = await Linking.openURL(url).catch((e) => {
+                console.warn("Failed to open store url:", e);
+                Alert.alert("Unable to open store", "Please update your app from the App Store / Play Store.");
+            });
+
+            // If you use expo-updates and support OTA updates you could attempt to fetch + apply here.
+            // For now we just open the store.
+        } catch (err) {
+            console.warn("handleDoUpdate error:", err);
+            Alert.alert("Update", "Could not find update link. Please check the store.");
+        }
+    };
+
+    // -------------------------------
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -283,14 +339,9 @@ export default function AccountScreen() {
                             <View style={styles.cardBox}>
                                 <View style={{ gap: 6 }}>
                                     <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-                                        <TouchableOpacity
-                                            activeOpacity={0.8}
-                                            onPress={openAvatarSheet}
-                                            style={styles.avatarTouchable}
-                                        >
+                                        <TouchableOpacity activeOpacity={0.8} onPress={openAvatarSheet} style={styles.avatarTouchable}>
                                             <View style={styles.avatarBorder}>
                                                 <View
-                                                    /* dynamically center placeholder, bottom-align selected avatar */
                                                     style={[
                                                         styles.avatarContainer,
                                                         selectedAvatar ? { justifyContent: "flex-end" } : { justifyContent: "center" },
@@ -300,28 +351,20 @@ export default function AccountScreen() {
                                                         (() => {
                                                             const found = avatars.find((a) => a.id === selectedAvatar);
                                                             const AvatarComp = found?.Component || null;
-                                                            return AvatarComp ? (
-                                                                <AvatarComp width={50} height={50} />
-                                                            ) : (
-                                                                <Text style={{ color: theme.colors.muted }}>—</Text>
-                                                            );
+                                                            return AvatarComp ? <AvatarComp width={50} height={50} /> : <Text style={{ color: theme.colors.muted }}>—</Text>;
                                                         })()
                                                     ) : (
                                                         <View style={[styles.placeholderCircle, { backgroundColor: theme.colors.card }]}>
-                                                            <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>
-                                                                {getInitials(user?.name || "")}
-                                                            </Text>
+                                                            <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>{getInitials(user?.name || "")}</Text>
                                                         </View>
                                                     )}
                                                 </View>
                                             </View>
 
-                                            {/* pen badge bottom-right (always visible) */}
                                             <View style={[styles.penBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.card }]}>
                                                 <Edit width={12} height={12} stroke={theme.colors.background} />
                                             </View>
                                         </TouchableOpacity>
-
 
                                         <View style={{ flex: 1 }}>
                                             <Text style={styles.strongText}>{user?.name || "—"}</Text>
@@ -336,6 +379,29 @@ export default function AccountScreen() {
                                     </View>
                                 </View>
                             </View>
+
+                            {/* Under-review banner */}
+                            {/* {updateInfo?.underReview && !updateInfo?.outdated ? (
+                                <View style={{ padding: 10, backgroundColor: theme.colors.card, borderRadius: 8, marginVertical: 8 }}>
+                                    <Text style={{ color: theme.colors.muted }}>This version is under review. An update may be available soon.</Text>
+                                </View>
+                            ) : null} */}
+
+                            {/* If update is available, show a prominent CTA */}
+                            {updateInfo?.isNewUpdateAvailable ? (
+                                <TouchableOpacity
+                                    style={{
+                                        backgroundColor: theme.colors.primary,
+                                        padding: 10,
+                                        borderRadius: 8,
+                                        marginVertical: 8,
+                                    }}
+                                    onPress={() => setShowUpdateModal(true)}
+                                >
+                                    <Text style={{ color: theme.colors.background, fontWeight: "700" }}>Update available</Text>
+                                </TouchableOpacity>
+                            ) : null}
+
                             {banner && (
                                 <View
                                     style={[
@@ -348,6 +414,7 @@ export default function AccountScreen() {
                                     <Text style={styles.bannerText}>{banner.text}</Text>
                                 </View>
                             )}
+
                             <View style={{ marginTop: 0 }}>
                                 <View style={styles.grid}>
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/guide")}>
@@ -357,7 +424,6 @@ export default function AccountScreen() {
                                         <Text style={styles.gridLabel}>Guide</Text>
                                     </TouchableOpacity>
 
-                                    {/* Theme tile */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/theme")}>
                                         <View style={styles.iconWrap}>
                                             <Sun width={30} height={30} stroke={theme.colors.primary} />
@@ -365,15 +431,13 @@ export default function AccountScreen() {
                                         <Text style={styles.gridLabel}>Theme</Text>
                                     </TouchableOpacity>
 
-                                    {/* Notifications tile (new) */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/notifications")}>
                                         <View style={styles.iconWrap}>
                                             <Bell width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Notifications</Text>
                                     </TouchableOpacity>
-                            
-                                    {/* Payment Accounts */}
+
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/paymentAccounts")}>
                                         <View style={styles.iconWrap}>
                                             <Payment width={30} height={30} stroke={theme.colors.primary} />
@@ -381,7 +445,6 @@ export default function AccountScreen() {
                                         <Text style={styles.gridLabel}>Payment Accounts</Text>
                                     </TouchableOpacity>
 
-                                    {/* Currency tile */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/currency")}>
                                         <View style={styles.iconWrap}>
                                             <Currency width={30} height={30} stroke={theme.colors.primary} />
@@ -389,7 +452,6 @@ export default function AccountScreen() {
                                         <Text style={styles.gridLabel}>Currency</Text>
                                     </TouchableOpacity>
 
-                                    {/* FAQ tile */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/faq")}>
                                         <View style={styles.iconWrap}>
                                             <FAQ width={30} height={30} stroke={theme.colors.primary} />
@@ -397,7 +459,6 @@ export default function AccountScreen() {
                                         <Text style={styles.gridLabel}>FAQ</Text>
                                     </TouchableOpacity>
 
-                                    {/* Privacy tile */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/privacy")}>
                                         <View style={styles.iconWrap}>
                                             <Privacy width={30} height={30} stroke={theme.colors.primary} />
@@ -405,7 +466,6 @@ export default function AccountScreen() {
                                         <Text style={styles.gridLabel}>Privacy</Text>
                                     </TouchableOpacity>
 
-                                    {/* Contact tile */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/contact")}>
                                         <View style={styles.iconWrap}>
                                             <Contact width={30} height={30} stroke={theme.colors.primary} />
@@ -413,7 +473,6 @@ export default function AccountScreen() {
                                         <Text style={styles.gridLabel}>Contact</Text>
                                     </TouchableOpacity>
 
-                                    {/* Logout */}
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={onLogout}>
                                         <View style={styles.iconWrap}>
                                             <Logout width={30} height={30} stroke={theme.colors.primary} />
@@ -450,8 +509,41 @@ export default function AccountScreen() {
                 onSave={handleSaveAvatar}
                 onClose={() => { }}
                 userCoins={Number(user?.coins || 0)}
-                cost={1}
+                cost={AVATAR_COST}
             />
+
+            {/* Update modal */}
+            <Modal visible={showUpdateModal} transparent animationType="fade" onRequestClose={() => setShowUpdateModal(false)}>
+                <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.4)" }}>
+                    <View style={{ width: "92%", backgroundColor: theme.colors.card, borderRadius: 12, padding: 16 }}>
+                        <Text style={{ fontSize: 18, fontWeight: "700", color: theme.colors.text }}>Update available</Text>
+                        <Text style={{ marginTop: 8, color: theme.colors.muted }}>
+                            {updateNotes || "A new version of the app is available. Please update to get the latest features and fixes."}
+                        </Text>
+
+                        <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 12 }}>
+                            <TouchableOpacity onPress={() => setShowUpdateModal(false)} style={{ padding: 8 }}>
+                                <Text style={{ color: theme.colors.text }}>Later</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={async () => {
+                                    await handleDoUpdate();
+                                }}
+                                style={{
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 8,
+                                    backgroundColor: theme.colors.primary,
+                                    borderRadius: 8,
+                                    marginLeft: 8,
+                                }}
+                            >
+                                <Text style={{ color: theme.colors.background, fontWeight: "700" }}>Update</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -511,7 +603,7 @@ const createStyles = (theme) =>
         grid: {
             flexDirection: "row",
             flexWrap: "wrap",
-            justifyContent: 'space-between',
+            justifyContent: "space-between",
             columnGap: 8,
             rowGap: 4,
             marginTop: 6,
@@ -534,8 +626,6 @@ const createStyles = (theme) =>
         gridLabel: { color: theme.colors.text, fontSize: 12, textAlign: "center" },
 
         // avatar styles
-        /* ---- ADD / UPDATE these style rules ---- */
-        /* ---- MERGE / REPLACE these style rules in createStyles ---- */
         avatarTouchable: {
             width: 64,
             height: 64,
@@ -584,7 +674,6 @@ const createStyles = (theme) =>
             shadowRadius: 1,
             elevation: 2,
         },
-
 
         // Theme toggle
         themeToggleRow: {

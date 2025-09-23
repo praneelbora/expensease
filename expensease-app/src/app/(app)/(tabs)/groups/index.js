@@ -204,7 +204,20 @@ export default function GroupsScreen() {
                 if (activeFilter === "i_owe") return cat === "i_owe";
                 return true;
             })
-            .sort((a, b) => a.name.localeCompare(b.name));
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .sort((a, b) => {
+                const catA = groupCategory(a);
+                const catB = groupCategory(b);
+
+                // Settled groups always come last
+                if (catA === "settled" && catB !== "settled") return 1;
+                if (catB === "settled" && catA !== "settled") return -1;
+
+                // Both unsettled → sort by lastUpdated (newest first)
+                const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+                const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+                return dateB - dateA;
+            });
     }, [groups, query, activeFilter]);
 
     // create / join handlers for bottom sheet
@@ -298,7 +311,7 @@ export default function GroupsScreen() {
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <StatusBar style={theme?.statusBarStyle === "dark-content" ? "dark" : "light"} />
-            <Header title="Groups" />
+            <Header title="Groups" showText="New group" onTextPress={() => groupsRef.current?.present()} />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
                 <View style={{ gap: 8 }}>
                     <SearchBar value={query} onChangeText={setQuery} placeholder="Search groups or members" />
@@ -373,11 +386,6 @@ export default function GroupsScreen() {
                         ) : null
                     }
                 />
-
-                {/* Floating create button (mobile) */}
-                <TouchableOpacity accessibilityLabel="Create group" onPress={() => groupsRef.current?.present()} style={styles.fab}>
-                    <Plus width={24} height={24} color={theme?.colors?.inverseText ?? "#121212"} />
-                </TouchableOpacity>
 
                 <BottomSheetGroups
                     innerRef={groupsRef}

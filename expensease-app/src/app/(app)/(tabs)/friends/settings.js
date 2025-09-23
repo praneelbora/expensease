@@ -213,40 +213,9 @@ export default function FriendSettings() {
                         contentContainerStyle={{ paddingBottom: 28 }}
                         renderItem={() => (
                             <View style={{ gap: 16 }}>
-                                <Section title="Friend" styles={styles}>
-                                    <View style={styles.card}>
-                                        <Text style={styles.friendName} numberOfLines={1}>{name}</Text>
-                                        {!!status && <Text style={styles.friendSub} numberOfLines={1}>Status: {String(status).replaceAll("_", " ")}</Text>}
+                                <Text style={styles.friendName}>{name}</Text>
 
-                                        <View style={styles.controlsRow}>
-                                            {status === "pending_incoming" && (
-                                                <>
-                                                    <TouchableOpacity disabled={busyAction} onPress={handleAccept} style={[styles.btn, styles.btnPrimary]}>
-                                                        <Text style={styles.btnPrimaryText}>Accept</Text>
-                                                    </TouchableOpacity>
-                                                    <TouchableOpacity disabled={busyAction} onPress={handleReject} style={[styles.btn, styles.btnOutline]}>
-                                                        <Text style={styles.btnOutlineText}>Reject</Text>
-                                                    </TouchableOpacity>
-                                                </>
-                                            )}
-
-                                            {status === "pending_outgoing" && (
-                                                <TouchableOpacity disabled={busyAction} onPress={handleCancel} style={[styles.btn, styles.btnOutline]}>
-                                                    <Text style={styles.btnOutlineText}>Cancel Request</Text>
-                                                </TouchableOpacity>
-                                            )}
-
-                                            <TouchableOpacity
-                                                onPress={() => router.back()}
-                                                style={[styles.btn, styles.btnSecondary]}
-                                            >
-                                                <Text style={styles.btnSecondaryText}>View Expenses</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                </Section>
-
-                                {totals && Object.keys(totals.balance || {}).length > 0 && (
+                                {/* {totals && Object.keys(totals.balance || {}).length > 0 && (
                                     <Section title="Summary" styles={styles}>
                                         <View style={styles.card}>
                                             {Object.keys(totals.balance).map((code) => {
@@ -266,7 +235,7 @@ export default function FriendSettings() {
                                             })}
                                         </View>
                                     </Section>
-                                )}
+                                )} */}
 
                                 <Section title="Danger Zone" styles={styles}>
                                     <View style={[styles.card, { borderColor: styles.colors.dangerFallback }]}>
@@ -321,7 +290,7 @@ const createStyles = (theme = {}) => {
         sectionTitle: { color: colors.primary, fontSize: 12, textTransform: "uppercase", fontWeight: "700" },
 
         card: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12 },
-        friendName: { color: colors.text, fontSize: 18, fontWeight: "800" },
+        friendName: { color: colors.text, fontSize: 26, fontWeight: "800" },
         friendSub: { color: colors.muted, marginTop: 2 },
 
         controlsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
@@ -329,6 +298,8 @@ const createStyles = (theme = {}) => {
         btn: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, alignItems: "center", justifyContent: "center" },
         btnPrimary: { backgroundColor: colors.primary },
         btnPrimaryText: { color: "#121212", fontWeight: "800" },
+        btnDanger: { borderColor: colors.danger, borderWidth: 1, alignContent: 'center', justifyContent: 'center', alignItems: 'center' },
+        btnDangerText: { color: "#ff7b7b", fontWeight: "800" },
         btnSecondary: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 },
         btnSecondaryText: { color: colors.text, fontWeight: "700" },
         btnOutline: { borderWidth: 1, borderColor: colors.text },

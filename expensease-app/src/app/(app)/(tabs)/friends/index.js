@@ -490,7 +490,20 @@ export default function FriendsScreen() {
                 if (activeFilter === "i_owe") return cat === "i_owe";
                 return true;
             })
-            .sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+            .sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")))
+            .sort((a, b) => {
+                const catA = friendCategory(String(a?._id));
+                const catB = friendCategory(String(b?._id));
+
+                // Settled friends always at the end
+                if (catA === "settled" && catB !== "settled") return 1;
+                if (catB === "settled" && catA !== "settled") return -1;
+
+                // Both unsettled → sort by last updated (use updatedAt or createdAt if available)
+                const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+                const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+                return dateB - dateA;
+            });
     }, [friends, mergedBalances, activeFilter, query, friendCategory]);
 
     // ===== UI bits =====
@@ -594,7 +607,7 @@ export default function FriendsScreen() {
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <StatusBar style={theme?.statusBarStyle === "dark-content" ? "dark" : "light"} />
-            <Header title="Friends" />
+            <Header title="Friends" showText="Add Friend" onTextPress={() => addFriendRef.current?.present()} />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
                 {/* Search + Filter */}
                 <View style={{ gap: 8 }}>
@@ -683,11 +696,6 @@ export default function FriendsScreen() {
                         </View>
                     )}
                 </ScrollView>
-
-                {/* Floating Add button for smaller screens */}
-                <TouchableOpacity onPress={() => addFriendRef.current?.present()} style={[styles.fab, { backgroundColor: theme?.colors?.primary ?? "#00C49F" }]} accessibilityLabel="Add friend">
-                    <Plus width={24} height={24} color={theme?.colors?.inverseText ?? "#121212"} />
-                </TouchableOpacity>
 
                 <BottomSheetAddFriend innerRef={addFriendRef} onAdded={async () => { await pullReceived(); await pullFriends(); }} userToken={userToken} />
             </View>

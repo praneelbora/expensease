@@ -29,8 +29,8 @@ export async function googleLoginMobile(idToken, pushToken, platform) {
 }
 
 // Email-based mobile login (OTP / magic link style on your backend)
-export async function mobileLogin(email, expoPushToken, platform) {
-    const data = await api.post(`${BASE_USERS}/login`, { email, pushToken: expoPushToken, platform });
+export async function mobileLogin(email, password, expoPushToken, platform) {
+    const data = await api.post(`${BASE_USERS}/dev-login`, { email, password, pushToken: expoPushToken, platform });
 
     const authToken = data?.responseBody?.["x-auth-token"] || data?.accessToken;
     const refreshToken = data?.refreshToken; // if provided
@@ -154,26 +154,106 @@ function isVersionOutdated(current, minimum) {
     return false; // equal
 }
 
-export async function checkAppVersion(currentVersion, OS) {
+
+// Updated checkAppVersion in src/services/UserService.js
+import * as Application from "expo-application";
+
+// helper: compare semver-like strings
+function compareVersions(a = "0.0.0", b = "0.0.0") {
+    const ap = String(a).split(".").map((n) => Number(n) || 0);
+    const bp = String(b).split(".").map((n) => Number(n) || 0);
+    const len = Math.max(ap.length, bp.length);
+    for (let i = 0; i < len; i++) {
+        const av = ap[i] || 0;
+        const bv = bp[i] || 0;
+        if (av < bv) return -1;
+        if (av > bv) return 1;
+    }
+    return 0; // equal
+}
+
+/**
+ * Enhanced version check that fetches admin payload and returns:
+ * {
+ *   outdated: boolean,
+ *   underReview: boolean,
+ *   forceUpdate: boolean,
+ *   releaseNotes: string|null,
+ *   iosStoreUrl: string|null,
+ *   androidStoreUrl: string|null,
+ *   otaUrl: string|null,
+ *   otaMandatory: boolean,
+ *   minimumVersion: string,
+ *   reviewVersion: string|null,
+ *   currentVersion: string
+ * }
+ *
+ * @param {string} currentVersion - current app semantic version (e.g. "1.2.3")
+ * @param {"ios"|"android"} OS - platform
+ */
+
+// put near your other helpers in src/services/UserService.js
+
+// parse booleans coming from server (true/false, "true"/"false", 1/0)
+function parseBool(val) {
+    if (typeof val === "boolean") return val;
+    if (typeof val === "number") return val !== 0;
+    if (typeof val === "string") {
+        const s = val.trim().toLowerCase();
+        if (s === "true" || s === "1" || s === "yes") return true;
+        if (s === "false" || s === "0" || s === "no") return false;
+    }
+    return false;
+}
+
+/**
+ * Uses module-scoped `api` and `BASE_USERS` (no need to pass them).
+ * Re-uses your existing compareVersions helper.
+ *
+ * @param {string} currentVersion
+ * @param {"ios"|"android"} OS
+ */
+export async function checkAppVersion(currentVersion = "0.0.0", OS = "android") {
     try {
         const res = await api.get(`${BASE_USERS}/version`);
-        const minVersion = OS == 'ios' ? res?.minimumIOSVersion : res?.minimumAndroidVersion || "0.0.0";
-        const outdated = isVersionOutdated(currentVersion, minVersion);
+        const body = res?.data ?? res;
+
+        const minimumIOSVersion = body?.minimumIOSVersion ?? body?.minimumVersion ?? "0.0.0";
+        const minimumAndroidVersion = body?.minimumAndroidVersion ?? body?.minimumVersion ?? "0.0.0";
+
+        const reviewIOS = body?.iosVersionReview ?? body?.iosVersionUnderReview ?? null;
+        const reviewAndroid = body?.androidVersionReview ?? body?.androidVersionUnderReview ?? null;
+
+        const newIOSVersion = body?.newIOSVersion ?? body?.newIosVersion ?? null;
+        const newAndroidVersion = body?.newAndroidVersion ?? body?.newAndroidVersion ?? null;
+
+        const minimumVersion = OS === "ios" ? minimumIOSVersion : minimumAndroidVersion;
+        const reviewVersion = OS === "ios" ? reviewIOS : reviewAndroid;
+        const newVersion = OS === "ios" ? newIOSVersion : newAndroidVersion;
+
+        const cmpToMin = compareVersions(currentVersion, minimumVersion); // -1,0,1
+        const outdated = cmpToMin === -1;
+
+        const underReview = reviewVersion ? compareVersions(currentVersion, reviewVersion) === 0 : false;
+
+        const isNewUpdateAvailable = newVersion ? compareVersions(currentVersion, newVersion) === -1 : false;        
         return {
             outdated,
-            minimumVersion: minVersion,
-            currentVersion,
+            underReview,
+            isNewUpdateAvailable,
         };
-    } catch (e) {
-        console.error("Version check failed:", e);
-        // If fail, return safe default (not outdated)
+    } catch (err) {
+        console.warn("Version check failed:", err?.message ?? err);
+        // fail-safe: don't mark outdated or new update available on error
         return {
             outdated: false,
-            minimumVersion: "0.0.0",
-            currentVersion: Application.nativeApplicationVersion || "0.0.0",
+            underReview: false,
+            isNewUpdateAvailable: false,
         };
     }
 }
+
+
 
 export async function savePublicPushToken(token, platform) {
     return api.post(`${BASE_USERS}/push-token/public`, { token, platform });
