@@ -108,7 +108,7 @@ const BottomSheetFriendManager = ({ innerRef, userToken }) => {
         <MainBottomSheet innerRef={innerRef}>
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-                <Text style={styles.headerText}>Invite / Add Friends</Text>
+                <Text style={styles.headerText}>Add Friend</Text>
                 <TouchableOpacity onPress={() => innerRef.current?.dismiss()}>
                     <Text style={styles.closeText}>Cancel</Text>
                 </TouchableOpacity>
@@ -116,7 +116,7 @@ const BottomSheetFriendManager = ({ innerRef, userToken }) => {
 
             {/* Add Friend Form */}
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Add Friend</Text>
+                {/* <Text style={styles.sectionTitle}>Add Friend</Text> */}
                 <TextInput
                     placeholder="friend@example.com"
                     placeholderTextColor={colors.muted || "#777"}
@@ -134,7 +134,7 @@ const BottomSheetFriendManager = ({ innerRef, userToken }) => {
                     {saving ? (
                         <ActivityIndicator color={colors.text || "#121212"} />
                     ) : (
-                        <Text style={[styles.btnText, { color: colors.text || "#121212" }]}>Send</Text>
+                        <Text style={[styles.btnText, { color: colors.text || "#121212" }]}>Send Request</Text>
                     )}
                 </TouchableOpacity>
             </View>

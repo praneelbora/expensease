@@ -41,7 +41,7 @@ const BottomSheetGroups = ({ innerRef, onClose, onCreate, onJoin, busy }) => {
         <MainBottomSheet innerRef={innerRef} onDismiss={onClose}>
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-                <Text style={styles.headerText}>Groups</Text>
+                <Text style={styles.headerText}>Add Group</Text>
                 <TouchableOpacity
                     onPress={() => {
                         setCode("")

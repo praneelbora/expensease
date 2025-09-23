@@ -311,7 +311,7 @@ export default function GroupsScreen() {
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <StatusBar style={theme?.statusBarStyle === "dark-content" ? "dark" : "light"} />
-            <Header title="Groups" showText="New group" onTextPress={() => groupsRef.current?.present()} />
+            <Header title="Groups" showText="Add Group" onTextPress={() => groupsRef.current?.present()} />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
                 <View style={{ gap: 8 }}>
                     <SearchBar value={query} onChangeText={setQuery} placeholder="Search groups or members" />
