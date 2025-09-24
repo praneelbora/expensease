@@ -529,50 +529,80 @@ export default function NewExpenseScreen() {
 
     useEffect(() => {
         if (expenseMode !== "split") return;
-        if (num(amount) <= 0) return;
+
+        // Always have numeric total available
+        const total = num(amount);
+
+        // if no participants, nothing to do
         if (!Array.isArray(selectedFriends) || selectedFriends.length === 0) return;
+
+        // If amount is zero or not positive -> clear numeric fields so stale values don't remain.
+        if (!(total > 0)) {
+            setSelectedFriends((prev = []) =>
+                prev.map((f) => ({
+                    ...f,
+                    payAmount: 0,
+                    oweAmount: 0,
+                    owePercent: 0,
+                }))
+            );
+            return;
+        }
 
         const hasAnyPayers = selectedFriends.some((f) => f.paying);
         const hasAnyOwers = selectedFriends.some((f) => f.owing);
 
         // only run when user hasn't interacted (no explicit payers and no explicit owers)
-        if (!hasAnyPayers && !hasAnyOwers) {
-            // If there's only one participant and it's me -> make me the payer
-            // Otherwise: mark others as owing by default and distribute equal owes.
-            const participantsExcludingMe = selectedFriends.filter((f) => String(f._id) !== String(user?._id));
 
-            // Build neutral baseline: don't force the current user to pay unless they are the only selected person.
-            let neutral = selectedFriends.map((f) => ({
-                ...f,
-                paying: false,
-                owing: false,
-                payAmount: 0,
-                oweAmount: 0,
-                owePercent: 0,
-            }));
+        const participantsExcludingMe = selectedFriends.filter((f) => String(f._id) !== String(user?._id));
 
-            if (participantsExcludingMe.length === 0) {
-                // Only me is present — make me payer and owe = 0
-                neutral = neutral.map((f) =>
-                    String(f._id) === String(user?._id)
-                        ? { ...f, paying: true, payAmount: num(amount), owing: false, oweAmount: 0, owePercent: 0 }
-                        : f
-                );
-            } else {
-                // There are others: mark others as owing (but not paying), distribute equal owe among owing people.
-                neutral = neutral.map((f) =>
-                    String(f._id) === String(user?._id)
-                        ? { ...f, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }
-                        : { ...f, paying: false, owing: true, payAmount: 0, oweAmount: 0, owePercent: 0 }
-                );
+        // baseline: clear flags/numbers
+        let neutral = selectedFriends.map((f) => ({
+            ...f,
+            paying: false,
+            owing: false,
+            payAmount: 0,
+            oweAmount: 0,
+            owePercent: 0,
+        }));
 
-                // run equal distribution for owe among those who are owing
-                neutral = distributeEqualOwe(neutral);
-            }
+        if (participantsExcludingMe.length === 0) {
+            // Only me is present — make me payer and owe = 0
+            neutral = neutral.map((f) =>
+                String(f._id) === String(user?._id)
+                    ? { ...f, paying: true, payAmount: total, owing: false, oweAmount: 0, owePercent: 0 }
+                    : f
+            );
+        } else {
+            // There are others:
+            // Default: you paid (paying: true, payAmount = total),
+            // and everyone (including you) owes equally.
 
-            setSelectedFriends(neutral);
+            neutral = neutral.map((f) => {
+                if (String(f._id) === String(user?._id)) {
+                    return {
+                        ...f,
+                        paying: true,
+                        payAmount: total,
+                        owing: true, // include me in owe split
+                        owePercent: undefined,
+                    };
+                }
+                return {
+                    ...f,
+                    paying: false,
+                    payAmount: 0,
+                    owing: true,
+                    owePercent: undefined,
+                };
+            });
+
+            // distribute equal owe among everyone who is owing (now includes me)
+            neutral = distributeEqualOwe(neutral);
         }
-    }, [selectedFriends.length, amount, expenseMode]);
+
+        setSelectedFriends(neutral);
+    }, [selectedFriends.length, amount, expenseMode, user?._id]);
 
     const paidTotal = useMemo(
         () => selectedFriends.filter((f) => f.paying).reduce((n, f) => n + num(f.payAmount), 0),

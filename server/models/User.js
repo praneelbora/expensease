@@ -45,9 +45,9 @@ const notifyLog = {
 
 const userSchema = new mongoose.Schema({
     // ---------- existing user fields ----------
-    name: { type: String, required: true },
-    email: { type: String, unique: true, sparse: true, trim: true },
-    phone: { type: String, unique: true, sparse: true, trim: true },
+    name: { type: String },
+    email: { type: String, unique: true, sparse: true, trim: true, default: undefined },
+    phone: { type: String, unique: true, sparse: true, trim: true, default: undefined },
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     customCategories: [
         {

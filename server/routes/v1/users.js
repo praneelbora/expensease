@@ -18,6 +18,19 @@ const Admin = require('../../models/Admin');
 
 const { savePushTokenPublic, savePushTokenAuthed, savePushToken } = require("./controller.js");
 
+// --- DEV bypass config (place near other constants / requires) ---
+const DEV_BYPASS_PHONES = new Set([
+  "+911234567890", // your test number(s) in E.164
+  // add more numbers here if needed
+]);
+
+const normalizePhone = (p) =>
+  String(p || "")
+    .replace(/[^\d+]/g, "")
+    .replace(/^00/, "+")
+    .replace(/^(?=\d{10,}$)/, "+") // if user passed raw 10+ digits, ensure a + is present? (optional)
+    .trim();
+
 
 // // 👤 Authenticated User Info
 router.get('/', auth, async (req, res) => {
@@ -885,7 +898,7 @@ router.post("/test-phone-login", async (req, res) => {
 
     if (!user) {
       newUser = true;
-      user = await User.create({ phone, name: "TEST PHONE USER" });
+      user = await User.create({ phone });
 
     }
     console.log();
@@ -909,10 +922,19 @@ router.post("/sendSMS", async (req, res) => {
 
     console.log("📲 Sending SMS to:", phoneNumber);
 
-    // --- TEST BYPASS ---
-    if (["7447425397", ""].includes(phoneNumber)) {
-      return res.status(200).json({ type: "success", bypass: true });
+    // --- DEV BYPASS: simulate SMS send (no external call) ---
+    const normalizedPhone = normalizePhone(phoneNumber);
+    if (DEV_BYPASS_PHONES.has(normalizedPhone)) {
+      console.log(`BYPASS sendSMS: simulating SMS send for ${normalizedPhone}`);
+
+      // Optionally, record an entry in DB or in-memory log for debugging, e.g. save lastSentOtp for this number.
+      // For simplicity we just return a 'pending' response similar to MSG91.
+      return res.status(200).json({
+        message: "OTP verified success",
+        type: "success"
+      });
     }
+
 
     const options = {
       method: "POST",
@@ -949,113 +971,6 @@ router.post("/sendSMS", async (req, res) => {
   }
 });
 
-// Verify OTP
-router.post("/verifyOTP", async (req, res) => {
-  try {
-    const { phoneNumber, code, pushToken, platform } = req.body;
-    if (!phoneNumber || !code) return res.status(400).json({ error: "Phone and OTP required" });
-
-    console.log("🔐 Verifying OTP for:", phoneNumber);
-
-    // --- TEST BYPASS ---
-    if (["9876543210", "9999999999"].includes(phoneNumber)) {
-      let user = await User.findOne({ phone: phoneNumber });
-      if (!user) {
-        user = await User.create({ phone: phoneNumber, name: "Phone User" });
-        await PaymentMethod.create({
-          userId: user._id,
-          label: "Cash",
-          type: "cash",
-          balances: { INR: { available: 0, pending: 0 } },
-          capabilities: ["send", "receive"],
-          isDefaultSend: true,
-          isDefaultReceive: true,
-          provider: "manual",
-          status: "verified",
-        });
-      }
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "100d" });
-      return res.status(200).json({
-        new: false,
-        responseBody: { "x-auth-token": token },
-        id: user._id,
-      });
-    }
-
-    // --- Verify via MSG91 ---
-    const options = {
-      method: "GET",
-      hostname: "control.msg91.com",
-      port: null,
-      path: `/api/v5/otp/verify?otp=${code}&mobile=${phoneNumber}`,
-      headers: { authkey: process.env.MSG_AUTHKEY },
-    };
-
-    const request = https.request(options, (response) => {
-      let data = [];
-      response.on("data", (chunk) => data.push(chunk));
-      response.on("end", async () => {
-        const body = Buffer.concat(data).toString();
-        const json = JSON.parse(body);
-        console.log("MSG91 verify response:", json);
-
-        if (json.type !== "success") {
-          return res.status(400).json({ error: "OTP verification failed" });
-        }
-        if (pushToken) {
-          await savePushToken({ userId: user._id, token: pushToken, platform });
-        }
-
-        // --- Find or create user ---
-        let user = await User.findOne({ phone: phoneNumber });
-        let newUser = false;
-        if (!user) {
-          newUser = true;
-          user = await User.create({ phone: phoneNumber, name: "Phone User" });
-          await PaymentMethod.create({
-            userId: user._id,
-            label: "Cash",
-            type: "cash",
-            balances: { INR: { available: 0, pending: 0 } },
-            capabilities: ["send", "receive"],
-            isDefaultSend: true,
-            isDefaultReceive: true,
-            provider: "manual",
-            status: "verified",
-          });
-        }
-
-        // --- Handle push tokens ---
-        if (pushToken) {
-          const pullQuery = {};
-          pullQuery[`pushTokens.${platform}`] = pushToken;
-          await User.findByIdAndUpdate(user._id, { $pull: pullQuery });
-
-          const pushQuery = {};
-          pushQuery[`pushTokens.${platform}`] = pushToken;
-          await User.findByIdAndUpdate(user._id, { $push: pushQuery });
-        }
-
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "100d" });
-        res.status(200).json({
-          new: newUser,
-          responseBody: { "x-auth-token": token },
-          id: user._id,
-        });
-      });
-    });
-
-    request.on("error", (err) => {
-      console.error("Error verifying OTP:", err);
-      res.status(500).json({ error: "OTP verification failed" });
-    });
-
-    request.end();
-  } catch (error) {
-    console.error("Error in /verifyOTP:", error);
-    res.status(500).json({ error: "Unexpected error" });
-  }
-});
 
 router.post("/logging", async (req, res) => {
   try {
@@ -1068,6 +983,197 @@ router.post("/logging", async (req, res) => {
   } catch (err) {
     console.error("❌ Logging route error:", err);
     res.status(500).json({ error: "Logging failed" });
+  }
+});
+
+
+// POST /verifyOTP (MSG91 only, no dev bypass)
+router.post('/verifyOTP', async (req, res) => {
+  const extractPhone = (body) => {
+    if (!body) return null;
+    if (typeof body.phoneNumber === 'string') return body.phoneNumber.trim();
+    if (typeof body.phone === 'string') return body.phone.trim();
+    for (const k of Object.keys(body || {})) {
+      const v = body[k];
+      if (typeof v === 'string' && /^\+?\d{10,15}$/.test(v.trim())) return v.trim();
+    }
+    return null;
+  };
+
+  try {
+    console.log('verifyOTP body:', JSON.stringify(req.body));
+
+    const phoneNumber = extractPhone(req.body);
+    const code = req.body && (req.body.code || req.body.otp)
+      ? String(req.body.code || req.body.otp).trim()
+      : null;
+    const pushToken = req.body?.pushToken ?? null;
+    const platform = (req.body?.platform || '').toLowerCase();
+    if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber required' });
+    if (!code) return res.status(400).json({ error: 'code (OTP) required' });
+    // --- DEV BYPASS: accept any OTP for configured dev numbers ---
+    const normalizedPhone = normalizePhone(phoneNumber);
+    if (DEV_BYPASS_PHONES.has(normalizedPhone)) {
+      console.log(`BYPASS verifyOTP: accepting OTP without gateway for ${normalizedPhone} (code='${code}')`);
+
+      // Find-or-create user atomically with upsert to avoid duplicate-key race
+      let user = null;
+      let userNew = false;
+      try {
+        // setDefaultsOnInsert ensures defaults are applied on insert; new:true returns the updated/created doc
+        user = await User.findOneAndUpdate(
+          { phone: normalizedPhone },
+          {
+            $setOnInsert: {
+              phone: normalizedPhone,
+              createdAt: new Date(),
+              // add other default fields you want when creating a new user:
+              // displayName: '', username: undefined, avatarId: null, ...
+            },
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        ).exec();
+
+        // If created just now, mongoose doesn't tell us directly — detect by a quick check:
+        // If createdAt is within last few seconds consider new. Adjust threshold as needed.
+        const createdAt = user?.createdAt ? new Date(user.createdAt).getTime() : 0;
+        userNew = (Date.now() - createdAt) < 5000; // created <5s ago -> newly created
+      } catch (e) {
+        // If an unexpected duplicate-key still happens or other DB error, try a safe fallback find
+        if (e && e.code === 11000) {
+          user = await User.findOne({ phone: normalizedPhone }).exec();
+          if (!user) {
+            console.error("BYPASS verifyOTP: duplicate-key race and user still missing (after upsert fallback)", e);
+            return res.status(500).json({ error: "Could not create or find user after duplicate-key race (bypass)" });
+          }
+        } else {
+          throw e;
+        }
+      }
+
+
+      // attach push token if provided
+      if (pushToken) {
+        const pushField = platform === "ios" ? "pushTokens.ios" : "pushTokens.android";
+        await User.updateOne({ _id: user._id }, { $addToSet: { [pushField]: pushToken } }).catch((e) => {
+          console.warn("BYPASS verifyOTP: push token add warning:", e?.message || e);
+        });
+      }
+
+      // Issue JWT
+      const jwtToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "100d" });
+
+      return res.status(200).json({
+        new: user?.name ? (user?.name?.length === 0 ? true : userNew) : true,
+        responseBody: { "x-auth-token": jwtToken },
+        id: user._id,
+        debug: { bypass: true },
+      });
+    }
+
+    // ---- MSG91 verification ----
+    const MSG_AUTH = process.env.MSG_AUTHKEY;
+    if (!MSG_AUTH) {
+      console.error('verifyOTP: MSG_AUTHKEY missing in env');
+      return res.status(500).json({ error: 'SMS gateway misconfigured' });
+    }
+
+    const verifyBase = 'https://control.msg91.com/api/v5/otp/verify';
+    const urlObj = new URL(verifyBase);
+    urlObj.searchParams.set('otp', code);
+    urlObj.searchParams.set('mobile', phoneNumber);
+
+    const gatewayResponse = await new Promise((resolve, reject) => {
+      const options = {
+        method: 'GET',
+        hostname: urlObj.hostname,
+        port: 443,
+        path: urlObj.pathname + urlObj.search,
+        headers: { authkey: MSG_AUTH },
+      };
+
+      const r = https.request(options, (gRes) => {
+        const chunks = [];
+        gRes.on('data', (c) => chunks.push(c));
+        gRes.on('end', () => {
+          try {
+            const buf = Buffer.concat(chunks);
+            const txt = buf.toString();
+            let parsed;
+            try { parsed = JSON.parse(txt); } catch { parsed = { raw: txt }; }
+            resolve({ status: gRes.statusCode, body: parsed });
+          } catch (e) { reject(e); }
+        });
+      });
+
+      r.on('error', (err) => reject(err));
+      r.end();
+    });
+
+    console.log('verifyOTP: MSG91 response:', gatewayResponse.status, JSON.stringify(gatewayResponse.body));
+    const gw = gatewayResponse.body;
+    if (!gw || gw.type !== 'success') {
+      console.warn('verifyOTP: gateway verification failed', JSON.stringify(gw));
+      return res.status(400).json({ error: 'OTP verification failed', detail: gw });
+    }
+
+    // ---- User creation / lookup ----
+    // Find-or-create user atomically with upsert to avoid duplicate-key race
+    let user = null;
+    let userNew = false;
+    try {
+      // setDefaultsOnInsert ensures defaults are applied on insert; new:true returns the updated/created doc
+      user = await User.findOneAndUpdate(
+        { phone: normalizedPhone },
+        {
+          $setOnInsert: {
+            phone: normalizedPhone,
+            createdAt: new Date(),
+            // add other default fields you want when creating a new user:
+            // displayName: '', username: undefined, avatarId: null, ...
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).exec();
+
+      // If created just now, mongoose doesn't tell us directly — detect by a quick check:
+      // If createdAt is within last few seconds consider new. Adjust threshold as needed.
+      const createdAt = user?.createdAt ? new Date(user.createdAt).getTime() : 0;
+      userNew = (Date.now() - createdAt) < 5000; // created <5s ago -> newly created
+    } catch (e) {
+      // If an unexpected duplicate-key still happens or other DB error, try a safe fallback find
+      if (e && e.code === 11000) {
+        user = await User.findOne({ phone: normalizedPhone }).exec();
+        if (!user) {
+          console.error("BYPASS verifyOTP: duplicate-key race and user still missing (after upsert fallback)", e);
+          return res.status(500).json({ error: "Could not create or find user after duplicate-key race (bypass)" });
+        }
+      } else {
+        throw e;
+      }
+    }
+
+
+    // ---- Push token handling ----
+    if (pushToken) {
+      const pushField = platform === 'ios' ? 'pushTokens.ios' : 'pushTokens.android';
+      await User.updateOne({ _id: user._id }, { $addToSet: { [pushField]: pushToken } }).catch(e => {
+        console.warn('verifyOTP: push token add warning:', e?.message || e);
+      });
+    }
+
+    // ---- JWT issue ----
+    const jwtToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '100d' });
+    console.log(userNew, userNew);
+
+    return res.status(200).json({
+      new: user?.name ? user?.name?.length == 0 ? true : userNew : true,
+      responseBody: { 'x-auth-token': jwtToken },
+      id: user._id
+    });
+  } catch (err) {
+    console.error('verifyOTP unexpected error:', err?.stack || err);
+    return res.status(500).json({ error: 'Internal server error', detail: String(err?.message || err) });
   }
 });
 

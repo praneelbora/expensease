@@ -11,6 +11,8 @@ import {
     Platform,
     Modal,
     Linking,
+    TextInput,
+    ActivityIndicator,
 } from "react-native";
 import * as Application from "expo-application";
 import { checkAppVersion } from "services/UserService";
@@ -92,6 +94,12 @@ export default function AccountScreen() {
     const [updateInfo, setUpdateInfo] = useState(null); // { outdated, underReview, rawAdminPayload? }
     const [showUpdateModal, setShowUpdateModal] = useState(false);
     const [updateNotes, setUpdateNotes] = useState(null);
+    // add to top-level state declarations in AccountScreen()
+    const [showEditNameModal, setShowEditNameModal] = useState(false);
+    const [editNameValue, setEditNameValue] = useState(user?.name || "");
+    const [savingName, setSavingName] = useState(false);
+    const [nameError, setNameError] = useState("");
+
 
     // refs
     const scrollerRef = useRef(null);
@@ -152,6 +160,53 @@ export default function AccountScreen() {
                 setDcStatus("idle");
                 setDcError("");
             }, 3000);
+        }
+    };
+    const openEditName = () => {
+        setEditNameValue(user?.name || "");
+        setNameError("");
+        setShowEditNameModal(true);
+    };
+
+    const closeEditName = () => {
+        setShowEditNameModal(false);
+        setNameError("");
+        setEditNameValue(user?.name || "");
+    };
+
+    const saveName = async () => {
+        const val = (editNameValue || "").trim();
+        if (val.length < 2) {
+            setNameError("Name must be at least 2 characters");
+            return;
+        }
+        setSavingName(true);
+        setNameError("");
+        try {
+            const res = await updateUserProfile({ name: val });
+            // If updateUserProfile returns updated user, try to read it
+            const updatedUser = res?.user || res;
+            // update auth context user if setter exists
+            if (typeof setUser === "function") {
+                setUser((prev = {}) => ({
+                    ...prev,
+                    name: updatedUser?.name ?? val,
+                }));
+            } else if (typeof loadUserData === "function") {
+                try {
+                    await loadUserData();
+                } catch (e) { /* ignore */ }
+            }
+
+            showBanner("success", "Name updated.", 2000);
+            setShowEditNameModal(false);
+        } catch (e) {
+            console.error("Failed to save name:", e);
+            const msg = e?.message || (e?.error || "Failed to save name");
+            setNameError(msg);
+            showBanner("error", msg, 3000);
+        } finally {
+            setSavingName(false);
         }
     };
 
@@ -302,10 +357,7 @@ export default function AccountScreen() {
             // if releaseNotes exist, show them in modal (quick)
             if (admin?.releaseNotes) setUpdateNotes(admin.releaseNotes);
 
-            const url = storeUrl || (Platform.OS === "ios"
-                ? "https://apps.apple.com/app/idYOUR_APP_ID"
-                : "https://play.google.com/store/apps/details?id=com.praneelbora.expensease");
-
+            const url = updateInfo?.updateURL || 'https://www.expensease.in';
             const opened = await Linking.openURL(url).catch((e) => {
                 console.warn("Failed to open store url:", e);
                 Alert.alert("Unable to open store", "Please update your app from the App Store / Play Store.");
@@ -367,25 +419,33 @@ export default function AccountScreen() {
                                         </TouchableOpacity>
 
                                         <View style={{ flex: 1 }}>
-                                            <Text style={styles.strongText}>{user?.name || "—"}</Text>
+                                            <TouchableOpacity onPress={openEditName} activeOpacity={0.85}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                    <Text style={styles.strongText}>{user?.name || "—"}</Text>
+                                                    <View style={{ marginLeft: 6 }}>
+                                                        {/* Small inline edit icon */}
+                                                        <Edit width={16} height={16} stroke={theme.colors.muted} />
+                                                    </View>
+                                                </View>
+                                            </TouchableOpacity>
+
                                             <View style={styles.rowBetween}>
                                                 <View style={{ flex: 1, paddingRight: 8 }}>
-                                                    <Text style={[styles.strongText2, { textTransform: "lowercase" }]} numberOfLines={1}>
-                                                        {user?.email || "—"}
-                                                    </Text>
+                                                    {user?.email && <Text style={[styles.strongText2, { textTransform: "lowercase" }]} numberOfLines={1}>
+                                                        {user?.email}
+                                                    </Text>}
+                                                    {user?.phone && <Text style={[styles.strongText2, { textTransform: "lowercase" }]} numberOfLines={1}>
+                                                        {user?.phone}
+                                                    </Text>}
                                                 </View>
                                             </View>
                                         </View>
+
                                     </View>
                                 </View>
                             </View>
 
-                            {/* Under-review banner */}
-                            {/* {updateInfo?.underReview && !updateInfo?.outdated ? (
-                                <View style={{ padding: 10, backgroundColor: theme.colors.card, borderRadius: 8, marginVertical: 8 }}>
-                                    <Text style={{ color: theme.colors.muted }}>This version is under review. An update may be available soon.</Text>
-                                </View>
-                            ) : null} */}
+
 
                             {/* If update is available, show a prominent CTA */}
                             {updateInfo?.isNewUpdateAvailable ? (
@@ -544,6 +604,57 @@ export default function AccountScreen() {
                     </View>
                 </View>
             </Modal>
+            {/* Edit Name Modal */}
+            <Modal visible={showEditNameModal} transparent animationType="fade" onRequestClose={closeEditName}>
+                <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.4)" }}>
+                    <View style={{ width: "92%", backgroundColor: theme.colors.card, borderRadius: 12, padding: 16 }}>
+                        <Text style={{ fontSize: 18, fontWeight: "700", color: theme.colors.text }}>Edit name</Text>
+                        <View style={{ marginTop: 12 }}>
+                            <TextInput
+                                value={editNameValue}
+                                onChangeText={(t) => setEditNameValue(t)}
+                                placeholder="Your name"
+                                placeholderTextColor={theme.colors.muted}
+                                style={{
+                                    height: 44,
+                                    borderRadius: 8,
+                                    borderWidth: 1,
+                                    borderColor: "#E6EEF8",
+                                    paddingHorizontal: 12,
+                                    color: theme.colors.text,
+                                    backgroundColor: theme.colors.background,
+                                }}
+                                autoCapitalize="words"
+                                editable={!savingName}
+                            />
+                            <Text style={{ marginTop: 8, color: theme.colors.muted }}>This will be visible to friends.</Text>
+                            {nameError ? <Text style={{ color: "#F43F5E", marginTop: 8 }}>{nameError}</Text> : null}
+                        </View>
+
+                        <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 14 }}>
+                            <TouchableOpacity onPress={closeEditName} style={{ padding: 8 }}>
+                                <Text style={{ color: theme.colors.text }}>Cancel</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={saveName}
+                                style={{
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 8,
+                                    backgroundColor: theme.colors.primary,
+                                    borderRadius: 8,
+                                    marginLeft: 8,
+                                    opacity: savingName ? 0.7 : 1,
+                                }}
+                                disabled={savingName}
+                            >
+                                {savingName ? <ActivityIndicator color="#fff" /> : <Text style={{ color: theme.colors.background, fontWeight: "700" }}>Save</Text>}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
         </SafeAreaView>
     );
 }

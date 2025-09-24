@@ -89,7 +89,7 @@ const Footer = () => {
             <hr className="border-gray-700 my-8" />
 
             <div className="text-center text-sm text-gray-500">
-                &copy; {new Date().getFullYear()} Expensease. All rights reserved.
+                &copy; {new Date().getFullYear()} Bora Technologies. All rights reserved.
             </div>
         </footer>
     );

@@ -364,6 +364,7 @@ const BtmShtSettle = ({
                 description,
                 currency,
                 meta: metaToSend,
+                groupId: gid
             };
 
             await onSubmit?.(payload);

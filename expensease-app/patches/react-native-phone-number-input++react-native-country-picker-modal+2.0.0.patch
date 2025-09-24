@@ -1,0 +1,291 @@
+diff --git a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/AnimatedModal.js b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/AnimatedModal.js
+index 01f0408..23a5bea 100644
+--- a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/AnimatedModal.js
++++ b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/AnimatedModal.js
+@@ -3,7 +3,7 @@ import { Animated, Dimensions, StyleSheet } from 'react-native';
+ const { height } = Dimensions.get('window');
+ const duration = 300;
+ const useNativeDriver = true;
+-export const AnimatedModal = ({ children, visible }) => {
++export const AnimatedModal = ({ children, visible = false }) => {
+     const translateY = new Animated.Value(height);
+     const showModal = Animated.timing(translateY, {
+         toValue: 0,
+@@ -29,7 +29,7 @@ export const AnimatedModal = ({ children, visible }) => {
+             zIndex: 99,
+         } }, children));
+ };
+-AnimatedModal.defaultProps = {
+-    visible: false,
+-};
++// AnimatedModal.defaultProps = {
++//     visible: false,
++// };
+ //# sourceMappingURL=AnimatedModal.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CloseButton.js b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CloseButton.js
+index 4fb16f6..100a65b 100644
+--- a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CloseButton.js
++++ b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CloseButton.js
+@@ -10,8 +10,8 @@ const styles = StyleSheet.create({
+         justifyContent: 'center'
+     },
+     imageStyle: {
+-        height: 25,
+-        width: 25,
++        height: 48,
++        width: 48,
+         resizeMode: 'contain'
+     }
+ });
+@@ -54,7 +54,7 @@ CloseButtonIOS.prototype = propTypes;
+ CloseButtonAndroid.prototype = propTypes;
+ export default Platform.select({
+     ios: CloseButtonIOS,
+-    android: CloseButtonAndroid,
++    android: CloseButtonIOS,
+     web: CloseButtonIOS
+ });
+ //# sourceMappingURL=CloseButton.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryFilter.js b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryFilter.js
+index 28b0dc4..bd0affe 100644
+--- a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryFilter.js
++++ b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryFilter.js
+@@ -14,15 +14,15 @@ const styles = StyleSheet.create({
+         })
+     }
+ });
+-export const CountryFilter = (props) => {
++export const CountryFilter = ({ autoFocus=false, placeholder="Enter country name", ...props}) => {
+     const { filterPlaceholderTextColor, fontFamily, fontSize, onBackgroundTextColor } = useTheme();
+-    return (React.createElement(TextInput, Object.assign({ testID: "text-input-country-filter", autoCorrect: false, placeholderTextColor: filterPlaceholderTextColor, style: [
++    return (React.createElement(TextInput, Object.assign({ testID: "text-input-country-filter", placeholder: placeholder, autoCorrect: false, placeholderTextColor: '#ccc', autoFocus: true, style: [
+             styles.input,
+-            { fontFamily, fontSize, color: onBackgroundTextColor }
++            { fontFamily, fontSize, color: onBackgroundTextColor, borderBottomWidth: 0.5, borderBottomColor: '#bbb' }
+         ] }, props)));
+ };
+-CountryFilter.defaultProps = {
+-    autoFocus: false,
+-    placeholder: 'Enter country name'
+-};
++// CountryFilter.defaultProps = {
++//     autoFocus: false,
++//     placeholder: 'Enter country name'
++// };
+ //# sourceMappingURL=CountryFilter.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryList.js b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryList.js
+index 8816018..e1fd2e2 100644
+--- a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryList.js
++++ b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryList.js
+@@ -51,7 +51,7 @@ const Letter = ({ letter, scrollTo }) => {
+ };
+ const CountryItem = (props) => {
+     const { activeOpacity, itemHeight, flagSize } = useTheme();
+-    const { country, onSelect, withFlag, withEmoji, withCallingCode, withCurrency, } = props;
++    const { country, onSelect, withFlag = true, withEmoji, withCallingCode = false, withCurrency, } = props;
+     const extraContent = [];
+     if (withCallingCode &&
+         country.callingCode &&
+@@ -69,10 +69,10 @@ const CountryItem = (props) => {
+                     country.name,
+                     extraContent.length > 0 && ` (${extraContent.join(', ')})`)))));
+ };
+-CountryItem.defaultProps = {
+-    withFlag: true,
+-    withCallingCode: false,
+-};
++// CountryItem.defaultProps = {
++//     withFlag: true,
++//     withCallingCode: false,
++// };
+ const MemoCountryItem = memo(CountryItem);
+ const renderItem = (props) => ({ item: country, }) => (React.createElement(MemoCountryItem, Object.assign({}, { country, ...props })));
+ const keyExtractor = (item) => item.cca2;
+@@ -82,7 +82,7 @@ const ItemSeparatorComponent = () => {
+ };
+ const { height } = Dimensions.get('window');
+ export const CountryList = (props) => {
+-    const { data, withAlphaFilter, withEmoji, withFlag, withCallingCode, withCurrency, onSelect, filter, flatListProps, filterFocus, } = props;
++    const { data, withAlphaFilter, withEmoji, withFlag, withCallingCode, withCurrency, onSelect, filter, flatListProps, filterFocus = undefined, } = props;
+     const flatListRef = useRef(null);
+     const [letter, setLetter] = useState('');
+     const { itemHeight, backgroundColor } = useTheme();
+@@ -130,7 +130,7 @@ export const CountryList = (props) => {
+         }, flatListProps)),
+         withAlphaFilter && (React.createElement(ScrollView, { contentContainerStyle: styles.letters, keyboardShouldPersistTaps: 'always' }, letters.map(letter => (React.createElement(Letter, Object.assign({ key: letter }, { letter, scrollTo }))))))));
+ };
+-CountryList.defaultProps = {
+-    filterFocus: undefined,
+-};
++// CountryList.defaultProps = {
++//     filterFocus: undefined,
++// };
+ //# sourceMappingURL=CountryList.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryModal.js b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryModal.js
+index 1678e95..6f5abb5 100644
+--- a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryModal.js
++++ b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryModal.js
+@@ -9,7 +9,7 @@ const styles = StyleSheet.create({
+         flex: 1,
+     },
+ });
+-export const CountryModal = ({ children, withModal, disableNativeModal, ...props }) => {
++export const CountryModal = ({ children, withModal = true, disableNativeModal = false, animated = true, animationType = 'slide', ...props }) => {
+     const { backgroundColor } = useTheme();
+     const { teleport } = React.useContext(CountryModalContext);
+     const content = (React.createElement(SafeAreaView, { style: [styles.container, { backgroundColor }] }, children));
+@@ -29,10 +29,10 @@ export const CountryModal = ({ children, withModal, disableNativeModal, ...props
+     }
+     return content;
+ };
+-CountryModal.defaultProps = {
+-    animationType: 'slide',
+-    animated: true,
+-    withModal: true,
+-    disableNativeModal: false,
+-};
++// CountryModal.defaultProps = {
++//     animationType: 'slide',
++//     animated: true,
++//     withModal: true,
++//     disableNativeModal: false,
++// };
+ //# sourceMappingURL=CountryModal.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryPicker.js b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryPicker.js
+index c4ba18e..976fda1 100644
+--- a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryPicker.js
++++ b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/CountryPicker.js
+@@ -9,7 +9,7 @@ import { CountryList } from './CountryList';
+ const renderFlagButton = (props) => props.renderFlagButton ? (props.renderFlagButton(props)) : (React.createElement(FlagButton, Object.assign({}, props)));
+ const renderFilter = (props) => props.renderCountryFilter ? (props.renderCountryFilter(props)) : (React.createElement(CountryFilter, Object.assign({}, props)));
+ export const CountryPicker = (props) => {
+-    const { countryCode, region, subregion, countryCodes, renderFlagButton: renderButton, renderCountryFilter, filterProps, modalProps, flatListProps, onSelect, withEmoji, withFilter, withCloseButton, withCountryNameButton, withCallingCodeButton, withCurrencyButton, containerButtonStyle, withAlphaFilter, withCallingCode, withCurrency, withFlag, withModal, disableNativeModal, withFlagButton, onClose: handleClose, onOpen: handleOpen, closeButtonImage, closeButtonStyle, closeButtonImageStyle, excludeCountries, placeholder, preferredCountries } = props;
++    const { countryCode, region, subregion, countryCodes, renderFlagButton: renderButton, renderCountryFilter, filterProps, modalProps, flatListProps, onSelect, withEmoji, withFilter, withCloseButton, withCountryNameButton, withCallingCodeButton, withCurrencyButton, containerButtonStyle, withCurrency, withFlag, disableNativeModal, withFlagButton, onClose: handleClose, onOpen: handleOpen, closeButtonImage, closeButtonStyle, closeButtonImageStyle, excludeCountries, preferredCountries, withModal= true, withAlphaFilter= false, withCallingCode= false, placeholder="Select Country" } = props;
+     const [state, setState] = useState({
+         visible: props.visible || false,
+         countries: [],
+@@ -93,10 +93,10 @@ export const CountryPicker = (props) => {
+                 flatListProps,
+             })))));
+ };
+-CountryPicker.defaultProps = {
+-    withModal: true,
+-    withAlphaFilter: false,
+-    withCallingCode: false,
+-    placeholder: 'Select Country',
+-};
++// CountryPicker.defaultProps = {
++//     withModal: true,
++//     withAlphaFilter: false,
++//     withCallingCode: false,
++//     placeholder: 'Select Country',
++// };
+ //# sourceMappingURL=CountryPicker.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/Flag.js b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/Flag.js
+index b974950..f66e7ac 100644
+--- a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/Flag.js
++++ b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/Flag.js
+@@ -45,9 +45,9 @@ const EmojiFlag = memo(({ countryCode, flagSize }) => {
+     return (React.createElement(Text, { style: [styles.emojiFlag, { fontSize: flagSize }], allowFontScaling: false },
+         React.createElement(Emoji, Object.assign({}, { name: asyncResult.result }))));
+ });
+-export const Flag = ({ countryCode, withEmoji, withFlagButton, flagSize, }) => withFlagButton ? (React.createElement(View, { style: styles.container }, withEmoji ? (React.createElement(EmojiFlag, Object.assign({}, { countryCode, flagSize }))) : (React.createElement(ImageFlag, Object.assign({}, { countryCode, flagSize }))))) : null;
+-Flag.defaultProps = {
+-    withEmoji: true,
+-    withFlagButton: true,
+-};
++export const Flag = ({ countryCode, withEmoji = true, withFlagButton = true, flagSize, }) => withFlagButton ? (React.createElement(View, { style: styles.container }, withEmoji ? (React.createElement(EmojiFlag, Object.assign({}, { countryCode, flagSize }))) : (React.createElement(ImageFlag, Object.assign({}, { countryCode, flagSize }))))) : null;
++// Flag.defaultProps = {
++//     withEmoji: true,
++//     withFlagButton: true,
++// };
+ //# sourceMappingURL=Flag.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/FlagButton.js b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/FlagButton.js
+index 7ad3e7b..7ae36fe 100644
+--- a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/FlagButton.js
++++ b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/FlagButton.js
+@@ -23,7 +23,7 @@ const styles = StyleSheet.create({
+     something: { fontSize: 16 },
+ });
+ const FlagText = (props) => (React.createElement(CountryText, Object.assign({}, props, { style: styles.something })));
+-const FlagWithSomething = memo(({ countryCode, withEmoji, withCountryNameButton, withCurrencyButton, withCallingCodeButton, withFlagButton, flagSize, placeholder, }) => {
++const FlagWithSomething = memo(({ countryCode, withEmoji = true, withCountryNameButton = false, withCurrencyButton = false, withCallingCodeButton = false, withFlagButton = true, flagSize, placeholder, }) => {
+     const { translation, getCountryInfoAsync } = useContext();
+     const [state, setState] = useState({
+         countryName: '',
+@@ -68,11 +68,11 @@ export const FlagButton = ({ withEmoji, withCountryNameButton, withCallingCodeBu
+                 placeholder,
+             })))));
+ };
+-FlagButton.defaultProps = {
+-    withEmoji: true,
+-    withCountryNameButton: false,
+-    withCallingCodeButton: false,
+-    withCurrencyButton: false,
+-    withFlagButton: true,
+-};
++// FlagButton.defaultProps = {
++//     withEmoji: true,
++//     withCountryNameButton: false,
++//     withCallingCodeButton: false,
++//     withCurrencyButton: false,
++//     withFlagButton: true,
++// };
+ //# sourceMappingURL=FlagButton.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/HeaderModal.js b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/HeaderModal.js
+index d08566a..c67cb06 100644
+--- a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/HeaderModal.js
++++ b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/HeaderModal.js
+@@ -8,12 +8,12 @@ const styles = StyleSheet.create({
+     }
+ });
+ export const HeaderModal = (props) => {
+-    const { withFilter, withCloseButton, closeButtonImage, closeButtonStyle, closeButtonImageStyle, onClose, renderFilter } = props;
++    const { withFilter, withCloseButton = true, closeButtonImage, closeButtonStyle, closeButtonImageStyle, onClose, renderFilter } = props;
+     return (React.createElement(View, { style: styles.container },
+         withCloseButton && React.createElement(CloseButton, { image: closeButtonImage, style: closeButtonStyle, imageStyle: closeButtonImageStyle, onPress: onClose }),
+         withFilter && renderFilter(props)));
+ };
+-HeaderModal.defaultProps = {
+-    withCloseButton: true
+-};
++// HeaderModal.defaultProps = {
++//     withCloseButton: true
++// };
+ //# sourceMappingURL=HeaderModal.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/index.js b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/index.js
+index 4a47213..ba2bd68 100644
+--- a/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/index.js
++++ b/node_modules/react-native-phone-number-input/node_modules/react-native-country-picker-modal/lib/index.js
+@@ -2,15 +2,16 @@ import React from 'react';
+ import { CountryProvider, DEFAULT_COUNTRY_CONTEXT } from './CountryContext';
+ import { ThemeProvider, DEFAULT_THEME } from './CountryTheme';
+ import { CountryPicker } from './CountryPicker';
+-const Main = ({ theme, translation, ...props }) => {
++const Main = ({ theme, translation, onSelect = ()=>{ }, withEmoji = true , ...props }) => {
++    var newProps = {onSelect,withEmoji,...props}
+     return (React.createElement(ThemeProvider, { theme: { ...DEFAULT_THEME, ...theme } },
+         React.createElement(CountryProvider, { value: { ...DEFAULT_COUNTRY_CONTEXT, translation } },
+-            React.createElement(CountryPicker, Object.assign({}, props)))));
+-};
+-Main.defaultProps = {
+-    onSelect: () => { },
+-    withEmoji: true,
++            React.createElement(CountryPicker, Object.assign({}, newProps)))));
+ };
++// Main.defaultProps = {
++//     onSelect: () => { },
++//     withEmoji: true,
++// };
+ export default Main;
+ export { getCountriesAsync as getAllCountries, getCountryCallingCodeAsync as getCallingCode, } from './CountryService';
+ export { CountryModal } from './CountryModal';
