@@ -37,6 +37,8 @@ import { getLoans } from "services/LoanService";
 // import { logEvent } from "utils/analytics";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "utils/currencies";
 import { useTheme } from "context/ThemeProvider";
+// near top of file, after imports
+const DEBUG_BALANCES = false; // set to false in production
 
 /* ----------------- small helpers ----------------- */
 function currencyDigits(code, locale = "en-IN") {
@@ -68,6 +70,12 @@ function initials(name = "") {
  * members: array of member objects with _id
  */
 function simplifyDebts(totalDebt = {}, members = []) {
+    if (DEBUG_BALANCES) {
+        console.groupCollapsed && console.groupCollapsed("simplifyDebts:start");
+        console.log("members:", members.map(m => String(m.name)));
+        console.log("totalDebt (raw):", JSON.parse(JSON.stringify(totalDebt)));
+    }
+
     const out = [];
 
     const codes = new Set();
@@ -85,9 +93,20 @@ function simplifyDebts(totalDebt = {}, members = []) {
             else if (v < 0) debtors.push({ id: String(m._id), amt: v }); // negative
         }
 
+        if (DEBUG_BALANCES) {
+            console.log(`--- currency ${code} ---`);
+            console.log("creditors (pre-sort):", JSON.parse(JSON.stringify(creditors)));
+            console.log("debtors (pre-sort):", JSON.parse(JSON.stringify(debtors)));
+        }
+
         // Greedy: largest creditors first, largest debtors by abs
         creditors.sort((a, b) => b.amt - a.amt);
         debtors.sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
+
+        if (DEBUG_BALANCES) {
+            console.log("creditors (sorted):", JSON.parse(JSON.stringify(creditors)));
+            console.log("debtors (sorted):", JSON.parse(JSON.stringify(debtors)));
+        }
 
         let ci = 0, di = 0;
         while (ci < creditors.length && di < debtors.length) {
@@ -97,18 +116,36 @@ function simplifyDebts(totalDebt = {}, members = []) {
             const amt = roundCurrency(pay, code);
 
             if (amt > 0) {
+                if (DEBUG_BALANCES) {
+                    console.log(`Match: debtor ${d.id} pays creditor ${c.id} -> ${amt} ${code}`);
+                }
                 out.push({ from: d.id, to: c.id, amount: amt, currency: code });
                 c.amt = roundCurrency(c.amt - amt, code);
                 d.amt = roundCurrency(d.amt + amt, code); // d.amt is negative; moves toward 0
+            } else {
+                if (DEBUG_BALANCES) {
+                    console.log("Zero match amount, breaking.");
+                }
+                break;
             }
 
             if (c.amt <= 0) ci++;
             if (d.amt >= 0) di++;
         }
+
+        if (DEBUG_BALANCES) {
+            console.log(`--- end currency ${code} ---`);
+        }
+    }
+
+    if (DEBUG_BALANCES) {
+        console.log("simplified output:", JSON.parse(JSON.stringify(out)));
+        console.groupEnd && console.groupEnd("simplifyDebts:end");
     }
 
     return out;
 }
+
 
 /* ----------------- screen ----------------- */
 export default function FriendsScreen() {
@@ -256,77 +293,105 @@ export default function FriendsScreen() {
        Group Simplification
        - compute simplifiedTransactions from group expenses
        ====================== */
-    useEffect(() => {
-        // Filter group expenses (groupId != null)
-        const groupExpenses = (expenses || []).filter((exp) => exp?.groupId != null);
+    // useEffect(() => {
+    //     // Filter group expenses (groupId != null)
+    //     const groupExpenses = (expenses || []).filter((exp) => exp?.groupId != null);
 
-        if (!groupExpenses.length) {
-            setSimplifiedTransactions([]);
-            return;
-        }
+    //     if (!groupExpenses.length) {
+    //         setSimplifiedTransactions([]);
+    //         return;
+    //     }
 
-        // Helper: calculate per-group member totals (memberId -> { currency: net })
-        const calculateDebtForGroup = (groupExpList, members) => {
-            const totalDebt = {};
-            members.forEach((m) => { totalDebt[m._id] = {}; });
+    //     // Helper: calculate per-group member totals (memberId -> { currency: net })
+    //     const calculateDebtForGroup = (groupExpList, members) => {
+    //         if (DEBUG_BALANCES) {
+    //             console.groupCollapsed && console.groupCollapsed("calculateDebtForGroup");
+    //             console.log("Group members:", members.map(m => String(m._id)));
+    //             console.log("Group expenses count:", groupExpList.length);
+    //         }
 
-            for (const exp of groupExpList) {
-                const code = exp?.currency || "INR";
-                const splits = Array.isArray(exp?.splits) ? exp.splits : [];
-                for (const split of splits) {
-                    const memberId = String(split?.friendId?._id || "");
-                    if (!memberId) continue;
-                    const curMap = totalDebt[memberId] || (totalDebt[memberId] = {});
-                    if (curMap[code] == null) curMap[code] = 0;
+    //         const totalDebt = {};
+    //         members.forEach((m) => { totalDebt[m._id] = {}; });
 
-                    const pay = Number(split?.payAmount) || 0;
-                    const owe = Number(split?.oweAmount) || 0;
+    //         for (const exp of groupExpList) {
+    //             const code = exp?.currency || "INR";
+    //             const splits = Array.isArray(exp?.splits) ? exp.splits : [];
+    //             if (DEBUG_BALANCES) {
+    //                 console.log(`Expense ${exp._id || exp.id || '(no-id)'} — currency: ${code}, splits:`, JSON.parse(JSON.stringify(splits)));
+    //             }
 
-                    // convention: +ve means is owed; -ve means owes
-                    if (pay > 0) curMap[code] += pay;
-                    if (owe > 0) curMap[code] -= owe;
-                }
-            }
-            return totalDebt;
-        };
+    //             for (const split of splits) {
+    //                 const memberId = String(split?.friendId?._id || "");
+    //                 if (!memberId) continue;
+    //                 const curMap = totalDebt[memberId] || (totalDebt[memberId] = {});
+    //                 if (curMap[code] == null) curMap[code] = 0;
 
-        // Group by groupId
-        const groupedByGroup = groupExpenses.reduce((acc, exp) => {
-            const gid = String(exp?.groupId?._id || exp?.groupId || "");
-            if (!gid) return acc;
-            if (!acc[gid]) acc[gid] = { group: exp.groupId || exp.group, members: [], expenses: [] };
-            acc[gid].expenses.push(exp);
+    //                 const pay = Number(split?.payAmount) || 0;
+    //                 const owe = Number(split?.oweAmount) || 0;
 
-            const splits = Array.isArray(exp?.splits) ? exp.splits : [];
-            for (const s of splits) {
-                const sid = String(s?.friendId?._id || "");
-                if (!sid) continue;
-                // keep original friend object where available
-                const existing = acc[gid].members.find((m) => String(m._id) === sid);
-                if (!existing) acc[gid].members.push(s.friendId || { _id: sid });
-            }
-            return acc;
-        }, {});
+    //                 // convention: +ve means is owed; -ve means owes
+    //                 if (pay > 0) {
+    //                     curMap[code] += pay;
+    //                     if (DEBUG_BALANCES) console.log(`  ${memberId} pay +${pay} ${code}`);
+    //                 }
+    //                 if (owe > 0) {
+    //                     curMap[code] -= owe;
+    //                     if (DEBUG_BALANCES) console.log(`  ${memberId} owe -${owe} ${code}`);
+    //                 }
+    //             }
+    //         }
 
-        const allTx = [];
+    //         if (DEBUG_BALANCES) {
+    //             console.log("Group totalDebt result:", JSON.parse(JSON.stringify(totalDebt)));
+    //             console.groupEnd && console.groupEnd("calculateDebtForGroup");
+    //         }
 
-        for (const gid of Object.keys(groupedByGroup)) {
-            const { group, members, expenses: gx } = groupedByGroup[gid];
+    //         return totalDebt;
+    //     };
 
-            // skip degenerate groups
-            if (!Array.isArray(members) || members.length === 0) continue;
 
-            const totalDebt = calculateDebtForGroup(gx, members);
-            const simplified = simplifyDebts(totalDebt, members).map((tx) => ({
-                ...tx,
-                group: { _id: String(group?._id || gid), name: group?.name || (group?.groupName ?? "Unnamed Group") },
-            }));
+    //     // Group by groupId
+    //     const groupedByGroup = groupExpenses.reduce((acc, exp) => {
+    //         const gid = String(exp?.groupId?._id || exp?.groupId || "");
+    //         if (!gid) return acc;
+    //         if (!acc[gid]) acc[gid] = { group: exp.groupId || exp.group, members: [], expenses: [] };
+    //         acc[gid].expenses.push(exp);
 
-            allTx.push(...simplified);
-        }
+    //         const splits = Array.isArray(exp?.splits) ? exp.splits : [];
+    //         for (const s of splits) {
+    //             const sid = String(s?.friendId?._id || "");
+    //             if (!sid) continue;
+    //             // keep original friend object where available
+    //             const existing = acc[gid].members.find((m) => String(m._id) === sid);
+    //             if (!existing) acc[gid].members.push(s.friendId || { _id: sid });
+    //         }
+    //         return acc;
+    //     }, {});
 
-        setSimplifiedTransactions(allTx);
-    }, [expenses]);
+    //     const allTx = [];
+
+    //     for (const gid of Object.keys(groupedByGroup)) {
+    //         const { group, members, expenses: gx } = groupedByGroup[gid];
+
+    //         // skip degenerate groups
+    //         if (!Array.isArray(members) || members.length === 0) continue;
+
+    //         const totalDebt = calculateDebtForGroup(gx, members);
+    //         const simplified = simplifyDebts(totalDebt, members).map((tx) => ({
+    //             ...tx,
+    //             group: { _id: String(group?._id || gid), name: group?.name || (group?.groupName ?? "Unnamed Group") },
+    //         }));
+    //         if (DEBUG_BALANCES) {
+    //             console.log(`Group ${gid} simplified transactions:`, JSON.parse(JSON.stringify(simplified)));
+    //         }
+    //         allTx.push(...simplified);
+    //     }
+
+    //     setSimplifiedTransactions(allTx);
+    //     if (DEBUG_BALANCES) {
+    //         console.log("All simplifiedTransactions:", JSON.parse(JSON.stringify(allTx)));
+    //     }
+    // }, [expenses]);
 
     /* ======================
        Friend balances from non-group expenses + loans
@@ -338,12 +403,16 @@ export default function FriendsScreen() {
         // expenses impact (non-group only)
         for (const exp of (expenses || []).filter((e) => e?.groupId == null)) {
             const code = exp?.currency || "INR";
+            if (DEBUG_BALANCES) console.log(`Non-group expense ${exp.description || exp.id} currency ${code}`);
             for (const split of exp?.splits || []) {
                 const fId = String(split?.friendId?._id || "");
                 if (!fId) continue;
                 const owe = Number(split?.oweAmount) || 0;
                 const pay = Number(split?.payAmount) || 0;
                 const delta = (split?.owing ? owe : 0) - (split?.paying ? pay : 0);
+                if (DEBUG_BALANCES) {
+                    console.log(`  split for friend ${split?.friendId?.name}: owing?=${!!split?.owing}, paying?=${!!split?.paying}, owe=${owe}, pay=${pay}, delta=${delta}`);
+                }
                 const byCode = map.get(fId) || {};
                 byCode[code] = (byCode[code] || 0) + delta;
                 map.set(fId, byCode);
@@ -351,27 +420,27 @@ export default function FriendsScreen() {
         }
 
         // loans impact
-        for (const loan of loans || []) {
-            if (loan?.status === "closed") continue;
-            const code = loan?.currency || "INR";
-            const principal = Number(loan?.principal) || 0;
-            const paid = (loan?.repayments || []).reduce((n, r) => n + (Number(r?.amount) || 0), 0);
-            const remaining = Math.max(principal - paid, 0);
+        // for (const loan of loans || []) {
+        //     if (loan?.status === "closed") continue;
+        //     const code = loan?.currency || "INR";
+        //     const principal = Number(loan?.principal) || 0;
+        //     const paid = (loan?.repayments || []).reduce((n, r) => n + (Number(r?.amount) || 0), 0);
+        //     const remaining = Math.max(principal - paid, 0);
 
-            const borrowerId = String(loan?.borrowerId?._id || "");
-            const lenderId = String(loan?.lenderId?._id || "");
+        //     const borrowerId = String(loan?.borrowerId?._id || "");
+        //     const lenderId = String(loan?.lenderId?._id || "");
 
-            if (borrowerId) {
-                const byCode = map.get(borrowerId) || {};
-                byCode[code] = (byCode[code] || 0) + remaining; // borrower owes you (+)
-                map.set(borrowerId, byCode);
-            }
-            if (lenderId) {
-                const byCode = map.get(lenderId) || {};
-                byCode[code] = (byCode[code] || 0) - remaining; // you owe lender (-)
-                map.set(lenderId, byCode);
-            }
-        }
+        //     if (borrowerId) {
+        //         const byCode = map.get(borrowerId) || {};
+        //         byCode[code] = (byCode[code] || 0) + remaining; // borrower owes you (+)
+        //         map.set(borrowerId, byCode);
+        //     }
+        //     if (lenderId) {
+        //         const byCode = map.get(lenderId) || {};
+        //         byCode[code] = (byCode[code] || 0) - remaining; // you owe lender (-)
+        //         map.set(lenderId, byCode);
+        //     }
+        // }
 
         const out = {};
         for (const [friendId, byCode] of map.entries()) {
@@ -446,7 +515,11 @@ export default function FriendsScreen() {
             }
             base[friendId] = m;
         }
-
+        if (DEBUG_BALANCES) {
+            console.groupCollapsed && console.groupCollapsed("mergedBalances");
+            console.log("base (from non-group friendBalances):", JSON.parse(JSON.stringify(base)));
+            console.log("groupFriendBalancesRaw:", JSON.parse(JSON.stringify(groupFriendBalancesRaw)));
+        }
         // convert back to UI list shape with rounding & sorting
         const out = {};
         for (const [friendId, byCode] of Object.entries(base)) {
@@ -459,6 +532,10 @@ export default function FriendsScreen() {
                 .filter(Boolean)
                 .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
             out[friendId] = list;
+        }
+        if (DEBUG_BALANCES) {
+            console.log("final merged (pre-rounding):", JSON.parse(JSON.stringify(base)));
+            console.groupEnd && console.groupEnd("mergedBalances");
         }
         return out;
     }, [friendBalances, groupFriendBalancesRaw]);
@@ -508,7 +585,7 @@ export default function FriendsScreen() {
 
     // ===== UI bits =====
     const FriendRow = ({ friend }) => {
-        const list = mergedBalances[String(friend._id)] || [];
+        const list = mergedBalances[String(friend?._id)] || [];
         const dominant = list[0];
         const otherCount = Math.max(list.length - 1, 0);
 
@@ -516,7 +593,7 @@ export default function FriendsScreen() {
             <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => {
-                    router.push({ pathname: "/friends/details", params: { id: friend._id } });
+                    router.push({ pathname: "/friends/details", params: { id: friend?._id } });
                 }}
                 style={styles.friendRow}
             >
@@ -557,9 +634,9 @@ export default function FriendsScreen() {
                 {list.length > 0 ? (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         {dominant ? (
-                            <View style={[styles.badge, dominant.amount < 0 ? styles.badgeOwed : styles.badgeOwe]}>
-                                <Text style={dominant.amount < 0 ? styles.badgeOwedText : styles.badgeOweText}>
-                                    {dominant.amount < 0 ? "you’re owed · " : "you owe · "}
+                            <View style={[styles.badge, dominant.amount > 0 ? styles.badgeOwed : styles.badgeOwe]}>
+                                <Text style={dominant.amount > 0 ? styles.badgeOwedText : styles.badgeOweText}>
+                                    {dominant.amount > 0 ? "you’re owed · " : "you owe · "}
                                     {getSymbol(dominant.code)}
                                     {Math.abs(dominant.amount).toFixed(currencyDigits(dominant.code))}
                                 </Text>
@@ -685,7 +762,7 @@ export default function FriendsScreen() {
                             {receivedRequests.length > 0 ? <Text style={[styles.sectionLabel, { marginBottom: 6 }]}>Friends</Text> : null}
                             <View style={{ borderTopColor: theme?.colors?.border ?? "#212121", borderTopWidth: StyleSheet.hairlineWidth }}>
                                 {filteredFriends.map((f) => (
-                                    <View key={f._id} style={{ borderBottomColor: theme?.colors?.border ?? "#212121", borderBottomWidth: StyleSheet.hairlineWidth }}>
+                                    <View key={f?._id} style={{ borderBottomColor: theme?.colors?.border ?? "#212121", borderBottomWidth: StyleSheet.hairlineWidth }}>
                                         <FriendRow friend={f} />
                                     </View>
                                 ))}

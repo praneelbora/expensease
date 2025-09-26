@@ -24,7 +24,7 @@ const SplitSection = ({
     const togglePaying = (friendId) => {
         setSelectedFriends((prev) => {
             let next = prev.map((f) =>
-                f._id === friendId ? { ...f, paying: !f.paying } : f
+                f?._id === friendId ? { ...f, paying: !f.paying } : f
             );
             next = equalizePay(next);
             return next;
@@ -34,7 +34,7 @@ const SplitSection = ({
     const toggleOwing = (friendId) => {
         setSelectedFriends((prev) => {
             let next = prev.map((f) =>
-                f._id === friendId ? { ...f, owing: !f.owing } : f
+                f?._id === friendId ? { ...f, owing: !f.owing } : f
             );
             if (splitMode === "equal") next = equalizeOwe(next);
             else next = next.map((f) => ({ ...f, oweAmount: 0, owePercent: undefined }));
@@ -51,12 +51,12 @@ const SplitSection = ({
             <View style={styles.chipWrap}>
                 {selectedFriends?.map((f) => (
                     <TouchableOpacity
-                        key={`pay-${f._id}`}
-                        onPress={() => togglePaying(f._id)}
+                        key={`pay-${f?._id}`}
+                        onPress={() => togglePaying(f?._id)}
                         style={[styles.chip, f.paying && styles.chipActive]}
                     >
                         <Text style={[styles.chipText, f.paying && styles.chipTextActive]}>
-                            {f.name} {f._id === userId ? "(You)" : ""}
+                            {f?.name} {f?._id === userId ? "(You)" : ""}
                         </Text>
                     </TouchableOpacity>
                 ))}
@@ -84,12 +84,12 @@ const SplitSection = ({
                     <View style={styles.chipWrap}>
                         {selectedFriends.map((f) => (
                             <TouchableOpacity
-                                key={`owe-${f._id}`}
-                                onPress={() => toggleOwing(f._id)}
+                                key={`owe-${f?._id}`}
+                                onPress={() => toggleOwing(f?._id)}
                                 style={[styles.chip, f.owing && styles.chipActive]}
                             >
                                 <Text style={[styles.chipText, f.owing && styles.chipTextActive]}>
-                                    {f.name} {f._id === userId ? "(You)" : ""}
+                                    {f?.name} {f?._id === userId ? "(You)" : ""}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -126,16 +126,16 @@ const SplitSection = ({
                             {selectedFriends
                                 .filter((f) => f.owing)
                                 .map((f) => (
-                                    <View key={`oweAmount-${f._id}`} style={styles.oweRow}>
+                                    <View key={`oweAmount-${f?._id}`} style={styles.oweRow}>
                                         <Text style={styles.oweLabel}>
-                                            {f.name} {f._id === userId ? "(You)" : ""}
+                                            {f?.name} {f?._id === userId ? "(You)" : ""}
                                         </Text>
                                         {splitMode === "percent" ? (
                                             <TextInput
                                                 style={styles.input}
                                                 keyboardType="numeric"
                                                 value={String(f.owePercent ?? "")}
-                                                onChangeText={(v) => handleOwePercentChange(f._id, v)}
+                                                onChangeText={(v) => handleOwePercentChange(f?._id, v)}
                                                 placeholder="%"
                                                 placeholderTextColor="#777"
                                             />
@@ -144,7 +144,7 @@ const SplitSection = ({
                                                 style={styles.input}
                                                 keyboardType="numeric"
                                                 value={String(f.oweAmount ?? "")}
-                                                onChangeText={(v) => handleOweChange(f._id, v)}
+                                                onChangeText={(v) => handleOweChange(f?._id, v)}
                                                 placeholder="Amount"
                                                 placeholderTextColor="#777"
                                             />

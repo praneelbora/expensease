@@ -24,11 +24,11 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
     const day = date.getDate().toString().padStart(2, "0");
 
     const getPayerInfo = (splits = []) => {
-        const userSplit = splits.find((s) => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find((s) => s.friendId && s.friendId?._id === userId);
         if (!userSplit) return false;
         const payers = splits.filter((s) => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
-            return `${payers[0].friendId._id === userId ? "You" : payers[0].friendId.name} paid`;
+            return `${payers[0].friendId?._id === userId ? "You" : payers[0].friendId?.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         }
@@ -49,17 +49,17 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
         const receiver = splits.find((s) => s.owing && s.oweAmount > 0);
         if (!payer || !receiver) return "Invalid settlement";
 
-        const payerIsYou = payer.friendId._id === userId;
-        const receiverIsYou = receiver.friendId._id === userId;
+        const payerIsYou = payer.friendId?._id === userId;
+        const receiverIsYou = receiver.friendId?._id === userId;
 
-        const payerName = payerIsYou ? "You" : shortenName(payer.friendId.name);
-        const receiverName = receiverIsYou ? "you" : shortenName(receiver.friendId.name);
+        const payerName = payerIsYou ? "You" : shortenName(payer.friendId?.name);
+        const receiverName = receiverIsYou ? "you" : shortenName(receiver.friendId?.name);
 
         return `${payerName} paid ${receiverName}`;
     };
 
     const getOweInfo = (splits = []) => {
-        const userSplit = splits.find((s) => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find((s) => s.friendId && s.friendId?._id === userId);
         if (!userSplit) return { text: "" };
 
         const { oweAmount = 0, payAmount = 0 } = userSplit;
@@ -91,9 +91,9 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
             return `Group: ${expense.groupId.name}`;
         }
         if (expense.splits && expense.splits.length > 1) {
-            const other = expense.splits.find((s) => s.friendId && s.friendId._id !== userId);
+            const other = expense.splits.find((s) => s.friendId && s.friendId?._id !== userId);
             if (other) {
-                return `With ${shortenName(other.friendId.name)}`;
+                return `With ${shortenName(other.friendId?.name)}`;
             }
         }
         return "Personal expense";
@@ -126,7 +126,7 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
                 <View style={styles.divider} />
 
                 {/* Icon */}
-                {showIcon ? (
+                {showIcon && !isSettle ? (
                     <View style={styles.iconBox}>
                         {isSettle ? (
                             <SettleIcon width={20} height={20} color={theme.colors.text} />
@@ -156,7 +156,7 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
                                 </Text>
                             </>
                         ) : (
-                            <Text style={styles.sub} numberOfLines={1}>
+                            <Text style={[styles.sub,{marginLeft: 10}]} numberOfLines={1}>
                                 {getSettleDirectionText(expense.splits || [])} {getSymbol(expense.currency)} {Number(expense.amount || 0).toFixed(2)}
                             </Text>
                         )}

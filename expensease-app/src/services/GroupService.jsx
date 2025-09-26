@@ -14,8 +14,8 @@ export const createGroup = async (name, selectedFriends = []) => {
     if (!String(name || "").trim()) throw new Error("Group name is required");
 
     const memberIds = selectedFriends
-        .filter((f) => f && f._id && f._id !== "me")
-        .map((f) => f._id);
+        .filter((f) => f && f?._id && f?._id !== "me")
+        .map((f) => f?._id);
 
     return api.post(`${BASE}/`, { name, memberIds });
 };

@@ -219,10 +219,10 @@ export default function GroupDetails() {
                 if (payersTotal === 0) {
                     const equalShare = oweAmt / payers.length;
                     for (const p of payers) {
-                        if (o.friendId._id === p.friendId._id) continue;
+                        if (o.friendId?._id === p.friendId?._id) continue;
                         txs.push({
-                            from: o.friendId._id,
-                            to: p.friendId._id,
+                            from: o.friendId?._id,
+                            to: p.friendId?._id,
                             amount: equalShare,
                             currency,
                             meta: { expenseId: exp._id, description: exp.description || exp.title || "" },
@@ -230,13 +230,13 @@ export default function GroupDetails() {
                     }
                 } else {
                     for (const p of payers) {
-                        if (o.friendId._id === p.friendId._id) continue;
+                        if (o.friendId?._id === p.friendId?._id) continue;
                         const share = (p.payAmount || 0) / payersTotal;
                         const amount = share * oweAmt;
                         if (amount > 0) {
                             txs.push({
-                                from: o.friendId._id,
-                                to: p.friendId._id,
+                                from: o.friendId?._id,
+                                to: p.friendId?._id,
                                 amount,
                                 currency,
                                 meta: { expenseId: exp._id, description: exp.description || exp.title || "" },
@@ -587,9 +587,6 @@ How to join:
                     {/* </View> */}
                 </View>
             )}
-
-
-            {expenses.length > 0 && <Text style={styles.sectionLabel}>Expenses</Text>}
         </View>
     );
 

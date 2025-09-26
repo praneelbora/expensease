@@ -139,8 +139,8 @@ export const createGroup = async (name, selectedFriends, userToken) => {
     if (!name.trim()) throw new Error("Group name is required");
 
     const memberIds = selectedFriends
-        .filter(friend => friend._id !== 'me')
-        .map(friend => friend._id);
+        .filter(friend => friend?._id !== 'me')
+        .map(friend => friend?._id);
 
     try {
         const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/v1/groups/`, {

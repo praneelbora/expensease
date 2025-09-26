@@ -78,19 +78,19 @@ export default function GroupsModal({ setShowModal, showModal, fetchGroups }) {
         return friends.filter(
             (f) =>
                 !f.selected &&
-                (f.name?.toLowerCase().includes(q) || f.email?.toLowerCase().includes(q))
+                (f?.name?.toLowerCase().includes(q) || f.email?.toLowerCase().includes(q))
         );
     }, [friends, query]);
 
     const ensureMeFirst = (arr) => [
         { _id: "me", name: "Me", selected: true },
-        ...arr.filter((f) => f._id !== "me"),
+        ...arr.filter((f) => f?._id !== "me"),
     ];
 
     const toggleFriendSelection = (friend) => {
-        if (friend._id === "me") return;
+        if (friend?._id === "me") return;
         const next = friends.map((f) =>
-            f._id === friend._id ? { ...f, selected: !f.selected } : f
+            f?._id === friend?._id ? { ...f, selected: !f.selected } : f
         );
         setFriends(next);
         setSelectedFriends(
@@ -99,10 +99,10 @@ export default function GroupsModal({ setShowModal, showModal, fetchGroups }) {
     };
 
     const handleRemoveFriend = (friend) => {
-        if (friend._id === "me") return;
-        if (deleteConfirmMap[friend._id]) {
+        if (friend?._id === "me") return;
+        if (deleteConfirmMap[friend?._id]) {
             const next = friends.map((f) =>
-                f._id === friend._id ? { ...f, selected: false } : f
+                f?._id === friend?._id ? { ...f, selected: false } : f
             );
             setFriends(next);
             setSelectedFriends(
@@ -110,19 +110,19 @@ export default function GroupsModal({ setShowModal, showModal, fetchGroups }) {
             );
             setDeleteConfirmMap((prev) => {
                 const copy = { ...prev };
-                delete copy[friend._id];
+                delete copy[friend?._id];
                 return copy;
             });
         } else {
-            setDeleteConfirmMap((prev) => ({ ...prev, [friend._id]: true }));
+            setDeleteConfirmMap((prev) => ({ ...prev, [friend?._id]: true }));
         }
     };
 
     const handleCreateGroup = async () => {
         try {
             const payloadMembers = selectedFriends
-                .filter((f) => f._id !== "me")
-                .map((f) => ({ _id: f._id, name: f.name }));
+                .filter((f) => f?._id !== "me")
+                .map((f) => ({ _id: f?._id, name: f?.name }));
             const res = await createGroup(groupName, payloadMembers, userToken);
             // Assuming API returns { code: "ABCD", ... }
             const code = res?.code || "";
@@ -285,17 +285,17 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups?join=${groupCreatedCode}`
                                 <div className="flex flex-wrap gap-2">
                                     {selectedFriends.map((friend) => (
                                         <div
-                                            key={`sel-${friend._id}`}
-                                            className={`flex items-center gap-1 h-[30px] ${friend._id !== "me" ? "ps-3" : "px-3"
+                                            key={`sel-${friend?._id}`}
+                                            className={`flex items-center gap-1 h-[30px] ${friend?._id !== "me" ? "ps-3" : "px-3"
                                                 } overflow-hidden rounded-xl border border-[#81827C] bg-[#121212] text-sm text-[#EBF1D5]`}
                                         >
-                                            <p className="capitalize">{friend.name}</p>
-                                            {friend._id !== "me" && (
+                                            <p className="capitalize">{friend?.name}</p>
+                                            {friend?._id !== "me" && (
                                                 <button
                                                     onClick={() => handleRemoveFriend(friend)}
-                                                    className={`px-2 h-full pb-[2px] ${deleteConfirmMap[friend._id] ? "bg-red-500" : "bg-transparent"
+                                                    className={`px-2 h-full pb-[2px] ${deleteConfirmMap[friend?._id] ? "bg-red-500" : "bg-transparent"
                                                         }`}
-                                                    title={deleteConfirmMap[friend._id] ? "Confirm remove" : "Remove"}
+                                                    title={deleteConfirmMap[friend?._id] ? "Confirm remove" : "Remove"}
                                                 >
                                                     ×
                                                 </button>
@@ -309,14 +309,14 @@ ${import.meta.env.VITE_FRONTEND_URL}/groups?join=${groupCreatedCode}`
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 px-2 py-2 max-h-[40dvh] overflow-y-auto border border-[#333]">
                                         {filteredFriends.map((f) => (
                                             <button
-                                                key={f._id}
+                                                key={f?._id}
                                                 type="button"
                                                 onClick={() => toggleFriendSelection(f)}
                                                 className="text-left"
                                             >
                                                 <div className="flex flex-row w-full justify-between items-center">
                                                     <div className="flex flex-col max-w-full">
-                                                        <h2 className="text-xl capitalize text-[#EBF1D5] break-words">{f.name}</h2>
+                                                        <h2 className="text-xl capitalize text-[#EBF1D5] break-words">{f?.name}</h2>
                                                         <p className="lowercase text-[#81827C] break-words">{f.email}</p>
                                                     </div>
                                                 </div>

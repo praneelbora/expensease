@@ -85,8 +85,8 @@ export default function BottomSheetAddFriends({
     }, [autoTriggerIfEmpty, loadedOnce, loading, friends]);
 
     const toggleSelect = (friend) => {
-        if (selected.find((s) => s._id === friend._id)) {
-            setSelected((prev) => prev.filter((s) => s._id !== friend._id));
+        if (selected.find((s) => s._id === friend?._id)) {
+            setSelected((prev) => prev.filter((s) => s._id !== friend?._id));
         } else {
             setSelected((prev) => [...prev, friend]);
         }
@@ -98,7 +98,7 @@ export default function BottomSheetAddFriends({
             setBusy(true);
             await addMembersToGroup(
                 groupId,
-                selected.map((f) => f._id),
+                selected.map((f) => f?._id),
                 userToken
             );
             setSelected([]);
@@ -151,7 +151,7 @@ export default function BottomSheetAddFriends({
     const listData = useMemo(() => {
         const q = query.trim().toLowerCase();
         const matchesQuery = (f) =>
-            f.name?.toLowerCase().includes(q) || f.email?.toLowerCase().includes(q) || q === "";
+            f?.name?.toLowerCase().includes(q) || f.email?.toLowerCase().includes(q) || q === "";
 
         const visible = friends.filter(matchesQuery);
 
@@ -204,7 +204,7 @@ export default function BottomSheetAddFriends({
                 ) : (
                     <FlatList
                         data={listData}
-                        keyExtractor={(f) => f._id}
+                        keyExtractor={(f) => f?._id}
                         style={{ flex: 1, marginTop: 12 }}
                         renderItem={({ item }) => {
                             const isSelected = !!selected.find((s) => s._id === item._id);

@@ -32,6 +32,41 @@ import BtmShtSettle from "~/btmShtSettle";
 // Theming hook — uses your app ThemeProvider if available.
 import { useTheme } from "context/ThemeProvider";
 
+/* ---------------- DEBUG FLAG + helpers ---------------- */
+// Toggle this to false to silence all balance logs
+const DEBUG_BALANCES = true;
+
+const _dump = (label, obj) => {
+    if (!DEBUG_BALANCES) return;
+    try {
+        // try compact JSON first
+        console.log(`[DBG] ${label}:`, JSON.stringify(obj));
+    } catch (e) {
+        try {
+            console.log(`[DBG] ${label}:`, obj);
+        } catch (e2) {
+            console.log(`[DBG] ${label}: [unserializable]`);
+        }
+    }
+};
+
+const _group = (label) => {
+    if (!DEBUG_BALANCES) return;
+    try {
+        console.groupCollapsed ? console.groupCollapsed(`[DBG] ${label}`) : console.log(`[DBG] ${label}`);
+    } catch (e) {
+        console.log(`[DBG] ${label}`);
+    }
+};
+const _groupEnd = () => {
+    if (!DEBUG_BALANCES) return;
+    try {
+        console.groupEnd && console.groupEnd();
+    } catch (e) {
+        // noop
+    }
+};
+
 /* ---------------- small components ---------------- */
 function LineButton({ label, onPress, tone = "primary", disabled, styles: localStyles }) {
     return (
@@ -51,44 +86,6 @@ function LineButton({ label, onPress, tone = "primary", disabled, styles: localS
     );
 }
 
-function PaymentUPIModal({ visible, onClose, friendName, friendUpi, onConfirm, styles: localStyles }) {
-    const [amount, setAmount] = useState("");
-    useEffect(() => {
-        if (!visible) setAmount("");
-    }, [visible]);
-    return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <View style={localStyles.modalBackdrop}>
-                <View style={localStyles.modalCard}>
-                    <Text style={localStyles.modalTitle}>Make UPI Payment</Text>
-                    <Text style={localStyles.modalMeta}>To: {friendName || "Friend"} {friendUpi ? `• ${friendUpi}` : ""}</Text>
-                    <TextInput
-                        keyboardType="decimal-pad"
-                        value={amount}
-                        onChangeText={setAmount}
-                        placeholder="Amount"
-                        placeholderTextColor={localStyles.colors.mutedFallback}
-                        style={localStyles.input}
-                    />
-                    <View style={localStyles.modalActionsRight}>
-                        <TouchableOpacity style={localStyles.modalBtnSecondary} onPress={onClose}>
-                            <Text style={localStyles.modalBtnText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={localStyles.modalBtnPrimary}
-                            onPress={() => {
-                                onConfirm(Number(amount || 0));
-                                onClose();
-                            }}
-                        >
-                            <Text style={[localStyles.modalBtnText, localStyles.modalPrimaryActionText]}>Continue</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
-}
 
 /* ---------------- main screen ---------------- */
 export default function FriendDetails() {
@@ -117,7 +114,6 @@ export default function FriendDetails() {
     const [netLoanBalanceMap, setNetLoanBalanceMap] = useState({});
 
     // modals / sheets
-    const [showUPIModal, setShowUPIModal] = useState(false);
     const [showSettle, setShowSettle] = useState(false);
     const settleRef = useRef();
 
@@ -176,8 +172,12 @@ export default function FriendDetails() {
         return totals;
     };
 
-    /* ---------------- personal & group calculation functions (unchanged) ---------------- */
+    /* ---------------- personal & group calculation functions (with logs) ---------------- */
     const calculateFriendBalanceByCurrency = (exps, meId, frId) => {
+        if (DEBUG_BALANCES) {
+            _group(`calculateFriendBalanceByCurrency: me=${meId} friend=${frId}`);
+            _dump("input.exps.length", Array.isArray(exps) ? exps.length : (exps?.expenses?.length ?? 0));
+        }
         const totals = {};
         const meIdStr = String(meId ?? "");
         const frIdStr = String(frId ?? "");
@@ -194,38 +194,68 @@ export default function FriendDetails() {
             }
             const oneIsPaying = youPay || frPay;
             const otherIsOwing = (youPay && frOwe) || (frPay && youOwe);
-            if (!oneIsPaying || !otherIsOwing) continue;
+            if (!oneIsPaying || !otherIsOwing) {
+                if (DEBUG_BALANCES) {
+                    _dump(`skip expense ${exp?._id || exp?.id || "(no-id)"} oneIsPaying=${oneIsPaying} otherIsOwing=${otherIsOwing}`, {});
+                }
+                continue;
+            }
 
             const code = exp?.currency || "INR";
+            if (DEBUG_BALANCES) _dump(`process expense ${exp?._id || exp?.id || "(no-id)"} currency=${code}`, {});
             for (const s of splits) {
                 const rawSid = s?.friendId?._id ?? s?.friendId ?? "";
                 const sid = rawSid !== undefined && rawSid !== null ? String(rawSid) : "";
                 if (sid !== frIdStr) continue;
                 const add = s?.owing ? Number(s?.oweAmount) || 0 : 0;
                 const sub = s?.paying ? Number(s?.payAmount) || 0 : 0;
+                if (DEBUG_BALANCES && (add !== 0 || sub !== 0)) {
+                    _dump(`  split for friend ${sid}: add=${add} sub=${sub} (owing?=${!!s?.owing} paying?=${!!s?.paying})`, {});
+                }
                 totals[code] = roundCurrency((totals[code] || 0) + add - sub, code);
             }
         }
         for (const c of Object.keys(totals)) {
             const minUnit = 1 / (10 ** currencyDigits(c));
-            if (Math.abs(totals[c]) < minUnit) delete totals[c];
+            if (Math.abs(totals[c]) < minUnit) {
+                if (DEBUG_BALANCES) _dump(`dropping tiny total for ${c}: ${totals[c]}`, {});
+                delete totals[c];
+            }
+        }
+        if (DEBUG_BALANCES) {
+            _dump("calculateFriendBalanceByCurrency result", totals);
+            _groupEnd();
         }
         return totals;
     };
 
     const generateSimplifiedTransactionsByCurrency = (netByCode, meId, frId) => {
+        if (DEBUG_BALANCES) {
+            _group("generateSimplifiedTransactionsByCurrency");
+            _dump("input.netByCode", netByCode);
+        }
         const tx = [];
         for (const [code, amt] of Object.entries(netByCode || {})) {
             if (!amt) continue;
             const from = amt < 0 ? meId : frId;
             const to = amt < 0 ? frId : meId;
             tx.push({ from, to, amount: Math.abs(amt), currency: code });
+            if (DEBUG_BALANCES) _dump(`tx ${code}`, { from, to, amount: Math.abs(amt) });
+        }
+        if (DEBUG_BALANCES) {
+            _dump("generated tx", tx);
+            _groupEnd();
         }
         return tx;
     };
 
-    /* ---------- group helpers (unchanged) ---------- */
+    /* ---------- group helpers (with logs) ---------- */
     const collectGroupPartiesByCurrency = (simplifiedTxs = [], userId, friendId, roundCurrencyFn, currencyDigitsFn) => {
+        if (DEBUG_BALANCES) {
+            _group("collectGroupPartiesByCurrency");
+            _dump("input.simplifiedTxs.length", simplifiedTxs?.length ?? 0);
+            _dump("userId, friendId", { userId, friendId });
+        }
         const uid = String(userId || "");
         const fid = String(friendId || "");
         const byCode = {};
@@ -244,6 +274,9 @@ export default function FriendDetails() {
             (byCode[code] ||= {});
             (byCode[code][gid] ||= { net: 0, name: tx?.name || tx?.group?.name || "Unnamed Group" });
             byCode[code][gid].net += sign * amt;
+            if (DEBUG_BALANCES) {
+                _dump(`group ${gid} (${code}) updated net`, byCode[code][gid]);
+            }
         }
         const out = {};
         for (const [code, groups] of Object.entries(byCode)) {
@@ -260,34 +293,26 @@ export default function FriendDetails() {
                     amount: Math.abs(rounded),
                     currency: code,
                     groupId: gid,
-                    name: info.name
+                    name: info?.name
                 };
             }
             if (Object.keys(resPerCode).length) out[code] = resPerCode;
         }
+        if (DEBUG_BALANCES) {
+            _dump("collectGroupPartiesByCurrency result", out);
+            _groupEnd();
+        }
         return out;
     };
 
-    const collectGroupIdsByCurrency = (simplifiedTxs = [], userId, friendId) => {
-        const uid = String(userId || "");
-        const fid = String(friendId || "");
-        const byCode = {};
-        for (const tx of simplifiedTxs || []) {
-            const from = String(tx?.from || "");
-            const to = String(tx?.to || "");
-            const isPair = (from === uid && to === fid) || (from === fid && to === uid);
-            if (!isPair) continue;
-            const code = tx?.currency || "INR";
-            const gid = tx?.group?._id;
-            if (!gid) continue;
-            (byCode[code] ||= new Set()).add(String(gid));
-        }
-        const out = {};
-        for (const [code, set] of Object.entries(byCode)) out[code] = Array.from(set);
-        return out;
-    };
+
 
     const computeGroupAggregateMap = (simplifiedTxs = [], userId, friendId) => {
+        if (DEBUG_BALANCES) {
+            _group("computeGroupAggregateMap");
+            _dump("simplifiedTxs.length", simplifiedTxs?.length ?? 0);
+            _dump("userId, friendId", { userId, friendId });
+        }
         const totals = {};
         for (const tx of simplifiedTxs || []) {
             const code = tx?.currency || "INR";
@@ -300,6 +325,11 @@ export default function FriendDetails() {
             if (!pair || !amt) continue;
             if (to === uid) totals[code] = (totals[code] || 0) + amt;
             if (from === uid) totals[code] = (totals[code] || 0) - amt;
+            if (DEBUG_BALANCES) _dump(`processed tx for ${code}`, { from, to, amt, running: totals[code] });
+        }
+        if (DEBUG_BALANCES) {
+            _dump("computeGroupAggregateMap result", totals);
+            _groupEnd();
         }
         return totals;
     };
@@ -313,11 +343,20 @@ export default function FriendDetails() {
     const buildNetWithBreakdown = (
         netByCode, groupsByCur, userIdStr, friendIdStr, roundCurrencyFn
     ) => {
+        if (DEBUG_BALANCES) {
+            _group("buildNetWithBreakdown");
+            _dump("netByCode", netByCode);
+            _dump("groupsByCur", groupsByCur);
+            _dump("userIdStr, friendIdStr", { userIdStr, friendIdStr });
+        }
         const out = [];
         for (const [code, netSignedRaw] of Object.entries(netByCode || {})) {
             const netSigned = roundCurrencyFn(netSignedRaw, code);
             const minUnit = minUnitFor(code);
-            if (Math.abs(netSigned) < minUnit) continue;
+            if (Math.abs(netSigned) < minUnit) {
+                if (DEBUG_BALANCES) _dump(`skip tiny net for ${code}`, netSigned);
+                continue;
+            }
             const netFrom = netSigned < 0 ? userIdStr : friendIdStr;
             const netTo = netSigned < 0 ? friendIdStr : userIdStr;
             const perCodeGroups = groupsByCur?.[code] || {};
@@ -335,6 +374,9 @@ export default function FriendDetails() {
                     currency: code
                 }
                 : null;
+            if (DEBUG_BALANCES) {
+                _dump(`code ${code}`, { netSigned, groupSignedSum, personalSigned, personal });
+            }
             out.push({
                 from: String(netFrom),
                 to: String(netTo),
@@ -346,10 +388,18 @@ export default function FriendDetails() {
                 personal
             });
         }
+        if (DEBUG_BALANCES) {
+            _dump("buildNetWithBreakdown result", out);
+            _groupEnd();
+        }
         return out;
     };
 
     const txFromCurrencyMap = (byCode = {}, meId, frId, roundCurrencyFn, currencyDigitsFn, type = "net", idsByCode = null) => {
+        if (DEBUG_BALANCES) {
+            _group(`txFromCurrencyMap:${type}`);
+            _dump("byCode", byCode);
+        }
         const out = [];
         for (const [code, amtRaw] of Object.entries(byCode)) {
             const amt = roundCurrencyFn(amtRaw, code);
@@ -365,6 +415,10 @@ export default function FriendDetails() {
                 type,
                 ids: idsByCode?.[code] || null
             });
+        }
+        if (DEBUG_BALANCES) {
+            _dump(`txFromCurrencyMap result (${type})`, out);
+            _groupEnd();
         }
         return out;
     };
@@ -383,13 +437,23 @@ export default function FriendDetails() {
         const groupsByCur = collectGroupPartiesByCurrency(
             simplifiedTxsLocal, meId, frId, roundCurrency, currencyDigits
         );
-        return buildNetWithBreakdown(
+        if (DEBUG_BALANCES) {
+            _group("generateSettleAllNet");
+            _dump("netExpenseBalanceMapLocal", netExpenseBalanceMapLocal);
+            _dump("groupsByCur", groupsByCur);
+        }
+        const res = buildNetWithBreakdown(
             netExpenseBalanceMapLocal,
             groupsByCur,
             meId,
             frId,
             roundCurrency
         );
+        if (DEBUG_BALANCES) {
+            _dump("generateSettleAllNet result", res);
+            _groupEnd();
+        }
+        return res;
     };
 
     const generateSettleGroupAggregate = (simplifiedTxsLocal, meId, frId) => {
@@ -397,12 +461,19 @@ export default function FriendDetails() {
         const groupsByCur = collectGroupPartiesByCurrency(
             simplifiedTxsLocal, meId, frId, roundCurrency, currencyDigits
         );
+        if (DEBUG_BALANCES) {
+            _dump("generateSettleGroupAggregate - totalsByCode", totalsByCode);
+            _dump("generateSettleGroupAggregate - groupsByCur", groupsByCur);
+        }
         return txFromCurrencyMap(
             totalsByCode, meId, frId, roundCurrency, currencyDigits, "all_groups", groupsByCur
         );
     };
 
     const generateSettlePersonal = (personalExpenseMapLocal, meId, frId) => {
+        if (DEBUG_BALANCES) {
+            _dump("generateSettlePersonal input", personalExpenseMapLocal);
+        }
         return txFromCurrencyMap(
             personalExpenseMapLocal, meId, frId, roundCurrency, currencyDigits, "all_personal"
         );
@@ -430,6 +501,7 @@ export default function FriendDetails() {
                 name: tx?.group?.name || "Unnamed Group"
             });
         }
+        if (DEBUG_BALANCES) _dump("listPerGroupSimplifiedWithFriend", out);
         return out;
     };
 
@@ -444,8 +516,14 @@ export default function FriendDetails() {
                 (l.lenderId?._id === meId && l.borrowerId?._id === frId) ||
                 (l.lenderId?._id === frId && l.borrowerId?._id === meId)
             );
+            if (DEBUG_BALANCES) {
+                _dump("fetchLoansForFriend - total loans fetched", all.length);
+                _dump("fetchLoansForFriend - friendLoans", friendLoans.length);
+            }
             setLoans(friendLoans.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-            setNetLoanBalanceMap(computeNetLoanBalanceByCurrency(frId, meId, friendLoans));
+            const netLoans = computeNetLoanBalanceByCurrency(frId, meId, friendLoans);
+            setNetLoanBalanceMap(netLoans);
+            if (DEBUG_BALANCES) _dump("netLoanBalanceMap", netLoans);
         } catch (e) {
             console.error("Loans fetch error:", e);
         } finally {
@@ -455,6 +533,7 @@ export default function FriendDetails() {
 
     const fetchData = useCallback(async () => {
         try {
+            setLoading(true);
             const data = await getFriendDetails(id, userToken);
             setFriend(data.friend);
             setUserId(data.id);
@@ -466,13 +545,28 @@ export default function FriendDetails() {
             setExpenses(exps);
             setSimplifiedTransactions(simplified);
 
-            const personal = calculateFriendBalanceByCurrency(exps, data.id, data.friend._id);
+            if (DEBUG_BALANCES) {
+                _group("fetchData");
+                _dump("friendDetails", { friend: data.friend, userId: data.id });
+                _dump("expenses.length", exps?.length ?? 0);
+                _dump("simplifiedTransactions.length", simplified?.length ?? 0);
+            }
+
+            const personal = calculateFriendBalanceByCurrency(exps, data.id, data.friend?._id);
             setPersonalExpenseBalanceMap(personal);
+            if (DEBUG_BALANCES) _dump("personalExpenseBalanceMap", personal);
 
-            const groupAgg = computeGroupAggregateMap(simplified, data.id, data.friend._id);
-            setNetExpenseBalanceMap(mergeCurrencyMaps(personal, groupAgg));
+            const groupAgg = computeGroupAggregateMap(simplified, data.id, data.friend?._id);
+            if (DEBUG_BALANCES) _dump("groupAgg", groupAgg);
 
-            await fetchLoansForFriend(data.id, data.friend._id);
+            const merged = mergeCurrencyMaps(personal, groupAgg);
+            setNetExpenseBalanceMap(merged);
+            if (DEBUG_BALANCES) {
+                _dump("netExpenseBalanceMap (merged)", merged);
+                _groupEnd();
+            }
+
+            await fetchLoansForFriend(data.id, data.friend?._id);
         } catch (e) {
             console.error("Friend details fetch error:", e);
         } finally {
@@ -510,6 +604,8 @@ export default function FriendDetails() {
 
             if (!payerIdPayload || !receiverIdPayload || !(Number(amt) > 0)) return;
 
+            if (DEBUG_BALANCES) _dump("handleSettleSubmit payload", payload);
+
             const response = await settleExpense(
                 {
                     payerId: payerIdPayload,
@@ -522,6 +618,8 @@ export default function FriendDetails() {
                 },
                 userToken
             );
+
+            if (DEBUG_BALANCES) _dump("handleSettleSubmit response", response);
 
             // optional: close bottom sheet (if your sheet supports dismiss)
             settleRef.current?.dismiss?.();
@@ -537,9 +635,11 @@ export default function FriendDetails() {
     // Settle All: flatten net map and call settleExpense for each currency
     const handleSettleAll = async () => {
         try {
-            const tx = generateSimplifiedTransactionsByCurrency(netExpenseBalanceMap, userId, friend._id);
+            const tx = generateSimplifiedTransactionsByCurrency(netExpenseBalanceMap, userId, friend?._id);
+            if (DEBUG_BALANCES) _dump("handleSettleAll - transactions", tx);
             for (const t of tx) {
-                await settleExpense(
+                if (DEBUG_BALANCES) _dump("settling tx", t);
+                const resp = await settleExpense(
                     {
                         payerId: t.from,
                         receiverId: t.to,
@@ -549,6 +649,7 @@ export default function FriendDetails() {
                     },
                     userToken
                 );
+                if (DEBUG_BALANCES) _dump("settleExpense response", resp);
             }
             settleRef.current?.dismiss?.();
             setShowSettle(false);
@@ -574,19 +675,21 @@ export default function FriendDetails() {
     const settlementLists = useMemo(() => {
         if (!userId || !friend?._id) return [];
 
-        const net = generateSettleAllNet(netExpenseBalanceMap, userId, friend._id, simplifiedTransactions);
-        const personal = generateSettlePersonal(personalExpenseBalanceMap, userId, friend._id);
-        const allGrp = generateSettleGroupAggregate(simplifiedTransactions, userId, friend._id);
-        const perGrp = listPerGroupSimplifiedWithFriend(simplifiedTransactions, userId, friend._id);
+        const net = generateSettleAllNet(netExpenseBalanceMap, userId, friend?._id, simplifiedTransactions);
+        const personal = generateSettlePersonal(personalExpenseBalanceMap, userId, friend?._id);
+        const allGrp = generateSettleGroupAggregate(simplifiedTransactions, userId, friend?._id);
+        const perGrp = listPerGroupSimplifiedWithFriend(simplifiedTransactions, userId, friend?._id);
 
-        return [...net, ...personal, ...allGrp, ...perGrp];
+        const combined = [...net, ...personal, ...allGrp, ...perGrp];
+        if (DEBUG_BALANCES) _dump("settlementLists", combined);
+        return combined;
     }, [userId, friend?._id, netExpenseBalanceMap, personalExpenseBalanceMap, simplifiedTransactions]);
 
     // Build a simple friends list for sheet: include 'You' and the friend
     const friendsForSheet = useMemo(() => {
         const list = [];
         if (userId) list.push({ id: userId, name: user?.name || "You" });
-        if (friend?._id) list.push({ id: friend._id, name: friend?.name || "Friend" });
+        if (friend?._id) list.push({ id: friend?._id, name: friend?.name || "Friend" });
         return list;
     }, [userId, user?.name, friend]);
 
@@ -623,7 +726,7 @@ export default function FriendDetails() {
         const personalList = mapToList(personalMap);
         const groupList = mapToList(groupMap);
 
-        return {
+        const result = {
             netList,
             personalList,
             groupList,
@@ -631,6 +734,9 @@ export default function FriendDetails() {
             personalLines: joinCurrencyList(personalList),
             groupLines: joinCurrencyList(groupList),
         };
+
+        if (DEBUG_BALANCES) _dump("oweSummary", result);
+        return result;
     }, [netExpenseBalanceMap, personalExpenseBalanceMap, simplifiedTransactions, userId, friend?._id]);
 
     return (
@@ -671,7 +777,7 @@ export default function FriendDetails() {
                                 ) : null}
 
                                 {/* PERSONAL (single-line, smaller) */}
-                                {(oweSummary.personalLines?.oweLine || oweSummary.personalLines?.owedLine) ? (
+                                {/* {(oweSummary.personalLines?.oweLine || oweSummary.personalLines?.owedLine) ? (
                                     <View style={{ marginBottom: 6 }}>
                                         <Text style={[styles.summaryText, styles.smallSectionTitle]}>PERSONAL SETTLEMENTS</Text>
                                         {oweSummary.personalLines.oweLine ? (
@@ -681,10 +787,10 @@ export default function FriendDetails() {
                                             <Text style={[styles.smallInfo, styles.pos]}>{oweSummary.personalLines.owedLine}</Text>
                                         ) : null}
                                     </View>
-                                ) : null}
+                                ) : null} */}
 
                                 {/* GROUPS (single-line, smaller) */}
-                                {(oweSummary.groupLines?.oweLine || oweSummary.groupLines?.owedLine) ? (
+                                {/* {(oweSummary.groupLines?.oweLine || oweSummary.groupLines?.owedLine) ? (
                                     <View style={{ marginBottom: 6 }}>
                                         <Text style={[styles.summaryText, styles.smallSectionTitle]}>GROUPS SETTLEMENTS</Text>
                                         {oweSummary.groupLines.oweLine ? (
@@ -694,9 +800,9 @@ export default function FriendDetails() {
                                             <Text style={[styles.smallInfo, styles.pos]}>{oweSummary.groupLines.owedLine}</Text>
                                         ) : null}
                                     </View>
-                                ) : null}
+                                ) : null} */}
                             </View>
-                            {settlementLists.length>0 && <TouchableOpacity style={[styles.outlineBtn2, { marginTop: 4 }]} onPress={() => settleSheetRef.current?.present()}>
+                            {settlementLists.length>0 && <TouchableOpacity style={[styles.outlineBtn2, { marginTop: 4 }]} onPress={() => settleRef.current?.present()}>
                                 <Text style={styles.outlineBtnText2}>Settle</Text>
                             </TouchableOpacity>}
                         </View>
@@ -794,15 +900,6 @@ export default function FriendDetails() {
                     <Text style={styles.fabText}>Add Expense</Text>
                 </TouchableOpacity>
             )}
-
-            <PaymentUPIModal
-                visible={showUPIModal}
-                onClose={() => setShowUPIModal(false)}
-                friendName={friend?.name}
-                friendUpi={friend?.upiId}
-                onConfirm={handlePaymentConfirm}
-                styles={styles}
-            />
 
             {/* Bottom-sheet settle wired with real data */}
             <BtmShtSettle

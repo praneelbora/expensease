@@ -171,7 +171,7 @@ export default function ExpenseBottomSheet({
     // when editing, fetch friends' payment methods
     useEffect(() => {
         if (!isEditing) return;
-        updateFriendsPaymentMethods(selectedFriends.map((f) => f._id));
+        updateFriendsPaymentMethods(selectedFriends.map((f) => f?._id));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isEditing]);
 
@@ -196,7 +196,7 @@ export default function ExpenseBottomSheet({
         if (paymentModal.context === "personal") {
             setPersonalPaymentMethod(id);
         } else {
-            setSelectedFriends((prev) => prev.map((f) => (f._id === paymentModal.friendId ? { ...f, selectedPaymentMethodId: id } : f)));
+            setSelectedFriends((prev) => prev.map((f) => (f?._id === paymentModal.friendId ? { ...f, selectedPaymentMethodId: id } : f)));
         }
     };
 
@@ -241,7 +241,7 @@ export default function ExpenseBottomSheet({
 
     const togglePaying = (friendId) => {
         setSelectedFriends((prev) => {
-            let next = prev.map((f) => (f._id === friendId ? { ...f, paying: !f.paying } : f));
+            let next = prev.map((f) => (f?._id === friendId ? { ...f, paying: !f.paying } : f));
             next = equalizePay(next);
             return next;
         });
@@ -249,7 +249,7 @@ export default function ExpenseBottomSheet({
 
     const toggleOwing = (friendId) => {
         setSelectedFriends((prev) => {
-            let next = prev.map((f) => (f._id === friendId ? { ...f, owing: !f.owing } : f));
+            let next = prev.map((f) => (f?._id === friendId ? { ...f, owing: !f.owing } : f));
             if (form.splitMode === "equal") next = equalizeOwe(next);
             else next = deleteOwe(next);
             return next;
@@ -258,17 +258,17 @@ export default function ExpenseBottomSheet({
 
     const handleOweChange = (id, val) => {
         const v = Number(val || 0);
-        setSelectedFriends((arr) => arr.map((f) => (f._id === id ? { ...f, oweAmount: v, owePercent: undefined } : f)));
+        setSelectedFriends((arr) => arr.map((f) => (f?._id === id ? { ...f, oweAmount: v, owePercent: undefined } : f)));
     };
 
     const handleOwePercentChange = (id, val) => {
         const p = Number(val || 0);
-        setSelectedFriends((arr) => arr.map((f) => (f._id === id ? { ...f, owePercent: p, oweAmount: Number(((p / 100) * amountNum).toFixed(2)) } : f)));
+        setSelectedFriends((arr) => arr.map((f) => (f?._id === id ? { ...f, owePercent: p, oweAmount: Number(((p / 100) * amountNum).toFixed(2)) } : f)));
     };
 
     const addSplitMember = (friendId, name) => {
         if (!friendId) return;
-        setSelectedFriends((prev) => (prev.some((f) => f._id === friendId) ? prev : [...prev, { _id: friendId, name: name || "Member", paying: false, payAmount: 0, owing: false, oweAmount: 0 }]));
+        setSelectedFriends((prev) => (prev.some((f) => f?._id === friendId) ? prev : [...prev, { _id: friendId, name: name || "Member", paying: false, payAmount: 0, owing: false, oweAmount: 0 }]));
     };
 
     const selectedIds = new Set(selectedFriends.map((m) => m._id));
@@ -321,9 +321,9 @@ export default function ExpenseBottomSheet({
             });
             setSelectedFriends((prev) =>
                 prev.map((f) => {
-                    const raw = map[f._id === "me" ? userId : f._id] || [];
+                    const raw = map[f?._id === "me" ? userId : f?._id] || [];
                     let selectedPaymentMethodId = f.selectedPaymentMethodId;
-                    const oldSelected = oldSelections[f._id];
+                    const oldSelected = oldSelections[f?._id];
                     if (oldSelected && raw.some((m) => m.paymentMethodId === oldSelected)) {
                         selectedPaymentMethodId = oldSelected;
                     } else {
@@ -354,7 +354,7 @@ export default function ExpenseBottomSheet({
             splits:
                 form.mode === "split"
                     ? selectedFriends.map((f) => ({
-                        friendId: f._id || f.friendId || "me",
+                        friendId: f?._id || f.friendId || "me",
                         paying: !!f.paying,
                         owing: !!f.owing,
                         payAmount: Number(f.payAmount || 0),
@@ -746,8 +746,8 @@ export default function ExpenseBottomSheet({
                             <Text style={styles.sectionTitle}>Paid by <Text style={styles.sectionHint}>(select who paid)</Text></Text>
                             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                                 {selectedFriends.map((f) => (
-                                    <TouchableOpacity key={f._id} onPress={() => togglePaying(f._id)} style={[styles.chip2, f.paying ? styles.chip2Active : styles.chipInactive]}>
-                                        <Text style={f.paying ? styles.chip2TextActive : styles.chip2Text}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
+                                    <TouchableOpacity key={f?._id} onPress={() => togglePaying(f?._id)} style={[styles.chip2, f.paying ? styles.chip2Active : styles.chipInactive]}>
+                                        <Text style={f.paying ? styles.chip2TextActive : styles.chip2Text}>{f?.name}{f?._id === userId ? " (You)" : ""}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
@@ -755,12 +755,12 @@ export default function ExpenseBottomSheet({
                             {(selectedFriends.filter((f) => f.paying).length > 1 || (selectedFriends.filter((f) => f.paying).length === 1 && selectedFriends.filter((f) => f.paying)[0].paymentMethods?.length > 1)) && (
                                 <View style={{ gap: 8 }}>
                                     {selectedFriends.filter((f) => f.paying).map((f) => (
-                                        <View key={f._id} style={styles.splitRow}>
-                                            <Text style={{ color: colors.text }}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
+                                        <View key={f?._id} style={styles.splitRow}>
+                                            <Text style={{ color: colors.text }}>{f?.name}{f?._id === userId ? " (You)" : ""}</Text>
                                             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                                 {Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1 && (
                                                     <TouchableOpacity onPress={() => {
-                                                        setPaymentModal({ open: true, context: "split", friendId: f._id });
+                                                        setPaymentModal({ open: true, context: "split", friendId: f?._id });
                                                         paymentSheetRef.current?.present?.();
                                                     }} style={styles.smallBtn}>
                                                         <Text style={styles.smallBtnText}>{(f.paymentMethods?.find((m) => m.paymentMethodId === f.selectedPaymentMethodId)?.label) || "Pay"}</Text>
@@ -768,7 +768,7 @@ export default function ExpenseBottomSheet({
                                                 )}
                                                 <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.payAmount)} onChangeText={(v) => {
                                                     const val = Number(v || 0);
-                                                    setSelectedFriends((prev) => prev.map((p) => (p._id === f._id ? { ...p, payAmount: val } : p)));
+                                                    setSelectedFriends((prev) => prev.map((p) => (p._id === f?._id ? { ...p, payAmount: val } : p)));
                                                 }} />
                                             </View>
                                         </View>
@@ -788,8 +788,8 @@ export default function ExpenseBottomSheet({
                                     <Text style={styles.sectionTitle}>Owed by <Text style={styles.sectionHint}>(select who owes)</Text></Text>
                                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                                         {selectedFriends.map((f) => (
-                                            <TouchableOpacity key={f._id} onPress={() => toggleOwing(f._id)} style={[styles.chip2, f.owing ? styles.chip2Active : styles.chipInactive]}>
-                                                <Text style={f.owing ? styles.chip2TextActive : styles.chip2Text}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
+                                            <TouchableOpacity key={f?._id} onPress={() => toggleOwing(f?._id)} style={[styles.chip2, f.owing ? styles.chip2Active : styles.chipInactive]}>
+                                                <Text style={f.owing ? styles.chip2TextActive : styles.chip2Text}>{f?.name}{f?._id === userId ? " (You)" : ""}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
@@ -805,12 +805,12 @@ export default function ExpenseBottomSheet({
 
                                             <View style={{ gap: 8 }}>
                                                 {selectedFriends.filter((f) => f.owing).map((f) => (
-                                                    <View key={f._id} style={styles.splitRow}>
-                                                        <Text style={{ color: colors.text }}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
+                                                    <View key={f?._id} style={styles.splitRow}>
+                                                        <Text style={{ color: colors.text }}>{f?.name}{f?._id === userId ? " (You)" : ""}</Text>
                                                         {form.splitMode === "percent" ? (
-                                                            <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.owePercent ?? "")} onChangeText={(v) => handleOwePercentChange(f._id, v)} placeholder="Percent" />
+                                                            <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.owePercent ?? "")} onChangeText={(v) => handleOwePercentChange(f?._id, v)} placeholder="Percent" />
                                                         ) : form.splitMode === "value" ? (
-                                                            <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.oweAmount ?? "")} onChangeText={(v) => handleOweChange(f._id, v)} placeholder="Amount" />
+                                                            <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.oweAmount ?? "")} onChangeText={(v) => handleOweChange(f?._id, v)} placeholder="Amount" />
                                                         ) : (
                                                             <Text style={{ color: colors.text }}>{Number(f.oweAmount || 0).toFixed(2)}</Text>
                                                         )}

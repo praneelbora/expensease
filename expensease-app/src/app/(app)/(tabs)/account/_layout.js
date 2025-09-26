@@ -45,6 +45,10 @@ export default function AccountLayout() {
                 name="coins"
                 options={{ title: "Coins" }}
             />
+            <Stack.Screen
+                name="link"
+                options={{ title: "Link Accounts" }}
+            />
         </Stack>
     );
 }

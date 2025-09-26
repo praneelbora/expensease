@@ -903,7 +903,7 @@ router.put('/:id', auth, async (req, res) => {
             if (updated.createdBy) recipsSet.add(String(updated.createdBy._id || updated.createdBy));
             if (Array.isArray(updated.splits)) {
               updated.splits.forEach(s => {
-                if (s && s.friendId) recipsSet.add(String(s.friendId._id || s.friendId));
+                if (s && s.friendId) recipsSet.add(String(s.friendId?._id || s.friendId));
               });
             }
             // if group -> add group members optionally

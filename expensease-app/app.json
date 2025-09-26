@@ -17,6 +17,7 @@
             "bundleIdentifier": "com.boratechnologies.expensease",
             "googleServicesFile": "./GoogleService-Info.plist",
             "supportsTablet": true,
+            "usesAppleSignIn": true,
             "icon": "./assets/default/ios/icon-ios-10241x.png",
             "associatedDomains": [
                 "applinks:expensease.in"
@@ -76,7 +77,8 @@
             "android-credential-manager",
             "expo-font",
             "expo-secure-store",
-            "expo-asset"
+            "expo-asset",
+            "expo-apple-authentication"
         ],
         "extra": {
             "router": {

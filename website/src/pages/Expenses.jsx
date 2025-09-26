@@ -28,8 +28,8 @@ const Expenses = () => {
 
         if (!payer || !receiver) return "Invalid settlement";
 
-        const payerName = payer.friendId._id === userId ? "You" : payer.friendId.name;
-        const receiverName = receiver.friendId._id === userId ? "you" : receiver.friendId.name;
+        const payerName = payer.friendId?._id === userId ? "You" : payer.friendId?.name;
+        const receiverName = receiver.friendId?._id === userId ? "you" : receiver.friendId?.name;
 
         return `${payerName} paid ${receiverName}`;
     };
@@ -177,7 +177,7 @@ const Expenses = () => {
                     const inDesc = (exp.description || "").toLowerCase().includes(q);
 
                     const inNames = (exp.splits || []).some(
-                        s => s.friendId && s.friendId.name.toLowerCase().includes(q)
+                        s => s.friendId && s.friendId?.name.toLowerCase().includes(q)
                     );
 
                     const inAmount = exp.amount?.toString().toLowerCase().includes(q);
@@ -244,13 +244,13 @@ const Expenses = () => {
 
 
     const getPayerInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find(s => s.friendId && s.friendId?._id === userId);
         if (!userSplit || (!userSplit.payAmount && !userSplit.oweAmount)) {
             return "You were not involved";
         }
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
-            return `${payers[0].friendId._id == userId ? 'You' : payers[0].friendId.name} paid`;
+            return `${payers[0].friendId?._id == userId ? 'You' : payers[0].friendId?.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         } else {
@@ -259,7 +259,7 @@ const Expenses = () => {
     };
 
     const getOweInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find(s => s.friendId && s.friendId?._id === userId);
 
         if (!userSplit) return null;
 

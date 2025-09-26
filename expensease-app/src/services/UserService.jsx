@@ -6,6 +6,30 @@ const BASE_USERS = "/v1/users";
 /**
  * AUTH / SESSION
  */
+// --- add this to src/services/UserService.js (near googleLoginMobile) ---
+export async function appleLoginMobile(identityToken, pushToken = null, platform = "ios", name = "") {
+  // send identityToken to your /v1/users/apple-login endpoint
+  const data = await api.post(`${BASE_USERS}/apple-login`, {
+    identity_token: identityToken,
+    fullName: name || undefined,
+    pushToken,
+    platform,
+  });
+
+  const authToken = data?.responseBody?.["x-auth-token"] || data?.accessToken;
+  if (!authToken) {
+    throw new Error(data?.error || "Apple login failed.");
+  }
+
+  await setTokens({ accessToken: authToken });
+
+  return {
+    userToken: authToken,
+    user: data?.user,
+    newUser: !!data?.newUser || !!data?.new,
+  };
+}
+
 
 // Google login (server expects { id_token })
 export async function googleLoginMobile(idToken, pushToken, platform) {
@@ -268,11 +292,64 @@ export async function verifyOtp(phoneNumber, code, pushToken = null, platform = 
 export const sendOTP = sendOtp;
 export const verifyOTP = verifyOtp;
 
+// add near other exports in src/services/UserService.js
+
+// src/services/UserService.js
+// --- add / replace this function ---
+
 /**
- * Exports default (optional)
- * You can still import individual functions, e.g.:
- * import { sendOTP, verifyOTP } from 'services/UserService';
+ * verifyPhoneLink - client helper to call /v1/users/verify-phone-link
+ * Uses the shared `api` instance so auth headers are applied consistently.
+ *
+ * @param {string} phoneNumber E.164 or server-expected phone string
+ * @param {string} code OTP code
+ * @returns {object} server body (should include { success, phone, user })
+ * @throws {Error} with .status and .body fields for caller to inspect
  */
+export async function verifyPhoneLink(phoneNumber, code) {
+  if (!phoneNumber) throw new Error("phoneNumber required");
+  if (!code) throw new Error("code required");
+
+  try {
+    const body = await api.post(`${BASE_USERS}/verify-phone-link`, {
+      phoneNumber,
+      code,
+    });
+
+    // If your api wrapper returns { error } on non-ok, check and throw here
+    if (body && body.error) {
+      const err = new Error(body.error || "Phone verification failed");
+      err.status = body.status || 400;
+      err.body = body;
+      throw err;
+    }
+
+    return body;
+  } catch (err) {
+    // If underlying api throws an object-like error, normalize it so UI can handle
+    if (err && err.response) {
+      // axios-like error
+      const status = err.response.status;
+      let parsed = null;
+      try { parsed = err.response.data; } catch (e) { parsed = null; }
+      const e2 = new Error(parsed?.error || parsed?.message || `Request failed (${status})`);
+      e2.status = status;
+      e2.body = parsed;
+      throw e2;
+    }
+    // generic error already
+    throw err;
+  }
+}
+
+
+
+export async function linkGoogle(idToken) {
+  if (!idToken) throw new Error('Missing idToken');
+  const data = await api.post(`${BASE_USERS}/link-google`, { id_token: idToken });
+  if (data?.error) throw new Error(data.error || 'Failed to link Google account');
+  return data;
+}
 export default {
   googleLoginMobile,
   mobileLogin,
@@ -294,4 +371,7 @@ export default {
   verifyOtp,
   sendOTP,
   verifyOTP,
+  // add to default export object
+  appleLoginMobile,
+  verifyPhoneLink
 };

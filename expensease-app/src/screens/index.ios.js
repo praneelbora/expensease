@@ -18,6 +18,7 @@ import {
     googleLoginMobile,
     checkAppVersion,
     mobileLogin,
+    appleLoginMobile
 } from "services/UserService";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,7 +27,7 @@ import { useTheme } from "context/ThemeProvider";
 import { useAuth } from "context/AuthContext";
 import { NotificationContext } from "context/NotificationContext";
 import { router } from "expo-router";
-
+import * as AppleAuthentication from 'expo-apple-authentication';
 import PhoneInput from "react-native-phone-number-input";
 import { OtpInput } from "react-native-otp-entry";
 
@@ -42,6 +43,17 @@ export default function Login() {
     const [error, setError] = useState("");
     const [fade] = useState(new Animated.Value(0));
 
+    // Dev login (email/password) - only show when EXPO_PUBLIC_TEST_MODE === 'true'
+    const TEST_MODE = String(process.env.EXPO_PUBLIC_TEST_MODE || "").toLowerCase() === "true";
+    const [devEmail, setDevEmail] = useState("");
+    const [devPassword, setDevPassword] = useState("");
+    const [devSubmitting, setDevSubmitting] = useState(false);
+    const [devError, setDevError] = useState("");
+
+    // store country calling code (digits only, e.g. "91") and national number ("9876543210")
+    const [callingCode, setCallingCode] = useState(""); // digits only, no '+'
+    const [nationalNumber, setNationalNumber] = useState(""); // digits only (no spaces)
+
     // Phone / OTP states
     const [showMore, setShowMore] = useState(false); // toggle "More ways to login"
     const [stage, setStage] = useState("idle"); // 'idle' | 'sent' | 'verifying'
@@ -49,9 +61,10 @@ export default function Login() {
     const [countdown, setCountdown] = useState(0);
     const [otpError, setOtpError] = useState("");
     const [checkingVersion, setCheckingVersion] = useState(true);
-    // phone input  
+
+    // phone input
     const phoneInputRef = useRef(null);
-    const [phoneInputValue, setPhoneInputValue] = useState(""); // displayed input
+    const [phoneInputValue, setPhoneInputValue] = useState(""); // kept for fallback compatibility
     const [defaultCountryCode] = useState("IN");
     const [lastSentPhone, setLastSentPhone] = useState(null);
 
@@ -62,6 +75,19 @@ export default function Login() {
     const [verifying, setVerifying] = useState(false);
 
     const otpInputsRef = React.useRef([]);
+    const [appleAvailable, setAppleAvailable] = useState(false);
+    useEffect(() => {
+        (async () => {
+            try {
+                const avail = await AppleAuthentication.isAvailableAsync();
+                console.log(avail);
+
+                setAppleAvailable(avail);
+            } catch (e) {
+                setAppleAvailable(false);
+            }
+        })();
+    }, []);
 
     useEffect(() => {
         Animated.timing(fade, { toValue: 1, duration: 420, useNativeDriver: true }).start();
@@ -103,9 +129,6 @@ export default function Login() {
                     }
                     return;
                 }
-
-                // 3) Otherwise surface underReview flag (username/password flow)
-                setUnderReview(!!resp?.underReview);
             } catch (err) {
                 console.warn("[Login] Version check failed:", err);
 
@@ -118,8 +141,6 @@ export default function Login() {
                     } catch (e) {
                         console.warn("[Login] Failed to route to dashboard after version-check error:", e);
                     }
-                } else {
-                    setUnderReview(false);
                 }
             } finally {
                 if (mounted) setCheckingVersion(false); // allow UI to render
@@ -154,53 +175,59 @@ export default function Login() {
     // quick-ish E.164 check
     const isE164 = (p) => /^\+?[1-9]\d{6,14}$/.test((p || "").replace(/\s+/g, ""));
 
+
+    // -------------------- New helper: validate parts --------------------
+    /**
+     * Validate calling code and national number.
+     * - callingCode: digits only, length 1..3
+     * - nationalNumber: digits only, length >= 4 (adjust if you want stricter)
+     * Returns { ok: boolean, reason?: string, phoneToSend?: string }
+     */
+    const validatePhoneParts = (cc, national) => {
+        const ccDigits = String(cc || "").replace(/\D/g, "");
+        const natDigits = String(national || "").replace(/\D/g, "");
+
+        if (!ccDigits) return { ok: false, reason: "Please select a country code." };
+        if (ccDigits.length < 1 || ccDigits.length > 3) return { ok: false, reason: "Invalid country code." };
+        if (!natDigits) return { ok: false, reason: "Please enter your phone number." };
+        if (natDigits.length < 4) return { ok: false, reason: "Phone number is too short." };
+
+        // Build phone string only for sending. We DO NOT keep this combined in state.
+        const phoneToSend = `+${ccDigits}${natDigits}`;
+        return { ok: true, phoneToSend };
+    };
+
+    // -------------------- Updated handleSendOTP --------------------
     const handleSendOTP = async () => {
         setOtpError("");
-        // ask phoneInput for formatted number
-        let formatted = null;
-        try {
-            // getNumberAfterPossiblyEliminatingZero is present in many versions
-            if (phoneInputRef.current?.getNumberAfterPossiblyEliminatingZero) {
-                const info = phoneInputRef.current.getNumberAfterPossiblyEliminatingZero();
-                // the method may return an object or a string depending on version
-                if (info && typeof info === "object" && info.formattedNumber) {
-                    formatted = info.formattedNumber;
-                } else if (typeof info === "string") {
-                    formatted = info;
-                }
-            }
-            // fallback to getNumber()
-            if (!formatted && phoneInputRef.current?.getNumber) {
-                const info2 = phoneInputRef.current.getNumber();
-                if (info2 && typeof info2 === "object" && info2.formattedNumber) {
-                    formatted = info2.formattedNumber;
-                } else if (typeof info2 === "string") {
-                    formatted = info2;
-                }
-            }
-        } catch (e) {
-            // ignore and fallback to raw
-        }
 
-        // fallback to raw entry
-        if (!formatted) formatted = phoneInputValue;
+        // Prefer canonical cc from the PhoneInput ref if available
+        const refCc = phoneInputRef.current?.getCallingCode?.();
+        const ccToUse = refCc ? String(refCc).replace(/\D/g, "") : String(callingCode || "").replace(/\D/g, "");
+        const nat = String(nationalNumber || "").replace(/\D/g, "");
 
-        const e164Candidate = normalizeE164(formatted);
-
-        if (!isE164(e164Candidate)) {
-            setOtpError("Please enter a valid phone number (country + number).");
+        const validation = validatePhoneParts(ccToUse, nat);
+        if (!validation.ok) {
+            setOtpError(validation.reason);
             return;
         }
 
+        const phoneToSend = validation.phoneToSend; // e.g. "+91XXXXXXXXXX"
+
         try {
             setSending(true);
-            const resp = await sendOTP(e164Candidate);
+            const resp = await sendOTP(phoneToSend);
 
             if (resp && (resp.type === "success" || resp.status === "success" || resp.success || resp.ok)) {
                 setStage("sent");
                 setOtpDigits(new Array(4).fill(""));
                 startCountdown(30);
-                setLastSentPhone(e164Candidate);
+                setLastSentPhone(phoneToSend);
+
+                // IMPORTANT: keep the split parts in state so we never need to re-parse.
+                setCallingCode(ccToUse);
+                setNationalNumber(nat);
+
                 setTimeout(() => otpInputsRef.current[0]?.focus && otpInputsRef.current[0].focus(), 200);
             } else {
                 setOtpError(resp?.error || resp?.message || "Failed to send OTP. Try again.");
@@ -213,11 +240,7 @@ export default function Login() {
         }
     };
 
-    const handleResend = async () => {
-        if (countdown > 0) return;
-        await handleSendOTP();
-    };
-
+    // -------------------- Updated handleVerifyOtp (use lastSentPhone directly) --------------------
     const handleVerifyOtp = async () => {
         setOtpError("");
         const code = (otpCode || "").trim();
@@ -228,7 +251,7 @@ export default function Login() {
 
         try {
             setVerifying(true);
-            const phoneToVerify = lastSentPhone;
+            const phoneToVerify = lastSentPhone; // built earlier as +<cc><number>
             if (!phoneToVerify) {
                 setOtpError("No phone to verify. Please request a new code.");
                 setVerifying(false);
@@ -250,6 +273,32 @@ export default function Login() {
             setVerifying(false);
         }
     };
+
+    // -------------------- Updated format for display on OTP screen --------------------
+    const formatSentPhone = () => {
+        // Prefer the stored split values (we stored them on send); fallback to lastSentPhone
+        if (callingCode && nationalNumber) return `+${callingCode} ${nationalNumber}`;
+        if (lastSentPhone) {
+            // lastSentPhone should already be "+<cc><number>", show with space after cc for readability
+            const onlyDigits = String(lastSentPhone).replace(/\D/g, "");
+            // heuristically show first 1..3 digits as cc and rest as number (display only)
+            // but since we normally store parts this branch is fallback
+            const cc = onlyDigits.slice(0, Math.min(3, onlyDigits.length - 4));
+            const num = onlyDigits.slice(cc.length);
+            return cc ? `+${cc} ${num}` : lastSentPhone;
+        }
+        return "";
+    };
+
+    // Use it in JSX:
+    // We sent a 4 digit code to { formatSentPhone() }
+
+
+    const handleResend = async () => {
+        if (countdown > 0) return;
+        await handleSendOTP();
+    };
+
 
     // Google login handler (primary)
     const handleGoogleLogin = async () => {
@@ -288,6 +337,100 @@ export default function Login() {
             setSubmitting(false);
         }
     };
+    // Apple login handler
+    // Apple login handler
+    const handleAppleLogin = async () => {
+        setError("");
+        try {
+            setSubmitting(true);
+
+            const credential = await AppleAuthentication.signInAsync({
+                requestedScopes: [
+                    AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+                    AppleAuthentication.AppleAuthenticationScope.EMAIL,
+                ],
+            });
+            console.log('credential: ', credential);
+
+            // credential contains identityToken, authorizationCode, fullName, email, user
+            const identityToken = credential?.identityToken;
+            console.log('identityToken: ', identityToken);
+            if (!identityToken) {
+                throw new Error("No identityToken from Apple. Make sure Sign In with Apple is configured.");
+            }
+
+            // Build a display name from fullName if available
+            let name = "";
+            const fn = credential?.fullName;
+            if (fn) {
+                name = `${fn.givenName || ""} ${fn.familyName || ""}`.trim();
+            }
+
+            // send identityToken to backend (appleLoginMobile implemented above)
+            const res = await appleLoginMobile(identityToken, expoPushToken, Platform.OS, name);
+            console.log('res: ', res);
+
+            if (res?.userToken) {
+                // set token in your auth context (setUserToken expected to store token + fetch user)
+                if (typeof setUserToken === "function") {
+                    await setUserToken(res.userToken);
+                }
+
+                // after login redirect (reuse your existing check)
+                const response = await checkAppVersion(version, Platform.OS);
+                if (response?.outdated) {
+                    router.replace("updateScreen");
+                } else {
+                    router.replace("dashboard");
+                }
+            } else {
+                throw new Error("Apple login failed: invalid server response");
+            }
+        } catch (err) {
+            console.warn("Apple login failed:", {
+                message: err?.message,
+                code: err?.code,
+                name: err?.name,
+                raw: err,
+            });
+
+            // present user-friendly error
+            setError(err?.message || "Apple login failed. Please try again.");
+            try {
+                await logout?.();
+            } catch (e) {
+                console.warn("Logout error:", e);
+            }
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+
+
+    // Dev email/password login for local testing
+    const handleDevLogin = async () => {
+        setDevError("");
+        if (!devEmail || !devPassword) {
+            setDevError("Please enter email and password for dev login.");
+            return;
+        }
+        try {
+            setDevSubmitting(true);
+            const res = await mobileLogin(devEmail, devPassword, expoPushToken, Platform.OS);
+            if (res?.userToken) {
+                await setUserToken(res.userToken);
+                router.replace("dashboard");
+            } else {
+                setDevError(res?.error || "Dev login failed.");
+            }
+        } catch (err) {
+            console.error("devLogin error", err);
+            setDevError(err?.message || "Dev login failed.");
+        } finally {
+            setDevSubmitting(false);
+        }
+    };
 
     // UI helpers for navigation/back actions
     const handleShowMore = () => {
@@ -301,11 +444,33 @@ export default function Login() {
         setOtpDigits(new Array(4).fill(""));
         setOtpError("");
     };
+
     const handleBackFromSent = () => {
-        // go back to phone entry (not to Google)
         setStage("idle");
         setOtpDigits(new Array(4).fill(""));
         setOtpError("");
+
+        // if (lastSentPhone) {
+        //     const { cc, number } = splitE164(lastSentPhone);
+        //     if (cc) setCallingCode(cc);
+        //     if (number) setNationalNumber(number);
+
+        //     // try to set phoneInput internal calling code if supported
+        //     try {
+        //         if (phoneInputRef.current?.setCallingCode && cc) {
+        //             phoneInputRef.current.setCallingCode(cc);
+        //         }
+        //     } catch (e) {
+        //         // ignore
+        //     }
+        // } else {
+        //     setNationalNumber("");
+        //     setCallingCode("");
+        // }
+
+        setTimeout(() => {
+            phoneInputRef.current?.focus && phoneInputRef.current.focus();
+        }, 120);
     };
 
     // Prevent UI flash while auth context bootstraps
@@ -333,6 +498,7 @@ export default function Login() {
                         <View style={{ width: "100%", flexDirection: "row", justifyContent: "flex-start" }}>
                             {showMore && (
                                 <View style={styles.headerRow}>
+
                                     <TouchableOpacity
                                         onPress={stage === "sent" ? handleBackFromSent : handleHideMore}
                                         style={styles.backButton}
@@ -347,7 +513,43 @@ export default function Login() {
                         </View>
 
                         {/* Primary area */}
-                        <View style={{ width: "100%", alignItems: "center" }}>
+                        <View style={{ width: "100%", alignItems: "center", gap: 12 }}>
+                            {/* Dev login (only in test mode) */}
+                            {TEST_MODE && (
+                                <View style={{ width: "100%", marginBottom: 12 }}>
+                                    <Text style={[styles.footerText, { marginBottom: 8 }]}>Test mode — Dev login (local testing)</Text>
+
+                                    <TextInput
+                                        placeholder="Email"
+                                        placeholderTextColor={theme.colors.muted}
+                                        value={devEmail}
+                                        onChangeText={setDevEmail}
+                                        style={[styles.input, { marginBottom: 8 }]}
+                                        autoCapitalize="none"
+                                        keyboardType="email-address"
+                                        textContentType="username"
+                                    />
+                                    <TextInput
+                                        placeholder="Password"
+                                        placeholderTextColor={theme.colors.muted}
+                                        value={devPassword}
+                                        onChangeText={setDevPassword}
+                                        style={styles.input}
+                                        secureTextEntry
+                                        textContentType="password"
+                                    />
+
+                                    <TouchableOpacity
+                                        style={[styles.signInBtn, { marginTop: 12 }]}
+                                        onPress={handleDevLogin}
+                                        disabled={devSubmitting}
+                                    >
+                                        {devSubmitting ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Dev Login</Text>}
+                                    </TouchableOpacity>
+                                    {devError ? <Text style={styles.error}>{devError}</Text> : null}
+                                </View>
+                            )}
+
                             {/* When OTP is sent we hide the Google UI (requested). When showMore===false show only Google */}
                             {!showMore && (
                                 <>
@@ -359,8 +561,17 @@ export default function Login() {
                                     >
                                         {submitting || authLoading ? <ActivityIndicator /> : <Text style={styles.googleText}>Continue with Google</Text>}
                                     </TouchableOpacity>
+                                    {appleAvailable && (
+                                        <AppleAuthentication.AppleAuthenticationButton
+                                            buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                                            buttonStyle={theme?.mode != 'dark' ? AppleAuthentication.AppleAuthenticationButtonStyle.BLACK : AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                                            cornerRadius={8}
+                                            style={styles.appleButton} // defined below
+                                            onPress={handleAppleLogin}
+                                        />
+                                    )}
 
-                                    <TouchableOpacity onPress={handleShowMore} style={{ marginTop: 12 }}>
+                                    <TouchableOpacity onPress={handleShowMore} style={{}}>
                                         <Text style={[styles.footerText, { fontWeight: "700", color: theme?.colors?.primary }]}>More ways to login</Text>
                                     </TouchableOpacity>
                                 </>
@@ -376,26 +587,35 @@ export default function Login() {
                                             <View style={{ flexDirection: "row", alignItems: "center", width: "100%", gap: 8 }}>
                                                 <PhoneInput
                                                     ref={phoneInputRef}
-                                                    value={phoneInputValue}
-                                                    defaultValue={phoneInputValue}
+                                                    value={nationalNumber}
+                                                    defaultValue={nationalNumber}
                                                     defaultCode={defaultCountryCode}
                                                     layout="first"
-                                                    onChangeText={(text) => setPhoneInputValue(text)}
-                                                    onChangeFormattedText={(text) => setPhoneInputValue(text)}
-                                                    // styling hooks
+                                                    onChangeText={(text) => {
+                                                        // nationalNumber must remain digits-only
+                                                        setNationalNumber(String(text || "").replace(/\D/g, ""));
+                                                    }}
+                                                    onChangeFormattedText={(formatted) => {
+                                                        // try to derive calling code from ref; keep nationalNumber digits-only
+                                                        const cc = phoneInputRef.current?.getCallingCode?.() || "";
+                                                        const digitsOnly = String(formatted || "").replace(/\D/g, "");
+                                                        if (cc && digitsOnly.startsWith(String(cc))) {
+                                                            setCallingCode(String(cc).replace(/\D/g, ""));
+                                                            setNationalNumber(digitsOnly.slice(String(cc).length));
+                                                        } else {
+                                                            // fallback: don't strip unknown prefix — just store digits as national part
+                                                            setNationalNumber(digitsOnly);
+                                                        }
+                                                    }}
                                                     containerStyle={styles.phoneContainer}
                                                     textContainerStyle={styles.phoneTextContainer}
                                                     textInputStyle={styles.phoneTextInput}
                                                     codeTextStyle={styles.codeText}
                                                     flagButtonStyle={styles.flagButton}
-                                                    // ensure dropdown icon is an element (not a function) and visible in dark mode
                                                     renderDropdownImage={<Ionicons name="chevron-down" size={18} color={theme.colors.text} />}
-                                                    // make sure arrow isn't disabled
                                                     disableArrowIcon={false}
                                                     placeholder="9876543210"
                                                 />
-
-
                                             </View>
 
                                             <TouchableOpacity style={[styles.signInBtn, { marginTop: 12 }]} onPress={handleSendOTP} disabled={sending}>
@@ -407,7 +627,7 @@ export default function Login() {
                                         // OTP INPUT (stage === 'sent')
                                         <>
                                             <Text style={[styles.hint, { textAlign: "left", marginBottom: 8 }]}>
-                                                We sent a 4 digit code to {lastSentPhone || phoneInputValue}
+                                                We sent a 4 digit code to {formatSentPhone(lastSentPhone)}
                                             </Text>
 
                                             <View style={{ width: "100%", alignItems: "center", marginTop: 8 }}>
@@ -516,11 +736,11 @@ const createStyles = (theme, insets) =>
             borderRadius: 10,
             borderWidth: 1,
             borderColor: "#E6EEF8",
-            backgroundColor: "#fff",
+            backgroundColor: theme?.mode != 'dark' ? "#000" : "#fff",
             alignItems: "center",
             justifyContent: "center",
         },
-        googleText: { fontWeight: "700", color: theme.colors.textDark },
+        googleText: { fontWeight: "500", fontSize: 18, color: theme?.mode != 'dark' ? '#fff' : "#000" },
         hint: { color: theme.colors.muted, fontSize: 13, textAlign: "center" },
         error: { color: "#F43F5E", marginBottom: 12 },
         signInBtn: {
@@ -589,7 +809,6 @@ const createStyles = (theme, insets) =>
         // OTP theme bits used by OtpInput (you may tweak sizes)
         otpContainer: {
             width: 280,
-
         },
         codeContainer: {
             borderWidth: 1,
@@ -622,7 +841,7 @@ const createStyles = (theme, insets) =>
 
         // compact flag + code area so phone number gets most space
         flagButton: {
-            width: 40,              // smaller than full input
+            width: 40, // smaller than full input
             justifyContent: "center",
             alignItems: "center",
             paddingHorizontal: 8,
@@ -648,4 +867,10 @@ const createStyles = (theme, insets) =>
             fontSize: 16, // slightly larger than code
             height: 44,
         },
+        appleButton: {
+            width: "100%",   // full width like your Google button
+            height: 50,      // must provide explicit height
+            marginBottom: 10,
+        },
+
     });

@@ -173,16 +173,16 @@ export default function ExpensesScreen() {
     };
 
     const getPayerInfo = (splits = []) => {
-        const userSplit = splits.find((s) => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find((s) => s.friendId && s.friendId?._id === userId);
         if (!userSplit || (!userSplit.payAmount && !userSplit.oweAmount)) return "You were not involved";
         const payers = splits.filter((s) => s.paying && s.payAmount > 0);
-        if (payers.length === 1) return `${payers[0].friendId._id == userId ? "You" : payers[0].friendId.name} paid`;
+        if (payers.length === 1) return `${payers[0].friendId?._id == userId ? "You" : payers[0].friendId?.name} paid`;
         if (payers.length > 1) return `${payers.length} people paid`;
         return "No one paid";
     };
 
     const getOweInfo = (splits = []) => {
-        const userSplit = splits.find((s) => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find((s) => s.friendId && s.friendId?._id === userId);
         if (!userSplit) return null;
         const { oweAmount = 0, payAmount = 0 } = userSplit;
         const net = payAmount - oweAmount;
@@ -286,7 +286,7 @@ export default function ExpensesScreen() {
             if (qq) {
                 out = out.filter((exp) => {
                     const inDesc = (exp.description || "").toLowerCase().includes(qq);
-                    const inNames = (exp.splits || []).some((s) => s.friendId && s.friendId.name.toLowerCase().includes(qq));
+                    const inNames = (exp.splits || []).some((s) => s.friendId && s.friendId?.name.toLowerCase().includes(qq));
                     const inAmount = String(exp.amount ?? "").toLowerCase().includes(qq);
                     const inCurrency = (exp.currency || "").toLowerCase().includes(qq);
                     const inGroup = (exp.groupId?.name || "").toLowerCase().includes(qq);

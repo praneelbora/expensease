@@ -461,6 +461,27 @@ export default function AccountScreen() {
                                     <Text style={{ color: theme.colors.background, fontWeight: "700" }}>Update available</Text>
                                 </TouchableOpacity>
                             ) : null}
+                            {/* Quick link to Link Contact screen */}
+                            {(!user?.phone || (user?.email==user?.appleEmail)) && <TouchableOpacity
+                                onPress={() => router.push("account/link")}
+                                style={{
+                                    marginBottom: 8,
+                                    paddingVertical: 12,
+                                    paddingHorizontal: 14,
+                                    borderRadius: 10,
+                                    backgroundColor: theme.colors.card,
+                                    borderWidth: 1,
+                                    borderColor: theme.colors.border,
+                                    alignItems: "center",
+                                }}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={{ color: theme.colors.text, fontWeight: "700" }}>Keep Your Account Safe</Text>
+                                <Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 6, textAlign: 'center' }}>
+                                    Add an email and phone number to make it easy for friends to reach you and to recover your account if needed.
+                                </Text>
+
+                            </TouchableOpacity>}
 
                             {banner && (
                                 <View

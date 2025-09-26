@@ -250,10 +250,10 @@ const FriendDetails = () => {
             const expenseData = await getFriendExpense(id, userToken);
             setExpenses(expenseData.expenses || []);
             setSimplifiedTransactions(expenseData.simplifiedTransactions || []);
-            const personal = calculateFriendBalanceByCurrency(expenseData.expenses || [], data.id, data.friend._id);
+            const personal = calculateFriendBalanceByCurrency(expenseData.expenses || [], data.id, data.friend?._id);
             setPersonalExpenseBalanceMap(personal);
 
-            await fetchLoansForFriend(data.id, data.friend._id);
+            await fetchLoansForFriend(data.id, data.friend?._id);
         } catch (e) {
             console.error("Failed to fetch friend data", e);
         } finally {
@@ -272,8 +272,8 @@ const FriendDetails = () => {
         const receiver = splits.find(s => s.owing && s.oweAmount > 0);
         if (!payer || !receiver) return "Invalid settlement";
 
-        const payerName = payer.friendId._id === userId ? "You" : payer.friendId.name;
-        const receiverName = receiver.friendId._id === userId ? "you" : receiver.friendId.name;
+        const payerName = payer.friendId?._id === userId ? "You" : payer.friendId?.name;
+        const receiverName = receiver.friendId?._id === userId ? "you" : receiver.friendId?.name;
         return `${payerName} paid ${receiverName}`;
     };
 
@@ -283,7 +283,7 @@ const FriendDetails = () => {
         if (finalAmt > 0 && friend?._id && userId) {
             setPrefillSettle({
                 payerId: userId,
-                receiverId: friend._id,
+                receiverId: friend?._id,
                 amount: finalAmt,
                 description: "Settlement",
             });
@@ -342,11 +342,11 @@ const FriendDetails = () => {
     };
 
     const getPayerInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find(s => s.friendId && s.friendId?._id === userId);
         if (!userSplit || (!userSplit.payAmount && !userSplit.oweAmount)) return "You were not involved";
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
-            return `${payers[0].friendId._id == userId ? 'You' : payers[0].friendId.name} paid`;
+            return `${payers[0].friendId?._id == userId ? 'You' : payers[0].friendId?.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         } else {
@@ -355,7 +355,7 @@ const FriendDetails = () => {
     };
 
     const getOweInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === friend?._id);
+        const userSplit = splits.find(s => s.friendId && s.friendId?._id === friend?._id);
         if (!userSplit) return null;
         const { oweAmount = 0, payAmount = 0 } = userSplit;
         const net = payAmount - oweAmount;
@@ -439,7 +439,7 @@ const FriendDetails = () => {
                 if (Math.abs(rounded) < minUnit) continue;
                 const from = rounded < 0 ? uid : fid;
                 const to = rounded < 0 ? fid : uid;
-                resPerCode[gid] = { from, to, amount: Math.abs(rounded), currency: code, groupId: gid, name: info.name };
+                resPerCode[gid] = { from, to, amount: Math.abs(rounded), currency: code, groupId: gid, name: info?.name };
             }
             if (Object.keys(resPerCode).length) out[code] = resPerCode;
         }
@@ -543,14 +543,14 @@ const FriendDetails = () => {
             return out;
         };
 
-        const groupsByCur = collectGroupPartiesByCurrency(simplifiedTransactions, userId, friend._id, roundCurrency, currencyDigits);
-        const net = buildNetWithBreakdown(netExpenseBalanceMap, groupsByCur, userId, friend._id);
-        const personal = txFromCurrencyMap(personalExpenseBalanceMap, userId, friend._id, roundCurrency, currencyDigits, "all_personal");
-        const allGrp = txFromCurrencyMap(computeGroupAggregateMap(simplifiedTransactions, userId, friend._id), userId, friend._id, roundCurrency, currencyDigits, "all_groups", groupsByCur);
+        const groupsByCur = collectGroupPartiesByCurrency(simplifiedTransactions, userId, friend?._id, roundCurrency, currencyDigits);
+        const net = buildNetWithBreakdown(netExpenseBalanceMap, groupsByCur, userId, friend?._id);
+        const personal = txFromCurrencyMap(personalExpenseBalanceMap, userId, friend?._id, roundCurrency, currencyDigits, "all_personal");
+        const allGrp = txFromCurrencyMap(computeGroupAggregateMap(simplifiedTransactions, userId, friend?._id), userId, friend?._id, roundCurrency, currencyDigits, "all_groups", groupsByCur);
         const perGrp = (simplifiedTransactions || []).map(tx => {
             const from = String(tx?.from || "");
             const to = String(tx?.to || "");
-            const isPair = (from === String(userId) && to === String(friend._id)) || (from === String(friend._id) && to === String(userId));
+            const isPair = (from === String(userId) && to === String(friend?._id)) || (from === String(friend?._id) && to === String(userId));
             if (!isPair) return null;
             return {
                 from,
@@ -929,15 +929,15 @@ const FriendDetails = () => {
                     onClose={() => setShowLoanView(false)}
                     onCloseLoan={async () => {
                         await closeLoanApi(activeLoan._id, {}, userToken);
-                        await fetchLoansForFriend(userId, friend._id);
+                        await fetchLoansForFriend(userId, friend?._id);
                         setShowLoanView(false);
                     }}
                     onDeleteLoan={async () => {
-                        await deleteLoanApi(activeLoan._1, userToken); // safe-guard key - your API might expect activeLoan._id
-                        await fetchLoansForFriend(userId, friend._id);
+                        await deleteLoanApi(activeLoan._id, userToken); // safe-guard key - your API might expect activeLoan._id
+                        await fetchLoansForFriend(userId, friend?._id);
                         setShowLoanView(false);
                     }}
-                    onAfterChange={async () => { await fetchLoansForFriend(userId, friend._id); }}
+                    onAfterChange={async () => { await fetchLoansForFriend(userId, friend?._id); }}
                     currencyOptions={currencyOptions}
                     defaultCurrency={defaultCurrency}
                     preferredCurrencies={preferredCurrencies}

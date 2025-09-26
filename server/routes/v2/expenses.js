@@ -1,4 +1,4 @@
-// routes/settleAndFriend.js  (replace / merge with your file)
+// routes/settleAndFriend.js  (updated: name-based, step-by-step logs)
 const mongoose = require('mongoose');
 const express = require('express');
 const router = express.Router();
@@ -7,25 +7,58 @@ const User = require('../../models/User');
 const auth = require("../../middleware/auth");
 const notif = require('../v1/notifs'); // <-- single-file notif helper (sendToUsers, pushNotifications, etc.)
 
+// DEBUG flag
+const DEBUG_SERVER = true;
+
+// small helpers for nicer logging
+const log = (...args) => { if (DEBUG_SERVER) console.log('[SETTLE-FRIEND]', ...args); };
+const logGroup = (title, fn) => {
+    if (!DEBUG_SERVER) return;
+    try {
+        if (console.groupCollapsed) console.groupCollapsed(`[SETTLE-FRIEND] ${title}`);
+        else console.log(`[SETTLE-FRIEND] ${title}`);
+        fn();
+    } finally {
+        if (console.groupEnd) console.groupEnd();
+    }
+};
+const prettyId = (v) => (v === undefined || v === null ? '(nil)' : String(v));
+const nameOrId = (objOrId) => {
+    if (!objOrId) return '(unknown)';
+    if (typeof objOrId === 'string' || typeof objOrId === 'number') return String(objOrId);
+    // populated doc with name
+    return objOrId?.name || objOrId?.email || String(objOrId._id || objOrId);
+};
+
+/**
+ * calculateDebt: same logic as before — build per-member per-currency net
+ */
 const calculateDebt = (groupExpenses, members) => {
     const totalDebt = {}; // memberId -> { [currency]: netAmount }
 
     // init
-    members.forEach(m => { totalDebt[m._id] = {}; });
+    members.forEach(m => { totalDebt[String(m._id)] = {}; });
 
     groupExpenses.forEach(exp => {
         const code = exp.currency || "INR";
-        exp.splits.forEach(split => {
-            const memberId = split.friendId._id;
-            const curMap = totalDebt[memberId];
+        (exp.splits || []).forEach(split => {
+            const memberId = String(split.friendId?._id || split.friendId);
+            const curMap = totalDebt[memberId] || (totalDebt[memberId] = {});
             if (curMap[code] == null) curMap[code] = 0;
 
-            if (split.payAmount > 0) curMap[code] += split.payAmount; // paid → is owed
-            if (split.oweAmount > 0) curMap[code] -= split.oweAmount; // owes → negative
+            const payAmount = Number(split.payAmount || 0) || 0;
+            const oweAmount = Number(split.oweAmount || 0) || 0;
+
+            if (payAmount > 0) curMap[code] += payAmount; // paid → is owed
+            if (oweAmount > 0) curMap[code] -= oweAmount; // owes → negative
         });
     });
     return totalDebt;
 };
+
+/**
+ * simplifyDebts: unchanged but will log results when used
+ */
 function simplifyDebts(totalDebt, members, locale = "en-IN") {
     const transactions = [];
     const currencies = new Set();
@@ -46,8 +79,8 @@ function simplifyDebts(totalDebt, members, locale = "en-IN") {
         const round = v => Math.round((Number(v) + Number.EPSILON) * pow) / pow;
         const minUnit = 1 / pow;
 
-        const owe = [];
-        const owed = [];
+        const owe = []; // members who owe (amount positive = they owe)
+        const owed = []; // members who are owed (amount positive = they are owed)
 
         // Split members into owe/owed
         for (const memberId in totalDebt) {
@@ -95,13 +128,118 @@ function simplifyDebts(totalDebt, members, locale = "en-IN") {
     return transactions;
 }
 
+/**
+ * computeDirectPairNetForGroup:
+ * For groups that disabled simplification, compute direct per-group pairwise net between the two users.
+ * Produces transactions in {from,to,amount,currency} format.
+ *
+ * Uses names from populated splits.friendId?.name if available.
+ */
+function computeDirectPairNetForGroup(groupExpenses = [], userId, friendId) {
+    const totals = {}; // currency -> running friendNet (positive => friend is owed overall for that currency)
+
+    logGroup(`computeDirectPairNetForGroup (user=${userId}, friend=${friendId})`, () => {
+        log(`expenses: ${groupExpenses.length}`);
+        for (const exp of groupExpenses || []) {
+            const code = exp.currency || "INR";
+            const splits = Array.isArray(exp.splits) ? exp.splits : [];
+
+            // Build map of split details keyed by participant id
+            const byId = {};
+            for (const s of splits) {
+                const sid = String(s.friendId?._id || s.friendId || '');
+                byId[sid] = s;
+            }
+
+            const userSplit = byId[String(userId)];
+            const friendSplit = byId[String(friendId)];
+
+            // only consider expenses where both user & friend are present
+            if (!userSplit || !friendSplit) {
+                log(`skip expense ${prettyId(exp._id || exp.id)}: both participants not present`);
+                continue;
+            }
+
+            // Evaluate who paid and who owed in this expense
+            const youPay = !!userSplit.paying;
+            const friendPay = !!friendSplit.paying;
+            const youOwe = !!userSplit.owing;
+            const friendOwe = !!friendSplit.owing;
+
+            const oneIsPaying = youPay || friendPay;
+            const otherIsOwing = (youPay && friendOwe) || (friendPay && youOwe);
+
+            if (!oneIsPaying || !otherIsOwing) {
+                // Not a direct bilateral (one pays and the other owes)
+                log(`skip expense ${prettyId(exp._id || exp.id)}: not a direct bilateral (youPay=${youPay}, friendPay=${friendPay}, youOwe=${youOwe}, friendOwe=${friendOwe})`);
+                continue;
+            }
+
+            // Compute friend-side delta for this expense:
+            // friendDelta = (friend.owing ? friend.oweAmount : 0) - (friend.paying ? friend.payAmount : 0)
+            const fAdd = friendSplit.owing ? Number(friendSplit.oweAmount || 0) : 0;
+            const fSub = friendSplit.paying ? Number(friendSplit.payAmount || 0) : 0;
+            const friendDelta = fAdd - fSub; // positive => friend is owed on this expense
+
+            // Friendly names where available
+            const expName = exp.description || exp.title || `expense:${prettyId(exp._id || exp.id)}`;
+            const userName = nameOrId(userSplit.friendId || userSplit.friend || userId);
+            const friendName = nameOrId(friendSplit.friendId || friendSplit.friend || friendId);
+
+            log(`expense ${prettyId(exp._id || exp.id)} (${expName}) [${code}]`);
+            log(`  participants: you=${userName} (paying=${youPay}, owing=${youOwe}), friend=${friendName} (paying=${friendPay}, owing=${friendOwe})`);
+            log(`  friendDelta = add(${fAdd}) - sub(${fSub}) = ${friendDelta}`);
+
+            totals[code] = (totals[code] || 0) + friendDelta;
+            log(`  running totals[${code}] = ${totals[code]}`);
+        }
+    });
+
+    // Convert totals -> transactions (from,to,amount)
+    const tx = [];
+    for (const [code, rawAmt] of Object.entries(totals)) {
+        // rounding: use 2 decimals here; if you need currency-specific digits we can adjust
+        const rounded = Math.round((Number(rawAmt) + Number.EPSILON) * 100) / 100;
+        if (!rounded) continue;
+        if (rounded > 0) {
+            // friend is owed -> friend -> user (friend should receive)
+            tx.push({
+                from: String(friendId),
+                to: String(userId),
+                amount: rounded,
+                currency: code,
+            });
+        } else if (rounded < 0) {
+            // user owes friend
+            tx.push({
+                from: String(userId),
+                to: String(friendId),
+                amount: Math.abs(rounded),
+                currency: code,
+            });
+        }
+    }
+
+    // print final tx with names if we can
+    if (DEBUG_SERVER && tx.length) {
+        logGroup('computeDirectPairNetForGroup -> final txs', () => {
+            for (const t of tx) {
+                log(`  ${t.from} -> ${t.to} : ${t.amount} ${t.currency}`);
+            }
+        });
+    }
+
+    return tx;
+}
+
+/* ---------------- ROUTES ---------------- */
 
 router.get('/friend/:friendId', auth, async (req, res) => {
     try {
         const userId = req.user.id;
         const friendId = req.params.friendId;
 
-        // ✅ Step 1: Get non-group expenses (direct between user & friend)
+        // Step 1: Non-group expenses (direct)
         const nonGroupExpenses = await Expense.find({
             'splits.friendId': { $all: [userId, friendId] },
             $or: [{ groupId: { $exists: false } }, { groupId: null }]
@@ -111,61 +249,92 @@ router.get('/friend/:friendId', auth, async (req, res) => {
             .populate('splits.paidFromPaymentMethodId', '_id label')
             .populate('auditLog.updatedBy', 'name email')
             .populate('paidFromPaymentMethodId');
-        // ✅ Step 2: Get group expenses
-        const groupExpenses = await Expense.find({
-            'splits.friendId': { $in: [userId, friendId] },
-            groupId: { $exists: true, $ne: null }
-        })
-            .populate('splits.friendId', '_id name email')
-            .populate('createdBy', 'name email')
-            .populate('splits.paidFromPaymentMethodId', '_id label')
-            .populate('auditLog.updatedBy', 'name email')
-            .populate('groupId', 'name')
-            .populate('paidFromPaymentMethodId');
 
-        // ✅ Step 3: Group groupExpenses by groupId
-        const groupedByGroup = groupExpenses.reduce((acc, exp) => {
-            const gid = exp.groupId?._id?.toString();
-            if (!gid) return acc;
-            if (!acc[gid]) acc[gid] = { group: exp.groupId, members: [], expenses: [] };
-            acc[gid].expenses.push(exp);
+        // Step 2: Group expenses (populate group settings so we can check simplifyDebts)
+        // const groupExpenses = await Expense.find({
+        //     'splits.friendId': { $in: [userId, friendId] },
+        //     groupId: { $exists: true, $ne: null }
+        // })
+        //     .populate('splits.friendId', '_id name email')
+        //     .populate('createdBy', 'name email')
+        //     .populate('splits.paidFromPaymentMethodId', '_id label')
+        //     .populate('auditLog.updatedBy', 'name email')
+        //     .populate('groupId', 'name settings')
+        //     .populate('paidFromPaymentMethodId');
 
-            // collect members
-            exp.splits.forEach(s => {
-                if (!acc[gid].members.find(m => String(m._id) === String(s.friendId?._id))) {
-                    acc[gid].members.push(s.friendId);
-                }
-            });
-
-            return acc;
-        }, {});
+        // // Step 3: Group them
+        // const groupedByGroup = groupExpenses.reduce((acc, exp) => {
+        //     const gid = exp.groupId?._id?.toString();
+        //     if (!gid) return acc;
+        //     if (!acc[gid]) acc[gid] = { group: exp.groupId, members: [], expenses: [] };
+        //     acc[gid].expenses.push(exp);
+        //     // collect members (populated objects available)
+        //     (exp.splits || []).forEach(s => {
+        //         const id = String(s.friendId?._id || s.friendId);
+        //         if (!acc[gid].members.find(m => String(m?._id) === id)) {
+        //             acc[gid].members.push(s.friendId);
+        //         }
+        //     });
+        //     return acc;
+        // }, {});
 
         const simplifiedTransactions = [];
 
-        // ✅ Step 4: For each group, simplify debts & check user↔friend
-        for (const gid in groupedByGroup) {
-            const { group, members, expenses } = groupedByGroup[gid];
+        // Step 4: For each group, compute either simplified or direct-pair
+        // for (const gid in groupedByGroup) {
+        //     const { group, members, expenses } = groupedByGroup[gid];
+        //     const gName = group?.name || `(group ${gid})`;
+        //     const simplifyFlag = !(group?.settings && group.settings.simplifyDebts === false);
 
-            const totalDebt = calculateDebt(expenses, members);
-            const simplified = simplifyDebts(totalDebt, members);
+        //     logGroup(`Group ${gName} (${gid}) — simplifyDebts=${simplifyFlag}`, () => {
+        //         log(`members: ${members.map(m => nameOrId(m)).join(', ')}`);
+        //         log(`expenses count: ${expenses.length}`);
+        //     });
 
-            // only keep tx between user & friend
-            const directTx = simplified.filter(tx =>
-                (tx.from == userId && tx.to == friendId) ||
-                (tx.from == friendId && tx.to == userId)
-            );
+        //     let simplified = [];
+        //     try {
+        //         if (!simplifyFlag) {
+        //             log(`Group ${gName} has simplifyDebts=false → using direct pair computation.`);
+        //             simplified = computeDirectPairNetForGroup(expenses, userId, friendId);
+        //         } else {
+        //             log(`Group ${gName} will run simplifyDebts (full group simplification).`);
+        //             const totalDebt = calculateDebt(expenses, members);
+        //             if (DEBUG_SERVER) logGroup(`totalDebt (group ${gName})`, () => { log(JSON.stringify(totalDebt)); });
+        //             simplified = simplifyDebts(totalDebt, members);
+        //             if (DEBUG_SERVER) log(`simplified transactions (count=${simplified.length})`);
+        //         }
+        //     } catch (err) {
+        //         console.error(`Error while simplifying group ${gName}:`, err);
+        //         simplified = [];
+        //     }
 
-            if (directTx.length > 0) {
-                simplifiedTransactions.push(
-                    ...directTx.map(tx => ({
-                        ...tx,
-                        group: { _id: group._id, name: group.name }
-                    }))
-                );
-            }
-        }
+        //     // keep only tx between user & friend
+        //     const directTx = simplified.filter(tx =>
+        //         (String(tx.from) === String(userId) && String(tx.to) === String(friendId)) ||
+        //         (String(tx.from) === String(friendId) && String(tx.to) === String(userId))
+        //     );
 
-        // ✅ Step 5: Final response
+        //     // attach group info and push
+        //     if (directTx.length > 0) {
+        //         for (const tx of directTx) {
+        //             const txWithGroup = {
+        //                 ...tx,
+        //                 group: { _id: group._id, name: group.name || gName }
+        //             };
+        //             // log each tx with names (attempt to look up names from members list)
+        //             if (DEBUG_SERVER) {
+        //                 const fromName = members.find(m => String(m._id) === String(tx.from))?.name || tx.from;
+        //                 const toName = members.find(m => String(m._id) === String(tx.to))?.name || tx.to;
+        //                 log(`groupTx: ${fromName} (${tx.from}) -> ${toName} (${tx.to}) : ${tx.amount} ${tx.currency} [group=${gName}]`);
+        //             }
+        //             simplifiedTransactions.push(txWithGroup);
+        //         }
+        //     } else {
+        //         if (DEBUG_SERVER) log(`no direct user<->friend transactions for group ${gName}`);
+        //     }
+        // }
+
+        // Step 5: Respond
         return res.status(200).json({
             expenses: nonGroupExpenses,
             simplifiedTransactions
@@ -182,7 +351,6 @@ router.get('/friends', auth, async (req, res) => {
     try {
         const userId = req.user.id;
 
-
         // Load all friends for this user
         const user = await User.findById(userId).populate("friends");
         if (!user) {
@@ -193,7 +361,7 @@ router.get('/friends', auth, async (req, res) => {
         for (const friend of user.friends) {
             // Non-group expenses between user and this friend
             const nonGroupExpenses = await Expense.find({
-                'splits.friendId': { $all: [userId, friend._id] },
+                'splits.friendId': { $all: [userId, friend?._id] },
                 $or: [{ groupId: { $exists: false } }, { groupId: null }],
             })
                 .populate('splits.friendId', '_id name email')
@@ -203,19 +371,17 @@ router.get('/friends', auth, async (req, res) => {
                 .populate('groupId', 'name')
                 .lean();
 
-
             // Group expenses where either is a member
             const groupExpenses = await Expense.find({
-                'splits.friendId': { $in: [userId, friend._id] },
+                'splits.friendId': { $in: [userId, friend?._id] },
                 groupId: { $exists: true, $ne: null },
             })
                 .populate('splits.friendId', '_id name email')
                 .populate('createdBy', 'name email')
                 .populate('splits.paidFromPaymentMethodId', '_id label')
                 .populate('auditLog.updatedBy', 'name email')
-                .populate('groupId', 'name')
+                .populate('groupId', 'name settings')
                 .lean();
-
 
             // Group by groupId
             const groupedByGroup = groupExpenses.reduce((acc, exp) => {
@@ -224,7 +390,6 @@ router.get('/friends', auth, async (req, res) => {
                 if (!acc[gid]) acc[gid] = { group: exp.groupId, members: [], expenses: [] };
                 acc[gid].expenses.push(exp);
 
-
                 exp.splits.forEach((s) => {
                     const fid = String(s?.friendId?._id || s?.friendId);
                     if (fid && !acc[gid].members.find((m) => String(m._id) === fid)) {
@@ -232,38 +397,54 @@ router.get('/friends', auth, async (req, res) => {
                     }
                 });
 
-
                 return acc;
             }, {});
 
-
             const simplifiedTxs = [];
-
 
             for (const gid in groupedByGroup) {
                 const { group, members, expenses } = groupedByGroup[gid];
-                const totalDebt = calculateDebt(expenses, members);
-                const simplified = simplifyDebts(totalDebt, members);
+                const gName = group?.name || `(group ${gid})`;
+                const simplifyFlag = !(group?.settings && group.settings.simplifyDebts === false);
 
+                log(`processing friend=${nameOrId(friend)} group=${gName} simplify=${simplifyFlag}`);
+
+                let simplified = [];
+                try {
+                    if (!simplifyFlag) {
+                        simplified = computeDirectPairNetForGroup(expenses, userId, friend?._id);
+                    } else {
+                        const totalDebt = calculateDebt(expenses, members);
+                        simplified = simplifyDebts(totalDebt, members);
+                    }
+                } catch (err) {
+                    console.error(`Error simplifying debts for group ${gName}:`, err);
+                    simplified = [];
+                }
 
                 // keep only this user <-> current friend
                 const direct = simplified.filter(
                     (tx) =>
-                        (tx.from === String(userId) && tx.to === String(friend._id)) ||
-                        (tx.from === String(friend._id) && tx.to === String(userId))
+                        (String(tx.from) === String(userId) && String(tx.to) === String(friend?._id)) ||
+                        (String(tx.from) === String(friend?._id) && String(tx.to) === String(userId))
                 );
-
 
                 direct.forEach((tx) => {
                     simplifiedTxs.push({ ...tx, group });
+                    if (DEBUG_SERVER) {
+                        log(`  -> friendTx: ${tx.from} -> ${tx.to} ${tx.amount} ${tx.currency} (group=${gName})`);
+                    }
                 });
             }
 
-
-            result[friend._id] = {
+            result[friend?._id] = {
                 expenses: nonGroupExpenses,
                 simplifiedTransactions: simplifiedTxs,
             };
+
+            if (DEBUG_SERVER) {
+                log(`friend ${nameOrId(friend)} result: nonGroup=${nonGroupExpenses.length} simplifiedTx=${simplifiedTxs.length}`);
+            }
         }
         return res.status(200).json(result);
     } catch (err) {
@@ -273,7 +454,6 @@ router.get('/friends', auth, async (req, res) => {
 });
 
 // POST /v1/expenses/settle
-
 router.post('/settle', auth, async (req, res) => {
     try {
         const {
@@ -298,7 +478,6 @@ router.post('/settle', auth, async (req, res) => {
         // amount/currency are required unless this is `custom` with meta.items (per-item amounts)
         const hasCustomItems = Array.isArray(meta?.items) && meta.items.length > 0;
         if (!hasCustomItems) {
-            // for non-custom or custom-without-items, require top-level amount & currency
             if (typeof amount === 'undefined' || !currency) {
                 return res.status(400).json({ error: "Missing required fields: amount/currency." });
             }
@@ -321,7 +500,7 @@ router.post('/settle', auth, async (req, res) => {
             });
             await settleExpense.save();
 
-            // Notify the two parties (best-effort). Wrap in try/catch so errors don't affect response.
+            // Notify (best-effort)
             (async () => {
                 try {
                     const title = 'Payment recorded';
@@ -329,7 +508,6 @@ router.post('/settle', auth, async (req, res) => {
                     const data = { type: 'settlement', expenseId: String(settleExpense._id), groupId: gid || null, amount: amt, currency: cur };
                     const category = gid ? 'group_settlement' : 'friend_settlement';
                     const opts = { channel: 'push', fromFriendId: String(from), groupId: gid ? String(gid) : null };
-                    // send to both from & to
                     await notif.sendToUsers([String(from), String(to)], title, msg, data, category, opts).catch(e => {
                         console.error('notif.sendToUsers failed (inside createSettleExpense):', e);
                     });
@@ -341,11 +519,8 @@ router.post('/settle', auth, async (req, res) => {
             return settleExpense;
         };
 
-        // Keep your old “mark scope settled if zero” logic, but scoped
-        // - For groups: only that groupId + currency
-        // - For personal: groupId=null + currency + both users
+        // Mark scope settled helper unchanged (keeps your behavior)
         const tryMarkScopeSettled = async ({ gid, cur, aId, bId }) => {
-            // fetch all related unsettled expenses in this scope
             let related = [];
             if (gid) {
                 related = await Expense.find({
@@ -363,7 +538,6 @@ router.post('/settle', auth, async (req, res) => {
                 });
             }
 
-            // compute net in this scope; if all zero -> mark settled
             const net = {};
             for (const exp of related) {
                 if (exp.typeOf === 'loan') continue;
@@ -386,25 +560,22 @@ router.post('/settle', auth, async (req, res) => {
             return allZero;
         };
 
-        // Normalizers
         const asMap = (maybeArrayOrMap, fallbackMap = {}) => {
             if (!maybeArrayOrMap) return fallbackMap;
             if (Array.isArray(maybeArrayOrMap)) {
-                // convert array -> keyed map with NO amounts; caller should also send meta.groups for amounts
                 const m = {};
                 for (const gid of maybeArrayOrMap) m[String(gid)] = null;
                 return m;
             }
-            return maybeArrayOrMap; // already a map
+            return maybeArrayOrMap;
         };
 
-        // Handlers per type
+        // Handlers per type (keeps your logic)
         const results = [];
 
         if (type === 'group') {
             if (!groupId) return res.status(400).json({ error: "groupId is required for type 'group'." });
 
-            // single group settle
             const doc = await createSettleExpense({
                 from: fromUserId,
                 to: toUserId,
@@ -417,7 +588,6 @@ router.post('/settle', auth, async (req, res) => {
 
             await tryMarkScopeSettled({ gid: groupId, cur: currency, aId: fromUserId, bId: toUserId });
 
-            // summary notification (best-effort)
             (async () => {
                 try {
                     const fromUser = await User.findById(fromUserId).select('name').lean();
@@ -436,7 +606,6 @@ router.post('/settle', auth, async (req, res) => {
             return res.status(201).json({ ok: true, type, count: 1, items: results });
 
         } else if (type === 'all_personal') {
-            // one personal settle (groupId = null)
             const doc = await createSettleExpense({
                 from: fromUserId,
                 to: toUserId,
@@ -449,7 +618,6 @@ router.post('/settle', auth, async (req, res) => {
 
             await tryMarkScopeSettled({ gid: null, cur: currency, aId: fromUserId, bId: toUserId });
 
-            // summary notification
             (async () => {
                 try {
                     const fromUser = await User.findById(fromUserId).select('name').lean();
@@ -468,8 +636,6 @@ router.post('/settle', auth, async (req, res) => {
             return res.status(201).json({ ok: true, type, count: 1, items: results });
 
         } else if (type === 'all_groups') {
-            // settle each group individually
-            // prefer amounts from: groupIds (map) OR meta.groups
             const mapFromBody = asMap(groupIds, {});
             const mapFromMeta = meta?.ids || meta?.groups || {};
             const groupMap = Object.keys(mapFromBody).length ? mapFromBody : mapFromMeta;
@@ -479,7 +645,6 @@ router.post('/settle', auth, async (req, res) => {
             }
 
             for (const [gid, detail] of Object.entries(groupMap)) {
-                // prefer per-group detailed amount/from/to in payload, else fallback to top-level from/to/amount
                 const amt = Number(detail?.amount ?? amount);
                 const cur = detail?.currency || currency;
                 const from = String(detail?.from || fromUserId);
@@ -494,7 +659,6 @@ router.post('/settle', auth, async (req, res) => {
                 await tryMarkScopeSettled({ gid, cur, aId: fromUserId, bId: toUserId });
             }
 
-            // summary notification for batch
             (async () => {
                 try {
                     const total = results.reduce((s, r) => s + (Number(r.amount) || 0), 0);
@@ -514,12 +678,10 @@ router.post('/settle', auth, async (req, res) => {
             return res.status(201).json({ ok: true, type, count: results.length, items: results });
 
         } else if (type === 'net') {
-            // NET = settle each group individually + settle the personal residue
             const groupMap = (meta?.groups && Object.keys(meta.groups).length)
                 ? meta.groups
                 : asMap(groupIds, {});
 
-            // 1) groups
             for (const [gid, detail] of Object.entries(groupMap)) {
                 if (!detail) continue;
                 const amt = Number(detail.amount || 0);
@@ -536,7 +698,6 @@ router.post('/settle', auth, async (req, res) => {
                 await tryMarkScopeSettled({ gid, cur, aId: fromUserId, bId: toUserId });
             }
 
-            // 2) personal
             const personal = meta?.personal;
             if (personal && Number(personal.amount) > 0) {
                 const doc = await createSettleExpense({
@@ -557,7 +718,6 @@ router.post('/settle', auth, async (req, res) => {
                 });
             }
 
-            // summary notification for net
             (async () => {
                 try {
                     const total = results.reduce((s, r) => s + (Number(r.amount) || 0), 0);
@@ -577,12 +737,9 @@ router.post('/settle', auth, async (req, res) => {
             return res.status(201).json({ ok: true, type, count: results.length, items: results });
 
         } else if (type === 'custom') {
-            // custom: either a single settle (fallback to top-level fields) or multiple items in meta.items
-            // meta.items => [{ from, to, amount, currency, groupId, description }, ...]
             const items = Array.isArray(meta?.items) ? meta.items : [];
 
             if (items.length === 0) {
-                // fallback: treat like a single settle (groupId may be absent => personal)
                 const doc = await createSettleExpense({
                     from: fromUserId,
                     to: toUserId,
@@ -629,7 +786,6 @@ router.post('/settle', auth, async (req, res) => {
                 }
             }
 
-            // summary notification for custom
             (async () => {
                 try {
                     const total = results.reduce((s, r) => s + (Number(r.amount) || 0), 0);
@@ -649,7 +805,6 @@ router.post('/settle', auth, async (req, res) => {
             return res.status(201).json({ ok: true, type, count: results.length, items: results });
 
         } else {
-            // Fallback / unrecognized
             return res.status(400).json({ error: `Unknown settle type '${type}'.` });
         }
 

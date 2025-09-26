@@ -83,14 +83,14 @@ const GroupDetails = () => {
         ? groupExpenses.filter(exp =>
             exp.splits.some(s =>
                 s.friendId &&
-                s.friendId._id === selectedMember &&
+                s.friendId?._id === selectedMember &&
                 (s.payAmount > 0 || s.oweAmount > 0)
             )
         )
         : groupExpenses;
 
     const getPayerInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find(s => s.friendId && s.friendId?._id === userId);
 
         if (!userSplit || (!userSplit.payAmount && !userSplit.oweAmount)) {
             return "You were not involved";
@@ -98,7 +98,7 @@ const GroupDetails = () => {
 
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
         if (payers.length === 1) {
-            return `${payers[0].friendId._id == userId ? 'You' : payers[0].friendId.name} paid`;
+            return `${payers[0].friendId?._id == userId ? 'You' : payers[0].friendId?.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         } else {
@@ -112,8 +112,8 @@ const GroupDetails = () => {
 
         if (!payer || !receiver) return "Invalid settlement";
 
-        const payerName = payer.friendId._id === userId ? "You" : payer.friendId.name;
-        const receiverName = receiver.friendId._id === userId ? "you" : receiver.friendId.name;
+        const payerName = payer.friendId?._id === userId ? "You" : payer.friendId?.name;
+        const receiverName = receiver.friendId?._id === userId ? "you" : receiver.friendId?.name;
 
         return `${payerName} paid ${receiverName}`;
     };
@@ -121,7 +121,7 @@ const GroupDetails = () => {
 
 
     const getOweInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find(s => s.friendId && s.friendId?._id === userId);
 
         if (!userSplit) return null;
 
@@ -181,7 +181,7 @@ const GroupDetails = () => {
         groupExpenses.forEach(exp => {
             const code = exp.currency || "INR";
             exp.splits.forEach(split => {
-                const memberId = split.friendId._id;
+                const memberId = split.friendId?._id;
                 const curMap = totalDebt[memberId];
                 if (curMap[code] == null) curMap[code] = 0;
 
@@ -345,11 +345,11 @@ const GroupDetails = () => {
                     const equalShare = oweAmt / payers.length;
                     for (const p of payers) {
                         // SKIP self-transfers
-                        if (o.friendId._id === p.friendId._id) continue;
+                        if (o.friendId?._id === p.friendId?._id) continue;
 
                         txs.push({
-                            from: o.friendId._id,
-                            to: p.friendId._id,
+                            from: o.friendId?._id,
+                            to: p.friendId?._id,
                             amount: equalShare,
                             currency,
                             meta: { expenseId: exp._id, description: exp.description || exp.title || '' }
@@ -358,14 +358,14 @@ const GroupDetails = () => {
                 } else {
                     for (const p of payers) {
                         // SKIP self-transfers
-                        if (o.friendId._id === p.friendId._id) continue;
+                        if (o.friendId?._id === p.friendId?._id) continue;
 
                         const share = (p.payAmount || 0) / payersTotal;
                         const amount = share * oweAmt;
                         if (amount > 0) {
                             txs.push({
-                                from: o.friendId._id,
-                                to: p.friendId._id,
+                                from: o.friendId?._id,
+                                to: p.friendId?._id,
                                 amount,
                                 currency,
                                 meta: { expenseId: exp._id, description: exp.description || exp.title || '' }

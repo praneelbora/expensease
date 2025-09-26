@@ -17,10 +17,10 @@ const ExpenseItem = ({
     const day = date.getDate().toString().padStart(2, '0');
     const getPayerInfo = (splits) => {
         const payers = splits.filter(s => s.paying && s.payAmount > 0);
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find(s => s.friendId && s.friendId?._id === userId);
         if (!userSplit) return 'not involved';
         if (payers.length === 1) {
-            return `${payers[0].friendId?._id == userId ? 'You' : payers[0].friendId.name} paid`;
+            return `${payers[0].friendId?._id == userId ? 'You' : payers[0].friendId?.name} paid`;
         } else if (payers.length > 1) {
             return `${payers.length} people paid`;
         } else {
@@ -28,7 +28,7 @@ const ExpenseItem = ({
         }
     };
     const didIPay = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find(s => s.friendId && s.friendId?._id === userId);
 
         if (!userSplit || !userSplit?.paidFromPaymentMethodId || !userSplit?.paidFromPaymentMethodId?.label || Math.abs(userSplit.payAmount) == 0) return '';
         return `· ${userSplit?.paidFromPaymentMethodId?.label}`
@@ -42,13 +42,13 @@ const ExpenseItem = ({
 
         if (!payer || !receiver) return "Invalid settlement";
 
-        const payerName = payer.friendId._id === userId ? "You" : payer.friendId.name;
-        const receiverName = receiver.friendId._id === userId ? "you" : receiver.friendId.name;
+        const payerName = payer.friendId?._id === userId ? "You" : payer.friendId?.name;
+        const receiverName = receiver.friendId?._id === userId ? "you" : receiver.friendId?.name;
 
         return `${payerName} paid ${receiverName}`;
     };
     const getOweInfo = (splits) => {
-        const userSplit = splits.find(s => s.friendId && s.friendId._id === userId);
+        const userSplit = splits.find(s => s.friendId && s.friendId?._id === userId);
         if (!userSplit) return null;
 
         const { oweAmount = 0, payAmount = 0 } = userSplit;

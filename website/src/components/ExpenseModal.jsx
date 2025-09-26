@@ -118,7 +118,7 @@ export default function ExpenseModal({
             setPaymentMethod(id);
         } else {
             setSelectedFriends(prev =>
-                prev.map(f => f._id === paymentModal.friendId ? { ...f, selectedPaymentMethodId: id } : f)
+                prev.map(f => f?._id === paymentModal.friendId ? { ...f, selectedPaymentMethodId: id } : f)
             );
         }
     };
@@ -244,12 +244,12 @@ export default function ExpenseModal({
     };
     const handleOweChange = (id, val) => {
         const v = Number(val);
-        setSelectedFriends(arr => arr.map(f => f._id === id ? { ...f, oweAmount: v, owePercent: undefined } : f));
+        setSelectedFriends(arr => arr.map(f => f?._id === id ? { ...f, oweAmount: v, owePercent: undefined } : f));
     };
 
     const handleOwePercentChange = (id, val) => {
         const p = Number(val);
-        setSelectedFriends(arr => arr.map(f => f._id === id ? { ...f, owePercent: p, oweAmount: Number(((p / 100) * amountNum).toFixed(2)) } : f));
+        setSelectedFriends(arr => arr.map(f => f?._id === id ? { ...f, owePercent: p, oweAmount: Number(((p / 100) * amountNum).toFixed(2)) } : f));
     };
 
     const equalizePay = (arr) => {
@@ -293,7 +293,7 @@ export default function ExpenseModal({
 
     const togglePaying = (friendId) => {
         setSelectedFriends(prev => {
-            let next = prev.map(f => f._id === friendId ? { ...f, paying: !f.paying } : f);
+            let next = prev.map(f => f?._id === friendId ? { ...f, paying: !f.paying } : f);
             next = equalizePay(next);
             return next;
         });
@@ -301,7 +301,7 @@ export default function ExpenseModal({
 
     const toggleOwing = (friendId) => {
         setSelectedFriends(prev => {
-            let next = prev.map(f => f._id === friendId ? { ...f, owing: !f.owing } : f);
+            let next = prev.map(f => f?._id === friendId ? { ...f, owing: !f.owing } : f);
             if (form.splitMode === "equal") next = equalizeOwe(next);
             else next = deleteOwe(next)
             return next;
@@ -357,7 +357,7 @@ export default function ExpenseModal({
 
     const addSplitMember = (friendId, name) => {
         if (!friendId) return;
-        setSelectedFriends(prev => prev.some(f => f._id === friendId)
+        setSelectedFriends(prev => prev.some(f => f?._id === friendId)
             ? prev
             : [...prev, { _id: friendId, name: name || "Member", paying: false, payAmount: 0, owing: false, oweAmount: 0 }]);
     };
@@ -613,7 +613,7 @@ export default function ExpenseModal({
             splits:
                 form.mode === 'split'
                     ? selectedFriends.map(f => ({
-                        friendId: f._id || f.friendId || 'me',
+                        friendId: f?._id || f.friendId || 'me',
                         paying: !!f.paying,
                         owing: !!f.owing,
                         payAmount: Number(f.payAmount || 0),
@@ -659,8 +659,8 @@ export default function ExpenseModal({
         const oldSelections = {};
         if (showModal.splits) {
             showModal.splits.forEach((s) => {
-                // Use either .friendId._id or .friendId if it's an ID, depending on how your data is structured
-                const fid = s.friendId._id || s.friendId;
+                // Use either .friendId?._id or .friendId if it's an ID, depending on how your data is structured
+                const fid = s.friendId?._id || s.friendId;
                 if (s?.paidFromPaymentMethodId) { // adjust name if needed
                     oldSelections[fid] = s?.paidFromPaymentMethodId?._id ? s?.paidFromPaymentMethodId?._id : null;
                 }
@@ -668,10 +668,10 @@ export default function ExpenseModal({
         }
         setSelectedFriends((prev) =>
             prev.map((f) => {
-                const raw = map[f._id === 'me' ? user._id : f._id] || [];
+                const raw = map[f?._id === 'me' ? user._id : f?._id] || [];
                 let selectedPaymentMethodId = f.selectedPaymentMethodId;
                 // If editing (showModal), set from old if present & valid
-                const oldSelected = oldSelections[f._id];
+                const oldSelected = oldSelections[f?._id];
                 if (oldSelected && raw.some(m => m.paymentMethodId === oldSelected)) {
                     selectedPaymentMethodId = oldSelected;
                 } else {
@@ -780,7 +780,7 @@ export default function ExpenseModal({
     }, [splits, userId]);
 
     useEffect(() => {
-        if (isEditing) updateFriendsPaymentMethods(selectedFriends.map((f) => f._id))
+        if (isEditing) updateFriendsPaymentMethods(selectedFriends.map((f) => f?._id))
     }, [isEditing])
 
 
@@ -1186,11 +1186,11 @@ export default function ExpenseModal({
                                     <div className="w-full flex flex-wrap gap-2">
                                         {selectedFriends.map(f => (
                                             <div
-                                                key={`pay-${f._id}`}
-                                                onClick={() => togglePaying(f._id)}
+                                                key={`pay-${f?._id}`}
+                                                onClick={() => togglePaying(f?._id)}
                                                 className={`px-3 py-1 rounded-xl border-2 cursor-pointer transition-all text-sm ${f.paying ? 'bg-teal-300 text-black border-teal-300' : 'bg-transparent text-[#EBF1D5] border-[#81827C]'}`}
                                             >
-                                                <p className="capitalize">{f.name} {f._id == userId ? '(You)' : ''}</p>
+                                                <p className="capitalize">{f?.name} {f?._id == userId ? '(You)' : ''}</p>
                                             </div>
                                         ))}
                                     </div>
@@ -1198,14 +1198,14 @@ export default function ExpenseModal({
                                     {(selectedFriends.filter(f => f.paying).length > 1 || payersWithPM.length > 0) && (
                                         <div className="w-full flex flex-col gap-2">
                                             {selectedFriends.filter(f => f.paying).map(f => (
-                                                <div key={`payAmount-${f._id}`} className="flex justify-between items-center w-full">
-                                                    <p className="capitalize">{f.name} {f._id == userId ? '(You)' : ''}</p>
+                                                <div key={`payAmount-${f?._id}`} className="flex justify-between items-center w-full">
+                                                    <p className="capitalize">{f?.name} {f?._id == userId ? '(You)' : ''}</p>
                                                     <div className="flex flex-row gap-2 items-end">
                                                         {/* Only show button when >1 methods; auto-select kept for single method */}
                                                         {Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1 && (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => openPaymentModal({ context: 'split', friendId: f._id })}
+                                                                onClick={() => openPaymentModal({ context: 'split', friendId: f?._id })}
                                                                 className="bg-transparent border-2 border-[#55554f] text-[#EBF1D5] px-2 py-1 rounded-md hover:border-teal-600 transition"
                                                             >
                                                                 {(() => {
@@ -1224,7 +1224,7 @@ export default function ExpenseModal({
                                                                 const val = Number(e.target.value || 0);
                                                                 console.log(val);
 
-                                                                setSelectedFriends(prev => prev.map(p => p._id === f._id ? { ...p, payAmount: val } : p));
+                                                                setSelectedFriends(prev => prev.map(p => p._id === f?._id ? { ...p, payAmount: val } : p));
                                                             }}
 
 
@@ -1237,7 +1237,7 @@ export default function ExpenseModal({
                                                         value={f.payAmount}
                                                         onChange={(e) => {
                                                             const v = Number(e.target.value || 0);
-                                                            setSelectedFriends(prev => prev.map(x => x._id === f._id ? { ...x, payAmount: v } : x));
+                                                            setSelectedFriends(prev => prev.map(x => x._id === f?._id ? { ...x, payAmount: v } : x));
                                                         }}
                                                         placeholder="Amount"
                                                     /> */}
@@ -1265,11 +1265,11 @@ export default function ExpenseModal({
                                         <div className="w-full flex flex-wrap gap-2">
                                             {selectedFriends.map(f => (
                                                 <div
-                                                    key={`owe-${f._id}`}
-                                                    onClick={() => toggleOwing(f._id)}
+                                                    key={`owe-${f?._id}`}
+                                                    onClick={() => toggleOwing(f?._id)}
                                                     className={`px-3 py-1 rounded-xl border-2 cursor-pointer transition-all text-sm ${f.owing ? 'bg-teal-300 text-black border-teal-300' : 'bg-transparent text-[#EBF1D5] border-[#81827C]'}`}
                                                 >
-                                                    <p className="capitalize">{f.name} {f._id == userId ? '(You)' : ''}</p>
+                                                    <p className="capitalize">{f?.name} {f?._id == userId ? '(You)' : ''}</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -1307,14 +1307,14 @@ export default function ExpenseModal({
                                         {selectedFriends.filter(f => f.owing).length > 1 && (
                                             <div className="w-full flex flex-col gap-2">
                                                 {selectedFriends.filter(f => f.owing).map(f => (
-                                                    <div key={`oweAmount-${f._id}`} className="flex justify-between items-center w-full">
-                                                        <p className="capitalize">{f.name} {f._id == userId ? '(You)' : ''}</p>
+                                                    <div key={`oweAmount-${f?._id}`} className="flex justify-between items-center w-full">
+                                                        <p className="capitalize">{f?.name} {f?._id == userId ? '(You)' : ''}</p>
                                                         {form.splitMode === "percent" ? (
                                                             <input
                                                                 className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 text-right"
                                                                 type="number"
                                                                 value={f.owePercent ?? ""}
-                                                                onChange={(e) => handleOwePercentChange(f._id, e.target.value)}
+                                                                onChange={(e) => handleOwePercentChange(f?._id, e.target.value)}
                                                                 placeholder="Percent"
                                                             />
                                                         ) : form.splitMode === "value" ? (
@@ -1322,7 +1322,7 @@ export default function ExpenseModal({
                                                                 className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 text-right"
                                                                 type="number"
                                                                 value={f.oweAmount ?? ""}
-                                                                onChange={(e) => handleOweChange(f._id, e.target.value)}
+                                                                onChange={(e) => handleOweChange(f?._id, e.target.value)}
                                                                 placeholder="Amount"
                                                             />
                                                         ) : (

@@ -18,6 +18,7 @@
     "@react-native-picker/picker": "2.11.1",
     "android-credential-manager": "^1.0.6",
     "expo": "~53.0.22",
+    "expo-apple-authentication": "~7.2.4",
     "expo-asset": "~11.1.7",
     "expo-auth-session": "^6.2.1",
     "expo-clipboard": "^7.1.5",

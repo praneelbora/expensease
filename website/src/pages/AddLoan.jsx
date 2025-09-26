@@ -116,10 +116,10 @@ const AddLoan = () => {
         }
         const q = search.toLowerCase();
         const filtered = friends
-            .map((f) => ({ ...f, selected: counterParty?._id === f._id }))
+            .map((f) => ({ ...f, selected: counterParty?._id === f?._id }))
             .filter(
                 (f) =>
-                    f.name.toLowerCase().includes(q) || f.email.toLowerCase().includes(q)
+                    f?.name.toLowerCase().includes(q) || f.email.toLowerCase().includes(q)
             )
             .sort((a, b) => (b.selected === true) - (a.selected === true));
         setFilteredFriends(filtered);
@@ -192,7 +192,7 @@ const AddLoan = () => {
         // only preselect if we DID come from friend page AND haven't unlocked AND no selection yet
         if (!fromFriendIdRef.current || allowChangeFriend || friends.length === 0 || counterParty) return;
 
-        const pre = friends.find(f => f._id === fromFriendIdRef.current);
+        const pre = friends.find(f => f?._id === fromFriendIdRef.current);
         if (pre) {
             setCounterParty(pre);
             setPaymentMethodsUpdated(false)
@@ -298,7 +298,7 @@ const AddLoan = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 mt-3">
                                         {filteredFriends.map((friend) => (
                                             <div
-                                                key={friend._id}
+                                                key={friend?._id}
                                                 onClick={() => {
                                                     setCounterParty(friend)
                                                     setPaymentMethodsUpdated(false)
@@ -307,7 +307,7 @@ const AddLoan = () => {
                                                 className="flex flex-col gap-1 cursor-pointer hover:bg-[#1f1f1f] py-2 rounded-md transition px-2"
                                             >
                                                 <h2 className="text-xl font-semibold capitalize">
-                                                    {friend.name}
+                                                    {friend?.name}
                                                 </h2>
                                                 <p className="max-w-full break-words text-wrap text-[#81827C] lowercase">{friend.email}</p>
                                                 <hr className="border-[#333]" />

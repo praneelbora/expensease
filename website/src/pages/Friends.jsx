@@ -567,14 +567,14 @@ const Friends = () => {
                 // text match
                 const matchText =
                     !q ||
-                    f.name?.toLowerCase().includes(q) ||
+                    f?.name?.toLowerCase().includes(q) ||
                     f.email?.toLowerCase().includes(q);
 
                 if (!matchText) return false;
 
                 if (activeFilter === "all") return true;
 
-                const cat = friendCategory(String(f._id));
+                const cat = friendCategory(String(f?._id));
                 if (activeFilter === "settled") return cat === "settled";
                 if (activeFilter === "owes_me") return cat === "owes_me";
                 if (activeFilter === "i_owe") return cat === "i_owe";
@@ -802,34 +802,34 @@ const Friends = () => {
 
                             <div className="divide-y divide-[#212121]">
                                 {filteredFriends.map((friend) => {
-                                    const list = mergedBalances[String(friend._id)] || [];
+                                    const list = mergedBalances[String(friend?._id)] || [];
                                     const dominant = list[0]; // largest absolute
                                     const otherCount = Math.max(list.length - 1, 0);
 
                                     return (
                                         <button
-                                            key={friend._id}
+                                            key={friend?._id}
                                             onClick={() => {
                                                 logEvent("navigate", {
                                                     fromScreen: "friends",
                                                     toScreen: "friend_detail",
                                                     source: "friend_list",
                                                 });
-                                                navigate(`/friends/${friend._id}`);
+                                                navigate(`/friends/${friend?._id}`);
                                             }}
                                             className={`w-full flex items-center gap-3 py-3 active:scale-[.99] transition ${touchMin}`}
                                             role="listitem"
-                                            aria-label={`Open ${friend.name} details`}
+                                            aria-label={`Open ${friend?.name} details`}
                                         >
                                             {/* avatar */}
                                             <div className="h-10 w-10 rounded-full bg-[#1f1f1f] border border-white/10 flex items-center justify-center text-sm uppercase">
-                                                {initials(friend.name)}
+                                                {initials(friend?.name)}
                                             </div>
 
                                             {/* text */}
                                             <div className="min-w-0 flex-1 text-left">
                                                 <p className="text-[15px] font-semibold capitalize truncate">
-                                                    {friend.name}
+                                                    {friend?.name}
                                                 </p>
                                                 <p className="text-xs text-[#888] truncate lowercase">
                                                     {friend.email}

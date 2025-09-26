@@ -13,6 +13,7 @@ import {
     Alert,
 } from "react-native";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -102,6 +103,8 @@ export default function NewExpenseScreen() {
     const hasPreselectedGroup = useRef(false);
     const hasPreselectedFriend = useRef(false);
     const preselectedFriendId = useRef(null);
+    const preselectedGroupId = useRef(null); // <-- NEW
+
     const currencySheetRef = useRef(null);
     const categorySheetRef = useRef(null);
     const paymentSheetRef = useRef(null);
@@ -135,34 +138,44 @@ export default function NewExpenseScreen() {
 
     // ---------- fetchers ----------
     const pullFriends = useCallback(async () => {
-        if (!userToken) return;
+        if (!userToken) {
+            console.debug("[NewExpense] pullFriends: no userToken");
+            return;
+        }
         try {
+            console.debug("[NewExpense] pullFriends: requesting");
             const data = await getFriends(userToken);
             setFriends(Array.isArray(data) ? data : []);
+            console.debug("[NewExpense] pullFriends: got", Array.isArray(data) ? data.length : 0, "friends");
         } catch (e) {
-            console.warn("friends:", e?.message || e);
+            console.warn("[NewExpense] pullFriends error:", e?.message || e);
         }
     }, [userToken]);
 
     const pullGroups = useCallback(async () => {
         if (!userToken) return;
         try {
+            console.debug("[NewExpense] pullGroups: requesting");
             const data = await getAllGroups(userToken);
             setGroups(Array.isArray(data) ? data : []);
+            console.debug("[NewExpense] pullGroups: got", Array.isArray(data) ? data.length : 0, "groups");
         } catch (e) {
-            console.warn("groups:", e?.message || e);
+            console.warn("[NewExpense] pullGroups error:", e?.message || e);
         }
     }, [userToken]);
 
     const pullSuggestions = useCallback(async () => {
         if (!userToken) return;
         try {
+            console.debug("[NewExpense] pullSuggestions: requesting");
             const data = await getSuggestions(userToken);
             setSuggestions(data || null);
+            console.debug("[NewExpense] pullSuggestions: got suggestions");
         } catch (e) {
-            console.warn("suggestions:", e?.message || e);
+            console.warn("[NewExpense] pullSuggestions error:", e?.message || e);
         }
     }, [userToken]);
+
 
     const refreshAll = useCallback(async () => {
         setRefreshing(true);
@@ -188,15 +201,15 @@ export default function NewExpenseScreen() {
 
             let arr = friends.map((f) => ({
                 ...f,
-                selected: selectedFriends.some((s) => String(s._id) === String(f._id)),
-                suggested: suggestedIds.includes(String(f._id)),
+                selected: selectedFriends.some((s) => String(s._id) === String(f?._id)),
+                suggested: suggestedIds.includes(String(f?._id)),
             }));
 
             if (!q) {
                 arr = arr.filter((f) => f.suggested);
             } else {
                 arr = arr.filter(
-                    (f) => f.name?.toLowerCase?.().includes(lower) || f.email?.toLowerCase?.().includes(lower)
+                    (f) => f?.name?.toLowerCase?.().includes(lower) || f.email?.toLowerCase?.().includes(lower)
                 );
                 arr.sort((a, b) => a.name.localeCompare(b.name));
             }
@@ -235,44 +248,68 @@ export default function NewExpenseScreen() {
         groupFilter(search);
     }, [search, friends, groups, suggestions, friendFilter, groupFilter]);
 
-    // ---------- preselect via params ----------
-    useEffect(() => {
-        if (!groups.length && !friends.length) return;
+    // ---------- preselect via params (run on each focus) ----------
+    useFocusEffect(
+        useCallback(() => {
+            // reset preselect markers when screen gains focus to allow repeated preselects
+            // (this prevents a stale "hasPreselectedFriend" from blocking re-selection)
+            hasPreselectedGroup.current = false;
+            hasPreselectedFriend.current = false;
+            preselectedFriendId.current = null;
 
-        const gid = params?.groupId;
-        const fid = params?.friendId;
-        if (gid && !hasPreselectedGroup.current) {
-            const g = groups.find((x) => String(x._id) === String(gid));
-            if (g) {
-                setExpenseMode("split");
-                hasPreselectedGroup.current = true;
-                toggleGroup(g);
+            if ((!groups || groups.length === 0) && (!friends || friends.length === 0)) {
+                console.debug("[NewExpense][focus] preselect: no friends or groups yet");
+                return;
             }
-        }
 
-        if (fid && !hasPreselectedFriend.current) {
-            const f = friends.find((x) => String(x._id) === String(fid));
-            if (f) {
-                setExpenseMode("split");
-                hasPreselectedFriend.current = true;
-                preselectedFriendId.current = f._id;
-                toggleFriend(f);
+            const gid = params?.groupId;
+            const fid = params?.friendId;
+            console.debug("[NewExpense][focus] preselect: params:", { gid, fid, groupsLen: groups.length, friendsLen: friends.length });
+
+            if (gid && !hasPreselectedGroup.current) {
+                const g = groups.find((x) => String(x._id) === String(gid));
+                if (g) {
+                    setExpenseMode("split");
+                    hasPreselectedGroup.current = true;
+                    preselectedGroupId.current = String(g._id); // <-- store original id
+                    toggleGroup(g);
+                }
             }
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [params?.groupId, params?.friendId, groups, friends]);
+
+            if (fid && !hasPreselectedFriend.current) {
+                const f = friends.find((x) => String(x._id) === String(fid));
+                if (f) {
+                    setExpenseMode("split");
+                    hasPreselectedFriend.current = true;
+                    preselectedFriendId.current = String(f._id); // <-- store original id
+                    toggleFriend(f);
+                }
+            }
+
+
+            // optional cleanup when screen loses focus — we clear refs so future opens behave as new
+            return () => {
+                console.debug("[NewExpense][blur] clearing preselect refs on blur");
+                hasPreselectedGroup.current = false;
+                hasPreselectedFriend.current = false;
+                preselectedFriendId.current = null;
+            };
+            // intentionally include friends/groups/params so focus logic has the latest lists
+        }, [params?.groupId, params?.friendId, groups, friends])
+    );
 
     // ---------- selection handlers ----------
     const addMeIfNeeded = (list) => {
+        if (!user || !user._id) return list;
         let updated = list.map((x) => {
-            if (x._id === user._id) {
+            if (String(x._id) === String(user._id)) {
                 return { ...x, name: `${user.name} (Me)` };
             }
             return x;
         });
 
-        const hasNonMe = updated.some((x) => x._id !== user._id);
-        const meExists = updated.some((x) => x._id === user._id);
+        const hasNonMe = updated.some((x) => String(x._id) !== String(user._id));
+        const meExists = updated.some((x) => String(x._id) === String(user._id));
 
         if (hasNonMe && !meExists) {
             updated = [
@@ -292,12 +329,13 @@ export default function NewExpenseScreen() {
         return updated;
     };
 
+
     const updateFriendsPaymentMethods = async (ids) => {
         try {
             const map = await fetchFriendsPaymentMethods(ids, userToken);
             setSelectedFriends((prev) =>
                 prev.map((f) => {
-                    const raw = map[f._id] || [];
+                    const raw = map[f?._id] || [];
                     let selectedPaymentMethodId = f.selectedPaymentMethodId;
                     const stillValid = raw.some((m) => m.paymentMethodId === selectedPaymentMethodId);
                     if (!stillValid) {
@@ -312,44 +350,79 @@ export default function NewExpenseScreen() {
     };
 
     const toggleFriend = (friend) => {
-        let upd = [...selectedFriends];
-        const exists = upd.some((f) => f._id === friend._id);
-        if (exists) {
-            upd = upd.filter((f) => f._id !== friend._id);
-        } else {
-            upd = [...upd, { ...friend, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }];
+        try {
+            console.debug("[NewExpense] toggleFriend called for:", friend?._id, friend?.name);
+            let upd = [...selectedFriends];
+            const exists = upd.some((f) => String(f?._id) === String(friend?._id));
+            if (exists) {
+                upd = upd.filter((f) => String(f?._id) !== String(friend?._id));
+                console.debug("[NewExpense] toggleFriend: removed", friend._id);
+                if (String(preselectedFriendId.current) === String(friend._id)) {
+                    console.debug("[NewExpense] toggleFriend: user removed preselected friend -> cancelling preselect nav");
+                    hasPreselectedFriend.current = false;
+                    preselectedFriendId.current = null;
+                }
+            } else {
+                upd = [...upd, { ...friend, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }];
+                console.debug("[NewExpense] toggleFriend: added", friend._id);
+            }
+            upd = addMeIfNeeded(upd);
+            setSelectedFriends(upd);
+            // schedule payment methods update for the changed list
+            updateFriendsPaymentMethods(upd.map((f) => f?._id));
+            // re-run local friend filter so suggested UI is updated
+            friendFilter(search);
+        } catch (e) {
+            console.warn("[NewExpense] toggleFriend error:", e?.message || e);
         }
-        upd = addMeIfNeeded(upd);
-        setSelectedFriends(upd);
-        updateFriendsPaymentMethods(upd.map((f) => f._id));
-        friendFilter(search);
     };
+
 
     const toggleGroup = (group) => {
-        if (groupSelect?._id === group._id) {
-            // deselect group
-            const ids = new Set(group.members.map((m) => String(m._id)));
-            const upd = selectedFriends.filter((f) => !ids.has(String(f._id)));
-            setSelectedFriends(upd);
-            setGroupSelect(null);
-        } else {
-            const newMembers = (group.members || [])
-                .filter((gm) => !selectedFriends.some((f) => String(f._id) === String(gm._id) && gm._id !== user._id))
-                .map((gm) => ({ ...gm, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }));
-            const upd = addMeIfNeeded([...selectedFriends, ...newMembers]);
-            setSelectedFriends(upd);
-            setGroupSelect(group);
-            updateFriendsPaymentMethods(upd.map((f) => f._id));
+        try {
+            console.debug("[NewExpense] toggleGroup called for:", group?._id, group?.name, "currentGroupSelect:", groupSelect?._id);
+            if (groupSelect?._id === group._id) {
+                // deselect group: remove group members from selectedFriends (but keep any other non-group selections)
+                const ids = new Set((group.members || []).map((m) => String(m._id)));
+                const upd = selectedFriends.filter((f) => !ids.has(String(f?._id)));
+                setSelectedFriends(upd);
+                setGroupSelect(null);
+                console.debug("[NewExpense] toggleGroup: group deselected, updated selectedFriends count:", upd.length);
+                if (String(preselectedGroupId.current) === String(group._id)) {
+                    console.debug("[NewExpense] toggleGroup: user removed preselected group -> cancelling preselect nav");
+                    hasPreselectedGroup.current = false;
+                    preselectedGroupId.current = null;
+                }
+            } else {
+                // add group's members who are not already in selectedFriends
+                const existingIds = new Set((selectedFriends || []).map((f) => String(f?._id)));
+                const newMembers = (group.members || [])
+                    .filter((gm) => !existingIds.has(String(gm._id)) && String(gm._id) !== String(user?._id))
+                    .map((gm) => ({ ...gm, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }));
+                const upd = addMeIfNeeded([...selectedFriends, ...newMembers]);
+                setSelectedFriends(upd);
+                setGroupSelect(group);
+                updateFriendsPaymentMethods(upd.map((f) => f?._id));
+                console.debug("[NewExpense] toggleGroup: group selected, added members:", newMembers.map(m => m._id));
+            }
+        } catch (e) {
+            console.warn("[NewExpense] toggleGroup error:", e?.message || e);
         }
     };
 
+
     const removeFriend = (friend) => {
-        let upd = selectedFriends.filter((f) => f._id !== friend._id);
+        let upd = selectedFriends.filter((f) => f?._id !== friend?._id);
         const onlyMeLeft = upd.length === 1 && upd[0]._id === user._id;
         if (onlyMeLeft || upd.length === 0) {
-            upd = upd.filter((f) => f._id !== user._id);
+            upd = upd.filter((f) => f?._id !== user._id);
         }
         setSelectedFriends(upd);
+        if (String(preselectedFriendId.current) === String(friend?._id)) {
+            hasPreselectedFriend.current = false;
+            preselectedFriendId.current = null;
+            console.debug("[NewExpense] removeFriend: cancelled preselect navigation for friend", friend?._id);
+        }
     };
 
     // ---------- distributions ----------
@@ -390,14 +463,14 @@ export default function NewExpenseScreen() {
     };
 
     const togglePaying = (friendId) => {
-        let upd = selectedFriends.map((f) => (f._id === friendId ? { ...f, paying: !f.paying } : f));
+        let upd = selectedFriends.map((f) => (f?._id === friendId ? { ...f, paying: !f.paying } : f));
         upd = distributeEqualPay(upd);
         setSelectedFriends(upd);
-        updateFriendsPaymentMethods(upd.map((f) => f._id));
+        updateFriendsPaymentMethods(upd.map((f) => f?._id));
     };
 
     const toggleOwing = (friendId) => {
-        let upd = selectedFriends.map((f) => (f._id === friendId ? { ...f, owing: !f.owing } : f));
+        let upd = selectedFriends.map((f) => (f?._id === friendId ? { ...f, owing: !f.owing } : f));
         if (mode === "equal") upd = distributeEqualOwe(upd);
         setSelectedFriends(upd);
     };
@@ -406,18 +479,18 @@ export default function NewExpenseScreen() {
         const p = num(percent);
         setSelectedFriends((prev) =>
             prev.map((f) =>
-                f._id === friendId ? { ...f, owePercent: p, oweAmount: Number((num(amount) * (p / 100)).toFixed(2)) } : f
+                f?._id === friendId ? { ...f, owePercent: p, oweAmount: Number((num(amount) * (p / 100)).toFixed(2)) } : f
             )
         );
     };
     const setOweAmount = (friendId, v) => {
         const a = num(v);
-        setSelectedFriends((prev) => prev.map((f) => (f._id === friendId ? { ...f, oweAmount: a } : f)));
+        setSelectedFriends((prev) => prev.map((f) => (f?._id === friendId ? { ...f, oweAmount: a } : f)));
     };
 
     const setPayAmount = (friendId, v) => {
         const a = num(v);
-        setSelectedFriends((prev) => prev.map((f) => (f._id === friendId ? { ...f, payAmount: a } : f)));
+        setSelectedFriends((prev) => prev.map((f) => (f?._id === friendId ? { ...f, payAmount: a } : f)));
     };
 
     // react to amount change: reset split mode-derived fields (but set sensible defaults when needed)
@@ -508,7 +581,7 @@ export default function NewExpenseScreen() {
         if (!(num(amount) > 0)) return;
 
         // must have at least one other friend selected (besides me)
-        const others = selectedFriends.filter((f) => String(f._id) !== String(user?._id));
+        const others = selectedFriends.filter((f) => String(f?._id) !== String(user?._id));
         if (others.length === 0) return;
 
         const payers = selectedFriends.filter((f) => f.paying);
@@ -554,7 +627,7 @@ export default function NewExpenseScreen() {
 
         // only run when user hasn't interacted (no explicit payers and no explicit owers)
 
-        const participantsExcludingMe = selectedFriends.filter((f) => String(f._id) !== String(user?._id));
+        const participantsExcludingMe = selectedFriends.filter((f) => String(f?._id) !== String(user?._id));
 
         // baseline: clear flags/numbers
         let neutral = selectedFriends.map((f) => ({
@@ -569,7 +642,7 @@ export default function NewExpenseScreen() {
         if (participantsExcludingMe.length === 0) {
             // Only me is present — make me payer and owe = 0
             neutral = neutral.map((f) =>
-                String(f._id) === String(user?._id)
+                String(f?._id) === String(user?._id)
                     ? { ...f, paying: true, payAmount: total, owing: false, oweAmount: 0, owePercent: 0 }
                     : f
             );
@@ -579,7 +652,7 @@ export default function NewExpenseScreen() {
             // and everyone (including you) owes equally.
 
             neutral = neutral.map((f) => {
-                if (String(f._id) === String(user?._id)) {
+                if (String(f?._id) === String(user?._id)) {
                     return {
                         ...f,
                         paying: true,
@@ -650,7 +723,7 @@ export default function NewExpenseScreen() {
             setPaymentMethod(id);
             return;
         }
-        setSelectedFriends((prev) => prev.map((f) => (f._id === paymentModalCtx.friendId ? { ...f, selectedPaymentMethodId: id } : f)));
+        setSelectedFriends((prev) => prev.map((f) => (f?._id === paymentModalCtx.friendId ? { ...f, selectedPaymentMethodId: id } : f)));
     };
 
     const requirePersonalPick =
@@ -663,11 +736,13 @@ export default function NewExpenseScreen() {
             .filter((f) => !f.selectedPaymentMethodId);
     }, [selectedFriends]);
     const selectedCategory = useMemo(() => {
-        const a = categoryOptions.filter((opt) => opt.value === category)
-        if (a.length == 1) return a[0].label
+        const a = categoryOptions.filter((opt) => opt.value === category);
+        if (a.length === 1) return a[0].label;
+        // fallback when category is 'default' or not found
+        if (!category || category === "default") return "Category";
+        return category;
+    }, [category, categoryOptions]);
 
-
-    }, [category])
     // ---------- validation + hint message ----------
     const [hint, setHint] = useState("");
     useEffect(() => {
@@ -687,7 +762,7 @@ export default function NewExpenseScreen() {
         }
 
         // split:
-        const hasAny = groupSelect || selectedFriends.some((f) => f._id !== user._id);
+        const hasAny = groupSelect || selectedFriends.some((f) => f?._id !== user._id);
         if (!hasAny) return setHint("Select a friend or a group to split with.");
         if (!desc.trim()) return setHint("Add a short description for this expense.");
         if (!cur) return setHint("Pick a currency.");
@@ -737,7 +812,7 @@ export default function NewExpenseScreen() {
             return true;
         }
 
-        const hasAny = groupSelect || selectedFriends.some((f) => f._id !== user._id);
+        const hasAny = groupSelect || selectedFriends.some((f) => f?._id !== user._id);
         if (!hasAny) return false;
 
         if (!isPaidValid) return false;
@@ -774,7 +849,7 @@ export default function NewExpenseScreen() {
             currency &&
             num(amount) > 0 &&
             // at least one other friend selected besides me
-            selectedFriends.filter((f) => String(f._id) !== String(user?._id)).length > 0
+            selectedFriends.filter((f) => String(f?._id) !== String(user?._id)).length > 0
         );
     }, [expenseMode, desc, category, currency, amount, selectedFriends, user]);
 
@@ -829,7 +904,7 @@ export default function NewExpenseScreen() {
                 payload.splits = selectedFriends
                     .filter((f) => f.owing || f.paying)
                     .map((f) => ({
-                        friendId: f._id,
+                        friendId: f?._id,
                         owing: !!f.owing,
                         paying: !!f.paying,
                         oweAmount: num(f.oweAmount),
@@ -853,8 +928,25 @@ export default function NewExpenseScreen() {
             setExpenseDate(todayISO());
             await fetchPaymentMethods();
             // go back if preselected
-            if (hasPreselectedGroup.current && groupSelect?._id) return router.back();
-            if (hasPreselectedFriend.current && preselectedFriendId?._id) return router.back();
+            // go back if preselected (fixed ref usage)
+            console.debug("[NewExpense] submit: hasPreselectedGroup:", hasPreselectedGroup.current, "groupSelectId:", groupSelect?._id);
+            console.debug("[NewExpense] submit: hasPreselectedFriend:", hasPreselectedFriend.current, "preselectedFriendId.current:", preselectedFriendId.current);
+
+            if (hasPreselectedGroup.current && groupSelect?._id) {
+                console.debug("[NewExpense] preselected group -> navigating back");
+                hasPreselectedGroup.current = false;
+                hasPreselectedFriend.current = false;
+                preselectedFriendId.current = null;
+                return router.back();
+            }
+            if (hasPreselectedFriend.current && preselectedFriendId.current) {
+                console.debug("[NewExpense] preselected friend -> navigating back");
+                hasPreselectedGroup.current = false;
+                hasPreselectedFriend.current = false;
+                preselectedFriendId.current = null;
+                return router.back();
+            }
+
 
             setBanner({ type: "success", text: "Expense saved." });
             setTimeout(() => setBanner(null), 2000);
@@ -869,8 +961,8 @@ export default function NewExpenseScreen() {
     // ---------- small helpers for UI summary ----------
     const defaultSummaryText = useMemo(() => {
         // default: "Paid by me — split by everyone equally"
-        const me = selectedFriends.find((f) => String(f._id) === String(user?._id));
-        const others = selectedFriends.filter((f) => String(f._id) !== String(user?._id));
+        const me = selectedFriends.find((f) => String(f?._id) === String(user?._id));
+        const others = selectedFriends.filter((f) => String(f?._id) !== String(user?._id));
         if (!me || others.length === 0) return "";
         return `Paid by you, split by ${others.length + 1} ${others.length + 1 === 1 ? "person" : "people"} equally`;
     }, [selectedFriends, user]);
@@ -902,7 +994,7 @@ export default function NewExpenseScreen() {
                 </View>
 
                 {/* Search (split, when nothing selected) */}
-                {expenseMode === "split" && !groupSelect && selectedFriends.filter((f) => f._id !== user._id).length === 0 ? (
+                {expenseMode === "split" && !groupSelect && selectedFriends.filter((f) => f?._id !== user._id).length === 0 ? (
                     <View style={{ width: "100%", paddingTop: 10, flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4 }}>
                         <TextInput
                             placeholder="Search friends or groups"
@@ -944,13 +1036,13 @@ export default function NewExpenseScreen() {
                     {expenseMode === "split" && (groups.length > 0 || friends.length > 0) ? (
                         <>
                             {/* Selected summary */}
-                            {(groupSelect || selectedFriends.filter((f) => f._id !== user._id).length > 0) && (
+                            {(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
                                 <View style={{ marginTop: 8, gap: 8 }}>
                                     {!groupSelect ? (
                                         <View>
                                             <Text style={styles.sectionLabel}>Friend Selected</Text>
                                             {selectedFriends
-                                                .filter((f) => f._id !== user._id)
+                                                .filter((f) => f?._id !== user._id)
                                                 .map((fr) => (
                                                     <View key={`sel-${fr._id}`} style={styles.selRow}>
                                                         <Text style={styles.selText}>{fr.name}</Text>
@@ -975,7 +1067,7 @@ export default function NewExpenseScreen() {
                             )}
 
                             {/* Suggestions / search results */}
-                            {!(groupSelect || selectedFriends.filter((f) => f._id !== user._id).length > 0) && (
+                            {!(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
                                 <View style={{ marginTop: 12, gap: 12 }}>
                                     {filteredGroups.length > 0 && (
                                         <View>
@@ -1017,7 +1109,7 @@ export default function NewExpenseScreen() {
                     ) : null}
 
                     {/* Create expense */}
-                    {(expenseMode === "personal" || selectedFriends.filter((f) => f._id !== user._id).length > 0) && (
+                    {(expenseMode === "personal" || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
                         <View style={{ marginTop: 10, gap: 10 }}>
                             <Text style={styles.sectionLabel}>Create Expense</Text>
 
@@ -1037,9 +1129,14 @@ export default function NewExpenseScreen() {
                                     keyboardType="number-pad"
                                     value={String(amount)}
                                     onChangeText={(text) => {
-                                        const numericValue = text.replace(/[^0-9]/g, "");
+                                        // allow digits and a single decimal point
+                                        const cleaned = text.replace(/[^0-9.]/g, "");
+                                        // prevent multiple dots
+                                        const parts = cleaned.split(".");
+                                        const numericValue = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
                                         setAmount(numericValue);
                                     }}
+
                                     style={[styles.input, { flex: 2 }]}
                                 />
                             </View>
@@ -1166,14 +1263,14 @@ export default function NewExpenseScreen() {
                                                                 return null
                                                             }
                                                             return (
-                                                                <View key={`pr-${f._id}`} style={styles.rowBetween}>
+                                                                <View key={`pr-${f?._id}`} style={styles.rowBetween}>
                                                                     <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
-                                                                        {f.name}
+                                                                        {f?.name}
                                                                     </Text>
                                                                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                                                         {many ? (
                                                                             <TouchableOpacity
-                                                                                onPress={() => openPaymentSheet({ context: "split", friendId: f._id })}
+                                                                                onPress={() => openPaymentSheet({ context: "split", friendId: f?._id })}
                                                                                 style={[
                                                                                     styles.pmBtn,
                                                                                     sel ? { borderColor: styles.colors.borderFallback, backgroundColor: "transparent" } : { borderColor: styles.colors.dangerFallback, backgroundColor: "rgba(244,67,54,0.08)" },
@@ -1190,7 +1287,7 @@ export default function NewExpenseScreen() {
                                                                                 placeholderTextColor={styles.colors.mutedFallback}
                                                                                 keyboardType="decimal-pad"
                                                                                 value={String(f.payAmount || "")}
-                                                                                onChangeText={(v) => setPayAmount(f._id, v)}
+                                                                                onChangeText={(v) => setPayAmount(f?._id, v)}
                                                                                 style={[styles.input, { width: 100, textAlign: "right" }]}
                                                                             />
                                                                         ) : null}
@@ -1264,11 +1361,11 @@ export default function NewExpenseScreen() {
                                                                 const isOwing = !!f.owing;
                                                                 return (
                                                                     <TouchableOpacity
-                                                                        key={`ow-${f._id}`}
+                                                                        key={`ow-${f?._id}`}
                                                                         onPress={() => {
                                                                             // toggle owing flag for this friend (works in all modes)
                                                                             setSelectedFriends((prev) => {
-                                                                                const updated = prev.map((x) => (x._id === f._id ? { ...x, owing: !x.owing } : x));
+                                                                                const updated = prev.map((x) => (x._id === f?._id ? { ...x, owing: !x.owing } : x));
                                                                                 // re-run equal distribution if we're in equal mode
                                                                                 if (mode === "equal") return distributeEqualOwe(updated);
                                                                                 return updated;
@@ -1288,7 +1385,7 @@ export default function NewExpenseScreen() {
                                                                             ) : null}
 
                                                                             <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
-                                                                                {f.name}
+                                                                                {f?.name}
                                                                             </Text>
                                                                         </View>
 
@@ -1299,7 +1396,7 @@ export default function NewExpenseScreen() {
                                                                                 placeholderTextColor={styles.colors.mutedFallback}
                                                                                 keyboardType="decimal-pad"
                                                                                 value={String(f.owePercent ?? "")}
-                                                                                onChangeText={(v) => setOwePercent(f._id, v)}
+                                                                                onChangeText={(v) => setOwePercent(f?._id, v)}
                                                                                 style={[styles.input, { width: 100, textAlign: "right" }]}
                                                                             />
                                                                         ) : mode === "value" ? (
@@ -1308,7 +1405,7 @@ export default function NewExpenseScreen() {
                                                                                 placeholderTextColor={styles.colors.mutedFallback}
                                                                                 keyboardType="decimal-pad"
                                                                                 value={String(f.oweAmount || "")}
-                                                                                onChangeText={(v) => setOweAmount(f._id, v)}
+                                                                                onChangeText={(v) => setOweAmount(f?._id, v)}
                                                                                 style={[styles.input, { width: 100, textAlign: "right" }]}
                                                                             />
                                                                         ) : (

@@ -78,7 +78,7 @@ const AddExpense = () => {
     const hasPreselectedFriend = useRef(false);
     const preselectedFriendId = useRef(false);
     // Checks if "Me" is present
-    const isMePresent = selectedFriends?.some(f => f._id === 'me');
+    const isMePresent = selectedFriends?.some(f => f?._id === 'me');
 
     useEffect(() => {
         if (
@@ -102,7 +102,7 @@ const AddExpense = () => {
             location.state?.friendId
         ) {
             const preselectedFriend = friends.find(
-                f => f._id === location.state.friendId
+                f => f?._id === location.state.friendId
             );
 
             if (preselectedFriend) {
@@ -118,10 +118,10 @@ const AddExpense = () => {
     // Remove a friend after confirmation
     const handleRemoveFriend = (friend) => {
 
-        let updatedFriends = selectedFriends.filter(f => f._id !== friend._id);
+        let updatedFriends = selectedFriends.filter(f => f?._id !== friend?._id);
         const onlyMeLeft = updatedFriends.length === 1 && updatedFriends[0]._id === 'me';
         if (onlyMeLeft || updatedFriends.length === 0) {
-            updatedFriends = updatedFriends.filter(f => f._id !== 'me');
+            updatedFriends = updatedFriends.filter(f => f?._id !== 'me');
         }
 
         setSelectedFriends(updatedFriends);
@@ -223,7 +223,7 @@ const AddExpense = () => {
             expenseData.splits = selectedFriends
                 .filter(f => f.owing || f.paying)
                 .map(f => ({
-                    friendId: f._id,
+                    friendId: f?._id,
                     owing: f.owing,
                     paying: f.paying,
                     oweAmount: f.oweAmount,
@@ -273,7 +273,7 @@ const AddExpense = () => {
         // Merge into selectedFriends and auto-pick when there's exactly one option
         setSelectedFriends((prev) =>
             prev.map((f) => {
-                const raw = map[f._id == 'me' ? user._id : f._id] || [];
+                const raw = map[f?._id == 'me' ? user._id : f?._id] || [];
                 const methods = raw;
                 // keep existing selection if still valid
                 let selectedPaymentMethodId = f.selectedPaymentMethodId;
@@ -337,7 +337,7 @@ const AddExpense = () => {
 
     const handleOweChange = (friendId, value) => {
         const updated = selectedFriends.map(f =>
-            f._id === friendId ? { ...f, oweAmount: parseFloat(value) || 0 } : f
+            f?._id === friendId ? { ...f, oweAmount: parseFloat(value) || 0 } : f
         );
         setSelectedFriends(updated);
     };
@@ -345,7 +345,7 @@ const AddExpense = () => {
     // Update owePercent in percent mode
     const handleOwePercentChange = (friendId, percent) => {
         const updated = selectedFriends.map(f => {
-            if (f._id === friendId) {
+            if (f?._id === friendId) {
                 const oweAmount = (amount * (parseFloat(percent) / 100)) || 0;
                 return { ...f, owePercent: percent, oweAmount };
             }
@@ -416,13 +416,13 @@ const AddExpense = () => {
         // Deselect group
         if (group._id == groupSelect?._id) {
             const groupMemberIds = group.members.map(m => m._id);
-            const updated = selectedFriends.filter(f => !groupMemberIds.includes(f._id));
+            const updated = selectedFriends.filter(f => !groupMemberIds.includes(f?._id));
             setSelectedFriends(updated);
             setGroupSelect()
         } else {
             // Add group members if not already present
             const newMembers = group.members.filter(
-                gm => !selectedFriends.some(f => f._id === gm._id)
+                gm => !selectedFriends.some(f => f?._id === gm._id)
             ).map(gm => ({
                 ...gm,
                 paying: false,
@@ -432,7 +432,7 @@ const AddExpense = () => {
                 owePercent: 0
             }));
             setSelectedFriends([...selectedFriends, ...newMembers]);
-            updateFriendsPaymentMethods([...selectedFriends, ...newMembers]?.map((f) => f._id), userToken)
+            updateFriendsPaymentMethods([...selectedFriends, ...newMembers]?.map((f) => f?._id), userToken)
             setVal('')
             setGroupSelect(group)
         }
@@ -451,11 +451,11 @@ const AddExpense = () => {
     const toggleFriendSelection = (friend) => {
         let updatedSelected;
 
-        const isAlreadySelected = selectedFriends.some(sel => sel._id === friend._id);
+        const isAlreadySelected = selectedFriends.some(sel => sel._id === friend?._id);
 
         if (isAlreadySelected) {
             // Remove from selected
-            updatedSelected = selectedFriends.filter(sel => sel._id !== friend._id);
+            updatedSelected = selectedFriends.filter(sel => sel._id !== friend?._id);
         } else {
             // Add to selected
             updatedSelected = [
@@ -472,8 +472,8 @@ const AddExpense = () => {
         }
 
         // 👉 Ensure "Me" is at the start if any friend is selected
-        const hasFriends = updatedSelected.filter(f => f._id !== 'me').length > 0;
-        const isMePresent = updatedSelected.some(f => f._id === 'me');
+        const hasFriends = updatedSelected.filter(f => f?._id !== 'me').length > 0;
+        const isMePresent = updatedSelected.some(f => f?._id === 'me');
 
         if (hasFriends && !isMePresent) {
             updatedSelected = [
@@ -483,16 +483,16 @@ const AddExpense = () => {
         }
 
         setSelectedFriends(updatedSelected);
-        updateFriendsPaymentMethods(updatedSelected?.map((f) => f._id), userToken)
+        updateFriendsPaymentMethods(updatedSelected?.map((f) => f?._id), userToken)
 
         // Update filteredFriends
         const updatedFiltered = friends
             .map(friend => ({
                 ...friend,
-                selected: updatedSelected.some(sel => sel._id === friend._id),
+                selected: updatedSelected.some(sel => sel._id === friend?._id),
             }))
             .filter(friend =>
-                friend.name.toLowerCase().includes(val.toLowerCase()) ||
+                friend?.name.toLowerCase().includes(val.toLowerCase()) ||
                 friend.email.toLowerCase().includes(val.toLowerCase())
             );
 
@@ -564,8 +564,8 @@ const AddExpense = () => {
         // Step 1: enrich friend objects
         let filtered = friends.map(friend => ({
             ...friend,
-            selected: selectedFriends.some(sel => String(sel._id) === String(friend._id)),
-            suggested: suggestedIds?.includes(String(friend._id)) // convert to string
+            selected: selectedFriends.some(sel => String(sel._id) === String(friend?._id)),
+            suggested: suggestedIds?.includes(String(friend?._id)) // convert to string
         }));
 
         if (!val) {
@@ -574,7 +574,7 @@ const AddExpense = () => {
         } else {
             // ✅ Case 2: With search → match & sort by priority
             filtered = filtered.filter(friend =>
-                friend.name.toLowerCase().includes(lowerVal) ||
+                friend?.name.toLowerCase().includes(lowerVal) ||
                 friend.email.toLowerCase().includes(lowerVal)
             );
 
@@ -679,7 +679,7 @@ const AddExpense = () => {
     }, [expenseMode]);
     // pretty list: "Alice", "Alice & Bob", "Alice, Bob & Carol"
     const listNames = (arr = []) => {
-        const names = arr.map(f => f.name || "Someone");
+        const names = arr.map(f => f?.name || "Someone");
         if (names.length <= 1) return names.join("");
         if (names.length === 2) return names.join(" & ");
         return `${names.slice(0, -1).join(", ")} & ${names.slice(-1)}`;
@@ -743,7 +743,7 @@ const AddExpense = () => {
             setPaymentMethod(id);
         } else {
             setSelectedFriends(prev =>
-                prev.map(f => f._id === paymentModal.friendId ? { ...f, selectedPaymentMethodId: id } : f)
+                prev.map(f => f?._id === paymentModal.friendId ? { ...f, selectedPaymentMethodId: id } : f)
             );
         }
     };
@@ -765,7 +765,7 @@ const AddExpense = () => {
     const handleSelectPayment = (paymentMethodId) => {
         setSelectedFriends(prev =>
             prev.map(f =>
-                f._id === paymentModal.friendId ? { ...f, selectedPaymentMethodId: paymentMethodId } : f
+                f?._id === paymentModal.friendId ? { ...f, selectedPaymentMethodId: paymentMethodId } : f
             )
         );
     };
@@ -854,7 +854,7 @@ const AddExpense = () => {
         }
 
         // 3) Split mode
-        const hasAnySelection = groupSelect || selectedFriends.filter(f => f._id !== 'me').length > 0;
+        const hasAnySelection = groupSelect || selectedFriends.filter(f => f?._id !== 'me').length > 0;
         if (!hasAnySelection) { setMessage("Select a friend or a group to split with."); return; }
 
         const payers = selectedFriends.filter(f => f.paying);
@@ -1060,13 +1060,13 @@ const AddExpense = () => {
                                             Friend Selected
                                         </span>
                                         {selectedFriends
-                                            .filter(friend => friend._id !== 'me') // remove "me"
+                                            .filter(friend => friend?._id !== 'me') // remove "me"
                                             .map(friend => (
                                                 <div
-                                                    key={'selected' + friend._id}
+                                                    key={'selected' + friend?._id}
                                                     className="flex justify-between items-center h-[30px] gap-2 text-xl text-[#EBF1D5]"
                                                 >
-                                                    <p className="capitalize">{friend.name}</p>
+                                                    <p className="capitalize">{friend?.name}</p>
                                                     <button
                                                         onClick={() => handleRemoveFriend(friend)}
                                                         className="px-2 text-sm text-red-500"
@@ -1268,9 +1268,9 @@ const AddExpense = () => {
 
                                                     return (
                                                         <div
-                                                            key={`select-${friend._id}`}
+                                                            key={`select-${friend?._id}`}
                                                             onClick={() => {
-                                                                const existingIndex = selectedFriends.findIndex(f => f._id === friend._id);
+                                                                const existingIndex = selectedFriends.findIndex(f => f?._id === friend?._id);
                                                                 let updated = [...selectedFriends];
 
                                                                 if (existingIndex !== -1) {
@@ -1307,13 +1307,13 @@ const AddExpense = () => {
                                                                 });
 
                                                                 setSelectedFriends(updated);
-                                                                updateFriendsPaymentMethods(updated?.map((f) => f._id), userToken)
+                                                                updateFriendsPaymentMethods(updated?.map((f) => f?._id), userToken)
 
                                                             }}
                                                             className={`px-3 py-1 rounded-xl border-2 cursor-pointer transition-all text-sm ${paying ? 'bg-teal-300 text-black border-teal-300' : 'bg-transparent text-[#EBF1D5] border-[#81827C]'
                                                                 }`}
                                                         >
-                                                            <p className="capitalize">{friend.name}</p>
+                                                            <p className="capitalize">{friend?.name}</p>
                                                         </div>
                                                     );
                                                 })}
@@ -1325,16 +1325,16 @@ const AddExpense = () => {
                                                     {selectedFriends
                                                         .filter(f => f.paying)
                                                         .map((friend) => (
-                                                            <div key={`payAmount-${friend._id}`} className="flex flex-col gap-2 w-full">
+                                                            <div key={`payAmount-${friend?._id}`} className="flex flex-col gap-2 w-full">
                                                                 <div className="flex justify-between items-center w-full">
-                                                                    <p className="capitalize text-[#EBF1D5] line-clamp-1">{friend.name}</p>
+                                                                    <p className="capitalize text-[#EBF1D5] line-clamp-1">{friend?.name}</p>
 
                                                                     <div className="flex flex-row gap-2 items-end">
                                                                         {/* Only show button when >1 methods; auto-select kept for single method */}
                                                                         {Array.isArray(friend.paymentMethods) && friend.paymentMethods.length > 1 && (
                                                                             <button
                                                                                 type="button"
-                                                                                onClick={() => openPaymentModal({ context: 'split', friendId: friend._id })}
+                                                                                onClick={() => openPaymentModal({ context: 'split', friendId: friend?._id })}
                                                                                 className="bg-transparent border-2 border-[#55554f] text-[#EBF1D5] px-2 py-1 rounded-md hover:border-teal-600 transition line-clamp-1"
                                                                             >
                                                                                 {(() => {
@@ -1353,7 +1353,7 @@ const AddExpense = () => {
                                                                             onChange={(e) => {
                                                                                 const val = parseFloat(e.target.value || 0);
                                                                                 setSelectedFriends((prev) =>
-                                                                                    prev.map((f) => (f._id === friend._id ? { ...f, payAmount: val } : f))
+                                                                                    prev.map((f) => (f?._id === friend?._id ? { ...f, payAmount: val } : f))
                                                                                 );
                                                                             }}
                                                                             placeholder="Amount"
@@ -1386,9 +1386,9 @@ const AddExpense = () => {
 
                                                             return (
                                                                 <div
-                                                                    key={`select-${friend._id}`}
+                                                                    key={`select-${friend?._id}`}
                                                                     onClick={() => {
-                                                                        const existingIndex = selectedFriends.findIndex(f => f._id === friend._id);
+                                                                        const existingIndex = selectedFriends.findIndex(f => f?._id === friend?._id);
                                                                         let updated = [...selectedFriends];
 
                                                                         if (existingIndex !== -1) {
@@ -1434,7 +1434,7 @@ const AddExpense = () => {
                                                                     className={`px-3 py-1 rounded-xl border-2 cursor-pointer transition-all text-sm ${owing ? 'bg-teal-300 text-black border-teal-300' : 'bg-transparent text-[#EBF1D5] border-[#81827C]'
                                                                         }`}
                                                                 >
-                                                                    <p className="capitalize">{friend.name}</p>
+                                                                    <p className="capitalize">{friend?.name}</p>
                                                                 </div>
                                                             );
                                                         })}
@@ -1482,8 +1482,8 @@ const AddExpense = () => {
                                                             {selectedFriends
                                                                 .filter(f => f.owing)
                                                                 .map((friend) => (
-                                                                    <div key={`payAmount-${friend._id}`} className="flex justify-between items-center w-full">
-                                                                        <p className="capitalize text-[#EBF1D5]">{friend.name}</p>
+                                                                    <div key={`payAmount-${friend?._id}`} className="flex justify-between items-center w-full">
+                                                                        <p className="capitalize text-[#EBF1D5]">{friend?.name}</p>
 
                                                                         {/* Conditionally render input based on mode */}
                                                                         {mode === "percent" ? (
@@ -1491,7 +1491,7 @@ const AddExpense = () => {
                                                                                 className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
                                                                                 type="number"
                                                                                 value={friend.owePercent || ''}
-                                                                                onChange={(e) => handleOwePercentChange(friend._id, e.target.value)}
+                                                                                onChange={(e) => handleOwePercentChange(friend?._id, e.target.value)}
                                                                                 placeholder="Percent"
                                                                             />
                                                                         ) : mode === "value" ? (
@@ -1499,7 +1499,7 @@ const AddExpense = () => {
                                                                                 className="max-w-[100px] text-[#EBF1D5] border-b-2 border-b-[#55554f] p-2 text-base min-h-[40px] pl-3 cursor-pointer text-right"
                                                                                 type="number"
                                                                                 value={friend.oweAmount || ''}
-                                                                                onChange={(e) => handleOweChange(friend._id, e.target.value)}
+                                                                                onChange={(e) => handleOweChange(friend?._id, e.target.value)}
                                                                                 placeholder="Amount"
                                                                             />
                                                                         ) : (
