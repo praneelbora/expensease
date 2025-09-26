@@ -62,6 +62,9 @@ export default function Login() {
     const [otpError, setOtpError] = useState("");
     const [checkingVersion, setCheckingVersion] = useState(true);
 
+    // navigation/loading guard: prevents flashing of login UI while we route away
+    const [navigating, setNavigating] = useState(false);
+
     // phone input
     const phoneInputRef = useRef(null);
     const [phoneInputValue, setPhoneInputValue] = useState(""); // kept for fallback compatibility
@@ -113,9 +116,11 @@ export default function Login() {
                 // 1) If outdated -> block everything and route to updateScreen
                 if (resp?.outdated) {
                     try {
+                        setNavigating(true);
                         router.replace("updateScreen");
                     } catch (e) {
                         console.warn("[Login] Failed to route to updateScreen:", e);
+                        setNavigating(false);
                     }
                     return;
                 }
@@ -123,9 +128,11 @@ export default function Login() {
                 // 2) Not outdated: if user is already logged in, go to dashboard
                 if (userToken && !authLoading && user) {
                     try {
+                        setNavigating(true);
                         router.replace("dashboard");
                     } catch (e) {
                         console.warn("[Login] Failed to route to dashboard:", e);
+                        setNavigating(false);
                     }
                     return;
                 }
@@ -137,9 +144,11 @@ export default function Login() {
                 // fallback: allow logged-in users
                 if (userToken && !authLoading && user) {
                     try {
+                        setNavigating(true);
                         router.replace("dashboard");
                     } catch (e) {
                         console.warn("[Login] Failed to route to dashboard after version-check error:", e);
+                        setNavigating(false);
                     }
                 }
             } finally {
@@ -262,6 +271,8 @@ export default function Login() {
 
             if (resp?.userToken) {
                 await setUserToken(resp.userToken);
+                // show loading while we navigate
+                setNavigating(true);
                 router.replace("dashboard");
             } else {
                 setOtpError(resp?.error || "OTP verification failed");
@@ -275,23 +286,22 @@ export default function Login() {
     };
 
     // -------------------- Updated format for display on OTP screen --------------------
-    const formatSentPhone = () => {
-        // Prefer the stored split values (we stored them on send); fallback to lastSentPhone
+    const formatSentPhone = (phone) => {
+        // Prefer the stored split values (we stored them on send); fallback to lastSentPhone or provided phone
+        const p = phone || lastSentPhone;
         if (callingCode && nationalNumber) return `+${callingCode} ${nationalNumber}`;
-        if (lastSentPhone) {
-            // lastSentPhone should already be "+<cc><number>", show with space after cc for readability
-            const onlyDigits = String(lastSentPhone).replace(/\D/g, "");
-            // heuristically show first 1..3 digits as cc and rest as number (display only)
-            // but since we normally store parts this branch is fallback
+        if (p) {
+            // p should already be "+<cc><number>", show with space after cc for readability
+            const onlyDigits = String(p).replace(/\D/g, "");
             const cc = onlyDigits.slice(0, Math.min(3, onlyDigits.length - 4));
             const num = onlyDigits.slice(cc.length);
-            return cc ? `+${cc} ${num}` : lastSentPhone;
+            return cc ? `+${cc} ${num}` : p;
         }
         return "";
     };
 
     // Use it in JSX:
-    // We sent a 4 digit code to { formatSentPhone() }
+    // We sent a 4 digit code to { formatSentPhone(lastSentPhone) }
 
 
     const handleResend = async () => {
@@ -322,8 +332,10 @@ export default function Login() {
             // after login redirect
             const response = await checkAppVersion(version, Platform.OS);
             if (response?.outdated) {
+                setNavigating(true);
                 router.replace("updateScreen");
             } else {
+                setNavigating(true);
                 router.replace("dashboard");
             }
         } catch (err) {
@@ -333,11 +345,11 @@ export default function Login() {
             } catch (e) {
                 console.warn("Logout error:", e);
             }
+            setNavigating(false);
         } finally {
             setSubmitting(false);
         }
     };
-    // Apple login handler
     // Apple login handler
     const handleAppleLogin = async () => {
         setError("");
@@ -379,8 +391,10 @@ export default function Login() {
                 // after login redirect (reuse your existing check)
                 const response = await checkAppVersion(version, Platform.OS);
                 if (response?.outdated) {
+                    setNavigating(true);
                     router.replace("updateScreen");
                 } else {
+                    setNavigating(true);
                     router.replace("dashboard");
                 }
             } else {
@@ -401,6 +415,7 @@ export default function Login() {
             } catch (e) {
                 console.warn("Logout error:", e);
             }
+            setNavigating(false);
         } finally {
             setSubmitting(false);
         }
@@ -420,6 +435,7 @@ export default function Login() {
             const res = await mobileLogin(devEmail, devPassword, expoPushToken, Platform.OS);
             if (res?.userToken) {
                 await setUserToken(res.userToken);
+                setNavigating(true);
                 router.replace("dashboard");
             } else {
                 setDevError(res?.error || "Dev login failed.");
@@ -427,6 +443,7 @@ export default function Login() {
         } catch (err) {
             console.error("devLogin error", err);
             setDevError(err?.message || "Dev login failed.");
+            setNavigating(false);
         } finally {
             setDevSubmitting(false);
         }
@@ -450,34 +467,16 @@ export default function Login() {
         setOtpDigits(new Array(4).fill(""));
         setOtpError("");
 
-        // if (lastSentPhone) {
-        //     const { cc, number } = splitE164(lastSentPhone);
-        //     if (cc) setCallingCode(cc);
-        //     if (number) setNationalNumber(number);
-
-        //     // try to set phoneInput internal calling code if supported
-        //     try {
-        //         if (phoneInputRef.current?.setCallingCode && cc) {
-        //             phoneInputRef.current.setCallingCode(cc);
-        //         }
-        //     } catch (e) {
-        //         // ignore
-        //     }
-        // } else {
-        //     setNationalNumber("");
-        //     setCallingCode("");
-        // }
-
         setTimeout(() => {
             phoneInputRef.current?.focus && phoneInputRef.current.focus();
         }, 120);
     };
 
-    // Prevent UI flash while auth context bootstraps
-    if (!hydrated || (userToken && (authLoading || !user))) {
+    // Prevent UI flash while auth context bootstraps OR while version check / navigation is in progress
+    if (!hydrated || (userToken && (authLoading || !user)) || checkingVersion || navigating) {
         return (
             <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme?.colors?.background }}>
-                <ActivityIndicator />
+                <ActivityIndicator size="large" />
             </View>
         );
     }

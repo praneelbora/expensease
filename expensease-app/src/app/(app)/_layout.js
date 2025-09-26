@@ -1,73 +1,103 @@
 // app/_layout.js
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
-import { Stack } from "expo-router";
+import { Stack, SplashScreen as RouterSplashScreen } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
 import { useAuth } from "context/AuthContext";
 
-/**
- * This layout chooses which stack to render based on auth state:
- * - while bootstrap (!hydrated) -> show full-screen loader
- * - when hydrated:
- *    - if logged in (userToken && user) -> render Stack with (tabs) as the first screen
- *    - if NOT logged in -> render Stack with index (login) as the first screen
- *
- * By conditionally rendering the Stack we avoid mounting the login screen when the user is already authenticated.
- */
+/* call early so native splash doesn't auto-hide */
+(async () => {
+  try {
+    await RouterSplashScreen?.preventAutoHideAsync?.();
+  } catch (e) {
+    console.warn("preventAutoHideAsync failed:", e);
+  }
+})();
 
 const RootLayout = () => {
-    const { hydrated, authLoading, userToken, user } = useAuth();
+  const { hydrated, authLoading, userToken, user } = useAuth();
 
-    // show loader while bootstrap is running so we don't flash the wrong screen
-    if (!hydrated || authLoading) {
-        return (
-            <>
-                <StatusBar style={"light"} />
-                <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                    <ActivityIndicator size="large" />
-                </View>
-            </>
-        );
-    }
+  // local stable state: set once when we know initial auth, then update on real auth changes only
+  const [initialAuthChecked, setInitialAuthChecked] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-    // If user is logged in and user data loaded, mount stack with (tabs) first
-    if (userToken && user && !authLoading) {
+  // Hide splash once bootstrap finished (same as before)
+  useEffect(() => {
+    if (!hydrated || authLoading) return;
 
-        return (
-            <>
-                <StatusBar style={"light"} />
-                <Stack
-                    screenOptions={{
-                        headerShown: false,
-                    }}
-                >
-                    {/* (tabs) first so it becomes the visible screen immediately */}
-                    <Stack.Screen name="(tabs)" options={{ title: "Home", headerShown: false }} />
-                    <Stack.Screen name="updateScreen" options={{ title: "Update", headerShown: false }} />
-                    <Stack.Screen name="index" options={{ title: "Login", headerShown: false }} />
-                    <Stack.Screen name="completeProfile" options={{ title: "Complete Profile", headerShown: false }} />
-                    <Stack.Screen name="terms" options={{ title: "Terms & privacy", headerShown: false }} />
-                </Stack>
-            </>
-        );
-    }
+    (async () => {
+      try {
+        await RouterSplashScreen?.hideAsync?.();
+      } catch (e) {
+        console.warn("hideAsync failed:", e);
+      }
+    })();
+  }, [hydrated, authLoading]);
 
-    // Otherwise (not logged in) mount stack with index (login) first
+  // When hydration completes for the first time, capture a stable initial auth decision
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const loggedIn = Boolean(userToken && user);
+    setIsAuthenticated(loggedIn);
+    setInitialAuthChecked(true);
+    // Note: we intentionally don't early-return here — later effects will update isAuthenticated on real auth changes
+  }, [hydrated]); // only run once when hydrated becomes true
+
+  // After initial check, keep isAuthenticated in sync with real auth changes (login/logout)
+  useEffect(() => {
+    if (!initialAuthChecked) return;
+    setIsAuthenticated(Boolean(userToken && user));
+  }, [initialAuthChecked, userToken, user]);
+
+  // While auth bootstrap running (or we haven't captured initial auth) -> keep splash / show fallback loader
+  if (!hydrated || authLoading || !initialAuthChecked) {
     return (
-        <>
-            <StatusBar style={"light"} />
-            <Stack
-                screenOptions={{
-                    headerShown: false,
-                }}
-            >
-                <Stack.Screen name="index" options={{ title: "Login", headerShown: false, animationTypeForReplace: "pop" }} />
-                <Stack.Screen name="updateScreen" options={{ title: "Update", headerShown: false, animationTypeForReplace: "pop" }} />
-                <Stack.Screen name="(tabs)" options={{ title: "Home", headerShown: false }} />
-                <Stack.Screen name="terms" options={{ title: "Terms & privacy", headerShown: false, animationTypeForReplace: "pop" }} />
-            </Stack>
-        </>
+      <>
+        <StatusBar style="light" />
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#000" }}>
+          <ActivityIndicator size="large" />
+        </View>
+      </>
     );
+  }
+
+  // ---------------- Authenticated Stack ----------------
+  if (isAuthenticated) {
+    console.log("auth");
+    return (
+      <>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{ headerShown: false }}
+          initialRouteName="(tabs)"
+        >
+          {/* only include screens relevant to logged-in flow */}
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="updateScreen" options={{ headerShown: false }} />
+          <Stack.Screen name="completeProfile" options={{ headerShown: false }} />
+          <Stack.Screen name="terms" options={{ headerShown: false }} />
+        </Stack>
+      </>
+    );
+  }
+
+  // ---------------- Unauthenticated Stack ----------------
+  console.log("unauth");
+  return (
+    <>
+      <StatusBar style="light" />
+      <Stack
+        screenOptions={{ headerShown: false }}
+        initialRouteName="index"
+      >
+        {/* only include login / onboarding screens; no (tabs) here so it won't mount */}
+        <Stack.Screen name="index" options={{ headerShown: false, animationTypeForReplace: "pop" }} />
+        <Stack.Screen name="updateScreen" options={{ headerShown: false, animationTypeForReplace: "pop" }} />
+        <Stack.Screen name="terms" options={{ headerShown: false, animationTypeForReplace: "pop" }} />
+      </Stack>
+    </>
+  );
 };
 
 export default RootLayout;
