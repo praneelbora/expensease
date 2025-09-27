@@ -1029,7 +1029,7 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                     <TouchableOpacity onPress={() => setShowRequests(false)}>
                         <Text style={[styles.smallNote, { color: colors.cta || colors.primary, marginBottom: 12 }]}>← Back to contacts</Text>
                     </TouchableOpacity>
-
+                    {!loading && incoming.length > 0 && <>
                     <Text style={styles.sectionTitle}>Incoming Requests</Text>
                     {loading ? (
                         <ActivityIndicator color={colors.primary || colors.cta} />
@@ -1053,7 +1053,8 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                             </View>
                         ))
                     )}
-
+                    </>}
+                    {!loading && outgoing.length > 0 && <>
                     <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Outgoing Requests</Text>
                     {loading ? (
                         <ActivityIndicator color={colors.primary || colors.cta} />
@@ -1072,6 +1073,7 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                             </View>
                         ))
                     )}
+                    </>}
                 </View>
             )}
 
