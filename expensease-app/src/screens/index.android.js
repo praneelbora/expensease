@@ -22,14 +22,9 @@ import { useAuth } from "context/AuthContext";
 import { useTheme } from "context/ThemeProvider";
 import { NotificationContext } from "context/NotificationContext";
 import { router } from "expo-router";
-import { checkAppVersion, googleLoginMobile, mobileLogin } from "services/UserService"; // add mobileLogin
+import { checkAppVersion, googleLoginMobile, mobileLogin, sendOTP, verifyOTP } from "services/UserService";
 
-// Providers for android-credential-manager (only used on Android)
-const implicitProvider = new GoogleProvider({
-    serverClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    authorizedAccountsOnly: false,
-    autoSelect: false,
-});
+
 const explicitProvider = new GoogleButtonProvider({
     serverClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     authorizedAccountsOnly: false,
@@ -56,12 +51,111 @@ export default function Login() {
     const silentAttemptedRef = useRef(false);
     // Count attempts for debugging
     const attemptCounterRef = useRef(0);
+    // ---- OTP + "More ways" UI state (make OTP primary) ----
+    const [showSocial, setShowSocial] = useState(false); // toggles the "More ways to login" area
+    const [callingCode, setCallingCode] = useState(""); // digits only (e.g. "91")
+    const [nationalNumber, setNationalNumber] = useState(""); // digits only
+    const [sending, setSending] = useState(false);
+    const [verifying, setVerifying] = useState(false);
+    const [stage, setStage] = useState("idle"); // 'idle' | 'sent' | 'verifying'
+    const [lastSentPhone, setLastSentPhone] = useState(null);
+    const [otpCode, setOtpCode] = useState("");
+    const [otpError, setOtpError] = useState("");
+    const [countdown, setCountdown] = useState(0);
+
 
     // New: under-review flows and username/password state
     const [underReview, setUnderReview] = useState(false);
     const [reviewVersion, setReviewVersion] = useState(null);
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const normalizeDigits = (s) => String(s || "").replace(/\D/g, "");
+    const validatePhoneParts = (cc, national) => {
+        const ccDigits = normalizeDigits(cc);
+        const natDigits = normalizeDigits(national);
+        if (!ccDigits) return { ok: false, reason: "Please select a country code." };
+        if (ccDigits.length > 3) return { ok: false, reason: "Invalid country code." };
+        if (!natDigits) return { ok: false, reason: "Please enter your phone number." };
+        if (natDigits.length < 4) return { ok: false, reason: "Phone number is too short." };
+        return { ok: true, phoneToSend: `+${ccDigits}${natDigits}` };
+    };
+
+    const startCountdown = (secs = 30) => {
+        setCountdown(secs);
+        const iv = setInterval(() => {
+            setCountdown((p) => {
+                if (p <= 1) {
+                    clearInterval(iv);
+                    return 0;
+                }
+                return p - 1;
+            });
+        }, 1000);
+    };
+
+
+    const handleSendOTP = async () => {
+        setOtpError("");
+        // try to read calling code from PhoneInput if you use it, otherwise use callingCode state
+        const cc = normalizeDigits(callingCode || "");
+        const nat = normalizeDigits(nationalNumber || "");
+        const validation = validatePhoneParts(cc, nat);
+        if (!validation.ok) {
+            setOtpError(validation.reason);
+            return;
+        }
+        const phoneToSend = validation.phoneToSend;
+        try {
+            setSending(true);
+            const resp = await sendOTP(phoneToSend);
+            if (resp && (resp.type === "success" || resp.status === "success" || resp.ok || resp.success)) {
+                setStage("sent");
+                setLastSentPhone(phoneToSend);
+                setOtpCode("");
+                startCountdown(30);
+            } else {
+                setOtpError(resp?.error || resp?.message || "Failed to send OTP. Try again.");
+            }
+        } catch (err) {
+            console.error("sendOTP error", err);
+            setOtpError(err?.message || "Failed to send OTP. Try again.");
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const handleVerifyOtp = async () => {
+        setOtpError("");
+        const code = (otpCode || "").trim();
+        if (code.length < 3) {
+            setOtpError("Enter the code you received.");
+            return;
+        }
+        if (!lastSentPhone) {
+            setOtpError("No phone to verify. Please request a new code.");
+            return;
+        }
+        try {
+            setVerifying(true);
+            const resp = await verifyOTP(lastSentPhone, code, expoPushToken, Platform.OS);
+            if (resp?.userToken) {
+                await setUserToken(resp.userToken);
+                router.replace("dashboard");
+            } else {
+                setOtpError(resp?.error || "OTP verification failed");
+            }
+        } catch (err) {
+            console.error("verifyOTP error", err);
+            setOtpError(err?.message || "OTP verification failed");
+        } finally {
+            setVerifying(false);
+        }
+    };
+
+    const handleResend = async () => {
+        if (countdown > 0) return;
+        await handleSendOTP();
+    };
 
     useEffect(() => {
         mountedRef.current = true;
@@ -224,33 +318,6 @@ export default function Login() {
         }
     }
 
-    // Silent implicit sign-in - run only once, and only after AuthContext is hydrated & not loading
-    useEffect(() => {
-        if (Platform.OS !== "android") {
-            return;
-        }
-
-        if (!hydrated || authLoading) {
-            return;
-        }
-
-        if (userToken) {
-            return;
-        }
-
-        if (silentAttemptedRef.current) {
-            return;
-        }
-
-        silentAttemptedRef.current = true;
-
-        handleCredentialLogin(implicitProvider, { isSilent: true }).catch((e) => {
-            console.warn("[Login] silent implicit sign-in threw (should be handled):", e?.message || e);
-        });
-
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hydrated, authLoading, userToken]);
-
     // New: check app version on mount and whenever `version` changes
     useEffect(() => {
         let mounted = true;
@@ -324,16 +391,75 @@ export default function Login() {
                     <Text style={styles.tagline}>Smart expense tracking and effortless splitting.</Text>
 
                     <View style={styles.card}>
-                        <TouchableOpacity
-                            style={styles.googleBtn}
-                            onPress={() => handleCredentialLogin(explicitProvider, { isSilent: false })}
-                            disabled={submitting || authLoading}
-                            accessibilityRole="button"
-                        >
-                            {submitting || authLoading ? <ActivityIndicator /> : <Text style={styles.googleText}>Continue with Google</Text>}
-                        </TouchableOpacity>
+                        {stage !== "sent" ? (
+                            <>
+                                <View style={{ width: "100%", marginTop: 8 }}>
+                                    <View style={{ flexDirection: "row", gap: 8 }}>
+                                        <TextInput
+                                            placeholder="Country code (e.g. 91)"
+                                            value={callingCode}
+                                            onChangeText={(t) => setCallingCode(normalizeDigits(t))}
+                                            keyboardType="number-pad"
+                                            style={[styles.input, { flex: 0.6 }]}
+                                        />
+                                        <TextInput
+                                            placeholder="Mobile number"
+                                            value={nationalNumber}
+                                            onChangeText={(t) => setNationalNumber(normalizeDigits(t))}
+                                            keyboardType="number-pad"
+                                            style={[styles.input, { flex: 1.4 }]}
+                                        />
+                                    </View>
 
-                        {/* If under review, show username/password form */}
+                                    <TouchableOpacity style={[styles.signInBtn, { marginTop: 12 }]} onPress={handleSendOTP} disabled={sending}>
+                                        {sending ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Send OTP</Text>}
+                                    </TouchableOpacity>
+                                    {otpError ? <Text style={styles.error}>{otpError}</Text> : null}
+                                    {!showSocial && (
+                                        <TouchableOpacity onPress={() => setShowSocial(true)} style={{ marginTop: 8 }}>
+                                            <Text style={[styles.footerText, { fontWeight: "700", color: theme?.colors?.primary, textAlign: 'center' }]}>More ways to login</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            </>
+                        ) : (
+                            <View style={{ width: "100%", marginTop: 8 }}>
+                                <Text style={[styles.hint, { textAlign: "left" }]}>We sent a code to {lastSentPhone}</Text>
+
+                                <TextInput
+                                    placeholder="Enter OTP"
+                                    value={otpCode}
+                                    onChangeText={setOtpCode}
+                                    keyboardType="number-pad"
+                                    style={[styles.input, { marginTop: 12, textAlign: "center", fontSize: 20 }]}
+                                />
+
+                                <TouchableOpacity style={[styles.signInBtn, { marginTop: 12 }]} onPress={handleVerifyOtp} disabled={verifying}>
+                                    {verifying ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Verify OTP</Text>}
+                                </TouchableOpacity>
+
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 10 }}>
+                                    <Text style={styles.footerText}>Didn't get code?</Text>
+                                    <TouchableOpacity onPress={handleResend} disabled={countdown > 0}>
+                                        <Text style={[styles.linkText, { fontWeight: "600" }]}>{countdown > 0 ? `Resend in ${countdown}s` : "Resend"}</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {otpError ? <Text style={styles.error}>{otpError}</Text> : null}
+                            </View>
+                        )}
+                        {showSocial && stage !== "sent" && (
+                            <View style={{ width: "100%", marginTop: 12 }}>
+                                <TouchableOpacity
+                                    style={styles.googleBtn}
+                                    onPress={() => handleCredentialLogin(explicitProvider, { isSilent: false })}
+                                    disabled={submitting || authLoading}
+                                    accessibilityRole="button"
+                                >
+                                    {submitting || authLoading ? <ActivityIndicator /> : <Text style={styles.googleText}>Continue with Google</Text>}
+                                </TouchableOpacity>
+                            </View>
+                        )}
                         {underReview ? (
                             <>
                                 <TextInput
