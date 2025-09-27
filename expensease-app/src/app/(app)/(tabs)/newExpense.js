@@ -141,40 +141,30 @@ export default function NewExpenseScreen() {
     // ---------- fetchers ----------
     const pullFriends = useCallback(async () => {
         if (!userToken) {
-            console.debug("[NewExpense] pullFriends: no userToken");
             return;
         }
         try {
-            console.debug("[NewExpense] pullFriends: requesting");
             const data = await getFriends(userToken);
             setFriends(Array.isArray(data) ? data : []);
-            console.debug("[NewExpense] pullFriends: got", Array.isArray(data) ? data.length : 0, "friends");
         } catch (e) {
-            console.warn("[NewExpense] pullFriends error:", e?.message || e);
         }
     }, [userToken]);
 
     const pullGroups = useCallback(async () => {
         if (!userToken) return;
         try {
-            console.debug("[NewExpense] pullGroups: requesting");
             const data = await getAllGroups(userToken);
             setGroups(Array.isArray(data) ? data : []);
-            console.debug("[NewExpense] pullGroups: got", Array.isArray(data) ? data.length : 0, "groups");
         } catch (e) {
-            console.warn("[NewExpense] pullGroups error:", e?.message || e);
         }
     }, [userToken]);
 
     const pullSuggestions = useCallback(async () => {
         if (!userToken) return;
         try {
-            console.debug("[NewExpense] pullSuggestions: requesting");
             const data = await getSuggestions(userToken);
             setSuggestions(data || null);
-            console.debug("[NewExpense] pullSuggestions: got suggestions");
         } catch (e) {
-            console.warn("[NewExpense] pullSuggestions error:", e?.message || e);
         }
     }, [userToken]);
 
@@ -260,13 +250,11 @@ export default function NewExpenseScreen() {
             preselectedFriendId.current = null;
 
             if ((!groups || groups.length === 0) && (!friends || friends.length === 0)) {
-                console.debug("[NewExpense][focus] preselect: no friends or groups yet");
                 return;
             }
 
             const gid = params?.groupId;
             const fid = params?.friendId;
-            console.debug("[NewExpense][focus] preselect: params:", { gid, fid, groupsLen: groups.length, friendsLen: friends.length });
 
             if (gid && !hasPreselectedGroup.current) {
                 const g = groups.find((x) => String(x._id) === String(gid));
@@ -291,7 +279,6 @@ export default function NewExpenseScreen() {
 
             // optional cleanup when screen loses focus — we clear refs so future opens behave as new
             return () => {
-                console.debug("[NewExpense][blur] clearing preselect refs on blur");
                 hasPreselectedGroup.current = false;
                 hasPreselectedFriend.current = false;
                 preselectedFriendId.current = null;
@@ -353,20 +340,16 @@ export default function NewExpenseScreen() {
 
     const toggleFriend = (friend) => {
         try {
-            console.debug("[NewExpense] toggleFriend called for:", friend?._id, friend?.name);
             let upd = [...selectedFriends];
             const exists = upd.some((f) => String(f?._id) === String(friend?._id));
             if (exists) {
                 upd = upd.filter((f) => String(f?._id) !== String(friend?._id));
-                console.debug("[NewExpense] toggleFriend: removed", friend._id);
                 if (String(preselectedFriendId.current) === String(friend._id)) {
-                    console.debug("[NewExpense] toggleFriend: user removed preselected friend -> cancelling preselect nav");
                     hasPreselectedFriend.current = false;
                     preselectedFriendId.current = null;
                 }
             } else {
                 upd = [...upd, { ...friend, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }];
-                console.debug("[NewExpense] toggleFriend: added", friend._id);
             }
             upd = addMeIfNeeded(upd);
             setSelectedFriends(upd);
@@ -375,23 +358,19 @@ export default function NewExpenseScreen() {
             // re-run local friend filter so suggested UI is updated
             friendFilter(search);
         } catch (e) {
-            console.warn("[NewExpense] toggleFriend error:", e?.message || e);
         }
     };
 
 
     const toggleGroup = (group) => {
         try {
-            console.debug("[NewExpense] toggleGroup called for:", group?._id, group?.name, "currentGroupSelect:", groupSelect?._id);
             if (groupSelect?._id === group._id) {
                 // deselect group: remove group members from selectedFriends (but keep any other non-group selections)
                 const ids = new Set((group.members || []).map((m) => String(m._id)));
                 const upd = selectedFriends.filter((f) => !ids.has(String(f?._id)));
                 setSelectedFriends(upd);
                 setGroupSelect(null);
-                console.debug("[NewExpense] toggleGroup: group deselected, updated selectedFriends count:", upd.length);
                 if (String(preselectedGroupId.current) === String(group._id)) {
-                    console.debug("[NewExpense] toggleGroup: user removed preselected group -> cancelling preselect nav");
                     hasPreselectedGroup.current = false;
                     preselectedGroupId.current = null;
                 }
@@ -405,10 +384,8 @@ export default function NewExpenseScreen() {
                 setSelectedFriends(upd);
                 setGroupSelect(group);
                 updateFriendsPaymentMethods(upd.map((f) => f?._id));
-                console.debug("[NewExpense] toggleGroup: group selected, added members:", newMembers.map(m => m._id));
             }
         } catch (e) {
-            console.warn("[NewExpense] toggleGroup error:", e?.message || e);
         }
     };
 
@@ -423,7 +400,6 @@ export default function NewExpenseScreen() {
         if (String(preselectedFriendId.current) === String(friend?._id)) {
             hasPreselectedFriend.current = false;
             preselectedFriendId.current = null;
-            console.debug("[NewExpense] removeFriend: cancelled preselect navigation for friend", friend?._id);
         }
     };
 
@@ -929,20 +905,14 @@ export default function NewExpenseScreen() {
             setGroupSelect(null);
             setExpenseDate(todayISO());
             await fetchPaymentMethods();
-            // go back if preselected
-            // go back if preselected (fixed ref usage)
-            console.debug("[NewExpense] submit: hasPreselectedGroup:", hasPreselectedGroup.current, "groupSelectId:", groupSelect?._id);
-            console.debug("[NewExpense] submit: hasPreselectedFriend:", hasPreselectedFriend.current, "preselectedFriendId.current:", preselectedFriendId.current);
 
             if (hasPreselectedGroup.current && groupSelect?._id) {
-                console.debug("[NewExpense] preselected group -> navigating back");
                 hasPreselectedGroup.current = false;
                 hasPreselectedFriend.current = false;
                 preselectedFriendId.current = null;
                 return router.back();
             }
             if (hasPreselectedFriend.current && preselectedFriendId.current) {
-                console.debug("[NewExpense] preselected friend -> navigating back");
                 hasPreselectedGroup.current = false;
                 hasPreselectedFriend.current = false;
                 preselectedFriendId.current = null;
@@ -1036,79 +1006,79 @@ export default function NewExpenseScreen() {
                 >
                     {/* Split: suggestions + selection chips */}
                     {/* Split: suggestions + selection chips */}
-{expenseMode === "split" ? (
-  <>
-    {/* If no friends AND no groups -> show CTA prompting user to add friends or create groups */}
-    {groups.length === 0 && friends.length === 0 ? (
-      <View style={{ marginTop: 12 }}>
-        <EmptyCTA
-  visible={true}
-  title="No friends or groups yet"
-  subtitle="Add a friend or create a group to start splitting expenses."
-  ctaLabel="Add Friend"
-  onPress={() => router.push("/friends")}
-  secondaryLabel="Add Group"
-  onSecondaryPress={() => router.push("/groups")}
-/>
+                    {expenseMode === "split" ? (
+                        <>
+                            {/* If no friends AND no groups -> show CTA prompting user to add friends or create groups */}
+                            {groups.length === 0 && friends.length === 0 ? (
+                                <View style={{ marginTop: 12 }}>
+                                    <EmptyCTA
+                                        visible={true}
+                                        title="No friends or groups yet"
+                                        subtitle="Add a friend or create a group to start splitting expenses."
+                                        ctaLabel="Add Friend"
+                                        onPress={() => router.push("/friends")}
+                                        secondaryLabel="Add Group"
+                                        onSecondaryPress={() => router.push("/groups")}
+                                    />
 
-      </View>
-    ) : (
-      <>
-        {/* Existing suggestions UI (unchanged) */}
-        { (groups.length > 0 || friends.length > 0) && (
-          <>
-            {/* Selected summary */}
-            {(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
-              <View style={{ marginTop: 8, gap: 8 }}>
-                {/* ...your existing selected summary block... */}
-              </View>
-            )}
+                                </View>
+                            ) : (
+                                <>
+                                    {/* Existing suggestions UI (unchanged) */}
+                                    {(groups.length > 0 || friends.length > 0) && (
+                                        <>
+                                            {/* Selected summary */}
+                                            {(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
+                                                <View style={{ marginTop: 8, gap: 8 }}>
+                                                    {/* ...your existing selected summary block... */}
+                                                </View>
+                                            )}
 
-            {/* Suggestions / search results */}
-            {!(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
-              <View style={{ marginTop: 12, gap: 12 }}>
-                {filteredGroups.length > 0 && (
-                  <View>
-                    <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}GROUPS</Text>
-                    <View style={styles.chipsWrap}>
-                      {filteredGroups.map((g) => {
-                        const active = groupSelect?._id === g._id;
-                        return (
-                          <TouchableOpacity key={g._id} onPress={() => toggleGroup(g)} style={[styles.chip, active && styles.chipActive]}>
-                            <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
-                              {g.name}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-                {filteredFriends.length > 0 && (
-                  <View>
-                    <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}FRIENDS</Text>
-                    <View style={styles.chipsWrap}>
-                      {filteredFriends.map((fr) => {
-                        const active = selectedFriends.some((s) => s._id === fr._id);
-                        return (
-                          <TouchableOpacity key={fr._id} onPress={() => toggleFriend(fr)} style={[styles.chip, active && styles.chipActive]}>
-                            <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
-                              {fr.name}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-              </View>
-            )}
-          </>
-        )}
-      </>
-    )}
-  </>
-) : null}
+                                            {/* Suggestions / search results */}
+                                            {!(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
+                                                <View style={{ marginTop: 12, gap: 12 }}>
+                                                    {filteredGroups.length > 0 && (
+                                                        <View>
+                                                            <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}GROUPS</Text>
+                                                            <View style={styles.chipsWrap}>
+                                                                {filteredGroups.map((g) => {
+                                                                    const active = groupSelect?._id === g._id;
+                                                                    return (
+                                                                        <TouchableOpacity key={g._id} onPress={() => toggleGroup(g)} style={[styles.chip, active && styles.chipActive]}>
+                                                                            <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+                                                                                {g.name}
+                                                                            </Text>
+                                                                        </TouchableOpacity>
+                                                                    );
+                                                                })}
+                                                            </View>
+                                                        </View>
+                                                    )}
+                                                    {filteredFriends.length > 0 && (
+                                                        <View>
+                                                            <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}FRIENDS</Text>
+                                                            <View style={styles.chipsWrap}>
+                                                                {filteredFriends.map((fr) => {
+                                                                    const active = selectedFriends.some((s) => s._id === fr._id);
+                                                                    return (
+                                                                        <TouchableOpacity key={fr._id} onPress={() => toggleFriend(fr)} style={[styles.chip, active && styles.chipActive]}>
+                                                                            <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+                                                                                {fr.name}
+                                                                            </Text>
+                                                                        </TouchableOpacity>
+                                                                    );
+                                                                })}
+                                                            </View>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            )}
+                                        </>
+                                    )}
+                                </>
+                            )}
+                        </>
+                    ) : null}
 
 
                     {/* Create expense */}

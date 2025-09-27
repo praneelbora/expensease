@@ -21,6 +21,7 @@ import { getSymbol } from "../utils/currencies";
 import { useTheme } from "context/ThemeProvider";
 import { getCategoryLabel, getCategoryOptions } from "../utils/categoryOptions";
 import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
+import { getGroupDetails } from "../services/GroupService";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import ChevronDown from "@/accIcons/chevronDown.svg"; // should exist in your accIcons folder
 /**
@@ -50,7 +51,6 @@ export default function ExpenseBottomSheet({
     defaultCurrency = "INR",
     preferredCurrencies = [],
     paymentMethods = [],
-    getGroupDetails,
     onUpdateExpense,
     onDeleteExpense,
     fetchFriendsPaymentMethods: fetchFriendsPM = fetchFriendsPaymentMethods,
@@ -155,12 +155,12 @@ export default function ExpenseBottomSheet({
                 return;
             }
             try {
-                const group = await getGroupDetails(expense.groupId, userToken);
+                const group = await getGroupDetails(expense?.groupId?._id ? expense?.groupId?._id : expense?.groupId, userToken);
                 const members = Array.isArray(group?.members) ? group.members : [];
                 setGroupMembers(members);
                 setSelectedFriends(mergeMembersWithSplits(members, splits));
             } catch (err) {
-                // console.warn("Failed to load group members:", err);
+                console.warn("Failed to load group members:", err);
                 setGroupMembers([]);
                 setSelectedFriends(mergeMembersWithSplits([], splits));
             }
@@ -473,6 +473,53 @@ export default function ExpenseBottomSheet({
     };
 
     const lastAudit = Array.isArray(expense?.auditLog) && expense?.auditLog.length ? expense.auditLog[expense.auditLog.length - 1] : null;
+    // UI tab state + small helpers (add near other useState declarations)
+    const [activeTab, setActiveTab] = useState("paid");
+
+    // derived values used by the UI
+    const mode = form.splitMode; // "equal" | "value" | "percent"
+    const paidTotal = totalPaid();
+    const isPaidValid = isPaidAmountValid();
+
+    const paidHasIssue = !isPaidValid;
+    const splitHasIssue = (() => {
+        if (!selectedFriends || !selectedFriends.length) return false;
+        if (mode === "percent") {
+            const totalPercent = selectedFriends.filter((f) => f.owing).reduce((sum, f) => sum + (parseFloat(f.owePercent) || 0), 0);
+            return Number(totalPercent.toFixed(3)) !== 100;
+        }
+        if (mode === "value") {
+            const totalValue = selectedFriends.filter((f) => f.owing).reduce((sum, f) => sum + Number(f.oweAmount || 0), 0);
+            return Number(totalValue.toFixed(2)) !== Number(Number(form.amount || 0).toFixed(2));
+        }
+        // equal mode: no split issue unless no owing selected
+        return selectedFriends.filter((f) => f.owing).length === 0;
+    })();
+
+    // small mutators to keep JSX concise
+    const setPayAmount = (friendId, v) => {
+        const val = Number(v || 0);
+        setSelectedFriends((prev) => prev.map((p) => (p._id === friendId ? { ...p, payAmount: val } : p)));
+    };
+
+    const setOweAmount = (friendId, v) => handleOweChange(friendId, v);
+    const setOwePercent = (friendId, v) => handleOwePercentChange(friendId, v);
+
+    // helper used in owed-tab when switching to equal mode
+    const distributeEqualOwe = (arr) => {
+        const n = arr.filter((f) => f.owing).length;
+        if (!n) return arr.map((f) => ({ ...f, oweAmount: 0 }));
+        const equal = Math.floor((Number(form.amount || 0) / n) * 100) / 100;
+        const totalSoFar = equal * n;
+        const leftover = Number((Number(form.amount || 0) - totalSoFar).toFixed(2));
+        let idx = 0;
+        return arr.map((f) => {
+            if (!f.owing) return { ...f, oweAmount: 0, owePercent: undefined };
+            idx += 1;
+            const owe = idx === n ? Number((equal + leftover).toFixed(2)) : equal;
+            return { ...f, oweAmount: owe, owePercent: undefined };
+        });
+    };
 
     // footer options for layout
     // footer options for layout (replace your existing footerOptions)
@@ -743,92 +790,167 @@ export default function ExpenseBottomSheet({
                     {/* Split editing */}
                     {form.mode === "split" && (
                         <View style={{ gap: 12 }}>
-                            <Text style={styles.sectionTitle}>Paid by <Text style={styles.sectionHint}>(select who paid)</Text></Text>
-                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                                {selectedFriends.map((f) => (
-                                    <TouchableOpacity key={f?._id} onPress={() => togglePaying(f?._id)} style={[styles.chip2, f.paying ? styles.chip2Active : styles.chipInactive]}>
-                                        <Text style={f.paying ? styles.chip2TextActive : styles.chip2Text}>{f?.name}{f?._id === userId ? " (You)" : ""}</Text>
-                                    </TouchableOpacity>
-                                ))}
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                                <TouchableOpacity
+                                    onPress={() => setActiveTab("paid")}
+                                    style={[
+                                        styles.summaryBtn || { padding: 8, borderRadius: 8 }, // fallback if you don't have summaryBtn in stylesheet
+                                        activeTab === "paid" && styles.summaryBtnActive,
+                                        paidHasIssue && styles.summaryBtnError,
+                                    ]}
+                                >
+                                    <Text style={[styles.summaryLabel || { fontWeight: "700" }, paidHasIssue && styles.summaryLabelError]}>Paid by</Text>
+                                    <Text style={styles.summaryValue || { fontSize: 12 }}>
+                                        {(() => {
+                                            const payers = selectedFriends.filter((f) => f.paying);
+                                            if (payers.length === 0) return "—";
+                                            if (payers.length === 1) return payers[0]._id === userId ? "You" : payers[0].name;
+                                            return `${payers.length} people`;
+                                        })()}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    onPress={() => setActiveTab("owed")}
+                                    style={[
+                                        styles.summaryBtn || { padding: 8, borderRadius: 8 },
+                                        activeTab === "owed" && styles.summaryBtnActive,
+                                        splitHasIssue && styles.summaryBtnError,
+                                    ]}
+                                >
+                                    <Text style={[styles.summaryLabel || { fontWeight: "700" }, splitHasIssue && styles.summaryLabelError]}>Split by</Text>
+                                    <Text style={styles.summaryValue || { fontSize: 12 }}>
+                                        {mode === "equal" ? "equally" : mode === "value" ? "amounts" : "percentages"}
+                                    </Text>
+                                </TouchableOpacity>
                             </View>
 
-                            {(selectedFriends.filter((f) => f.paying).length > 1 || (selectedFriends.filter((f) => f.paying).length === 1 && selectedFriends.filter((f) => f.paying)[0].paymentMethods?.length > 1)) && (
-                                <View style={{ gap: 8 }}>
-                                    {selectedFriends.filter((f) => f.paying).map((f) => (
-                                        <View key={f?._id} style={styles.splitRow}>
-                                            <Text style={{ color: colors.text }}>{f?.name}{f?._id === userId ? " (You)" : ""}</Text>
-                                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                                {Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1 && (
-                                                    <TouchableOpacity onPress={() => {
-                                                        setPaymentModal({ open: true, context: "split", friendId: f?._id });
-                                                        paymentSheetRef.current?.present?.();
-                                                    }} style={styles.smallBtn}>
-                                                        <Text style={styles.smallBtnText}>{(f.paymentMethods?.find((m) => m.paymentMethodId === f.selectedPaymentMethodId)?.label) || "Pay"}</Text>
-                                                    </TouchableOpacity>
-                                                )}
-                                                <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.payAmount)} onChangeText={(v) => {
-                                                    const val = Number(v || 0);
-                                                    setSelectedFriends((prev) => prev.map((p) => (p._id === f?._id ? { ...p, payAmount: val } : p)));
-                                                }} />
-                                            </View>
-                                        </View>
-                                    ))}
-
-                                    {!isPaidAmountValid() && (
-                                        <View style={styles.centerMono}>
-                                            <Text style={styles.monoText}>{getSymbol(form.currency)} {totalPaid().toFixed(2)} / {getSymbol(form.currency)} {amountNum.toFixed(2)}</Text>
-                                            <Text style={styles.mutedText}>{getSymbol(form.currency)} {(amountNum - totalPaid()).toFixed(2)} left</Text>
-                                        </View>
-                                    )}
-                                </View>
-                            )}
-
-                            {isPaidAmountValid() && (
-                                <View style={{ gap: 8 }}>
-                                    <Text style={styles.sectionTitle}>Owed by <Text style={styles.sectionHint}>(select who owes)</Text></Text>
+                            {/* Paid tab */}
+                            {activeTab === "paid" && (
+                                <>
+                                    <Text style={styles.sectionTitle}>Paid by <Text style={styles.sectionHint}>(Select who paid)</Text></Text>
                                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                                         {selectedFriends.map((f) => (
-                                            <TouchableOpacity key={f?._id} onPress={() => toggleOwing(f?._id)} style={[styles.chip2, f.owing ? styles.chip2Active : styles.chipInactive]}>
-                                                <Text style={f.owing ? styles.chip2TextActive : styles.chip2Text}>{f?.name}{f?._id === userId ? " (You)" : ""}</Text>
+                                            <TouchableOpacity key={`p-${f._id}`} onPress={() => togglePaying(f._id)} style={[styles.chip2, f.paying ? styles.chip2Active : styles.chip2]}>
+                                                <Text style={f.paying ? styles.chip2TextActive : styles.chip2Text}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
 
-                                    {selectedFriends.filter((f) => f.owing).length > 1 && (
+                                    {selectedFriends.filter((f) => f.paying).length > 0 && (
                                         <View style={{ gap: 8 }}>
-                                            <Text style={styles.sectionTitle}>Split options</Text>
+                                            {selectedFriends.filter((f) => f.paying).map((f) => {
+                                                const many = Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1;
+                                                const sel = (f.paymentMethods || []).find((m) => m.paymentMethodId === f.selectedPaymentMethodId);
+                                                // if only one payer and no multiple PMs, there's no per-payer input needed
+                                                const showAmountInput = selectedFriends.filter((p) => p.paying).length > 1;
+                                                return (
+                                                    <View key={`payer-${f._id}`} style={styles.splitRow}>
+                                                        <Text style={{ color: colors.text || "#fff" }}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
+                                                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                                            {many && (
+                                                                <TouchableOpacity onPress={() => { setPaymentModal({ open: true, context: "split", friendId: f._id }); paymentSheetRef.current?.present?.(); }} style={styles.smallBtn}>
+                                                                    <Text style={styles.smallBtnText}>{sel ? sel.label || "Pay" : "Select"}</Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                            {showAmountInput ? (
+                                                                <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.payAmount || "")} onChangeText={(v) => setPayAmount(f._id, v)} />
+                                                            ) : null}
+                                                        </View>
+                                                    </View>
+                                                );
+                                            })}
+
+                                            {!isPaidValid && (
+                                                <View style={styles.centerMono}>
+                                                    <Text style={styles.monoText}>{getSymbol(form.currency)} {paidTotal.toFixed(2)} / {getSymbol(form.currency)} {Number(form.amount || 0).toFixed(2)}</Text>
+                                                    <Text style={styles.mutedText}>{getSymbol(form.currency)} {Number(Number(form.amount || 0) - paidTotal).toFixed(2)} left</Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                    )}
+                                </>
+                            )}
+
+                            {/* Owed tab */}
+                            {activeTab === "owed" && (
+                                <>
+                                    <Text style={styles.sectionTitle}>Owed by <Text style={styles.sectionHint}>(Select who owes)</Text></Text>
+
+                                    {selectedFriends.length > 1 ? (
+                                        <View style={{ gap: 8 }}>
                                             <View style={{ flexDirection: "row", gap: 8 }}>
-                                                <TouchableOpacity onPress={() => { setForm((f) => ({ ...f, splitMode: "equal" })); setSelectedFriends(equalizeOwe); }} style={[styles.modeBtn, form.splitMode === "equal" ? styles.modeBtnActive : styles.modeBtnInactive]}><Text style={{ color: form.splitMode === "equal" ? colors.textDark : colors.text }}>=</Text></TouchableOpacity>
-                                                <TouchableOpacity onPress={() => setForm((f) => ({ ...f, splitMode: "value" }))} style={[styles.modeBtn, form.splitMode === "value" ? styles.modeBtnActive : styles.modeBtnInactive]}><Text style={{ color: form.splitMode === "value" ? colors.textDark : colors.text }}>1.23</Text></TouchableOpacity>
-                                                <TouchableOpacity onPress={() => setForm((f) => ({ ...f, splitMode: "percent" }))} style={[styles.modeBtn, form.splitMode === "percent" ? styles.modeBtnActive : styles.modeBtnInactive]}><Text style={{ color: form.splitMode === "percent" ? colors.textDark : colors.text }}>%</Text></TouchableOpacity>
+                                                {["equal", "value", "percent"].map((m) => {
+                                                    const active = mode === m;
+                                                    return (
+                                                        <TouchableOpacity key={m} onPress={() => {
+                                                            setForm((f) => ({ ...f, splitMode: m }));
+                                                            if (m === "equal") {
+                                                                setSelectedFriends((prev) => {
+                                                                    // ensure everyone is set to owing true default when switching to equal
+                                                                    const marked = prev.map((p) => ({ ...p, owing: true, owePercent: undefined }));
+                                                                    return distributeEqualOwe(marked);
+                                                                });
+                                                            } else if (m === "value") {
+                                                                setSelectedFriends((prev) => prev.map((p) => ({ ...p, oweAmount: p.owing ? p.oweAmount ?? 0 : 0, owePercent: undefined })));
+                                                            } else if (m === "percent") {
+                                                                setSelectedFriends((prev) => prev.map((p) => ({ ...p, owePercent: p.owePercent ?? 0, oweAmount: 0 })));
+                                                            }
+                                                        }} style={[styles.modeBtn, active ? styles.modeBtnActive : styles.modeBtnInactive]}>
+                                                            <Text style={active ? { color: colors.textDark || "#000" } : { color: colors.text || "#fff" }}>{m === "equal" ? "=" : m === "value" ? "1.23" : "%"}</Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
                                             </View>
 
                                             <View style={{ gap: 8 }}>
-                                                {selectedFriends.filter((f) => f.owing).map((f) => (
-                                                    <View key={f?._id} style={styles.splitRow}>
-                                                        <Text style={{ color: colors.text }}>{f?.name}{f?._id === userId ? " (You)" : ""}</Text>
-                                                        {form.splitMode === "percent" ? (
-                                                            <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.owePercent ?? "")} onChangeText={(v) => handleOwePercentChange(f?._id, v)} placeholder="Percent" />
-                                                        ) : form.splitMode === "value" ? (
-                                                            <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.oweAmount ?? "")} onChangeText={(v) => handleOweChange(f?._id, v)} placeholder="Amount" />
-                                                        ) : (
-                                                            <Text style={{ color: colors.text }}>{Number(f.oweAmount || 0).toFixed(2)}</Text>
-                                                        )}
-                                                    </View>
-                                                ))}
-                                                {!canSubmit() ? (
-                                                    <View style={styles.centerMono}>
-                                                        <Text>{getRemainingTop()}</Text>
-                                                        <Text style={styles.mutedText}>{getRemainingBottom()}</Text>
-                                                    </View>
-                                                ) : null}
+                                                {selectedFriends.filter((f) => f.owing || mode === "equal").map((f) => {
+                                                    const isOwing = !!f.owing;
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={`ow-${f._id}`}
+                                                            onPress={() => {
+                                                                setSelectedFriends((prev) => {
+                                                                    const updated = prev.map((x) => x._id === f._id ? { ...x, owing: !x.owing } : x);
+                                                                    if (mode === "equal") return distributeEqualOwe(updated);
+                                                                    return updated;
+                                                                });
+                                                            }}
+                                                            activeOpacity={0.8}
+                                                            style={[styles.splitRow, { paddingVertical: mode === "equal" ? 8 : 0 }]}
+                                                        >
+                                                            <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                                                                {mode === "equal" ? (
+                                                                    <View style={styles.radioWrap}>
+                                                                        <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
+                                                                            {isOwing ? <View style={styles.radioInner} /> : null}
+                                                                        </View>
+                                                                    </View>
+                                                                ) : null}
+
+                                                                <Text style={{ color: colors.text || "#fff", flex: 1 }}>{f.name}</Text>
+                                                            </View>
+
+                                                            {mode === "percent" ? (
+                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.owePercent ?? "")} onChangeText={(v) => setOwePercent(f._id, v)} />
+                                                            ) : mode === "value" ? (
+                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.oweAmount ?? "")} onChangeText={(v) => setOweAmount(f._id, v)} />
+                                                            ) : (
+                                                                <Text style={{ color: colors.text || "#fff' " }}>{Number(f.oweAmount || 0).toFixed(2)}</Text>
+                                                            )}
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
                                             </View>
                                         </View>
+                                    ) : (
+                                        <Text style={styles.mutedText}>Add more people to split this expense.</Text>
                                     )}
-                                </View>
+                                </>
                             )}
                         </View>
                     )}
+
                 </View>
             </ScrollView>
         </KeyboardAvoidingView>
@@ -1020,4 +1142,58 @@ const createStyles = (c = {}) =>
         modeBtn: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2, color: c.text, minWidth: '30%', justifyContent: 'center', alignItems: 'center' },
         modeBtnActive: { backgroundColor: c.primary || "#2bbf9a" },
         modeBtnInactive: { backgroundColor: "transparent", borderWidth: 1, borderColor: c.border || "#444" },
+        summaryBtn: {
+            flex: 1,
+            paddingVertical: 10,
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: c.border,
+            backgroundColor: c.card,
+        },
+        summaryBtnActive: {
+            borderColor: c.cta,
+        },
+         summaryLabel: {
+            fontSize: 12,
+            color: c.muted,
+            marginBottom: 2,
+        },
+        summaryValue: {
+            fontSize: 14,
+            color: c.text,
+            fontWeight: "600",
+        },
+        radioWrap: { width: 28, alignItems: "center", justifyContent: "center" },
+        radioOuter: {
+            width: 18,
+            height: 18,
+            borderRadius: 18,
+            borderWidth: 2,
+            borderColor: "rgba(255,255,255,0.15)",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "transparent",
+        },
+        radioOuterActive: {
+            borderColor: c.cta,
+            backgroundColor: `${c.cta}22`,
+        },
+        radioInner: {
+            width: 10,
+            height: 10,
+            borderRadius: 10,
+            backgroundColor: c.cta,
+        },
+
+        summaryBtnError: {
+
+            backgroundColor: "rgba(244,67,54,0.06)",
+        },
+        summaryLabelError: {
+            color: c.danger,
+        },
+        summaryValueError: {
+            color: c.danger,
+        },
     });

@@ -760,7 +760,6 @@ export default function FriendsScreen() {
                     {/* Friends list */}
                     {!loading && friends.length > 0 && (
                         <View style={{ marginTop: receivedRequests.length > 0 ? 8 : 0 }}>
-                            {receivedRequests.length > 0 ? <Text style={[styles.sectionLabel, { marginBottom: 6 }]}>Friends</Text> : null}
                             <View style={{ borderTopColor: theme?.colors?.border ?? "#212121", borderTopWidth: StyleSheet.hairlineWidth }}>
                                 {filteredFriends.map((f) => (
                                     <View key={f?._id} style={{ borderBottomColor: theme?.colors?.border ?? "#212121", borderBottomWidth: StyleSheet.hairlineWidth }}>
@@ -830,7 +829,7 @@ const createStyles = (theme = {}) =>
         headerTitle: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 24, fontWeight: "700" },
         addBtn: { backgroundColor: theme?.colors?.primary ?? "#00C49F", width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
 
-        sectionLabel: { color: theme?.colors?.primary ?? "#00C49F", fontSize: 12, letterSpacing: 1, textTransform: "uppercase" },
+        sectionLabel: { color: theme?.colors?.text ?? "#00C49F", fontSize: 12, letterSpacing: 1, textTransform: "uppercase" },
 
         input: {
             backgroundColor: theme?.colors?.card ?? "#1f1f1f",

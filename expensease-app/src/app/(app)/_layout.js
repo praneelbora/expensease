@@ -64,7 +64,6 @@ const RootLayout = () => {
 
   // ---------------- Authenticated Stack ----------------
   if (isAuthenticated) {
-    console.log("auth");
     return (
       <>
         <StatusBar style="light" />
@@ -83,7 +82,6 @@ const RootLayout = () => {
   }
 
   // ---------------- Unauthenticated Stack ----------------
-  console.log("unauth");
   return (
     <>
       <StatusBar style="light" />

@@ -34,7 +34,7 @@ import { useTheme } from "context/ThemeProvider";
 
 /* ---------------- DEBUG FLAG + helpers ---------------- */
 // Toggle this to false to silence all balance logs
-const DEBUG_BALANCES = true;
+const DEBUG_BALANCES = false;
 
 const _dump = (label, obj) => {
     if (!DEBUG_BALANCES) return;
