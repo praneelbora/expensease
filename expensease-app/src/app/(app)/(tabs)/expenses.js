@@ -504,6 +504,8 @@ export default function ExpensesScreen() {
             <Header
                 title="Expenses"
                 showFilter
+                showBack
+                onBack={() => router.push("/dashboard")}
                 onFilterPress={() => filterSheetRef.current?.present()}
                 filterBtnActive={JSON.stringify(appliedFilter) !== JSON.stringify(DEFAULT_FILTER)}
             />

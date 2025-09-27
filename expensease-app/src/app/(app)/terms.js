@@ -1,4 +1,4 @@
-// app/account/TermsAndConditions.js
+// app/settings/TermsAndConditions.js
 import React, { useMemo } from "react";
 import {
   View,

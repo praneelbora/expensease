@@ -1,4 +1,4 @@
-// app/account/Contact.js
+// app/settings/Contact.js
 import React, { useEffect, useMemo, useState } from "react";
 import {
     View,
@@ -267,7 +267,7 @@ export default function ContactScreen() {
                 </View>
 
                 <View style={styles.ctaRow}>
-                    <TouchableOpacity style={styles.ctaCard} onPress={() => router.push("/account/faq")}>
+                    <TouchableOpacity style={styles.ctaCard} onPress={() => router.push("/settings/faq")}>
                         <Text style={styles.ctaTitle}>Check FAQs</Text>
                         <Text style={styles.ctaSubtitle}>Many common questions are answered in the help center — the fastest way to get help for general topics.</Text>
                     </TouchableOpacity>

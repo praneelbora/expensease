@@ -21,6 +21,7 @@ import { getAllGroups, getGroupExpenses, joinGroup, createGroup } from "/service
 // import { logEvent } from "/utils/analytics";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "utils/currencies";
 import BottomSheetGroups from "~/btmShtAddGroup";
+import EmptyCTA from "~/cta";
 import { useTheme } from "context/ThemeProvider";
 
 /* ----------------- helpers ----------------- */
@@ -364,18 +365,13 @@ export default function GroupsScreen() {
                                 ))}
                             </View>
                         ) : (
-                            <View style={styles.emptyCard}>
-                                <Text style={styles.emptyTitle}>No groups yet</Text>
-                                <Text style={styles.emptyText}>To split expenses with multiple people, create a group.</Text>
-                                <TouchableOpacity
-                                    style={styles.ctaBtn}
-                                    onPress={() => {
-                                        groupsRef.current?.present()
-                                    }}
-                                >
-                                    <Text style={styles.ctaBtnText}>Create Group</Text>
-                                </TouchableOpacity>
-                            </View>
+                            <EmptyCTA
+                                                    title="No groups yet!"
+                                                    subtitle="To split expenses with multiple people, create groups."
+                                                    ctaLabel="Add Group"
+                                                    onPress={() => groupsRef.current.present()}
+                                                    />
+                                                    
                         )
                     }
                     ListFooterComponent={

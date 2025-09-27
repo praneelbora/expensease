@@ -1,4 +1,4 @@
-// app/account/FAQ.js
+// app/settings/FAQ.js
 import React, { useMemo, useState, useEffect } from "react";
 import {
     View,
@@ -30,7 +30,7 @@ const FAQS = [
     { id: 4, q: "Can I record loans or IOUs?", category: "Features", a: [{ type: "text", value: "Yes — use New loan to record borrow/lend money. Loans appear alongside expenses and can be settled." }] },
     { id: 5, q: "How does privacy work for groups?", category: "Privacy", a: [{ type: "text", value: "Group admins control visibility. By default only members see group expenses. You can export your data anytime." }] },
     { id: 6, q: "Are there any charges?", category: "Account", a: [{ type: "text", value: "Expensease is free for small groups. We'll announce pricing for advanced features and show pricing before you opt in." }] },
-    { id: 7, q: "How do I manage payment methods?", category: "Payments", a: [{ type: "text", value: "Go to Account → Payment methods to add or remove saved payment accounts. They are never charged without your consent." }] },
+    { id: 7, q: "How do I manage payment methods?", category: "Payments", a: [{ type: "text", value: "Go to Settings → Payment methods to add or remove saved payment accounts. They are never charged without your consent." }] },
     { id: 10, q: "You still have a query?", category: "Support", a: [{ type: "text", value: "Yes! Use the Help → Contact support link or email email.expensease@gmail.com. For quick issues, try the in-app chat." }] },
 ];
 
@@ -122,7 +122,7 @@ export default function FAQScreen() {
                         <View style={styles.empty}>
                             <Text style={styles.emptyTitle}>No results found</Text>
                             <Text style={styles.emptyText}>Try different keywords or contact support.</Text>
-                            <TouchableOpacity style={styles.contactBtn} onPress={() => router.push("account/contact")}>
+                            <TouchableOpacity style={styles.contactBtn} onPress={() => router.push("settings/contact")}>
                                 <Text style={styles.contactBtnText}>Contact support</Text>
                             </TouchableOpacity>
                         </View>
@@ -181,7 +181,7 @@ export default function FAQScreen() {
                     <View style={styles.ctaCard}>
                         <Text style={styles.ctaTitle}>Still have a question?</Text>
                         <Text style={styles.ctaSubtitle}>Reach out to our support team — we usually reply within a business day.</Text>
-                        <TouchableOpacity style={styles.ctaBtn} onPress={() => router.push("account/contact")}>
+                        <TouchableOpacity style={styles.ctaBtn} onPress={() => router.push("settings/contact")}>
                             <Text style={styles.ctaBtnText}>Contact support</Text>
                         </TouchableOpacity>
                     </View>

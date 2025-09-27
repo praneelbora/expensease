@@ -21,6 +21,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import Header from "~/header";
 import SearchBar from "~/searchBar";
 import BottomSheetAddFriend from "~/btmShtAddFriend";
+import EmptyCTA from "~/cta";
 import Plus from "@/accIcons/plus.svg";
 // ==== adjust these paths for your app structure ====
 import { useAuth } from "context/AuthContext";
@@ -731,13 +732,14 @@ export default function FriendsScreen() {
 
                     {/* Empty state */}
                     {!loading && friends.length === 0 && receivedRequests.length === 0 ? (
-                        <View style={styles.emptyCard}>
-                            <Text style={styles.emptyTitle}>No friends yet!</Text>
-                            <Text style={styles.emptyText}>To split expenses, add friends.</Text>
-                            <TouchableOpacity onPress={() => addFriendRef.current?.present()} style={styles.ctaBtn}>
-                                <Text style={styles.ctaBtnText}>Add Friend</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <EmptyCTA
+                        visible={!loading && friends.length === 0 && receivedRequests.length === 0}
+                        title="No friends yet!"
+                        subtitle="To split expenses, add friends."
+                        ctaLabel="Add Friend"
+                        onPress={() => addFriendRef.current.present()}
+                        />
+
                     ) : null}
 
                     {/* Loading skeletons */}

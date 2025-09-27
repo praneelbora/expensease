@@ -105,42 +105,6 @@ export default function LoginRegister() {
         }
     };
 
-    // Shared handler: try both id_token-like credential and access_token
-    async function handleBackendAuth(tokenOrObject) {
-        // tokenOrObject may be: { credential } or { access_token } or string
-        try {
-            let tokenToSend = "";
-            if (!tokenOrObject) throw new Error("Missing credentials from Google flow.");
-
-            if (typeof tokenOrObject === "string") tokenToSend = tokenOrObject;
-            else if (tokenOrObject.credential) tokenToSend = tokenOrObject.credential;
-            else if (tokenOrObject.access_token) tokenToSend = tokenOrObject.access_token;
-            else if (tokenOrObject.code) tokenToSend = tokenOrObject.code;
-            else tokenToSend = JSON.stringify(tokenOrObject);
-
-            const result = await googleLogin(tokenToSend);
-            if (!result) throw new Error("No response from server. Try again.");
-            if (result.error) throw new Error(result.error);
-
-            // success
-            setUser(result.user);
-            setUserToken(result.userToken);
-
-            // analytics: sign_up vs login
-            try {
-                if (result.newUser) {
-                    logEvent("sign_up", { method: "google" });
-                } else {
-                    logEvent("login", { method: "google" });
-                }
-            } catch { }
-
-            // navigate with slight delay for smoother transition
-            setTimeout(() => navigate("/dashboard"), 220);
-        } catch (e) {
-            throw e;
-        }
-    }
     const onGoogleSuccess = async (codeResponse) => {
         setError("");
         setLoading(true); // start spinner
@@ -172,10 +136,7 @@ export default function LoginRegister() {
         }
     };
 
-    const onGoogleError = () => {
-        setError("Google sign-in was cancelled or blocked. Try again or check your browser settings.");
-        recordClick("auth_google_popup_failed", { screen: "login" });
-    };
+
 
     // useGoogleLogin gives us a function to trigger Google's popup using our handlers
     const login = useGoogleLogin({

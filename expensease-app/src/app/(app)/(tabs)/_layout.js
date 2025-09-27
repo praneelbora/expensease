@@ -75,11 +75,11 @@ export default function TabsLayout() {
                             style={{
                                 backgroundColor: focused ? theme.colors.primary : theme.colors.muted,
                                 width: 60,
-                                height: 35,
+                                height: 40,
                                 alignContent: "center",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                marginTop: 10,
+                                marginTop: 12,
                                 borderRadius: 5,
                                 // subtle elevation on iOS/Android
                                 ...Platform.select({
@@ -102,10 +102,10 @@ export default function TabsLayout() {
                 }}
             />
             <Tabs.Screen
-                name="account"
+                name="settings"
                 options={{
-                    title: "Account",
-                    tabBarAccessibilityLabel: "Account",
+                    title: "Settings",
+                    tabBarAccessibilityLabel: "Settings",
                     tabBarIcon: ({ color, size }) => <Cog width={size} height={size} stroke={color} fill="none" />,
                 }}
             />

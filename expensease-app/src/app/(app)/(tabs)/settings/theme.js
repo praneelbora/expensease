@@ -1,4 +1,4 @@
-// app/account/theme.js
+// app/settings/theme.js
 import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";

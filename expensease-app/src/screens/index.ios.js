@@ -55,7 +55,7 @@ export default function Login() {
     const [nationalNumber, setNationalNumber] = useState(""); // digits only (no spaces)
 
     // Phone / OTP states
-    const [showMore, setShowMore] = useState(false); // toggle "More ways to login"
+    const [showSocial, setShowSocial] = useState(false); // NEW: toggles "More ways to login" (Google / Apple)
     const [stage, setStage] = useState("idle"); // 'idle' | 'sent' | 'verifying'
     const [otpDigits, setOtpDigits] = useState(new Array(4).fill(""));
     const [countdown, setCountdown] = useState(0);
@@ -83,8 +83,6 @@ export default function Login() {
         (async () => {
             try {
                 const avail = await AppleAuthentication.isAvailableAsync();
-                console.log(avail);
-
                 setAppleAvailable(avail);
             } catch (e) {
                 setAppleAvailable(false);
@@ -159,10 +157,6 @@ export default function Login() {
         return () => {
             mounted = false;
         };
-        // dependencies:
-        // - hydrated to wait for auth bootstrap before deciding
-        // - version to re-run when remote version policy changes
-        // - userToken/authLoading/user to immediately redirect when login state becomes available
     }, [hydrated, version, userToken, authLoading, user]);
 
     // helper countdown
@@ -186,12 +180,6 @@ export default function Login() {
 
 
     // -------------------- New helper: validate parts --------------------
-    /**
-     * Validate calling code and national number.
-     * - callingCode: digits only, length 1..3
-     * - nationalNumber: digits only, length >= 4 (adjust if you want stricter)
-     * Returns { ok: boolean, reason?: string, phoneToSend?: string }
-     */
     const validatePhoneParts = (cc, national) => {
         const ccDigits = String(cc || "").replace(/\D/g, "");
         const natDigits = String(national || "").replace(/\D/g, "");
@@ -300,10 +288,6 @@ export default function Login() {
         return "";
     };
 
-    // Use it in JSX:
-    // We sent a 4 digit code to { formatSentPhone(lastSentPhone) }
-
-
     const handleResend = async () => {
         if (countdown > 0) return;
         await handleSendOTP();
@@ -362,11 +346,8 @@ export default function Login() {
                     AppleAuthentication.AppleAuthenticationScope.EMAIL,
                 ],
             });
-            console.log('credential: ', credential);
 
-            // credential contains identityToken, authorizationCode, fullName, email, user
             const identityToken = credential?.identityToken;
-            console.log('identityToken: ', identityToken);
             if (!identityToken) {
                 throw new Error("No identityToken from Apple. Make sure Sign In with Apple is configured.");
             }
@@ -380,15 +361,12 @@ export default function Login() {
 
             // send identityToken to backend (appleLoginMobile implemented above)
             const res = await appleLoginMobile(identityToken, expoPushToken, Platform.OS, name);
-            console.log('res: ', res);
 
             if (res?.userToken) {
-                // set token in your auth context (setUserToken expected to store token + fetch user)
                 if (typeof setUserToken === "function") {
                     await setUserToken(res.userToken);
                 }
 
-                // after login redirect (reuse your existing check)
                 const response = await checkAppVersion(version, Platform.OS);
                 if (response?.outdated) {
                     setNavigating(true);
@@ -408,7 +386,6 @@ export default function Login() {
                 raw: err,
             });
 
-            // present user-friendly error
             setError(err?.message || "Apple login failed. Please try again.");
             try {
                 await logout?.();
@@ -420,8 +397,6 @@ export default function Login() {
             setSubmitting(false);
         }
     };
-
-
 
     // Dev email/password login for local testing
     const handleDevLogin = async () => {
@@ -450,12 +425,11 @@ export default function Login() {
     };
 
     // UI helpers for navigation/back actions
-    const handleShowMore = () => {
-        setShowMore(true);
-        setStage("idle");
+    const handleShowSocial = () => {
+        setShowSocial(true);
     };
-    const handleHideMore = () => {
-        setShowMore(false);
+    const handleHideSocial = () => {
+        setShowSocial(false);
         setStage("idle");
         setPhoneInputValue("");
         setOtpDigits(new Array(4).fill(""));
@@ -493,20 +467,19 @@ export default function Login() {
                     <Text style={styles.subtitle}>Smart expense tracking and effortless splitting.</Text>
 
                     <View style={styles.card}>
-                        {/* Top row: back / close when showing more */}
+                        {/* Top row: back / close when verifying OTP or when showing social options */}
                         <View style={{ width: "100%", flexDirection: "row", justifyContent: "flex-start" }}>
-                            {showMore && (
+                            {(stage === "sent") && (
                                 <View style={styles.headerRow}>
-
                                     <TouchableOpacity
-                                        onPress={stage === "sent" ? handleBackFromSent : handleHideMore}
+                                        onPress={stage === "sent" ? handleBackFromSent : handleHideSocial}
                                         style={styles.backButton}
                                         accessibilityRole="button"
                                     >
                                         <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
                                     </TouchableOpacity>
 
-                                    <Text style={styles.headerTitle}>{stage === "sent" ? "Verify OTP" : "Login with Mobile"}</Text>
+                                    <Text style={styles.headerTitle}>{stage === "sent" ? "Verify OTP" : showSocial ? "More ways to login" : "Login with Mobile"}</Text>
                                 </View>
                             )}
                         </View>
@@ -549,8 +522,114 @@ export default function Login() {
                                 </View>
                             )}
 
-                            {/* When OTP is sent we hide the Google UI (requested). When showMore===false show only Google */}
-                            {!showMore && (
+                            {/* --- MOBILE PHONE / OTP (primary, shown by default) --- */}
+                            {stage !== "sent" ? (
+                                // PHONE ENTRY
+                                <>
+                                    {/* Phone input */}
+                                    <View style={{ flexDirection: "row", alignItems: "center", width: "100%", gap: 8 }}>
+                                        <PhoneInput
+                                            ref={phoneInputRef}
+                                            value={nationalNumber}
+                                            defaultValue={nationalNumber}
+                                            defaultCode={defaultCountryCode}
+                                            layout="first"
+                                            onChangeText={(text) => {
+                                                // nationalNumber must remain digits-only
+                                                setNationalNumber(String(text || "").replace(/\D/g, ""));
+                                            }}
+                                            onChangeFormattedText={(formatted) => {
+                                                // try to derive calling code from ref; keep nationalNumber digits-only
+                                                const cc = phoneInputRef.current?.getCallingCode?.() || "";
+                                                const digitsOnly = String(formatted || "").replace(/\D/g, "");
+                                                if (cc && digitsOnly.startsWith(String(cc))) {
+                                                    setCallingCode(String(cc).replace(/\D/g, ""));
+                                                    setNationalNumber(digitsOnly.slice(String(cc).length));
+                                                } else {
+                                                    // fallback: don't strip unknown prefix — just store digits as national part
+                                                    setNationalNumber(digitsOnly);
+                                                }
+                                            }}
+                                            containerStyle={styles.phoneContainer}
+                                            textContainerStyle={styles.phoneTextContainer}
+                                            textInputStyle={styles.phoneTextInput}
+                                            codeTextStyle={styles.codeText}
+                                            flagButtonStyle={styles.flagButton}
+                                            renderDropdownImage={<Ionicons name="chevron-down" size={18} color={theme.colors.text} />}
+                                            disableArrowIcon={false}
+                                            placeholder="9876543210"
+                                        />
+                                    </View>
+
+                                    <TouchableOpacity style={[styles.signInBtn, { marginTop: 0 }]} onPress={handleSendOTP} disabled={sending}>
+                                        {sending ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Send OTP</Text>}
+                                    </TouchableOpacity>
+                                    {otpError ? <Text style={styles.error}>{otpError}</Text> : null}
+
+                                    {/* "More ways to login" toggles social options (Google / Apple) */}
+                                    {!showSocial && <TouchableOpacity onPress={handleShowSocial} style={{ marginTop: 8 }}>
+                                        <Text style={[styles.footerText, { fontWeight: "700", color: theme?.colors?.primary }]}>More ways to login</Text>
+                                    </TouchableOpacity>}
+                                </>
+                            ) : (
+                                // OTP INPUT (stage === 'sent')
+                                <>
+                                    <Text style={[styles.hint, { textAlign: "left", marginBottom: 8 }]}>
+                                        We sent a 4 digit code to {formatSentPhone(lastSentPhone)}
+                                    </Text>
+
+                                    <View style={{ width: "100%", alignItems: "center", marginTop: 8 }}>
+                                        <OtpInput
+                                            numberOfDigits={4}
+                                            onTextChange={(text) => {
+                                                setOtpCode(text);
+                                                setOtpActive(false);
+                                                setOtpError("");
+                                            }}
+                                            onFilled={() => {
+                                                setOtpActive(true);
+                                                Keyboard.dismiss();
+                                            }}
+                                            textInputProps={{
+                                                accessibilityLabel: "One-Time Password",
+                                                keyboardType: "number-pad",
+                                                inputMode: "numeric",
+                                                textContentType: Platform.OS === "ios" ? "oneTimeCode" : "none",
+                                                autoComplete: Platform.OS === "android" ? "sms-otp" : "off",
+                                                importantForAutofill: "yes",
+                                            }}
+                                            type="numeric"
+                                            theme={{
+                                                containerStyle: styles.otpContainer,
+                                                pinCodeContainerStyle: styles.codeContainer,
+                                                pinCodeTextStyle: styles.pinCodeText,
+                                                focusStickStyle: styles.focusStick,
+                                                focusedPinCodeContainerStyle: styles.activePinCodeContainer,
+                                            }}
+                                        />
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={[styles.signInBtn, { marginTop: 24 }]}
+                                        onPress={handleVerifyOtp}
+                                        disabled={verifying || !otpActive}
+                                    >
+                                        {verifying ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Verify OTP</Text>}
+                                    </TouchableOpacity>
+
+                                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, width: "100%" }}>
+                                        <Text style={styles.footerText}>Didn't get code?</Text>
+                                        <TouchableOpacity onPress={handleResend} disabled={countdown > 0}>
+                                            <Text style={[styles.linkText, { fontWeight: "600" }]}>{countdown > 0 ? `Resend in ${countdown}s` : "Resend"}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {otpError ? <Text style={styles.error}>{otpError}</Text> : null}
+                                </>
+                            )}
+
+                            {/* --- SOCIAL / MORE WAYS (only when user opens More ways to login) --- */}
+                            {showSocial && stage !== "sent" && (
                                 <>
                                     <TouchableOpacity
                                         style={styles.googleBtn}
@@ -560,123 +639,15 @@ export default function Login() {
                                     >
                                         {submitting || authLoading ? <ActivityIndicator /> : <Text style={styles.googleText}>Continue with Google</Text>}
                                     </TouchableOpacity>
+
                                     {appleAvailable && (
                                         <AppleAuthentication.AppleAuthenticationButton
                                             buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
                                             buttonStyle={theme?.mode != 'dark' ? AppleAuthentication.AppleAuthenticationButtonStyle.BLACK : AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
                                             cornerRadius={8}
-                                            style={styles.appleButton} // defined below
+                                            style={styles.appleButton}
                                             onPress={handleAppleLogin}
                                         />
-                                    )}
-
-                                    <TouchableOpacity onPress={handleShowMore} style={{}}>
-                                        <Text style={[styles.footerText, { fontWeight: "700", color: theme?.colors?.primary }]}>More ways to login</Text>
-                                    </TouchableOpacity>
-                                </>
-                            )}
-
-                            {/* show phone / otp card when user clicked "more" OR stage === 'sent' */}
-                            {(showMore || stage === "sent") && (
-                                <>
-                                    {stage !== "sent" ? (
-                                        // PHONE ENTRY
-                                        <>
-                                            {/* Phone input */}
-                                            <View style={{ flexDirection: "row", alignItems: "center", width: "100%", gap: 8 }}>
-                                                <PhoneInput
-                                                    ref={phoneInputRef}
-                                                    value={nationalNumber}
-                                                    defaultValue={nationalNumber}
-                                                    defaultCode={defaultCountryCode}
-                                                    layout="first"
-                                                    onChangeText={(text) => {
-                                                        // nationalNumber must remain digits-only
-                                                        setNationalNumber(String(text || "").replace(/\D/g, ""));
-                                                    }}
-                                                    onChangeFormattedText={(formatted) => {
-                                                        // try to derive calling code from ref; keep nationalNumber digits-only
-                                                        const cc = phoneInputRef.current?.getCallingCode?.() || "";
-                                                        const digitsOnly = String(formatted || "").replace(/\D/g, "");
-                                                        if (cc && digitsOnly.startsWith(String(cc))) {
-                                                            setCallingCode(String(cc).replace(/\D/g, ""));
-                                                            setNationalNumber(digitsOnly.slice(String(cc).length));
-                                                        } else {
-                                                            // fallback: don't strip unknown prefix — just store digits as national part
-                                                            setNationalNumber(digitsOnly);
-                                                        }
-                                                    }}
-                                                    containerStyle={styles.phoneContainer}
-                                                    textContainerStyle={styles.phoneTextContainer}
-                                                    textInputStyle={styles.phoneTextInput}
-                                                    codeTextStyle={styles.codeText}
-                                                    flagButtonStyle={styles.flagButton}
-                                                    renderDropdownImage={<Ionicons name="chevron-down" size={18} color={theme.colors.text} />}
-                                                    disableArrowIcon={false}
-                                                    placeholder="9876543210"
-                                                />
-                                            </View>
-
-                                            <TouchableOpacity style={[styles.signInBtn, { marginTop: 12 }]} onPress={handleSendOTP} disabled={sending}>
-                                                {sending ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Send OTP</Text>}
-                                            </TouchableOpacity>
-                                            {otpError ? <Text style={styles.error}>{otpError}</Text> : null}
-                                        </>
-                                    ) : (
-                                        // OTP INPUT (stage === 'sent')
-                                        <>
-                                            <Text style={[styles.hint, { textAlign: "left", marginBottom: 8 }]}>
-                                                We sent a 4 digit code to {formatSentPhone(lastSentPhone)}
-                                            </Text>
-
-                                            <View style={{ width: "100%", alignItems: "center", marginTop: 8 }}>
-                                                <OtpInput
-                                                    numberOfDigits={4}
-                                                    onTextChange={(text) => {
-                                                        setOtpCode(text);
-                                                        setOtpActive(false);
-                                                        setOtpError("");
-                                                    }}
-                                                    onFilled={() => {
-                                                        setOtpActive(true);
-                                                        Keyboard.dismiss();
-                                                    }}
-                                                    textInputProps={{
-                                                        accessibilityLabel: "One-Time Password",
-                                                        keyboardType: "number-pad",
-                                                        inputMode: "numeric",
-                                                        textContentType: Platform.OS === "ios" ? "oneTimeCode" : "none",
-                                                        autoComplete: Platform.OS === "android" ? "sms-otp" : "off",
-                                                        importantForAutofill: "yes",
-                                                    }}
-                                                    type="numeric"
-                                                    theme={{
-                                                        containerStyle: styles.otpContainer,
-                                                        pinCodeContainerStyle: styles.codeContainer,
-                                                        pinCodeTextStyle: styles.pinCodeText,
-                                                        focusStickStyle: styles.focusStick,
-                                                        focusedPinCodeContainerStyle: styles.activePinCodeContainer,
-                                                    }}
-                                                />
-                                            </View>
-
-                                            <TouchableOpacity
-                                                style={[styles.signInBtn, { marginTop: 24 }]}
-                                                onPress={handleVerifyOtp}
-                                                disabled={verifying || !otpActive}
-                                            >
-                                                {verifying ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Verify OTP</Text>}
-                                            </TouchableOpacity>
-
-                                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, width: "100%" }}>
-                                                <Text style={styles.footerText}>Didn't get code?</Text>
-                                                <TouchableOpacity onPress={handleResend} disabled={countdown > 0}>
-                                                    <Text style={[styles.linkText, { fontWeight: "600" }]}>{countdown > 0 ? `Resend in ${countdown}s` : "Resend"}</Text>
-                                                </TouchableOpacity>
-                                            </View>
-
-                                            {otpError ? <Text style={styles.error}>{otpError}</Text> : null}
-                                        </>
                                     )}
                                 </>
                             )}
@@ -739,18 +710,18 @@ const createStyles = (theme, insets) =>
             alignItems: "center",
             justifyContent: "center",
         },
-        googleText: { fontWeight: "500", fontSize: 18, color: theme?.mode != 'dark' ? '#fff' : "#000" },
+        googleText: { fontWeight: "500", fontSize: 19, color: theme?.mode != 'dark' ? '#fff' : "#000" },
         hint: { color: theme.colors.muted, fontSize: 13, textAlign: "center" },
         error: { color: "#F43F5E", marginBottom: 12 },
         signInBtn: {
             height: 44,
             width: "100%",
             borderRadius: 10,
-            backgroundColor: theme.colors.card,
+            backgroundColor: theme.colors.background,
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
-            borderColor: "#E6EEF8",
+            borderColor: theme.colors.border,
         },
         secondaryText: { color: theme.colors.primary, fontWeight: "600" },
         loadingRow: { flexDirection: "row", alignItems: "center", marginTop: 12 },

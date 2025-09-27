@@ -1,4 +1,4 @@
-// app/account/PrivacyPolicy.js
+// app/settings/PrivacyPolicy.js
 import React, { useMemo } from "react";
 import {
     View,
@@ -97,12 +97,12 @@ export default function PrivacyPolicyScreen() {
 
                                 {/* Quick links inside highlight card */}
                                 <View style={styles.quickLinks}>
-                                    <TouchableOpacity onPress={() => router.push("/account/faq")} style={styles.quickLinkBtn}>
+                                    <TouchableOpacity onPress={() => router.push("/settings/faq")} style={styles.quickLinkBtn}>
                                         <FAQ width={14} height={14} color={theme.colors.primary} />
                                         <Text style={styles.quickLinkText}>FAQs</Text>
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity onPress={() => router.push("/account/contact")} style={styles.quickLinkBtn}>
+                                    <TouchableOpacity onPress={() => router.push("/settings/contact")} style={styles.quickLinkBtn}>
                                         <Contact width={14} height={14} color={theme.colors.primary} />
                                         <Text style={styles.quickLinkText}>Contact</Text>
                                     </TouchableOpacity>

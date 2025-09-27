@@ -8,6 +8,7 @@
         "icon": "./assets/default/icon.png",
         "userInterfaceStyle": "automatic",
         "newArchEnabled": true,
+        "deepLinking": true,
         "splash": {
             "image": "./assets/default/splash-icon.png",
             "resizeMode": "contain",
@@ -39,7 +40,8 @@
                     "data": [
                         {
                             "scheme": "https",
-                            "host": "expensease.in"
+                            "host": "expensease.in",
+                            "pathPrefix": "/"
                         }
                     ],
                     "category": [

@@ -1,4 +1,4 @@
-// app/account/NotificationsSettings.js
+// app/settings/NotificationsSettings.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     View,

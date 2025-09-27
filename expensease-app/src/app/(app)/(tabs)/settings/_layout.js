@@ -5,7 +5,7 @@ export default function AccountLayout() {
         <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen
                 name="index"
-                options={{ title: "Account", animationTypeForReplace: "pop", unmountOnBlur: true }}
+                options={{ title: "Settings", animationTypeForReplace: "pop", unmountOnBlur: true }}
             />
             <Stack.Screen
                 name="guide"

@@ -79,7 +79,7 @@ export default function CompleteProfile() {
   const handleSkip = () => {
     Alert.alert(
       "Skip adding your name?",
-      "If you skip, a random name will be assigned to you until you edit it in Account Settings.",
+      "If you skip, a random name will be assigned to you until you edit it in Settings.",
       [
         { text: "Cancel", style: "cancel" },
         {

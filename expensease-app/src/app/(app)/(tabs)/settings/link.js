@@ -1,4 +1,4 @@
-// app/account/link.js
+// app/settings/link.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     View,

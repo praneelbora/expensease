@@ -1,4 +1,4 @@
-// app/account/index.js
+// app/settings/index.js
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     View,
@@ -375,8 +375,8 @@ export default function AccountScreen() {
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
+            <Header title="Expensease" />
             <StatusBar style={theme.statusBarStyle === "dark-content" ? "dark" : "light"} />
-            <Header title="Account" showCoins coins={user?.coins || 0} />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
                 <ScrollView ref={scrollerRef} style={styles.scroller} contentContainerStyle={{ paddingBottom: 24 }}>
                     {loading ? (
@@ -462,8 +462,8 @@ export default function AccountScreen() {
                                 </TouchableOpacity>
                             ) : null}
                             {/* Quick link to Link Contact screen */}
-                            {(!user?.phone || (user?.email==user?.appleEmail)) && <TouchableOpacity
-                                onPress={() => router.push("account/link")}
+                            {(!user?.phone || (user?.email == user?.appleEmail)) && <TouchableOpacity
+                                onPress={() => router.push("settings/link")}
                                 style={{
                                     marginBottom: 8,
                                     paddingVertical: 12,
@@ -476,10 +476,14 @@ export default function AccountScreen() {
                                 }}
                                 activeOpacity={0.8}
                             >
-                                <Text style={{ color: theme.colors.text, fontWeight: "700" }}>Keep Your Account Safe</Text>
-                                <Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 6, textAlign: 'center' }}>
-                                    Add an email and phone number to make it easy for friends to reach you and to recover your account if needed.
+                                <Text style={{ color: theme.colors.text, fontWeight: "700", fontSize: 18 }}>
+                                    Link Your Phone & Email
                                 </Text>
+                                <Text style={{ color: theme.colors.muted, fontSize: 14, marginTop: 6, textAlign: 'center' }}>
+                                    Connect phone number and email to use Expensease across devices.
+                                    Linked accounts help login faster and make it easier for your friends to add you.
+                                </Text>
+
 
                             </TouchableOpacity>}
 
@@ -498,56 +502,56 @@ export default function AccountScreen() {
 
                             <View style={{ marginTop: 0 }}>
                                 <View style={styles.grid}>
-                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/guide")}>
+                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("settings/guide")}>
                                         <View style={styles.iconWrap}>
                                             <Guide width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Guide</Text>
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/theme")}>
+                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("settings/theme")}>
                                         <View style={styles.iconWrap}>
                                             <Sun width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Theme</Text>
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/notifications")}>
+                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("settings/notifications")}>
                                         <View style={styles.iconWrap}>
                                             <Bell width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Notifications</Text>
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/paymentAccounts")}>
+                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("settings/paymentAccounts")}>
                                         <View style={styles.iconWrap}>
                                             <Payment width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Payment Accounts</Text>
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/currency")}>
+                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("settings/currency")}>
                                         <View style={styles.iconWrap}>
                                             <Currency width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Currency</Text>
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/faq")}>
+                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("settings/faq")}>
                                         <View style={styles.iconWrap}>
                                             <FAQ width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>FAQ</Text>
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/privacy")}>
+                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("settings/privacy")}>
                                         <View style={styles.iconWrap}>
                                             <Privacy width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Privacy</Text>
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("account/contact")}>
+                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => router.push("settings/contact")}>
                                         <View style={styles.iconWrap}>
                                             <Contact width={30} height={30} stroke={theme.colors.primary} />
                                         </View>

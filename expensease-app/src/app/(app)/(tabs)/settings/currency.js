@@ -1,4 +1,4 @@
-// app/account/currency.js
+// app/settings/currency.js
 import React, { useMemo, useState, useEffect } from "react";
 import {
     View,

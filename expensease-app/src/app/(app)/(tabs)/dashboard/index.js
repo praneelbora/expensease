@@ -20,6 +20,7 @@ import { createPaymentMethod } from "services/PaymentMethodService";
 
 import Header from "~/header";
 import ExpenseRow from "~/expenseRow";
+import EmptyCTA from "~/cta";
 import { useTheme } from "context/ThemeProvider";
 
 import { FetchProvider, useFetch } from "context/FetchContext";
@@ -437,7 +438,7 @@ function DashboardScreenInner() {
        ----------------------- */
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
-            <Header main />
+            <Header title="Dashboard" />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
                 <ScrollView
                     style={styles.scroller}
@@ -493,14 +494,13 @@ function DashboardScreenInner() {
                             ))}
                         </View>
                     ) : expenses.length === 0 ? (
-                        <View style={styles.emptyCard}>
-                            <Text style={styles.emptyTitle}>No Expenses Yet</Text>
-                            <Text style={styles.emptyText}>
-                                You haven’t added any expenses yet. Start by adding your first one to see stats and insights.
-                            </Text>
-                            <TouchableOpacity style={styles.ctaBtn} onPress={() => router.push("/newExpense")}>
-                                <Text style={styles.ctaBtnText}>Add Expense</Text>
-                            </TouchableOpacity>
+                        <View style={{ flex: 1, minHeight: '100%', justifyContent: 'center' }}>
+                            <EmptyCTA
+                                title="No Expenses yet!"
+                                subtitle="You haven’t added any expenses yet. Start by adding your first one to see stats and insights."
+                                ctaLabel="Add Expemse"
+                                onPress={() => router.push("/newExpense")}
+                            />
                         </View>
                     ) : (
                         <>

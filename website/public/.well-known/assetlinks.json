@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.praneelbora.expensease",
+      "sha256_cert_fingerprints": [
+        "C6:1C:9E:4E:1E:F6:6A:2E:51:C0:A1:83:17:FB:76:53:CE:EC:DA:99:85:37:59:F4:BD:BC:F9:2C:EE:7B:23:6F"
+      ]
+    }
+  }
+]
