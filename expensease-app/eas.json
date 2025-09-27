@@ -10,7 +10,8 @@
             "env": {
                 "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api",
                 "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID":"421409040351-5gi3qiffdaolc8d29bj338ioibtu2db3.apps.googleusercontent.com",
-                "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"421409040351-1a24o9dkjq3207gkggs9doms0pmltg0f.apps.googleusercontent.com"
+                "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"421409040351-1a24o9dkjq3207gkggs9doms0pmltg0f.apps.googleusercontent.com",
+                "EXPO_PUBLIC_CONTACT_HASH_KEY":"06fbcd370b96b64b75d1d091ecb98a6ebcbe32ac044c812f3264ab6df5ca84cb6555eb4f4e2583f695932516961ba472403f563f538d8b519e8f98148763be00"
             }
         },
         "preview": {
@@ -19,7 +20,8 @@
                 "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api",
                  "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID":"421409040351-5gi3qiffdaolc8d29bj338ioibtu2db3.apps.googleusercontent.com",
                  "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"421409040351-1a24o9dkjq3207gkggs9doms0pmltg0f.apps.googleusercontent.com",
-                 "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID":"421409040351-te6tvrccsppdt9nngms5c85i808trnor.apps.googleusercontent.com"
+                 "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID":"421409040351-te6tvrccsppdt9nngms5c85i808trnor.apps.googleusercontent.com",
+                 "EXPO_PUBLIC_CONTACT_HASH_KEY":"06fbcd370b96b64b75d1d091ecb98a6ebcbe32ac044c812f3264ab6df5ca84cb6555eb4f4e2583f695932516961ba472403f563f538d8b519e8f98148763be00"
             }
         },
         "production": {
@@ -28,7 +30,8 @@
                 "EXPO_PUBLIC_BACKEND_URL": "https://api.expensease.in/api",
                 "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID":"421409040351-5gi3qiffdaolc8d29bj338ioibtu2db3.apps.googleusercontent.com",
                 "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"421409040351-1a24o9dkjq3207gkggs9doms0pmltg0f.apps.googleusercontent.com",
-                "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID":"421409040351-te6tvrccsppdt9nngms5c85i808trnor.apps.googleusercontent.com"
+                "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID":"421409040351-te6tvrccsppdt9nngms5c85i808trnor.apps.googleusercontent.com",
+                "EXPO_PUBLIC_CONTACT_HASH_KEY":"06fbcd370b96b64b75d1d091ecb98a6ebcbe32ac044c812f3264ab6df5ca84cb6555eb4f4e2583f695932516961ba472403f563f538d8b519e8f98148763be00"
             }
         }
     },
