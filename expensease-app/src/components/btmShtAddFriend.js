@@ -547,10 +547,60 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
 
             // dedupe final arrays
             // dedupe final arrays
+            // dedupe final arrays
             let uniqEmails = Array.from(new Set(emails.filter(Boolean)));
             let uniqPhones = Array.from(new Set(phones.filter(Boolean)));
 
             const isOnApp = aggregatedUsers.length > 0;
+
+            // --- NEW: hide device contact rows that are fully represented on-server,
+            // and remove only the matched elements if partially represented.
+            // serverContactSets (phonesSet, emailsSet, phoneKey) is available via outer scope.
+
+            try {
+                const serverPhonesSet = (serverContactSets && serverContactSets.phonesSet) || new Set();
+                const serverEmailsSet = (serverContactSets && serverContactSets.emailsSet) || new Set();
+                const phoneKeyFn = (serverContactSets && serverContactSets.phoneKey) || ((p) => {
+                    if (!p && p !== 0) return null;
+                    const digits = String(p).replace(/\D/g, '');
+                    if (!digits) return null;
+                    return digits.length > 10 ? digits.slice(-10) : digits;
+                });
+
+                // Helper to test if a single phone/email is present on server
+                const phoneIsOnServer = (p) => {
+                    const k = phoneKeyFn(p);
+                    if (k) return serverPhonesSet.has(k);
+                    return serverPhonesSet.has(String(p).trim());
+                };
+                const emailIsOnServer = (e) => serverEmailsSet.has(String(e).trim().toLowerCase());
+
+                // Count how many device elements are represented on server
+                const deviceElements = [...uniqPhones.map((p) => ({ type: 'phone', value: p })), ...uniqEmails.map((e) => ({ type: 'email', value: e }))];
+                let matchedCount = 0;
+                for (const el of deviceElements) {
+                    if (el.type === 'phone' && phoneIsOnServer(el.value)) matchedCount++;
+                    if (el.type === 'email' && emailIsOnServer(el.value)) matchedCount++;
+                }
+
+                // If all device elements are present on-server, hide this device contact row
+                if (deviceElements.length > 0 && matchedCount === deviceElements.length) {
+                    // don't push this row - fully duplicated by on-app users
+                    continue;
+                }
+
+                // Otherwise remove only the matched elements so the row shows only non-server items
+                uniqPhones = uniqPhones.filter((p) => !phoneIsOnServer(p));
+                uniqEmails = uniqEmails.filter((e) => !emailIsOnServer(e));
+            } catch (err) {
+                // fail-safe: if anything goes wrong, keep original uniqPhones/uniqEmails
+                console.warn('server-filtering failed', err);
+            }
+
+            // If after filtering a non-onapp group has no contact points left, skip it.
+            if (!isOnApp && uniqPhones.length === 0 && uniqEmails.length === 0) {
+                continue; // don't push this row
+            }
 
             // Filter out any phone/email that is already represented by server-side Expensease users.
             // We compare emails lowercased, and phones by last-10-digit key where possible.
@@ -634,6 +684,57 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                 rawDevice: null,
             });
         }
+        // --- POST-PROCESS: remove device rows fully/partially covered by on-app rows ---
+        // Put this immediately BEFORE the existing final sort (rows.sort(...))
+
+        const phoneKeyFn = (p) => {
+            if (!p && p !== 0) return null;
+            const digits = String(p).replace(/\D/g, '');
+            if (!digits) return null;
+            return digits.length > 10 ? digits.slice(-10) : digits;
+        };
+
+        // Collect all phones/emails that already appear in *on-app* rows
+        const serverPhonesSetAll = new Set();
+        const serverEmailsSetAll = new Set();
+        for (const r of rows) {
+            if (r.isOnApp) {
+                (r.phones || []).forEach((p) => {
+                    const k = phoneKeyFn(p);
+                    if (k) serverPhonesSetAll.add(k);
+                    else serverPhonesSetAll.add(String(p).trim());
+                });
+                (r.emails || []).forEach((e) => {
+                    if (e) serverEmailsSetAll.add(String(e).trim().toLowerCase());
+                });
+            }
+        }
+
+        // Build final list: for non-onApp rows remove matched elements, drop if nothing left
+        const finalRows = [];
+        for (const r of rows) {
+            if (!r.isOnApp) {
+                const remainingPhones = (r.phones || []).filter((p) => {
+                    const k = phoneKeyFn(p);
+                    return k ? !serverPhonesSetAll.has(k) : !serverPhonesSetAll.has(String(p).trim());
+                });
+                const remainingEmails = (r.emails || []).filter((e) => !serverEmailsSetAll.has(String(e).trim().toLowerCase()));
+
+                // If all device elements are already present on-app, skip this row entirely
+                if (remainingPhones.length === 0 && remainingEmails.length === 0) {
+                    continue;
+                }
+
+                // Keep the row but only with the non-server contact points
+                finalRows.push({ ...r, phones: remainingPhones, emails: remainingEmails });
+            } else {
+                finalRows.push(r);
+            }
+        }
+
+        // replace rows contents in-place (rows is declared earlier)
+        rows.length = 0;
+        rows.push(...finalRows);
 
         // 3) final sort: matched first, then alphabetical
         rows.sort((a, b) => {
