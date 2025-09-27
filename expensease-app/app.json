@@ -26,7 +26,10 @@
             "infoPlist": {
                 "UIBackgroundModes": [
                     "remote-notification"
-                ]
+                ],
+                "NSContactsUsageDescription": "We use your contacts to invite friends and find people you know in Expensease.",
+                "NSLocationWhenInUseUsageDescription": "Optional — remove if not needed"
+
             },
             "appleTeamId": "2TA4D4M36W",
             "userInterfaceStyle": "automatic"
@@ -54,7 +57,8 @@
                 "foregroundImage": "./assets/default/android/adaptive-foreground.png",
                 "backgroundColor": "#ffffff",
                 "userInterfaceStyle": "automatic"
-            }
+            },
+            "permissions": ["READ_CONTACTS"]
         },
         "web": {
             "favicon": "./assets/default/favicon.png"

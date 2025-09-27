@@ -9,6 +9,7 @@ const friends = require('./routes/v1/friends');
 const expenses = require('./routes/v1/expenses');
 const loans = require('./routes/v1/loans');
 const paymentMethods = require('./routes/v1/paymentMethods');
+const contacts = require('./routes/v1/contacts');
 
 const expenses2 = require('./routes/v2/expenses');
 
@@ -34,6 +35,7 @@ app.use('/api/v1/friends', friends);
 app.use('/api/v1/expenses', expenses);
 app.use('/api/v1/loans', loans);
 app.use('/api/v1/paymentMethods', paymentMethods);
+app.use('/api/v1/contacts', contacts);
 
 app.use('/api/v2/expenses', expenses2);
 module.exports = app;

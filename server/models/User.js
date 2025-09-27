@@ -62,6 +62,8 @@ const userSchema = new mongoose.Schema({
     googleId: { type: String },
     upiId: { type: String },
     coins: { type: Number, default: 0 },
+    emailHashes: [{ type: String, index: true }],  // e.g. ['<hex-sha256>']
+    phoneHashes: [{ type: String, index: true }],
     defaultCurrency: {
         type: String,
         trim: true,

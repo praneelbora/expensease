@@ -155,7 +155,6 @@ export default function FriendsScreen() {
     const { userToken } = useAuth() || {};
     const { theme } = useTheme();
     const styles = React.useMemo(() => createStyles(theme), [theme]);
-
     // data
     const [friends, setFriends] = useState([]);
     const [expenses, setExpenses] = useState([]);
@@ -733,11 +732,11 @@ export default function FriendsScreen() {
                     {/* Empty state */}
                     {!loading && friends.length === 0 && receivedRequests.length === 0 ? (
                         <EmptyCTA
-                        visible={!loading && friends.length === 0 && receivedRequests.length === 0}
-                        title="No friends yet!"
-                        subtitle="To split expenses, add friends."
-                        ctaLabel="Add Friend"
-                        onPress={() => addFriendRef.current.present()}
+                            visible={!loading && friends.length === 0 && receivedRequests.length === 0}
+                            title="No friends yet!"
+                            subtitle="To split expenses, add friends."
+                            ctaLabel="Add Friend"
+                            onPress={() => addFriendRef.current.present()}
                         />
 
                     ) : null}
@@ -776,7 +775,37 @@ export default function FriendsScreen() {
                     )}
                 </ScrollView>
 
-                <BottomSheetAddFriend innerRef={addFriendRef} onAdded={async () => { await pullReceived(); await pullFriends(); }} userToken={userToken} />
+                <BottomSheetAddFriend innerRef={addFriendRef}
+                    onRedirect={async () => {
+                        // 1) Dismiss the bottom sheet first so it's not visible while we navigate
+                        try {
+                            await addFriendRef?.current?.dismiss?.();
+                        } catch (e) {
+                            // ignore
+                        }
+
+                        // 2) Push Settings first, then push Link. This ensures stack is:
+                        //    ... -> Settings -> Settings/Link
+                        // so Back from Link goes to Settings (not Friends).
+                        try {
+                            // push Settings root
+                            await router.push('/settings');
+
+                            // slight delay often makes UX smoother and avoids race on nested stacks –
+                            // but router.push returns a promise so await above should be sufficient.
+                            // Now push the link sub-screen
+                            await router.push('/settings/link');
+                        } catch (err) {
+                            console.warn('Navigation to settings/link failed', err);
+                            // fallback: replace so user still reaches link page
+                            try {
+                                await router.replace('/settings/link');
+                            } catch (err2) {
+                                console.warn('replace fallback failed', err2);
+                            }
+                        }
+                    }}
+                    onAdded={async () => { await pullReceived(); await pullFriends(); }} userToken={userToken} />
             </View>
         </SafeAreaView>
     );
