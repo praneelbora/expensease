@@ -86,6 +86,7 @@ export default function NewExpenseScreen() {
     const [amount, setAmount] = useState(TEST_MODE ? 99 : ""); // keep string for controlled TextInput
     const [category, setCategory] = useState(TEST_MODE ? "TEST_CATEGORY" : "default");
     const [expenseDate, setExpenseDate] = useState(todayISO());
+    const [notes, setNotes] = useState("");
 
     const [groupSelect, setGroupSelect] = useState(null);
     const [selectedFriends, setSelectedFriends] = useState([]); // objects incl. me
@@ -169,30 +170,117 @@ export default function NewExpenseScreen() {
         }
     }, [userToken]);
 
+    // Replace the existing handleVoiceParsed with this function (inside NewExpenseScreen)
+    const mapParsedParticipantsToSelectedFriends = (participants = [], friendsList = [], userObj = {}) => {
+        // Returns an array suitable for setSelectedFriends:
+        // each item: { _id, name, paying, owing, payAmount, oweAmount, owePercent, paymentMethods: [], selectedPaymentMethodId }
+        const results = [];
+        let tmpIdCounter = 0;
+
+        const findFriendById = (id) => friendsList.find((f) => String(f._id) === String(id));
+        const findFriendByName = (name) => {
+            if (!name) return null;
+            const lower = name.trim().toLowerCase();
+            return friendsList.find((f) => (f.name || "").toLowerCase() === lower) || null;
+        };
+
+        participants.forEach((p) => {
+            try {
+                const name = String(p.name || "").trim();
+                // Map "Me" or self mentions to the current user
+                const isMeName = /^me$/i.test(name) || /^(i|me|my)$/i.test(name);
+                if (isMeName && userObj && userObj._id) {
+                    results.push({
+                        _id: userObj._id,
+                        name: `${userObj.name} (Me)`,
+                        paying: !!p.paying,
+                        owing: !!p.owing,
+                        payAmount: typeof p.payAmount === "number" ? Number(p.payAmount.toFixed(2)) : Number(p.payAmount) || 0,
+                        oweAmount: typeof p.oweAmount === "number" ? Number(p.oweAmount.toFixed(2)) : Number(p.oweAmount) || 0,
+                        owePercent: typeof p.owePercent === "number" ? Number(p.owePercent.toFixed(2)) : p.owePercent ?? undefined,
+                        paymentMethods: [], // will be filled by updateFriendsPaymentMethods
+                        selectedPaymentMethodId: p.paymentMethod || null,
+                    });
+                    return;
+                }
+
+                // If parser provided matchedFriendId and it exists in our friends list, use it
+                if (p.matchedFriendId) {
+                    const f = findFriendById(p.matchedFriendId);
+                    if (f) {
+                        results.push({
+                            ...f,
+                            paying: !!p.paying,
+                            owing: !!p.owing,
+                            payAmount: typeof p.payAmount === "number" ? Number(p.payAmount.toFixed(2)) : Number(p.payAmount) || 0,
+                            oweAmount: typeof p.oweAmount === "number" ? Number(p.oweAmount.toFixed(2)) : Number(p.oweAmount) || 0,
+                            owePercent: typeof p.owePercent === "number" ? Number(p.owePercent.toFixed(2)) : p.owePercent ?? undefined,
+                            paymentMethods: [], // fetched later
+                            selectedPaymentMethodId: p.paymentMethod || null,
+                        });
+                        return;
+                    }
+                }
+
+                // If no matchedFriendId, try name match (exact)
+                const byName = findFriendByName(name);
+                if (byName) {
+                    results.push({
+                        ...byName,
+                        paying: !!p.paying,
+                        owing: !!p.owing,
+                        payAmount: typeof p.payAmount === "number" ? Number(p.payAmount.toFixed(2)) : Number(p.payAmount) || 0,
+                        oweAmount: typeof p.oweAmount === "number" ? Number(p.oweAmount.toFixed(2)) : Number(p.oweAmount) || 0,
+                        owePercent: typeof p.owePercent === "number" ? Number(p.owePercent.toFixed(2)) : p.owePercent ?? undefined,
+                        paymentMethods: [],
+                        selectedPaymentMethodId: p.paymentMethod || null,
+                    });
+                    return;
+                }
+
+                // Unknown participant -> make a temporary placeholder (user will confirm)
+                tmpIdCounter += 1;
+                results.push({
+                    _id: `__tmp_${Date.now()}_${tmpIdCounter}`,
+                    name: name || `Participant ${tmpIdCounter}`,
+                    paying: !!p.paying,
+                    owing: !!p.owing,
+                    payAmount: typeof p.payAmount === "number" ? Number(p.payAmount.toFixed(2)) : Number(p.payAmount) || 0,
+                    oweAmount: typeof p.oweAmount === "number" ? Number(p.oweAmount.toFixed(2)) : Number(p.oweAmount) || 0,
+                    owePercent: typeof p.owePercent === "number" ? Number(p.owePercent.toFixed(2)) : p.owePercent ?? undefined,
+                    paymentMethods: [],
+                    selectedPaymentMethodId: p.paymentMethod || null,
+                    // mark as temporary/unmatched so UI can surface "confirm this person"
+                    __unmatched: true,
+                });
+            } catch (err) {
+                // ignore malformed participant entry
+            }
+        });
+
+        return results;
+    };
+
     const handleVoiceParsed = async (parsed) => {
         try {
-            console.log(parsed);
+            console.log("voice parsed:", parsed);
+            if (!parsed || typeof parsed !== "object") return;
 
-            if (!parsed) return;
-
-            // amount numeric
+            // Basic top-level fields
             if (parsed.amount != null && !isNaN(Number(parsed.amount))) {
                 setAmount(String(Number(parsed.amount)));
             }
 
-            // currency 3-letter -> set only if present
             if (parsed.currency) {
                 setCurrency(String(parsed.currency).toUpperCase());
             }
 
-            // description
             if (parsed.description) {
                 setDesc(parsed.description);
             } else if (parsed.raw_transcript) {
-                setDesc(parsed.raw_transcript.slice(0, 200));
+                setDesc(String(parsed.raw_transcript).slice(0, 200));
             }
 
-            // category mapping
             if (parsed.category) {
                 const catLower = String(parsed.category).toLowerCase();
                 const found = Object.entries(categoryMap).find(([key, cfg]) => {
@@ -203,32 +291,199 @@ export default function NewExpenseScreen() {
                 if (found) setCategory(found[0]);
             }
 
-            // date
+            // Date
             if (parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date)) {
                 setExpenseDate(parsed.date);
             }
 
-            // notes
+            // Notes
             if (parsed.notes) {
                 setNotes((prev) => (prev ? `${prev}; ${parsed.notes}` : parsed.notes));
             }
 
-            // ✅ handle payment method (for personal mode only)
-            if (parsed.paymentMethod) {
-                // check if it's in the list of user’s payment methods
-                const exists = paymentMethods.find((pm) => String(pm._id) === String(parsed.paymentMethod));
-                if (exists) {
-                    setPaymentMethod(parsed.paymentMethod);
+            // Group mention
+            if (parsed.groupMention && (parsed.groupMention.groupId || parsed.groupMention.groupName)) {
+                if (parsed.groupMention.groupId) {
+                    const g = groups.find((x) => String(x._id) === String(parsed.groupMention.groupId));
+                    if (g) {
+                        setGroupSelect(g);
+                    } else {
+                        // try name match
+                        const gn = parsed.groupMention.groupName || "";
+                        const match = groups.find((gg) => (gg.name || "").toLowerCase() === String(gn).toLowerCase());
+                        if (match) setGroupSelect(match);
+                    }
+                } else if (parsed.groupMention.groupName) {
+                    const gn = parsed.groupMention.groupName;
+                    const match = groups.find((gg) => (gg.name || "").toLowerCase() === String(gn).toLowerCase());
+                    if (match) setGroupSelect(match);
+                    else {
+                        // set a lightweight banner to tell user we detected a group name but couldn't match it
+                        setBanner({ type: "info", text: `Mentioned group: "${gn}" — no exact match found.` });
+                        setTimeout(() => setBanner(null), 3500);
+                    }
                 }
             }
 
-            // warn on low confidence
-            if (typeof parsed.confidence === "number" && parsed.confidence < 0.5) {
-                Alert.alert(
-                    "Low confidence",
-                    "The AI was not very confident about the parsed fields. Please review them before saving."
-                );
+            // Decide mode: prefer parsed.mode, but fallback: if participants > 1 -> split; else personal
+            let incomingMode = parsed.mode || "unsure";
+            if (incomingMode === "unsure") {
+                if (Array.isArray(parsed.participants) && parsed.participants.length > 1) incomingMode = "split";
+                else incomingMode = "personal";
             }
+
+            if (incomingMode === "split") {
+                setExpenseMode("split");
+                // set split mode if provided
+                if (parsed.splitMode && ["equal", "value", "percent"].includes(parsed.splitMode)) {
+                    setMode(parsed.splitMode);
+                } else {
+                    setMode("equal");
+                }
+
+                // map participants -> selectedFriends
+                const mapped = mapParsedParticipantsToSelectedFriends(parsed.participants || [], friends || [], user || {});
+                let finalList = mapped;
+                console.log(mapped);
+
+                // After you've built finalList = mapParsedParticipantsToSelectedFriends(...)
+
+                // --- NEW FIX: reconcile payers ---
+
+                const totalPaid = finalList.reduce((s, f) => s + Number(f.payAmount || 0), 0);
+
+                // If multiple participants are paying, trust the parser’s payAmount
+                if (totalPaid > 0) {
+                    // normalize pay amounts if they don't sum to total
+                    if (total > 0 && Math.abs(totalPaid - total) > 0.01) {
+                        const factor = total / totalPaid;
+                        finalList = finalList.map((f) => ({
+                            ...f,
+                            payAmount: f.paying ? Number(((f.payAmount || 0) * factor).toFixed(2)) : 0,
+                        }));
+                    }
+                } else {
+                    // fallback: assume only me is paying if no payAmounts given
+                    finalList = finalList.map((f) => ({
+                        ...f,
+                        payAmount: /^.*\(Me\)$/.test(f.name) ? total : 0,
+                        paying: /^.*\(Me\)$/.test(f.name),
+                    }));
+                }
+
+                // Ensure current user is present if parser identified "Me" or if any participant has user id
+                const hasUser = finalList.some((f) => String(f._id) === String(user?._id));
+                if (!hasUser && parsed.participants && parsed.participants.some((p) => /^me$/i.test(String(p.name || "")))) {
+                    // inject me at top
+                    finalList = addMeIfNeeded(finalList);
+                } else {
+                    // still prefer to ensure me is included when splitting with others
+                    const others = finalList.filter((f) => String(f._id) !== String(user?._id));
+                    if (others.length > 0 && !hasUser) {
+                        finalList = addMeIfNeeded(finalList);
+                    }
+                }
+
+                // If parsed gave total amount and individual oweAmounts exist and sum to total, keep them.
+                // Otherwise, if splitMode === equal, compute equal owes
+                const total = Number(parsed.amount || 0);
+                const hasAnyOweAmounts = finalList.some((f) => Number(f.oweAmount || 0) > 0);
+                const oweSum = finalList.reduce((s, f) => s + Number(f.oweAmount || 0), 0);
+                if (parsed.splitMode === "equal" || (!hasAnyOweAmounts && parsed.splitMode === "unspecified")) {
+                    // mark all as owing true (if they represent participants) and distribute equal owe
+                    finalList = finalList.map((f) => ({ ...f, owing: true }));
+                    finalList = distributeEqualOwe(finalList);
+                } else if (parsed.splitMode === "value" && hasAnyOweAmounts && Math.abs(Number((oweSum - total).toFixed(2))) <= 0.01) {
+                    // sums match — keep them.
+                } else if (parsed.splitMode === "percent" && finalList.some((f) => typeof f.owePercent === "number")) {
+                    // compute oweAmount from percent if percent sums roughly to 100
+                    const pctSum = finalList.reduce((s, f) => s + Number(f.owePercent || 0), 0);
+                    if (Math.abs(pctSum - 100) <= 0.5) {
+                        finalList = finalList.map((f) => ({ ...f, oweAmount: typeof f.owePercent === "number" ? Number(((total * (f.owePercent / 100)) || 0).toFixed(2)) : f.oweAmount }));
+                    }
+                } else {
+                    // ambiguous numeric splits — leave numeric fields as supplied (if any) and flag later via hint
+                }
+
+                // set selectedFriends and fetch payment methods for those with real ids
+                setSelectedFriends(finalList);
+                try {
+                    const realIds = finalList.filter((f) => f && String(f._id).indexOf("__tmp_") !== 0).map((f) => f._id);
+                    if (realIds.length) await updateFriendsPaymentMethods(realIds);
+                } catch (e) {
+                    // ignore
+                }
+
+                // choose which tab to open to help user review: if someone is paying -> open "paid", else "owed"
+                const anyPayers = finalList.some((f) => f.paying);
+                setActiveTab(anyPayers ? "paid" : "owed");
+            } else {
+                // PERSONAL or fallback
+                setExpenseMode("personal");
+
+                // if parsed mentions participants but only Me => treat as personal
+                // pick paymentMethod if present (and exists in user's methods)
+                if (parsed.paymentMethod) {
+                    const exists = (paymentMethods || []).find((pm) => String(pm._id) === String(parsed.paymentMethod));
+                    if (exists) setPaymentMethod(parsed.paymentMethod);
+                }
+
+                // If parser suggests participants and one is payer and it's not me, we can pre-select friend in selectedFriends
+                // but do not force split mode; instead add friend to selectedFriends (so user can switch to split if needed)
+                if (Array.isArray(parsed.participants) && parsed.participants.length > 0) {
+                    // map participants but keep personal mode: we will add the payer friend (if any) as selected friend
+                    const mapped = mapParsedParticipantsToSelectedFriends(parsed.participants || [], friends || [], user || {});
+                    // filter out me (we don't want selectedFriends to be only me in personal mode)
+                    const others = mapped.filter((f) => String(f._id) !== String(user?._id));
+                    if (others.length > 0) {
+                        // add these friends as selectedFriends so user can convert to split quickly
+                        setSelectedFriends((prev) => {
+                            // avoid duplicates
+                            const existingIds = new Set((prev || []).map((x) => String(x._id)));
+                            const merged = [...prev];
+                            others.forEach((o) => {
+                                if (!existingIds.has(String(o._id))) merged.push(o);
+                            });
+                            return addMeIfNeeded(merged);
+                        });
+                        // fetch payment methods for these friends
+                        try {
+                            const ids = others.filter((f) => String(f._id).indexOf("__tmp_") !== 0).map((f) => f._id);
+                            if (ids.length) await updateFriendsPaymentMethods(ids);
+                        } catch { }
+                    }
+                }
+            }
+
+            // top-level paymentMethod fallback for personal mode (already handled above), but also if parsed gave one for split and payer is me:
+            if (parsed.paymentMethod && parsed.mode === "split") {
+                // If parser suggests an overall paymentMethod and the payer is me, set my paymentMethod
+                const payByMe = Array.isArray(parsed.participants) && parsed.participants.some((p) => /^me$/i.test(String(p.name || "")) && p.paying);
+                console.log('payByMe: ', payByMe);
+
+                if (payByMe) {
+                    const exists = (paymentMethods || []).find((pm) => String(pm._id) === String(parsed.paymentMethod));
+                    if (exists) setPaymentMethod(parsed.paymentMethod);
+                }
+            }
+
+            // Low-confidence or ambiguous sums -> alert banner
+            if (typeof parsed.confidence === "number" && parsed.confidence < 0.6) {
+                Alert.alert("Low confidence", "The AI was unsure about some fields. Please double-check the pre-filled values.");
+            } else if (parsed.mode === "split") {
+                // extra arithmetic check: if owes don't add up in equal mode fix automatically; if value mode doesn't sum, flag banner
+                const totalAmt = Number(parsed.amount || 0);
+                if (parsed.splitMode === "value") {
+                    const sumOwes = (parsed.participants || []).reduce((s, p) => s + Number(p.oweAmount || 0), 0);
+                    if (totalAmt > 0 && Math.abs(Number((sumOwes - totalAmt).toFixed(2))) > 0.01) {
+                        setBanner({ type: "info", text: "Parsed split doesn't sum to total — please review the shares." });
+                        setTimeout(() => setBanner(null), 3500);
+                    }
+                }
+            }
+
+            // final: if low confidence but everything looks fine, still show a small banner to review
+            setTimeout(() => { }, 0);
         } catch (e) {
             console.warn("handleVoiceParsed error", e);
         }
@@ -648,7 +903,6 @@ export default function NewExpenseScreen() {
     useEffect(() => {
         if (expenseMode !== "split") return;
 
-        // Always have numeric total available
         const total = num(amount);
 
         // if no participants, nothing to do
@@ -667,11 +921,20 @@ export default function NewExpenseScreen() {
             return;
         }
 
-        const hasAnyPayers = selectedFriends.some((f) => f.paying);
-        const hasAnyOwers = selectedFriends.some((f) => f.owing);
+        // If parser/user already set any explicit flags or percentages, do NOT override them.
+        const anyExplicit = selectedFriends.some(
+            (f) =>
+                !!f.paying ||
+                !!f.owing ||
+                (typeof f.owePercent === "number" && !isNaN(Number(f.owePercent))) ||
+                (typeof f.payAmount === "number" && Number(f.payAmount) > 0)
+        );
+        if (anyExplicit) {
+            // Keep parser/user choices intact.
+            return;
+        }
 
-        // only run when user hasn't interacted (no explicit payers and no explicit owers)
-
+        // No explicit choices -> compute neutral defaults (same logic as before)
         const participantsExcludingMe = selectedFriends.filter((f) => String(f?._id) !== String(user?._id));
 
         // baseline: clear flags/numbers
@@ -692,10 +955,7 @@ export default function NewExpenseScreen() {
                     : f
             );
         } else {
-            // There are others:
-            // Default: you paid (paying: true, payAmount = total),
-            // and everyone (including you) owes equally.
-
+            // There are others: default: you paid and everyone owes equally
             neutral = neutral.map((f) => {
                 if (String(f?._id) === String(user?._id)) {
                     return {
@@ -720,7 +980,9 @@ export default function NewExpenseScreen() {
         }
 
         setSelectedFriends(neutral);
-    }, [selectedFriends.length, amount, expenseMode, user?._id]);
+        // note: we intentionally do not include selectedFriends in deps to avoid immediate re-run;
+        // but we need to rerun when amount, expenseMode or user changes (above deps).
+    }, [amount, expenseMode, user?._id]);
 
     const paidTotal = useMemo(
         () => selectedFriends.filter((f) => f.paying).reduce((n, f) => n + num(f.payAmount), 0),
@@ -1071,7 +1333,6 @@ export default function NewExpenseScreen() {
                     contentContainerStyle={{ paddingBottom: 150 }}
                     showsVerticalScrollIndicator={false}
                 >
-                    {/* Split: suggestions + selection chips */}
                     {/* Split: suggestions + selection chips */}
                     {expenseMode === "split" ? (
                         <>
@@ -1464,16 +1725,16 @@ export default function NewExpenseScreen() {
                                 </>
                             ) : null}
                             {/* If personal mode: show voice input component */}
-                            {expenseMode === "personal" && (
-                                <View style={{ marginTop: 10 }}>
-                                    <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
+                            {/* {expenseMode === "personal" && (
+                                <View style={{ flex: 1, backgroundColor: '#333', flexDirection: 'column', height: '100%' }}>
+                                    
                                 </View>
-                            )}
+                            )} */}
                         </View>
                     )}
-
-                    {/* Loan CTA */}
+                    {/* Lo  n CTA */}
                 </ScrollView>
+                <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
                 <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
                 <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
                 <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />

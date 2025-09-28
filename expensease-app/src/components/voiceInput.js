@@ -1,4 +1,3 @@
-// src/components/VoiceInput.js
 import React, { useEffect, useRef, useState } from "react";
 import {
   View,
@@ -10,6 +9,9 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
+  Modal,
+  SafeAreaView,
+  Pressable
 } from "react-native";
 import Voice from "@react-native-voice/voice";
 import {
@@ -24,7 +26,7 @@ import VoiceService from "services/VoiceService";
 import { useTheme } from "context/ThemeProvider";
 
 const MIN_RECORD_MS = 3 * 1000;
-const MAX_RECORD_MS = 15 * 1000;
+const MAX_RECORD_MS = 18 * 1000;
 const hardcodedList = [
   { label: "English (US)", value: "en-US" },
   { label: "English (UK)", value: "en-GB" },
@@ -34,7 +36,6 @@ const hardcodedList = [
   { label: "Bengali (India)", value: "bn-IN" },
   { label: "Kannada (India)", value: "kn-IN" },
   { label: "Telugu (India)", value: "te-IN" },
-  // add more locales your backend/voice engine supports
 ];
 
 export default function VoiceInput({
@@ -42,17 +43,18 @@ export default function VoiceInput({
   locale: initialLocale = "en-US",
   onParsed = () => { },
   token = null,
+  promptLabel = "Say amount, who, and what for",
 }) {
   const { theme } = useTheme?.() || {};
   const colors = (theme && theme.colors) || {
-    background: "#000",
+    background: "#0b0b0b",
     text: "#fff",
-    card: "#191919",
+    card: "#121212",
     cta: "#00C49F",
     primary: "#14b8a6",
-    border: "#333",
-    muted: "#888",
-    negative: "#ef4444",
+    border: "#2a2a2a",
+    muted: "#9aa0a6",
+    negative: "#ff6b6b",
   };
 
   const [isListening, setIsListening] = useState(false);
@@ -62,11 +64,9 @@ export default function VoiceInput({
   const [error, setError] = useState(null);
   const [supportedLocales, setSupportedLocales] = useState(hardcodedList);
 
-  // locale picker
   const [locale, setLocale] = useState(initialLocale);
   const [localeOpen, setLocaleOpen] = useState(false);
 
-  // timer state for UI countdown
   const [remainingMs, setRemainingMs] = useState(MAX_RECORD_MS);
   const countdownIntervalRef = useRef(null);
 
@@ -76,22 +76,10 @@ export default function VoiceInput({
   const recordTimeoutRef = useRef(null);
   const minDurationRef = useRef(null);
   const recordStartTsRef = useRef(null);
-  useEffect(() => {
-    (async () => {
-      try {
-        const supported = await ExpoSpeechRecognition.getSupportedLocales();
-        console.log(supported);
-        
-        // supported.locales = array of locale strings like "en-US"
-        // map them to labels (use Intl.DisplayNames or a small map)
-        setSupportedLocales(mapLocalesToLabels(supported.locales));
-      } catch (e) {
-        // fallback to your hardcoded list
-        setSupportedLocales(hardcodedList);
-      }
-    })();
-  }, []);
 
+  const [open, setOpen] = useState(false); // main modal open flag
+
+  // --- Voice event bindings (same logic)
   useEffect(() => {
     Voice.onSpeechStart = () => setError(null);
     Voice.onSpeechPartialResults = (e) => {
@@ -142,10 +130,7 @@ export default function VoiceInput({
     try {
       const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) {
-        Alert.alert(
-          "Permission required",
-          "Microphone permission is required to record audio."
-        );
+        Alert.alert("Permission required", "Microphone permission is required to record audio.");
         return false;
       }
       return true;
@@ -163,11 +148,9 @@ export default function VoiceInput({
     if (recorder && typeof recorder.prepareToRecordAsync === "function") {
       await recorder.prepareToRecordAsync();
     }
-    // mark start ts
     recordStartTsRef.current = Date.now();
     setRemainingMs(MAX_RECORD_MS);
 
-    // start a countdown interval for UI
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
     }
@@ -175,21 +158,18 @@ export default function VoiceInput({
       const elapsed = Date.now() - (recordStartTsRef.current || Date.now());
       const rem = Math.max(MAX_RECORD_MS - elapsed, 0);
       setRemainingMs(rem);
-    }, 100);
+    }, 200);
 
-    // enforce max duration
     recordTimeoutRef.current = setTimeout(async () => {
       try {
         await stopListening();
       } catch { }
     }, MAX_RECORD_MS);
 
-    // mark min duration (store timer id; when cleared we set to null)
     minDurationRef.current = setTimeout(() => {
       minDurationRef.current = null;
     }, MIN_RECORD_MS);
 
-    // actually start recorder and speech engine
     recorder.record();
   }
 
@@ -214,7 +194,6 @@ export default function VoiceInput({
       console.warn("stopAndReleaseIfRecording error", err);
       return null;
     } finally {
-      // ensure UI timers cleaned
       setRemainingMs(MAX_RECORD_MS);
       recordStartTsRef.current = null;
       if (minDurationRef.current) {
@@ -233,12 +212,79 @@ export default function VoiceInput({
       setError(null);
       setPartialTranscript("");
       setFinalTranscript("");
+
       const ok = await ensureRecordingPermissions();
       if (!ok) return;
 
-      await prepareAndStartRecorder();
-      await Voice.start(locale);
+      // show listening UI immediately so user doesn't feel a lag
       setIsListening(true);
+
+      // prepare audio mode / recorder concurrently but don't block starting voice recognition
+      const preparePromise = (async () => {
+        try {
+          await setAudioModeAsync({
+            allowsRecording: true,
+            playsInSilentMode: true,
+          });
+          if (recorder && typeof recorder.prepareToRecordAsync === "function") {
+            await recorder.prepareToRecordAsync();
+          }
+        } catch (prepErr) {
+          console.warn("recorder prepare error", prepErr);
+        }
+      })();
+
+      // start speech recognition ASAP (so user sees immediate activity)
+      try {
+        await Voice.start(locale);
+      } catch (vErr) {
+        console.warn("Voice.start error (non-fatal):", vErr);
+      }
+
+      // once recorder is prepared (or after attempted prepare), start timer + recorder
+      try {
+        await preparePromise;
+      } catch (e) {
+        // already logged; continue to attempt to start recorder anyway
+      }
+
+      // record start timestamp + countdown
+      recordStartTsRef.current = Date.now();
+      setRemainingMs(MAX_RECORD_MS);
+
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
+      countdownIntervalRef.current = setInterval(() => {
+        const elapsed = Date.now() - (recordStartTsRef.current || Date.now());
+        const rem = Math.max(MAX_RECORD_MS - elapsed, 0);
+        setRemainingMs(rem);
+      }, 200);
+
+      if (recordTimeoutRef.current) {
+        clearTimeout(recordTimeoutRef.current);
+      }
+      recordTimeoutRef.current = setTimeout(async () => {
+        try {
+          await stopListening();
+        } catch { }
+      }, MAX_RECORD_MS);
+
+      if (minDurationRef.current) {
+        clearTimeout(minDurationRef.current);
+      }
+      minDurationRef.current = setTimeout(() => {
+        minDurationRef.current = null;
+      }, MIN_RECORD_MS);
+
+      try {
+        // start actual recorder (best-effort)
+        if (recorder && typeof recorder.record === "function") {
+          recorder.record();
+        }
+      } catch (recErr) {
+        console.warn("recorder.record() error (non-fatal):", recErr);
+      }
     } catch (e) {
       console.error("startListening error", e);
       setError(String(e));
@@ -246,16 +292,13 @@ export default function VoiceInput({
     }
   }
 
+
   async function stopListening() {
     try {
-      // Respect minimum record time
       if (minDurationRef.current) return;
-      // stop speech recognizer first
       try {
         await Voice.stop();
-      } catch (err) {
-        // ignore
-      }
+      } catch { }
       await stopAndReleaseIfRecording();
       setIsListening(false);
       clearAllTimers();
@@ -266,7 +309,6 @@ export default function VoiceInput({
   }
 
   async function cancelTranscript() {
-    // stops recording and clears transcript
     try {
       await stopListening();
     } catch { }
@@ -286,14 +328,11 @@ export default function VoiceInput({
     setError(null);
 
     try {
-      // Ensure recording/voice engines stopped before sending.
       try {
         await stopListening();
       } catch (err) {
         console.warn("failed to fully stop before send:", err);
       }
-
-      // also ensure recorder released
       await stopAndReleaseIfRecording();
 
       const resp = await VoiceService.sendTranscriptOnly({
@@ -306,303 +345,306 @@ export default function VoiceInput({
         onParsed(resp.parsed);
       }
 
-      // clear transcript locally after success (per request)
       setPartialTranscript("");
       setFinalTranscript("");
-
-      Alert.alert("Processed", "Transcript processed successfully.");
+      setOpen(false);
     } catch (err) {
       console.error("sendTranscript error", err);
       setError(String(err?.message || err));
       Alert.alert("Send failed", String(err?.message || err));
     } finally {
       setLoadingSend(false);
-      // ensure UI state reset
       setIsListening(false);
       clearAllTimers();
     }
   }
-  // compute displayText (unchanged)
-  const displayText =
-    partialTranscript && !finalTranscript ? partialTranscript : finalTranscript;
 
-  // show X and ✓ only when recording OR when there is non-empty text (trimmed)
+  // compact display & control calculations
+  const displayText = partialTranscript && !finalTranscript ? partialTranscript : finalTranscript;
   const hasNonEmptyText = !!(displayText && String(displayText).trim());
   const showCancel = isListening || hasNonEmptyText;
-
-  const s = styles(colors, {
-    isListening,
-    showCancel,
-  });
-
-  // a simple human-friendly remaining seconds
   const remainingSeconds = Math.ceil(remainingMs / 1000);
+  const selectedLabel = supportedLocales?.find((l) => l.value === locale)?.label || locale;
 
-  // supported locales - add/remove as needed
-
-
-  const selectedLabel =
-    supportedLocales?.find((l) => l.value === locale)?.label || locale;
-
-  // layout constants - width of the left language chip/button inside the text box
-  const LANG_BUTTON_WIDTH = 150; // adjust if you change label length or padding
-  const LANG_BUTTON_HEIGHT = 36; // adjust if you change label length or padding
+  // small styles
+  const s = compactStyles(colors, { isListening, showCancel });
 
   return (
-    <View style={s.container}>
-      <View
-        style={[
-          s.transcriptCard,
-          {
-            // increase minHeight slightly to accommodate the internal button
-            minHeight: 110,
-            paddingTop: 12,
-            paddingLeft: 12,
-            paddingRight: 12,
-            paddingBottom: 12,
-          },
-        ]}
-      >
-        {/* Language button inside the transcript box: absolutely positioned */}
-        <View
-          style={{
-            position: "absolute",
-            left: 12,
-            top: 12,
-            zIndex: 5,
-          }}
-        >
-          <TouchableOpacity
-            onPress={() => setLocaleOpen((s) => !s)}
-            style={{
-              width: LANG_BUTTON_WIDTH,
-              height: LANG_BUTTON_HEIGHT,
-              borderRadius: 8,
-              paddingHorizontal: 8,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Text numberOfLines={1} style={{ color: colors.text, flex: 1, marginRight: 6 }}>
-              {selectedLabel}
-            </Text>
-            <Feather
-              name={localeOpen ? "chevron-up" : "chevron-down"}
-              size={16}
-              color={colors.muted}
-            />
-          </TouchableOpacity>
-
-          {/* dropdown list anchored under the button */}
-          {localeOpen ? (
-            <View
-              style={{
-                marginTop: 6,
-                maxHeight: 160,
-                width: LANG_BUTTON_WIDTH,
-                borderRadius: 8,
-                overflow: "hidden",
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-              }}
-            >
-              <ScrollView>
-                {supportedLocales?.map((l) => {
-                  const isSel = l.value === locale;
-                  return (
-                    <TouchableOpacity
-                      key={l.value}
-                      onPress={() => {
-                        setLocale(l.value);
-                        setLocaleOpen(false);
-                      }}
-                      style={{
-                        height: 40,
-                        paddingHorizontal: 8,
-                        justifyContent: "center",
-                        flexDirection: "row",
-                        alignItems: "center",
-                        backgroundColor: isSel ? (Platform.OS === "ios" ? "#ffffff10" : colors.card) : "transparent",
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontSize: 13, flex: 1 }}>
-                        {l.label}
-                      </Text>
-
-                      {isSel ? (
-                        <Feather name="check" size={16} color={colors.cta || colors.primary} />
-                      ) : null}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          ) : null}
-        </View>
-
-        {/* Multiline text input that starts to the right of the language button and wraps under it.
-            We use paddingLeft equal to LANG_BUTTON_WIDTH + left margin (12) + some spacing (8)
-            so all lines are offset and wrap under the button visually.
-        */}
-        <TextInput
-          multiline
-          placeholder="Speak or type..."
-          placeholderTextColor={colors.muted}
-          value={displayText}
-          onChangeText={(txt) => {
-            setFinalTranscript(txt);
-            setPartialTranscript("");
-          }}
-          style={[
-            s.transcriptInput,
-            {
-              color: colors.text,
-              paddingLeft: 8, // button width + left margin + gap
-              paddingTop: LANG_BUTTON_HEIGHT + 12,
-              minHeight: 64,
-            },
-          ]}
-          editable={!loadingSend}
-        />
-
-        {/* Timer and recording status */}
-        <View
-          style={{
-            position: 'absolute',
-            right: 12,
-            top: 4,
-            flexDirection: "row",
-            justifyContent: "space-between",
-            marginTop: 8,
-          }}
-        >
-          {!loadingSend && <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {isListening ? `Recording — ${remainingSeconds}s left` : "Not recording"}
-          </Text>}
-          {loadingSend && <Text style={{ color: colors.muted, fontSize: 12 }}>{loadingSend ? "Sending..." : ""}</Text>}
-        </View>
-      </View>
-
-      <View style={s.controlsRow}>
-        {showCancel ? (
-          <TouchableOpacity
-            onPress={cancelTranscript}
-            style={[s.sideBtn, s.sideBtnLeft]}
-            disabled={loadingSend}
-            accessibilityLabel="Discard transcript"
-          >
-            <Feather name="x" size={20} color={colors.text} />
-          </TouchableOpacity>
-        ) : (
-          <View style={s.sideBtnPlaceholder} />
-        )}
-
+    <SafeAreaView pointerEvents="box-none">
+      {/* Floating mic button (initial view) */}
+      <View style={s.floatingContainer} pointerEvents="box-none">
         <TouchableOpacity
-          onPress={isListening ? stopListening : startListening}
-          onLongPress={startListening}
-          onPressOut={stopListening}
+          onPress={() => setOpen(true)}
           activeOpacity={0.85}
-          style={[s.micBtn, isListening ? s.micBtnActive : null]}
-          accessibilityLabel={isListening ? "Stop recording" : "Start recording"}
+          style={s.floatingMic}
+          accessibilityLabel="Open voice input"
         >
-          <Feather name={isListening ? "mic-off" : "mic"} size={28} color={colors.text} />
+          <Feather name="mic" size={22} color={colors.text} />
         </TouchableOpacity>
-
-        {showCancel ? (
-          <TouchableOpacity
-            onPress={sendTranscript}
-            style={[s.sideBtn, s.sideBtnRight]}
-            disabled={loadingSend}
-            accessibilityLabel="Send transcript"
-          >
-            {loadingSend ? (
-              <ActivityIndicator color={colors.text} />
-            ) : (
-              <Feather name="check" size={20} color={colors.text} />
-            )}
-          </TouchableOpacity>
-        ) : (
-          <View style={s.sideBtnPlaceholder} />
-        )}
       </View>
 
-      {error ? <Text style={[s.errorText, { color: colors.negative }]}>{error}</Text> : null}
-    </View>
+      {/* Full modal with compact UI shown when user taps the mic */}
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        {/* Pressable backdrop: tapping outside the card closes the modal */}
+        <Pressable style={s.modalBackdrop} onPress={() => { cancelTranscript(); setOpen(false); }}>
+          {/* inner Pressable stops propagation so taps on the card do NOT close */}
+          <Pressable onPress={() => { }} style={s.modalCard}>
+            {/* Header: X (close) and BETA label */}
+            <View style={s.modalHeader}>
+              <TouchableOpacity onPress={() => { cancelTranscript(); setOpen(false); }} style={s.headerBtn}>
+                <Feather name="x" size={20} color={colors.muted} />
+              </TouchableOpacity>
+
+              <Text style={s.modalTitleText}>Voice input</Text>
+
+              {/* BETA label instead of send button */}
+              <View style={s.headerBtn}>
+                <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "700" }}>(Beta)</Text>
+              </View>
+            </View>
+
+            {/* Catchy Explanation / micro-help */}
+            <Text style={s.explainText}>
+              Quick & hands-free — say something like: "200 to Ayaan for dinner". I'll automatically pick out the amount, who it's for, and what it's for so you can log expenses in a tap.
+            </Text>
+
+            {/* Transcript card with breathing room */}
+            <View style={s.transcriptCardInner}>
+              <View style={s.topRowInner}>
+                <Text style={s.promptTextInner}>{promptLabel}</Text>
+                <TouchableOpacity onPress={() => setLocaleOpen(true)} style={s.localeChipInner}>
+                  <Text numberOfLines={1} style={s.localeTextInner}>{selectedLabel}</Text>
+                  <Feather name="chevron-down" size={14} color={colors.muted} />
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                multiline
+                placeholder="Tap mic and speak..."
+                placeholderTextColor={colors.muted}
+                value={displayText}
+                onChangeText={(txt) => {
+                  setFinalTranscript(txt);
+                  setPartialTranscript("");
+                }}
+                style={s.transcriptInputInner}
+                editable={!loadingSend}
+              />
+
+              <View style={s.statusRowInner}>
+                <Text style={s.statusTextInner}>{isListening ? `Recording • ${remainingSeconds}s` : hasNonEmptyText ? "Ready to send" : "Idle"}</Text>
+                {loadingSend ? <ActivityIndicator size="small" color={colors.muted} /> : null}
+              </View>
+
+              {error ? <Text style={[s.errorTextInner, { color: colors.negative }]}>{error}</Text> : null}
+            </View>
+
+            {/* Controls placed outside the bordered transcript card so they "float" visually */}
+            <View style={s.controlsOuterRow}>
+              {showCancel ? (
+                <TouchableOpacity onPress={cancelTranscript} style={s.iconBtnOuter} accessibilityLabel="Discard transcript">
+                  <Feather name="x" size={18} color={colors.text} />
+                </TouchableOpacity>
+              ) : (
+                <View style={s.iconBtnPlaceholderOuter} />
+              )}
+
+              <TouchableOpacity
+                onPress={() => (isListening ? stopListening() : startListening())}
+                activeOpacity={0.85}
+                style={[s.micBtnOuter, isListening ? s.micBtnActiveOuter : null]}
+                accessibilityLabel={isListening ? "Stop recording" : "Start recording"}
+              >
+                <Feather name={isListening ? "mic-off" : "mic"} size={24} color={colors.text} />
+              </TouchableOpacity>
+
+              {showCancel ? (
+                <TouchableOpacity onPress={sendTranscript} style={s.iconBtnOuter} disabled={loadingSend} accessibilityLabel="Send transcript">
+                  {loadingSend ? <ActivityIndicator size="small" color={colors.text} /> : <Feather name="check" size={18} color={colors.text} />}
+                </TouchableOpacity>
+              ) : (
+                <View style={s.iconBtnPlaceholderOuter} />
+              )}
+            </View>
+
+            {/* Locale picker modal inside main modal */}
+            <Modal visible={localeOpen} transparent animationType="fade" onRequestClose={() => setLocaleOpen(false)}>
+              <View style={s.modalBackdropInner}>
+                <View style={[s.localeModalCard, { backgroundColor: colors.card }]}>
+                  <Text style={[s.modalTitleSmall, { color: colors.text }]}>Language</Text>
+                  <ScrollView style={{ maxHeight: 240 }}>
+                    {supportedLocales.map((l) => {
+                      const isSel = l.value === locale;
+                      return (
+                        <TouchableOpacity
+                          key={l.value}
+                          onPress={() => {
+                            setLocale(l.value);
+                            setLocaleOpen(false);
+                          }}
+                          style={[s.localeRowInner, isSel && s.localeRowSelInner]}
+                        >
+                          <Text style={s.localeRowTextInner}>{l.label}</Text>
+                          {isSel ? <Feather name="check" size={16} color={colors.cta} /> : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 8 }}>
+                    <TouchableOpacity onPress={() => setLocaleOpen(false)}>
+                      <Text style={{ color: colors.muted }}>Close</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
-const styles = (colors, opts = {}) =>
+const compactStyles = (colors, opts = {}) =>
   StyleSheet.create({
-    container: {
-      gap: 8,
-      width: "100%",
-      alignItems: "center",
+    /* Floating mic */
+    floatingContainer: {
+      position: "absolute",
+      right: 8,
+      bottom: 8,
+      zIndex: 999,
+      alignItems: "flex-end",
+      justifyContent: "flex-end",
     },
-    transcriptCard: {
-      width: "100%",
-      backgroundColor: "transparent",
-      borderRadius: 12,
-      padding: 12,
-      minHeight: 100,
-      borderWidth: 1,
-      borderColor: colors.border || "#333",
-    },
-    transcriptInput: {
-      // NOTE: left padding is set inline so it can be dynamically matched to LANG_BUTTON_WIDTH
-      textAlignVertical: "top",
-      fontSize: 16,
-    },
-    controlsRow: {
-      flexDirection: "row",
-      justifyContent: "center",
-      alignItems: "center",
-      marginTop: 12,
-    },
-    // mic button (center)
-    micBtn: {
-      width: 68,
-      height: 68,
-      borderRadius: 34,
+    floatingMic: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
       backgroundColor: colors.cta || colors.primary || "#00C49F",
       justifyContent: "center",
       alignItems: "center",
-      marginHorizontal: 8,
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.12,
-      shadowRadius: 4,
-      elevation: 2,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 6,
+      elevation: 5,
     },
-    micBtnActive: {
-      backgroundColor: colors.negative || "#FF6B6B",
+
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.45)",
+      justifyContent: "flex-end",
     },
-    sideBtn: {
+    modalCard: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      paddingHorizontal: 16,
+      paddingBottom: 16,
+      paddingTop: 12,
+      minHeight: 360,
+    },
+    modalHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingBottom: 10,
+    },
+    headerBtn: {
+      height: 40,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    modalTitleText: { color: colors.text, fontSize: 17, fontWeight: "700" },
+
+    explainText: { color: colors.muted, fontSize: 14, marginBottom: 12, lineHeight: 20 },
+
+    transcriptCardInner: {
+      width: "100%",
+      backgroundColor: "transparent",
+      borderRadius: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      minHeight: 140,
+      borderWidth: 1,
+      borderColor: colors.border || "#333",
+      marginBottom: 16,
+    },
+    topRowInner: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    promptTextInner: { color: colors.muted, fontSize: 13 },
+    localeChipInner: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 10,
+      height: 34,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    localeTextInner: { color: colors.text, fontSize: 13, maxWidth: 130, marginRight: 8 },
+    transcriptInputInner: {
+      minHeight: 56,
+      maxHeight: 160,
+      textAlignVertical: "top",
+      fontSize: 16,
+      color: colors.text,
+      padding: 0,
+    },
+    statusRowInner: { marginTop: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    statusTextInner: { color: colors.muted, fontSize: 13 },
+
+    /* Controls outside transcript box */
+    controlsOuterRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 4 },
+    micBtnOuter: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: colors.cta || colors.primary || "#00C49F",
+      justifyContent: "center",
+      alignItems: "center",
+      marginHorizontal: 18,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.16,
+      shadowRadius: 6,
+      elevation: 3,
+    },
+    micBtnActiveOuter: { backgroundColor: colors.negative || "#FF6B6B" },
+    iconBtnOuter: {
       width: 48,
       height: 48,
       borderRadius: 24,
-      backgroundColor: colors.card || "#2a2a2a",
+      backgroundColor: colors.card || "#161616",
       justifyContent: "center",
       alignItems: "center",
-      marginHorizontal: 6,
+      marginHorizontal: 8,
       borderWidth: 1,
       borderColor: colors.border || "#333",
     },
-    sideBtnLeft: {},
-    sideBtnRight: {},
-    sideBtnPlaceholder: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      marginHorizontal: 6,
-      opacity: 0,
+    iconBtnPlaceholderOuter: { width: 48, height: 48, marginHorizontal: 8, opacity: 0 },
+
+    errorTextInner: { marginTop: 8, textAlign: "center", fontSize: 13 },
+
+    /* inner locale modal */
+    modalBackdropInner: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 20 },
+    localeModalCard: { borderRadius: 12, padding: 14 },
+    modalTitleSmall: { fontSize: 16, marginBottom: 8 },
+    localeRowInner: {
+      paddingVertical: 12,
+      paddingHorizontal: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderBottomWidth: 1,
+      borderBottomColor: "rgba(255,255,255,0.03)",
     },
-    errorText: {
-      marginTop: 8,
-      textAlign: "center",
-    },
+    localeRowSelInner: { backgroundColor: Platform.OS === "ios" ? "#ffffff06" : colors.card },
+    localeRowTextInner: { color: colors.text, fontSize: 15 },
   });

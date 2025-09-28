@@ -162,7 +162,10 @@ const userSchema = new mongoose.Schema({
                 categories: { type: Map, of: Boolean }
             }
         }
-    ]
+    ],
+    dailyVoiceCount: { type: Number, default: 0 },
+    dailyVoiceLimit: { type: Number, default: 3 },
+    lastVoiceUsedAt: { type: Date, default: null },
 
 }, { timestamps: true });
 
