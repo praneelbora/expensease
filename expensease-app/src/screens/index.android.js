@@ -11,8 +11,13 @@ import {
     ScrollView,
     Animated,
     TextInput,
+    Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import PhoneInput from "react-native-phone-number-input";
+import { OtpInput } from "react-native-otp-entry";
+import { Ionicons } from "@expo/vector-icons";
 
 // Keep native imports only if Android builds include the library
 import { CredentialManager } from "android-credential-manager";
@@ -23,7 +28,6 @@ import { useTheme } from "context/ThemeProvider";
 import { NotificationContext } from "context/NotificationContext";
 import { router } from "expo-router";
 import { checkAppVersion, googleLoginMobile, mobileLogin, sendOTP, verifyOTP } from "services/UserService";
-
 
 const explicitProvider = new GoogleButtonProvider({
     serverClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
@@ -43,16 +47,13 @@ export default function Login() {
     const [submitting, setSubmitting] = useState(false);
     const [checkingVersion, setCheckingVersion] = useState(true);
 
-    // Animated value as ref and mounted guard
     const fade = useRef(new Animated.Value(0)).current;
     const mountedRef = useRef(true);
-
-    // Prevent repeating silent attempts
     const silentAttemptedRef = useRef(false);
-    // Count attempts for debugging
     const attemptCounterRef = useRef(0);
-    // ---- OTP + "More ways" UI state (make OTP primary) ----
-    const [showSocial, setShowSocial] = useState(false); // toggles the "More ways to login" area
+
+    // Phone / OTP states
+    const [showSocial, setShowSocial] = useState(false);
     const [callingCode, setCallingCode] = useState(""); // digits only (e.g. "91")
     const [nationalNumber, setNationalNumber] = useState(""); // digits only
     const [sending, setSending] = useState(false);
@@ -62,13 +63,19 @@ export default function Login() {
     const [otpCode, setOtpCode] = useState("");
     const [otpError, setOtpError] = useState("");
     const [countdown, setCountdown] = useState(0);
+    const [otpActive, setOtpActive] = useState(false);
 
-
-    // New: under-review flows and username/password state
+    // under-review + username/password
     const [underReview, setUnderReview] = useState(false);
     const [reviewVersion, setReviewVersion] = useState(null);
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+
+    const phoneInputRef = useRef(null);
+    const otpInputsRef = useRef([]);
+
+    const [defaultCountryCode] = useState("IN");
+
     const normalizeDigits = (s) => String(s || "").replace(/\D/g, "");
     const validatePhoneParts = (cc, national) => {
         const ccDigits = normalizeDigits(cc);
@@ -93,11 +100,11 @@ export default function Login() {
         }, 1000);
     };
 
-
     const handleSendOTP = async () => {
         setOtpError("");
-        // try to read calling code from PhoneInput if you use it, otherwise use callingCode state
-        const cc = normalizeDigits(callingCode || "");
+        // prefer the canonical calling code from the phone input
+        const ccFromRef = phoneInputRef.current?.getCallingCode?.();
+        const cc = normalizeDigits(ccFromRef || callingCode || "");
         const nat = normalizeDigits(nationalNumber || "");
         const validation = validatePhoneParts(cc, nat);
         if (!validation.ok) {
@@ -112,7 +119,18 @@ export default function Login() {
                 setStage("sent");
                 setLastSentPhone(phoneToSend);
                 setOtpCode("");
+                setOtpActive(false);
                 startCountdown(30);
+
+                // persist split parts so formatting on OTP verify is stable
+                setCallingCode(cc);
+                setNationalNumber(nat);
+
+                // focus OTP input after a short delay
+                setTimeout(() => {
+                    otpInputsRef.current?.[0]?.focus?.();
+                    Keyboard.dismiss(); // sometimes on Android focusing immediately is odd; OtpInput handles focus
+                }, 200);
             } else {
                 setOtpError(resp?.error || resp?.message || "Failed to send OTP. Try again.");
             }
@@ -164,20 +182,16 @@ export default function Login() {
         };
     }, []);
 
-    // Redirect if already logged in (after bootstrap + user loaded)
-    // Consolidated version-check + logged-in redirect effect for src/screens/Login.js
     useEffect(() => {
         // only act after auth bootstrap so we know logged-in state
         if (!hydrated) return;
 
         let mounted = true;
-
         (async () => {
             try {
                 const resp = await checkAppVersion(version, Platform.OS);
                 if (!mounted) return;
 
-                // 1) If admin marks the app outdated -> redirect to update screen
                 if (resp?.outdated) {
                     try {
                         router.replace("updateScreen");
@@ -187,7 +201,6 @@ export default function Login() {
                     return;
                 }
 
-                // 2) If not outdated and user is already logged in -> go to dashboard
                 if (userToken && !authLoading && user) {
                     try {
                         router.replace("dashboard");
@@ -197,11 +210,9 @@ export default function Login() {
                     return;
                 }
 
-                // 3) Otherwise surface underReview flag to show username/password fallback
                 setUnderReview(!!resp?.underReview);
             } catch (err) {
                 console.warn("[Login] Version check failed:", err);
-                // conservative fallback: if logged in, redirect to dashboard; else allow login
                 if (userToken && !authLoading && user) {
                     try {
                         router.replace("dashboard");
@@ -212,16 +223,14 @@ export default function Login() {
                     setUnderReview(false);
                 }
             } finally {
-                if (mounted) setCheckingVersion(false); // DONE: allow UI to render
+                if (mounted) setCheckingVersion(false);
             }
         })();
 
         return () => {
             mounted = false;
         };
-        // dependencies: wait for hydrated, re-run when version or auth state changes
     }, [hydrated, version, userToken, authLoading, user]);
-
 
     useEffect(() => {
         Animated.timing(fade, {
@@ -231,7 +240,6 @@ export default function Login() {
         }).start();
     }, [fade]);
 
-    // Conservative detection of "no account / cancelled" errors
     function isNoAccountOrCancelledError(err) {
         if (!err) return false;
         const msg = String(err?.message || err).toLowerCase();
@@ -254,14 +262,9 @@ export default function Login() {
         return indicators.some((i) => msg.includes(i));
     }
 
-    // THE native login flow (Google via CredentialManager)
     async function handleCredentialLogin(provider, { isSilent = false } = {}) {
         if (!isSilent) setError("");
-        // rate limit duplicate submits
-        if (submitting) {
-            return;
-        }
-
+        if (submitting) return;
         if (!provider) {
             const msg = "Native Google sign-in not available on this device.";
             console.warn("[Login] " + msg);
@@ -318,27 +321,6 @@ export default function Login() {
         }
     }
 
-    // New: check app version on mount and whenever `version` changes
-    useEffect(() => {
-        let mounted = true;
-        (async () => {
-            try {
-                const resp = await checkAppVersion(version, Platform.OS);
-                if (!mounted) return;
-                const rv = resp?.underReview || null;
-                setUnderReview(rv);
-            } catch (e) {
-                console.warn("[Login] Failed to check app version:", e);
-                setUnderReview(false);
-                setReviewVersion(null);
-            }
-        })();
-        return () => {
-            mounted = false;
-        };
-    }, [version]);
-
-    // New: username/password login handler (shown only when underReview === true)
     const handleUsernameLogin = async () => {
         setError("");
         if (!username?.trim() || !password) {
@@ -394,22 +376,34 @@ export default function Login() {
                         {stage !== "sent" ? (
                             <>
                                 <View style={{ width: "100%", marginTop: 8 }}>
-                                    <View style={{ flexDirection: "row", gap: 8 }}>
-                                        <TextInput
-                                            placeholder="Country code (e.g. 91)"
-                                            value={callingCode}
-                                            onChangeText={(t) => setCallingCode(normalizeDigits(t))}
-                                            keyboardType="number-pad"
-                                            style={[styles.input, { flex: 0.6 }]}
-                                        />
-                                        <TextInput
-                                            placeholder="Mobile number"
-                                            value={nationalNumber}
-                                            onChangeText={(t) => setNationalNumber(normalizeDigits(t))}
-                                            keyboardType="number-pad"
-                                            style={[styles.input, { flex: 1.4 }]}
-                                        />
-                                    </View>
+                                    <PhoneInput
+                                        ref={phoneInputRef}
+                                        value={nationalNumber}
+                                        defaultValue={nationalNumber}
+                                        defaultCode={defaultCountryCode}
+                                        layout="first"
+                                        onChangeText={(text) => {
+                                            setNationalNumber(String(text || "").replace(/\D/g, ""));
+                                        }}
+                                        onChangeFormattedText={(formatted) => {
+                                            const cc = phoneInputRef.current?.getCallingCode?.() || "";
+                                            const digitsOnly = String(formatted || "").replace(/\D/g, "");
+                                            if (cc && digitsOnly.startsWith(String(cc))) {
+                                                setCallingCode(String(cc).replace(/\D/g, ""));
+                                                setNationalNumber(digitsOnly.slice(String(cc).length));
+                                            } else {
+                                                setNationalNumber(digitsOnly);
+                                            }
+                                        }}
+                                        containerStyle={styles.phoneContainer}
+                                        textContainerStyle={styles.phoneTextContainer}
+                                        textInputStyle={styles.phoneTextInput}
+                                        codeTextStyle={styles.codeText}
+                                        flagButtonStyle={styles.flagButton}
+                                        renderDropdownImage={<Ionicons name="chevron-down" size={18} color={theme?.colors?.text} />}
+                                        disableArrowIcon={false}
+                                        placeholder="9876543210"
+                                    />
 
                                     <TouchableOpacity style={[styles.signInBtn, { marginTop: 12 }]} onPress={handleSendOTP} disabled={sending}>
                                         {sending ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Send OTP</Text>}
@@ -417,24 +411,48 @@ export default function Login() {
                                     {otpError ? <Text style={styles.error}>{otpError}</Text> : null}
                                     {!showSocial && (
                                         <TouchableOpacity onPress={() => setShowSocial(true)} style={{ marginTop: 8 }}>
-                                            <Text style={[styles.footerText, { fontWeight: "700", color: theme?.colors?.primary, textAlign: 'center' }]}>More ways to login</Text>
+                                            <Text style={[styles.footerText, { fontWeight: "700", color: theme?.colors?.primary, textAlign: "center" }]}>More ways to login</Text>
                                         </TouchableOpacity>
                                     )}
                                 </View>
                             </>
                         ) : (
                             <View style={{ width: "100%", marginTop: 8 }}>
-                                <Text style={[styles.hint, { textAlign: "left" }]}>We sent a code to {lastSentPhone}</Text>
+                                <Text style={[styles.hint, { textAlign: "left" }]}>We sent a code to {formatSentPhone(lastSentPhone)}</Text>
 
-                                <TextInput
-                                    placeholder="Enter OTP"
-                                    value={otpCode}
-                                    onChangeText={setOtpCode}
-                                    keyboardType="number-pad"
-                                    style={[styles.input, { marginTop: 12, textAlign: "center", fontSize: 20 }]}
-                                />
+                                <View style={{ width: "100%", alignItems: "center", marginTop: 12 }}>
+                                    <OtpInput
+                                        ref={otpInputsRef}
+                                        numberOfDigits={4}
+                                        onTextChange={(text) => {
+                                            setOtpCode(text);
+                                            setOtpActive(false);
+                                            setOtpError("");
+                                        }}
+                                        onFilled={() => {
+                                            setOtpActive(true);
+                                            Keyboard.dismiss();
+                                        }}
+                                        textInputProps={{
+                                            accessibilityLabel: "One-Time Password",
+                                            keyboardType: "number-pad",
+                                            inputMode: "numeric",
+                                            textContentType: Platform.OS === "ios" ? "oneTimeCode" : "none",
+                                            autoComplete: Platform.OS === "android" ? "sms-otp" : "off",
+                                            importantForAutofill: "yes",
+                                        }}
+                                        type="numeric"
+                                        theme={{
+                                            containerStyle: styles.otpContainer,
+                                            pinCodeContainerStyle: styles.codeContainer,
+                                            pinCodeTextStyle: styles.pinCodeText,
+                                            focusStickStyle: styles.focusStick,
+                                            focusedPinCodeContainerStyle: styles.activePinCodeContainer,
+                                        }}
+                                    />
+                                </View>
 
-                                <TouchableOpacity style={[styles.signInBtn, { marginTop: 12 }]} onPress={handleVerifyOtp} disabled={verifying}>
+                                <TouchableOpacity style={[styles.signInBtn, { marginTop: 12 }]} onPress={handleVerifyOtp} disabled={verifying || !otpActive}>
                                     {verifying ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Verify OTP</Text>}
                                 </TouchableOpacity>
 
@@ -448,6 +466,7 @@ export default function Login() {
                                 {otpError ? <Text style={styles.error}>{otpError}</Text> : null}
                             </View>
                         )}
+
                         {showSocial && stage !== "sent" && (
                             <View style={{ width: "100%", marginTop: 12 }}>
                                 <TouchableOpacity
@@ -460,6 +479,7 @@ export default function Login() {
                                 </TouchableOpacity>
                             </View>
                         )}
+
                         {underReview ? (
                             <>
                                 <TextInput
@@ -507,6 +527,18 @@ export default function Login() {
             </ScrollView>
         </KeyboardAvoidingView>
     );
+
+    // helper for display formatting
+    function formatSentPhone(phone) {
+        if (callingCode && nationalNumber) return `+${callingCode} ${nationalNumber}`;
+        if (phone) {
+            const onlyDigits = String(phone).replace(/\D/g, "");
+            const cc = onlyDigits.slice(0, Math.min(3, onlyDigits.length - 4));
+            const num = onlyDigits.slice(cc.length);
+            return cc ? `+${cc} ${num}` : phone;
+        }
+        return "";
+    }
 }
 
 const createStyles = (theme, insets) =>
@@ -571,4 +603,62 @@ const createStyles = (theme, insets) =>
             borderColor: "#E6EEF8",
         },
         secondaryText: { color: theme?.colors?.primary ?? "#0B5FFF", fontWeight: "600" },
+
+        // OTP theme bits used by OtpInput
+        otpContainer: {
+            width: 280,
+        },
+        codeContainer: {
+            borderWidth: 1,
+            width: 60,
+            borderColor: "#55554F",
+        },
+        pinCodeText: {
+            color: theme?.colors?.text ?? "#0F172A",
+            fontSize: 20,
+        },
+        focusStick: {
+            width: 20,
+            height: 2,
+            marginTop: 20,
+        },
+        activePinCodeContainer: {
+            borderColor: theme?.colors?.primary ?? "#0B5FFF",
+        },
+
+        // PhoneInput styles
+        phoneContainer: {
+            width: "100%",
+            height: 48,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: theme?.colors?.border ?? "#E6EEF8",
+            backgroundColor: theme?.colors?.background ?? "#fff",
+            overflow: "hidden",
+            flexDirection: "row",
+            alignItems: "center",
+        },
+        flagButton: {
+            width: 40,
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 8,
+            backgroundColor: "transparent",
+        },
+        codeText: {
+            color: theme?.colors?.text ?? "#0F172A",
+            fontSize: 14,
+            fontWeight: "600",
+        },
+        phoneTextContainer: {
+            backgroundColor: "transparent",
+            flex: 1,
+            paddingVertical: 0,
+            paddingLeft: 8,
+        },
+        phoneTextInput: {
+            color: theme?.colors?.text ?? "#0F172A",
+            fontSize: 16,
+            height: 44,
+        },
     });

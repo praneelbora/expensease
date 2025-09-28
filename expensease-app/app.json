@@ -8,7 +8,6 @@
         "icon": "./assets/default/icon.png",
         "userInterfaceStyle": "automatic",
         "newArchEnabled": true,
-        "deepLinking": true,
         "splash": {
             "image": "./assets/default/splash-icon.png",
             "resizeMode": "contain",
@@ -31,8 +30,7 @@
                 "NSLocationWhenInUseUsageDescription": "Optional — remove if not needed"
 
             },
-            "appleTeamId": "2TA4D4M36W",
-            "userInterfaceStyle": "automatic"
+            "appleTeamId": "2TA4D4M36W"
         },
         "android": {
             "package": "com.praneelbora.expensease",
