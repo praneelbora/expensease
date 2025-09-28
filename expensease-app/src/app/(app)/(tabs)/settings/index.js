@@ -375,7 +375,6 @@ export default function AccountScreen() {
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
-            <Header title="Expensease" />
             <StatusBar style={theme.statusBarStyle === "dark-content" ? "dark" : "light"} />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
                 <ScrollView ref={scrollerRef} style={styles.scroller} contentContainerStyle={{ paddingBottom: 24 }}>

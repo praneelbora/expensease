@@ -1,5 +1,5 @@
 // components/header.js
-import React from "react";
+import React, { useState } from "react";
 import {
     View,
     Text,
@@ -7,11 +7,12 @@ import {
     Pressable,
     Share,
     Platform,
+    TouchableOpacity,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "context/ThemeProvider";
 import { ChevronLeft, X, Bell, Filter, Search, Share2 } from "lucide-react-native";
-
+import avatars from "@/avatars";
 const FRONTEND_URL = process.env.EXPO_PUBLIC_FRONTEND_URL || "https://www.expensease.in";
 
 /**
@@ -39,17 +40,24 @@ export default function Header({
     filterBtnActive = false,
     showText,
     onTextPress,
+    showProfile,
+    user
 }) {
     const router = useRouter();
     const { theme } = useTheme();
     const styles = React.useMemo(() => createStyles(theme), [theme]);
-
+    const [selectedAvatar, setSelectedAvatar] = useState(user?.avatarId || null);
     const handleBack = () => {
         if (onBack) return onBack();
         if (router.canGoBack()) router.back();
         else router.replace("/dashboard");
     };
-
+    function getInitials(name) {
+    if (!name) return "";
+    const parts = name.trim().split(" ").filter(Boolean);
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
     const handleClose = () => {
         if (onClose) return onClose();
         router.replace("/dashboard");
@@ -137,6 +145,31 @@ export default function Header({
                         <Text style={{ color: theme.colors.text, fontWeight: '700', letterSpacing: 0.5 }}>{showText}</Text>
                     </Pressable>
                 )}
+                {showProfile && (
+                    <TouchableOpacity
+                    onPress={()=>router.push('/settings')}>
+                    <View style={styles.avatarBorder}>
+                    <View
+                        style={[
+                            styles.avatarContainer,
+                            selectedAvatar ? { justifyContent: "flex-end" } : { justifyContent: "center" },
+                        ]}
+                    >
+                        {selectedAvatar ? (
+                            (() => {
+                                const found = avatars.find((a) => a.id === selectedAvatar);
+                                const AvatarComp = found?.Component || null;
+                                return AvatarComp ? <AvatarComp width={36} height={36} /> : <Text style={{ color: theme.colors.muted }}>—</Text>;
+                            })()
+                        ) : (
+                            <View style={[styles.placeholderCircle, { backgroundColor: theme.colors.card }]}>
+                                <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>{getInitials(user?.name || "")}</Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+                </TouchableOpacity>
+                )}
 
                 {button ? button : null}
             </View>
@@ -197,4 +230,36 @@ const createStyles = (theme) =>
             textShadowRadius: 6,
             textShadowOffset: { width: 0, height: 0 },
         },
+        avatarTouchable: {
+            width: 64,
+            height: 64,
+            alignItems: "center",
+            justifyContent: "center",
+            position: "relative",
+        },
+        avatarBorder: {
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            borderWidth: 2,
+            borderColor: theme.colors.card,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        avatarContainer: {
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            overflow: "hidden",
+            alignItems: "center",
+            backgroundColor: "transparent",
+        },
+        placeholderCircle: {
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        placeholderText: { fontSize: 18, fontWeight: "700" },
     });

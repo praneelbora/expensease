@@ -69,6 +69,7 @@ function DashboardScreenInner() {
     const styles = useMemo(() => createStyles(theme), [theme]);
 
     const {
+        user,
         userToken,
         defaultCurrency = "INR",
         preferredCurrencies = [],
@@ -90,7 +91,7 @@ function DashboardScreenInner() {
         setPage,
     } = useFetch();
 
-    // local UI state
+    
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [selectedPM, setSelectedPM] = useState(null);
@@ -424,7 +425,7 @@ function DashboardScreenInner() {
         (expenses || [])
             .filter((e) => e.typeOf === "expense")
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .slice(0, 6)
+            .slice(0, 5)
             .forEach((e) => {
                 const d = new Date(e.date);
                 const key = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(d);
@@ -438,8 +439,8 @@ function DashboardScreenInner() {
        ----------------------- */
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
-            <Header title="Dashboard" />
-            <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
+            <Header main showProfile user={user}/>
+            <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12, gap: 8 }}>
                 <ScrollView
                     style={styles.scroller}
                     refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />}

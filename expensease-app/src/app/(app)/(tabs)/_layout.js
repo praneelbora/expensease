@@ -27,6 +27,7 @@ export default function TabsLayout() {
                             // subtle translucent top border using theme border color
                             borderTopColor: `${theme.colors.border}`,
                             marginTop: -5,
+                            
                         },
                     ]}
                 />
@@ -34,6 +35,7 @@ export default function TabsLayout() {
             tabBarStyle: {
                 borderTopWidth: 0,
                 backgroundColor: theme.colors.background,
+                paddingHorizontal: 4
             },
             tabBarLabelStyle: {
                 textAlign: "center",
@@ -49,22 +51,13 @@ export default function TabsLayout() {
     return (
         <Tabs initialRouteName="dashboard" screenOptions={opts}>
             <Tabs.Screen
-                name="friends"
+                name="dashboard"
                 options={{
-                    title: "Friends",
-                    tabBarAccessibilityLabel: "Friends",
-                    tabBarIcon: ({ color, size }) => <User width={size} height={size} stroke={color} fill="none" />,
+                    title: "Dashboard",
+                    tabBarAccessibilityLabel: "Dashboard",
+                    tabBarIcon: ({ color, size }) => <Dash width={size} height={size} stroke={color} fill="none" />,
                 }}
             />
-            <Tabs.Screen
-                name="groups"
-                options={{
-                    title: "Groups",
-                    tabBarAccessibilityLabel: "Groups",
-                    tabBarIcon: ({ color, size }) => <Users width={size} height={size} stroke={color} fill="none" />,
-                }}
-            />
-
             <Tabs.Screen
                 name="newExpense"
                 options={{
@@ -94,16 +87,28 @@ export default function TabsLayout() {
                 }}
             />
             <Tabs.Screen
-                name="dashboard"
+                name="friends"
                 options={{
-                    title: "Dashboard",
-                    tabBarAccessibilityLabel: "Dashboard",
-                    tabBarIcon: ({ color, size }) => <Dash width={size} height={size} stroke={color} fill="none" />,
+                    title: "Friends",
+                    tabBarAccessibilityLabel: "Friends",
+                    tabBarIcon: ({ color, size }) => <User width={size} height={size} stroke={color} fill="none" />,
                 }}
             />
             <Tabs.Screen
+                name="groups"
+                options={{
+                    title: "Groups",
+                    tabBarAccessibilityLabel: "Groups",
+                    tabBarIcon: ({ color, size }) => <Users width={size} height={size} stroke={color} fill="none" />,
+                }}
+            />
+
+            
+            
+            <Tabs.Screen
                 name="settings"
                 options={{
+                    href: null,
                     title: "Settings",
                     tabBarAccessibilityLabel: "Settings",
                     tabBarIcon: ({ color, size }) => <Cog width={size} height={size} stroke={color} fill="none" />,

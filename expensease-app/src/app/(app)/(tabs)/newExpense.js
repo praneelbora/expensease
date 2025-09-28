@@ -1734,18 +1734,21 @@ export default function NewExpenseScreen() {
                     )}
                     {/* Lo  n CTA */}
                 </ScrollView>
-                <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
+                
                 <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
                 <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
                 <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />
 
                 <View style={styles.footer}>
+                    <View style={{flex: 1}}>
                     <Text style={styles.hint} numberOfLines={2}>
                         {hint}
                     </Text>
                     <TouchableOpacity onPress={handleSubmit} disabled={!canSubmit || loading} style={[styles.submitBtn, (!canSubmit || loading) ? styles.submitDisabled : null]}>
                         <Text style={[styles.submitText, (!canSubmit || loading) && { opacity: 0.9 }]}>{loading ? "Saving…" : "Save Expense"}</Text>
                     </TouchableOpacity>
+                    </View>
+                    <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
                 </View>
             </View>
         </SafeAreaView>
@@ -1861,8 +1864,11 @@ const createStyles = (theme = {}) => {
 
         footer: {
             paddingTop: 6,
+            flexDirection: 'row',
             paddingBottom: 12,
-            paddingHorizontal: 16,
+            gap: 16,
+            paddingHorizontal: 4,
+            alignItems: "center",
             borderTopWidth: StyleSheet.hairlineWidth,
             borderTopColor: palette.border,
             backgroundColor: palette.background,
