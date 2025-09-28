@@ -164,6 +164,7 @@ const userSchema = new mongoose.Schema({
         }
     ],
     dailyVoiceCount: { type: Number, default: 0 },
+    totalVoiceCount: { type: Number, default: 0 },
     dailyVoiceLimit: { type: Number, default: 3 },
     lastVoiceUsedAt: { type: Date, default: null },
 

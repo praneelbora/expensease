@@ -1,4 +1,11 @@
-// routes/v1/voice.js (instrumented timing)
+// routes/v1/voice.js
+// Accepts a client-provided transcript (text) and uses Gemini (Google GenAI) free model
+// to extract a strict JSON expense object. No audio/file handling in this route.
+//
+// POST /v1/voice/process
+// Body: { transcript: "<user transcript>", locale?: "hi-IN" }
+// Auth: uses your existing auth middleware
+
 const express = require("express");
 const router = express.Router();
 const auth = require("../../middleware/auth"); // adjust path if needed
@@ -7,20 +14,22 @@ const PaymentMethod = require('../../models/PaymentMethod');
 const Group = require('../../models/Group');
 const User = require('../../models/User');
 
-const { performance } = require('perf_hooks');
-
-// Gemini SDK handling (unchanged)
+// Use the official SDK as in docs. Make sure @google/genai is installed in your project:
+//   npm i @google/genai
 let GoogleGenAI;
 try {
     GoogleGenAI = require("@google/genai").GoogleGenAI || require("@google/genai");
 } catch (e) {
+    // If the package isn't installed this will throw at startup when route is used.
+    // The try/catch avoids crashing early; we'll throw a clear error when attempting to call.
     GoogleGenAI = null;
 }
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-mini";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-mini"; // choose small/free-ish model
 
-// keep your helper functions (makeConservativeParse, tryParseJsonFromText) unchanged
+// ---------------- helpers ----------------
+
 function makeConservativeParse(rawText) {
     return {
         amount: null,
@@ -34,42 +43,11 @@ function makeConservativeParse(rawText) {
     };
 }
 
-function tryParseJsonFromText(text) {
-    if (!text || typeof text !== "string") return null;
-    const cleaned = text.trim()
-        .replace(/^[\s`]*```(?:json)?\s*/i, "")
-        .replace(/```[\s]*$/i, "")
-        .trim();
-
-    try {
-        const parsed = JSON.parse(cleaned);
-        if (parsed && typeof parsed === "object") return parsed;
-    } catch (e) {
-        const m = cleaned.match(/\{[\s\S]*\}/);
-        if (m) {
-            try {
-                const parsed2 = JSON.parse(m[0]);
-                if (parsed2 && typeof parsed2 === "object") return parsed2;
-            } catch (ee) {}
-        }
-    }
-    return null;
-}
-
 /**
- * Instrumented wrapper for parseWithGemini:
- * returns { result, timings: { promptMs, networkMs, parseMs, totalMs } }
+ * Call Gemini via @google/genai SDK.
+ * Returns parsed JS object (throws on parse failure).
  */
-async function parseWithGeminiInstrumented(rawText, paymentAccounts, friends, groups) {
-    const timings = {};
-    const tStart = performance.now();
-
-    // build prompt timing
-    const tPromptStart = performance.now();
-    const prompt = buildUnifiedVoicePrompt(rawText, paymentAccounts, friends, groups);
-    const tPromptEnd = performance.now();
-    timings.promptMs = tPromptEnd - tPromptStart;
-
+async function parseWithGemini(rawText, paymentAccounts, friends, groups) {
     if (!GEMINI_API_KEY) {
         throw new Error("GEMINI_API_KEY not configured");
     }
@@ -81,195 +59,164 @@ async function parseWithGeminiInstrumented(rawText, paymentAccounts, friends, gr
 
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-    // network call timing
+    const prompt = buildUnifiedVoicePrompt(rawText, paymentAccounts, friends, groups);
+    console.log('prompt: ', prompt);
+
+
+
+    // Use the generateContent API per docs sample
     const req = {
         model: GEMINI_MODEL,
         contents: prompt,
     };
 
-    let resp;
-    const tNetworkStart = performance.now();
-    resp = await ai.models.generateContent(req);
-    const tNetworkEnd = performance.now();
-    timings.networkMs = tNetworkEnd - tNetworkStart;
+    const resp = await ai.models.generateContent(req);
 
-    // parse timing
-    const tParseStart = performance.now();
-    // reuse your parsing logic (tryParseJsonFromText + candidate parsing)
-    // 1) simple resp.text
+    // SDK shapes vary by version. Try common fields in order.
+    // 1) resp.text (simple)
     if (resp && typeof resp.text === "string" && resp.text.trim()) {
-        const parsed = tryParseJsonFromText(resp.text);
-        const tParseEnd = performance.now();
-        timings.parseMs = tParseEnd - tParseStart;
-        timings.totalMs = performance.now() - tStart;
-        return { result: parsed, timings };
+        return tryParseJsonFromText(resp.text);
     }
 
-    // 2) candidates / output shapes
+    // 2) resp.output or resp.candidates
+    // candidate.content may be an array of parts
     try {
         const candidates = resp?.candidates || resp?.output || null;
         if (Array.isArray(candidates) && candidates.length > 0) {
+            // try several common nested shapes
             for (const c of candidates) {
+                // some SDK returns c.output_text
                 if (c?.output_text && typeof c.output_text === "string") {
                     const p = tryParseJsonFromText(c.output_text);
-                    if (p) {
-                        const tParseEnd = performance.now();
-                        timings.parseMs = tParseEnd - tParseStart;
-                        timings.totalMs = performance.now() - tStart;
-                        return { result: p, timings };
-                    }
+                    if (p) return p;
                 }
+                // some return content.parts[0].text
                 if (c?.content && Array.isArray(c.content)) {
+                    // content items may be {type:'output_text', text: '...'} or {text: '...'}
                     for (const part of c.content) {
                         if (typeof part?.text === "string" && part.text.trim()) {
                             const p = tryParseJsonFromText(part.text);
-                            if (p) {
-                                const tParseEnd = performance.now();
-                                timings.parseMs = tParseEnd - tParseStart;
-                                timings.totalMs = performance.now() - tStart;
-                                return { result: p, timings };
-                            }
+                            if (p) return p;
                         }
                         if (typeof part === "string" && part.trim()) {
                             const p = tryParseJsonFromText(part);
-                            if (p) {
-                                const tParseEnd = performance.now();
-                                timings.parseMs = tParseEnd - tParseStart;
-                                timings.totalMs = performance.now() - tStart;
-                                return { result: p, timings };
-                            }
+                            if (p) return p;
                         }
                     }
                 }
+                // fallback try c.text
                 if (typeof c?.text === "string" && c.text.trim()) {
                     const p = tryParseJsonFromText(c.text);
-                    if (p) {
-                        const tParseEnd = performance.now();
-                        timings.parseMs = tParseEnd - tParseStart;
-                        timings.totalMs = performance.now() - tStart;
-                        return { result: p, timings };
-                    }
+                    if (p) return p;
                 }
             }
         }
     } catch (e) {
+        // swallow and fallthrough to final attempt
         console.warn("unexpected Gemini response shape:", e?.message || e);
     }
 
-    // last attempt: stringify and extract JSON
-    const tLastParseStart = performance.now();
+    // As last attempt, try to stringify resp and extract JSON substring
     const bulkText = JSON.stringify(resp || "", null, 2);
     const maybe = tryParseJsonFromText(bulkText);
-    const tLastParseEnd = performance.now();
-    timings.parseMs = (tLastParseEnd - tLastParseStart) + (tParseStart ? (tParseStart - tLastParseStart) : 0);
-    timings.totalMs = performance.now() - tStart;
-
-    if (maybe) return { result: maybe, timings };
+    if (maybe) return maybe;
 
     throw new Error("Gemini did not return parseable JSON");
 }
 
+/**
+ * Try to extract/parse a JSON object from a text blob.
+ * Returns object on success or throws.
+ */
+function tryParseJsonFromText(text) {
+    if (!text || typeof text !== "string") return null;
+    const cleaned = text.trim()
+        .replace(/^[\s`]*```(?:json)?\s*/i, "") // remove code fence opening
+        .replace(/```[\s]*$/i, "") // remove closing fence
+        .trim();
+
+    // If entire cleaned string is JSON parseable, return it
+    try {
+        const parsed = JSON.parse(cleaned);
+        if (parsed && typeof parsed === "object") return parsed;
+    } catch (e) {
+        // try to extract first {...} substring
+        const m = cleaned.match(/\{[\s\S]*\}/);
+        if (m) {
+            try {
+                const parsed2 = JSON.parse(m[0]);
+                if (parsed2 && typeof parsed2 === "object") return parsed2;
+            } catch (ee) {
+                // fallthrough
+            }
+        }
+    }
+    // not parseable
+    return null;
+}
+
 // ---------------- route ----------------
 router.post("/process", auth, async (req, res) => {
-    const globalStart = performance.now();
     try {
-        const tUserFetchStart = performance.now();
         const user = await User.findById(req.user.id).populate('friends', '_id name');
-        const tUserFetchEnd = performance.now();
-        const userFetchMs = tUserFetchEnd - tUserFetchStart;
 
         const today = new Date().toDateString();
         const last = user.lastVoiceUsedAt ? user.lastVoiceUsedAt.toDateString() : null;
 
         if (today !== last) {
-            user.dailyVoiceCount = 0;
+            user.dailyVoiceCount = 0; // reset for new day
         }
 
+        // default = 3 if no custom limit
         const limit = user.dailyVoiceLimit || 3;
 
+        if (user.dailyVoiceCount >= limit) {
+            return res.status(429).json({
+                error: "quota_exceeded",
+                message: `Daily limit of ${limit} requests reached. Try again tomorrow.`,
+            });
+        }
+
         // increment usage
-        const tIncrementStart = performance.now();
         user.dailyVoiceCount += 1;
+        user.totalVoiceCount += 1;
         user.lastVoiceUsedAt = new Date();
         await user.save();
-        const tIncrementEnd = performance.now();
-        const userSaveMs = tIncrementEnd - tIncrementStart;
 
         const transcriptFromClient = (req.body.transcript || "").toString().trim();
         const locale = req.body.locale || null;
+
         if (!transcriptFromClient) {
             return res.status(400).json({ error: "missing_transcript" });
         }
 
-        const tPaymentFetchStart = performance.now();
+
+        let processorUsed = "conservative";
         const paymentAccounts = await PaymentMethod.find(
             { userId: req.user.id },
             "_id label type isDefaultSend isDefaultReceive"
         ).lean();
-        const tPaymentFetchEnd = performance.now();
-        const paymentFetchMs = tPaymentFetchEnd - tPaymentFetchStart;
-
-        const friends = user.friends;
-        const tGroupFetchStart = performance.now();
-        const groups = await Group.find({ members: req.user.id }).populate('members', 'name');
-        const tGroupFetchEnd = performance.now();
-        const groupFetchMs = tGroupFetchEnd - tGroupFetchStart;
-
+        console.log(req.user.id, paymentAccounts);
+        const friends = user.friends
+        const groups = await Group.find({ members: req.user.id })
+            .populate('members', 'name')
         let parsedResult;
-        let geminiTimings = null;
         try {
-            const tParseStart = performance.now();
-            const { result, timings } = await parseWithGeminiInstrumented(transcriptFromClient, paymentAccounts, friends, groups);
-            parsedResult = result;
-            geminiTimings = timings;
-            const tParseEnd = performance.now();
-            // parseWithGeminiInstrumented already measures internal timings.
-            var parseTotalMs = tParseEnd - tParseStart;
+            parsedResult = await parseWithGemini(transcriptFromClient, paymentAccounts, friends, groups);
+            console.log(parsedResult);
+
         } catch (err) {
             parsedResult = makeConservativeParse(transcriptFromClient);
         }
 
-        const overallMs = performance.now() - globalStart;
 
-        // Build Server-Timing header (comma-separated metric=ms)
-        const serverTiming = [
-            `userFetch;dur=${userFetchMs.toFixed(1)}`,
-            `userSave;dur=${userSaveMs.toFixed(1)}`,
-            `paymentFetch;dur=${paymentFetchMs.toFixed(1)}`,
-            `groupFetch;dur=${groupFetchMs.toFixed(1)}`,
-        ];
-        if (geminiTimings) {
-            serverTiming.push(`prompt;dur=${geminiTimings.promptMs.toFixed(1)}`);
-            serverTiming.push(`network;dur=${geminiTimings.networkMs.toFixed(1)}`);
-            serverTiming.push(`parse;dur=${geminiTimings.parseMs.toFixed(1)}`);
-        }
-        serverTiming.push(`total;dur=${overallMs.toFixed(1)}`);
-        res.set('Server-Timing', serverTiming.join(', '));
-
-        // friendly structured log
-        console.log("voice/process timings (ms):", {
-            userFetch: userFetchMs.toFixed(1),
-            userSave: userSaveMs.toFixed(1),
-            paymentFetch: paymentFetchMs.toFixed(1),
-            groupFetch: groupFetchMs.toFixed(1),
-            gemini: geminiTimings,
-            overall: overallMs.toFixed(1),
-        });
 
         return res.json({
             success: true,
-            processor: "conservative",
+            processor: processorUsed,
             detectedLanguage: locale || null,
             serverTranscript: transcriptFromClient,
             parsed: parsedResult,
-            timings: {
-                userFetch: Number(userFetchMs.toFixed(1)),
-                userSave: Number(userSaveMs.toFixed(1)),
-                paymentFetch: Number(paymentFetchMs.toFixed(1)),
-                groupFetch: Number(groupFetchMs.toFixed(1)),
-                gemini: geminiTimings,
-                overall: Number(overallMs.toFixed(1)),
-            },
         });
     } catch (err) {
         console.error("voice/process error", err);
