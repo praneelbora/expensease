@@ -38,7 +38,8 @@ const expenseSchema = new mongoose.Schema(
         paidFromPaymentMethodId: { type: mongoose.Schema.Types.ObjectId, ref: "PaymentMethod" },
         receivedToPaymentMethodId: { type: mongoose.Schema.Types.ObjectId, ref: "PaymentMethod" },  // friend's "get paid to",
         settled: { type: Boolean, default: false }, // Has the expense been settled
-        settledAt: { type: Date }, // When was it settled
+        settledAt: { type: Date }, // When was it settled,
+        notes: { type: String }
     },
     { timestamps: true }
 );

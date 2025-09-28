@@ -34,6 +34,7 @@ import SheetCategories from "~/shtCategories";
 import SheetPayments from "~/shtPayments";
 // add near other local imports (adjust path if your file is elsewhere)
 import EmptyCTA from '~/cta';
+import VoiceInput from "components/voiceInput"; // new component
 
 // Optional theme hook (if available)
 import { useTheme } from "context/ThemeProvider";
@@ -167,6 +168,72 @@ export default function NewExpenseScreen() {
         } catch (e) {
         }
     }, [userToken]);
+
+    const handleVoiceParsed = async (parsed) => {
+        try {
+            console.log(parsed);
+
+            if (!parsed) return;
+
+            // amount numeric
+            if (parsed.amount != null && !isNaN(Number(parsed.amount))) {
+                setAmount(String(Number(parsed.amount)));
+            }
+
+            // currency 3-letter -> set only if present
+            if (parsed.currency) {
+                setCurrency(String(parsed.currency).toUpperCase());
+            }
+
+            // description
+            if (parsed.description) {
+                setDesc(parsed.description);
+            } else if (parsed.raw_transcript) {
+                setDesc(parsed.raw_transcript.slice(0, 200));
+            }
+
+            // category mapping
+            if (parsed.category) {
+                const catLower = String(parsed.category).toLowerCase();
+                const found = Object.entries(categoryMap).find(([key, cfg]) => {
+                    if ((cfg.label || "").toLowerCase() === catLower) return true;
+                    if (key.toLowerCase() === catLower) return true;
+                    return Array.isArray(cfg.keywords) && cfg.keywords.some((k) => k.toLowerCase() === catLower);
+                });
+                if (found) setCategory(found[0]);
+            }
+
+            // date
+            if (parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date)) {
+                setExpenseDate(parsed.date);
+            }
+
+            // notes
+            if (parsed.notes) {
+                setNotes((prev) => (prev ? `${prev}; ${parsed.notes}` : parsed.notes));
+            }
+
+            // ✅ handle payment method (for personal mode only)
+            if (parsed.paymentMethod) {
+                // check if it's in the list of user’s payment methods
+                const exists = paymentMethods.find((pm) => String(pm._id) === String(parsed.paymentMethod));
+                if (exists) {
+                    setPaymentMethod(parsed.paymentMethod);
+                }
+            }
+
+            // warn on low confidence
+            if (typeof parsed.confidence === "number" && parsed.confidence < 0.5) {
+                Alert.alert(
+                    "Low confidence",
+                    "The AI was not very confident about the parsed fields. Please review them before saving."
+                );
+            }
+        } catch (e) {
+            console.warn("handleVoiceParsed error", e);
+        }
+    };
+
 
 
     const refreshAll = useCallback(async () => {
@@ -1396,6 +1463,12 @@ export default function NewExpenseScreen() {
                                     ) : null}
                                 </>
                             ) : null}
+                            {/* If personal mode: show voice input component */}
+                            {expenseMode === "personal" && (
+                                <View style={{ marginTop: 10 }}>
+                                    <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
+                                </View>
+                            )}
                         </View>
                     )}
 
