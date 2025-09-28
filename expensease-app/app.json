@@ -2,7 +2,7 @@
   "expo": {
     "name": "Expensease",
     "slug": "expensease",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "scheme": "expensease",
     "orientation": "portrait",
     "icon": "./assets/default/icon.png",
