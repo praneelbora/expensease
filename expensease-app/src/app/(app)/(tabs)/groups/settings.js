@@ -248,7 +248,13 @@ export default function GroupSettingsScreen() {
                 ? `This will permanently delete "${group?.name}" for all members. This action cannot be undone.`
                 : `Are you sure you want to leave "${group?.name}"? You’ll lose access to its expenses.`;
         return (
-            <Modal transparent visible={visible} animationType="fade">
+            <Modal
+                transparent
+                visible={visible}
+                animationType="fade"
+                onRequestClose={() => { if (!busy) onCancel(); }}
+                onDismiss={() => { if (!busy) onCancel(); }}
+            >
                 <Pressable onPress={!busy ? onCancel : undefined} style={styles.modalBackdrop}>
                     <Pressable style={styles.modalCard}>
                         <Text style={styles.modalTitle}>{title}</Text>
@@ -468,7 +474,7 @@ export default function GroupSettingsScreen() {
                             )}
 
                             {/* Danger Zone */}
-                            <View style={styles.dangerZone}>
+                            {/* <View style={styles.dangerZone}>
                                 <View style={styles.dangerHeader}>
                                     <Text style={styles.dangerHeaderText}>Danger Zone</Text>
                                 </View>
@@ -500,11 +506,12 @@ export default function GroupSettingsScreen() {
                                         </TouchableOpacity>
                                     </View>
                                 )}
-                            </View>
+                            </View> */}
                         </>
                     )}
                 </ScrollView>
 
+                {/* Confirm */}
                 {/* Confirm */}
                 <ConfirmModal
                     visible={!!confirmAction}
@@ -515,13 +522,27 @@ export default function GroupSettingsScreen() {
                         if (!confirmAction) return;
                         try {
                             setBusyAction(true);
+
                             if (confirmAction === "leave") {
                                 await leaveGroup(id, userToken);
                             } else {
+                                console.log("delete 1");
                                 await deleteGroup(id, userToken);
                             }
+
+                            // Close the modal immediately so the native modal/backdrop will be dismissed
                             setConfirmAction(null);
-                            router.replace("/groups");
+                            console.log("delete 2");
+
+                            // give React Native a moment to unmount/dismiss the native modal to avoid it capturing touches
+                            // Prefer using onDismiss prop of Modal if you want to be exact; timeout is a lightweight fallback
+                            setTimeout(() => {
+                                try {
+                                    router.replace("/groups");
+                                } catch (navErr) {
+                                    console.warn("navigate after delete failed:", navErr);
+                                }
+                            }, 60);
                         } catch (e) {
                             Alert.alert("Action failed", e?.message || "Please try again.");
                         } finally {
@@ -529,6 +550,7 @@ export default function GroupSettingsScreen() {
                         }
                     }}
                 />
+
             </View>
 
             <BottomSheetAddFriendsToGroup

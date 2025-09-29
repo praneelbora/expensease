@@ -277,13 +277,13 @@ export default function Login() {
     const formatSentPhone = (phone) => {
         // Prefer the stored split values (we stored them on send); fallback to lastSentPhone or provided phone
         const p = phone || lastSentPhone;
-        if (callingCode && nationalNumber) return `+${callingCode} ${nationalNumber}`;
+        if (callingCode && nationalNumber) return `${nationalNumber}`;
         if (p) {
             // p should already be "+<cc><number>", show with space after cc for readability
             const onlyDigits = String(p).replace(/\D/g, "");
             const cc = onlyDigits.slice(0, Math.min(3, onlyDigits.length - 4));
             const num = onlyDigits.slice(cc.length);
-            return cc ? `+${cc} ${num}` : p;
+            return cc ? `${num}` : p;
         }
         return "";
     };
@@ -530,35 +530,31 @@ export default function Login() {
                                     <View style={{ flexDirection: "row", alignItems: "center", width: "100%", gap: 8 }}>
                                         <PhoneInput
                                             ref={phoneInputRef}
-                                            value={nationalNumber}
-                                            defaultValue={nationalNumber}
                                             defaultCode={defaultCountryCode}
                                             layout="first"
-                                            onChangeText={(text) => {
-                                                // nationalNumber must remain digits-only
-                                                setNationalNumber(String(text || "").replace(/\D/g, ""));
-                                            }}
+                                            value={nationalNumber}
+                                            onChangeText={(text) => setNationalNumber(text.replace(/\D/g, ""))}
                                             onChangeFormattedText={(formatted) => {
-                                                // try to derive calling code from ref; keep nationalNumber digits-only
                                                 const cc = phoneInputRef.current?.getCallingCode?.() || "";
                                                 const digitsOnly = String(formatted || "").replace(/\D/g, "");
-                                                if (cc && digitsOnly.startsWith(String(cc))) {
-                                                    setCallingCode(String(cc).replace(/\D/g, ""));
-                                                    setNationalNumber(digitsOnly.slice(String(cc).length));
+                                                if (cc && digitsOnly.startsWith(cc)) {
+                                                    setCallingCode(cc);
+                                                    setNationalNumber(digitsOnly.slice(cc.length));
                                                 } else {
-                                                    // fallback: don't strip unknown prefix — just store digits as national part
                                                     setNationalNumber(digitsOnly);
                                                 }
                                             }}
                                             containerStyle={styles.phoneContainer}
                                             textContainerStyle={styles.phoneTextContainer}
                                             textInputStyle={styles.phoneTextInput}
-                                            codeTextStyle={styles.codeText}
                                             flagButtonStyle={styles.flagButton}
-                                            renderDropdownImage={<Ionicons name="chevron-down" size={18} color={theme.colors.text} />}
-                                            disableArrowIcon={false}
+                                            codeTextStyle={{ display: "none" }}   // 👈 hides country code
+                                            renderDropdownImage={
+                                                <Ionicons name="chevron-down" size={18} color={theme.colors.text} />
+                                            }
                                             placeholder="9876543210"
                                         />
+
                                     </View>
 
                                     <TouchableOpacity style={[styles.signInBtn, { marginTop: 0 }]} onPress={handleSendOTP} disabled={sending}>
@@ -811,7 +807,7 @@ const createStyles = (theme, insets) =>
 
         // compact flag + code area so phone number gets most space
         flagButton: {
-            width: 40, // smaller than full input
+            width: 80, // smaller than full input
             justifyContent: "center",
             alignItems: "center",
             paddingHorizontal: 8,

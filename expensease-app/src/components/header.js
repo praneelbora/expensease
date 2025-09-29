@@ -1,5 +1,5 @@
 // components/header.js
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     View,
     Text,
@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "context/ThemeProvider";
+import { useAuth } from "context/AuthContext";
 import { ChevronLeft, X, Bell, Filter, Search, Share2 } from "lucide-react-native";
 import avatars from "@/avatars";
 const FRONTEND_URL = process.env.EXPO_PUBLIC_FRONTEND_URL || "https://www.expensease.in";
@@ -40,11 +41,11 @@ export default function Header({
     filterBtnActive = false,
     showText,
     onTextPress,
-    showProfile,
-    user
+    showProfile
 }) {
     const router = useRouter();
     const { theme } = useTheme();
+    const {user} = useAuth();
     const styles = React.useMemo(() => createStyles(theme), [theme]);
     const [selectedAvatar, setSelectedAvatar] = useState(user?.avatarId || null);
     const handleBack = () => {
@@ -52,6 +53,9 @@ export default function Header({
         if (router.canGoBack()) router.back();
         else router.replace("/dashboard");
     };
+    useEffect(()=>{
+        setSelectedAvatar(user?.avatarId || null)
+    },[user])
     function getInitials(name) {
     if (!name) return "";
     const parts = name.trim().split(" ").filter(Boolean);

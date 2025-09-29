@@ -378,19 +378,16 @@ export default function Login() {
                                 <View style={{ width: "100%", marginTop: 8 }}>
                                     <PhoneInput
                                         ref={phoneInputRef}
-                                        value={nationalNumber}
-                                        defaultValue={nationalNumber}
                                         defaultCode={defaultCountryCode}
                                         layout="first"
-                                        onChangeText={(text) => {
-                                            setNationalNumber(String(text || "").replace(/\D/g, ""));
-                                        }}
+                                        value={nationalNumber}
+                                        onChangeText={(text) => setNationalNumber(text.replace(/\D/g, ""))}
                                         onChangeFormattedText={(formatted) => {
                                             const cc = phoneInputRef.current?.getCallingCode?.() || "";
                                             const digitsOnly = String(formatted || "").replace(/\D/g, "");
-                                            if (cc && digitsOnly.startsWith(String(cc))) {
-                                                setCallingCode(String(cc).replace(/\D/g, ""));
-                                                setNationalNumber(digitsOnly.slice(String(cc).length));
+                                            if (cc && digitsOnly.startsWith(cc)) {
+                                                setCallingCode(cc);
+                                                setNationalNumber(digitsOnly.slice(cc.length));
                                             } else {
                                                 setNationalNumber(digitsOnly);
                                             }
@@ -398,12 +395,14 @@ export default function Login() {
                                         containerStyle={styles.phoneContainer}
                                         textContainerStyle={styles.phoneTextContainer}
                                         textInputStyle={styles.phoneTextInput}
-                                        codeTextStyle={styles.codeText}
                                         flagButtonStyle={styles.flagButton}
-                                        renderDropdownImage={<Ionicons name="chevron-down" size={18} color={theme?.colors?.text} />}
-                                        disableArrowIcon={false}
+                                        codeTextStyle={{ display: "none" }}   // 👈 hides country code
+                                        renderDropdownImage={
+                                            <Ionicons name="chevron-down" size={18} color={theme.colors.text} />
+                                        }
                                         placeholder="9876543210"
                                     />
+
 
                                     <TouchableOpacity style={[styles.signInBtn, { marginTop: 12 }]} onPress={handleSendOTP} disabled={sending}>
                                         {sending ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Send OTP</Text>}
@@ -639,7 +638,7 @@ const createStyles = (theme, insets) =>
             alignItems: "center",
         },
         flagButton: {
-            width: 40,
+            width: 80,
             justifyContent: "center",
             alignItems: "center",
             paddingHorizontal: 8,
