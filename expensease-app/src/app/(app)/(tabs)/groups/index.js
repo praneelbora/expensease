@@ -23,7 +23,8 @@ import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "utils/currenc
 import BottomSheetGroups from "~/btmShtAddGroup";
 import EmptyCTA from "~/cta";
 import { useTheme } from "context/ThemeProvider";
-
+import NewExpenseBottomSheet from "~/newExpenseBottomSheet";
+import FAB from "~/fab";
 /* ----------------- helpers ----------------- */
 const currencyDigits = (code, locale = "en-IN") => {
     try {
@@ -69,7 +70,7 @@ export default function GroupsScreen() {
 
     const hasJoinedRef = useRef(false);
     const groupsRef = useRef(null);
-
+    const newExpenseBottomSheetRef = useRef()
     // hydrate groups with per-currency totals
     const hydrateGroups = useCallback(
         async (raw = []) => {
@@ -366,12 +367,12 @@ export default function GroupsScreen() {
                             </View>
                         ) : (
                             <EmptyCTA
-                                                    title="No groups yet!"
-                                                    subtitle="To split expenses with multiple people, create groups."
-                                                    ctaLabel="Add Group"
-                                                    onPress={() => groupsRef.current.present()}
-                                                    />
-                                                    
+                                title="No groups yet!"
+                                subtitle="To split expenses with multiple people, create groups."
+                                ctaLabel="Add Group"
+                                onPress={() => groupsRef.current.present()}
+                            />
+
                         )
                     }
                     ListFooterComponent={
@@ -382,6 +383,9 @@ export default function GroupsScreen() {
                         ) : null
                     }
                 />
+                <FAB onPress={() => { newExpenseBottomSheetRef?.current?.present?.() }} />
+                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} selctedMode={"split"} />
+
 
                 <BottomSheetGroups
                     innerRef={groupsRef}

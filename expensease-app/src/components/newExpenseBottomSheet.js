@@ -1,3 +1,7 @@
+// components/MainBottomSheet.js
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "context/ThemeProvider";
 // app/newExpense.js
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -11,6 +15,8 @@ import {
     Modal,
     Platform,
     Alert,
+    KeyboardAvoidingView,
+    Keyboard
 } from "react-native";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect } from "@react-navigation/native";
@@ -36,9 +42,6 @@ import SheetPayments from "~/shtPayments";
 import EmptyCTA from '~/cta';
 import VoiceInput from "components/voiceInput"; // new component
 
-// Optional theme hook (if available)
-import { useTheme } from "context/ThemeProvider";
-
 const fmtMoney = formatMoney;
 const symbol = getSymbol;
 const digits = getDigits;
@@ -52,8 +55,18 @@ const initials = (name = "") => {
 
 const TEST_MODE = process.env.EXPO_PUBLIC_TEST_MODE;
 
-// =================== Screen ===================
-export default function NewExpenseScreen() {
+/**
+ * Theme-aware wrapper for BottomSheetModal used across the app.
+ * - reads colors from ThemeProvider (falls back to sensible defaults)
+ * - exposes same API as before (innerRef, onDismiss, children)
+ * - keeps handle hidden (handleComponent={null}) as before
+ */
+const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismiss, snapPoints = ["100%"], backgroundStyle, addView = false, onClose, preSelectedFriendId, preSelectedGroupId }) => {
+    const insets = useSafeAreaInsets();
+    const { theme } = useTheme?.() || {};
+    const colors = theme?.colors || {};
+
+    const backgroundColor = colors.card ?? "#212121";
     const router = useRouter();
     const params = useLocalSearchParams(); // can carry { groupId, friendId }
     const themeCtx = useTheme?.() || {};
@@ -68,6 +81,41 @@ export default function NewExpenseScreen() {
         paymentMethods = [],
         fetchPaymentMethods = async () => { },
     } = useAuth() || {};
+    const sheetRef = innerRef || useRef(null);
+
+    // helper close function used by header cancel button (keeps parity with your code)
+    const handleLocalClose = () => {
+        // dismiss the bottom sheet if ref exists
+        try {
+            sheetRef?.current?.dismiss?.();
+        } catch {
+            //
+        }
+        // also dismiss keyboard
+        Keyboard.dismiss();
+    };
+    // keyboard tracking so absolutely-positioned footer moves above keyboard
+    const [kbHeight, setKbHeight] = useState(0);
+
+    useEffect(() => {
+        // keyboard events differ between platforms; use keyboardDidShow/Hide for consistency
+        const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+        const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+        const onShow = (e) => {
+            const h = (e?.endCoordinates?.height) ? e.endCoordinates.height : (e?.end?.height ?? 0);
+            setKbHeight(h);
+        };
+        const onHide = () => setKbHeight(0);
+
+        const subShow = Keyboard.addListener(showEvent, onShow);
+        const subHide = Keyboard.addListener(hideEvent, onHide);
+
+        return () => {
+            subShow.remove();
+            subHide.remove();
+        };
+    }, []);
 
     // ------------ state ------------
     const [loading, setLoading] = useState(true);
@@ -79,8 +127,14 @@ export default function NewExpenseScreen() {
 
     const [filteredFriends, setFilteredFriends] = useState([]);
     const [filteredGroups, setFilteredGroups] = useState([]);
+    // guard refs for preselection application
+    const hasPreselectedGroup = useRef(false);
+    const hasPreselectedFriend = useRef(false);
+    // mark that we applied props-based preselection so we don't reapply repeatedly
+    const appliedPreselectFromProps = useRef(false);
 
-    const [expenseMode, setExpenseMode] = useState("personal"); // 'personal' | 'split'
+
+    const [expenseMode, setExpenseMode] = useState(selctedMode); // 'personal' | 'split'
     const [desc, setDesc] = useState(TEST_MODE ? "TEST_DESCRIPTION" : "");
     const [currency, setCurrency] = useState(defaultCurrency);
     const [amount, setAmount] = useState(TEST_MODE ? 99 : ""); // keep string for controlled TextInput
@@ -104,10 +158,6 @@ export default function NewExpenseScreen() {
     const [paymentModalCtx, setPaymentModalCtx] = useState(paymentModalCtxInitial);
     const [paymentMethod, setPaymentMethod] = useState(null); // personal
 
-    const hasPreselectedGroup = useRef(false);
-    const hasPreselectedFriend = useRef(false);
-    const preselectedFriendId = useRef(null);
-    const preselectedGroupId = useRef(null); // <-- NEW
 
     const currencySheetRef = useRef(null);
     const categorySheetRef = useRef(null);
@@ -563,51 +613,41 @@ export default function NewExpenseScreen() {
     }, [search, friends, groups, suggestions, friendFilter, groupFilter]);
 
     // ---------- preselect via params (run on each focus) ----------
-    useFocusEffect(
-        useCallback(() => {
-            // reset preselect markers when screen gains focus to allow repeated preselects
-            // (this prevents a stale "hasPreselectedFriend" from blocking re-selection)
-            hasPreselectedGroup.current = false;
-            hasPreselectedFriend.current = false;
-            preselectedFriendId.current = null;
+    // Apply preselected friend/group (props) once friends/groups are available.
+    // This is tailored for a BottomSheet: wait for data, then toggle selection.
+    // We only apply once per open; the guards are reset on sheet dismiss below.
+    useEffect(() => {
+        // if already applied, do nothing
+        if (appliedPreselectFromProps.current) return;
 
-            if ((!groups || groups.length === 0) && (!friends || friends.length === 0)) {
+        // wait until lists are loaded
+        if ((!groups || groups.length === 0) && (!friends || friends.length === 0)) return;
+
+        // prefer group preselection if both provided
+        if (preSelectedGroupId && !hasPreselectedGroup.current) {
+            const g = groups.find((x) => String(x._id) === String(preSelectedGroupId));
+            if (g) {
+                setExpenseMode("split");
+                hasPreselectedGroup.current = true;
+                appliedPreselectFromProps.current = true;
+                // use toggleGroup to keep logic consistent
+                toggleGroup(g);
                 return;
             }
+        }
 
-            const gid = params?.groupId;
-            const fid = params?.friendId;
-
-            if (gid && !hasPreselectedGroup.current) {
-                const g = groups.find((x) => String(x._id) === String(gid));
-                if (g) {
-                    setExpenseMode("split");
-                    hasPreselectedGroup.current = true;
-                    preselectedGroupId.current = String(g._id); // <-- store original id
-                    toggleGroup(g);
-                }
+        if (preSelectedFriendId && !hasPreselectedFriend.current) {
+            const f = friends.find((x) => String(x._id) === String(preSelectedFriendId));
+            if (f) {
+                setExpenseMode("split");
+                hasPreselectedFriend.current = true;
+                appliedPreselectFromProps.current = true;
+                toggleFriend(f);
+                return;
             }
+        }
+    }, [preSelectedFriendId, preSelectedGroupId, friends, groups]);
 
-            if (fid && !hasPreselectedFriend.current) {
-                const f = friends.find((x) => String(x._id) === String(fid));
-                if (f) {
-                    setExpenseMode("split");
-                    hasPreselectedFriend.current = true;
-                    preselectedFriendId.current = String(f._id); // <-- store original id
-                    toggleFriend(f);
-                }
-            }
-
-
-            // optional cleanup when screen loses focus — we clear refs so future opens behave as new
-            return () => {
-                hasPreselectedGroup.current = false;
-                hasPreselectedFriend.current = false;
-                preselectedFriendId.current = null;
-            };
-            // intentionally include friends/groups/params so focus logic has the latest lists
-        }, [params?.groupId, params?.friendId, groups, friends])
-    );
 
     // ---------- selection handlers ----------
     const addMeIfNeeded = (list) => {
@@ -666,9 +706,9 @@ export default function NewExpenseScreen() {
             const exists = upd.some((f) => String(f?._id) === String(friend?._id));
             if (exists) {
                 upd = upd.filter((f) => String(f?._id) !== String(friend?._id));
-                if (String(preselectedFriendId.current) === String(friend._id)) {
+                if (String(preSelectedFriendId.current) === String(friend._id)) {
                     hasPreselectedFriend.current = false;
-                    preselectedFriendId.current = null;
+                    preSelectedFriendId.current = null;
                 }
             } else {
                 upd = [...upd, { ...friend, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }];
@@ -692,9 +732,9 @@ export default function NewExpenseScreen() {
                 const upd = selectedFriends.filter((f) => !ids.has(String(f?._id)));
                 setSelectedFriends(upd);
                 setGroupSelect(null);
-                if (String(preselectedGroupId.current) === String(group._id)) {
+                if (String(preSelectedGroupId.current) === String(group._id)) {
                     hasPreselectedGroup.current = false;
-                    preselectedGroupId.current = null;
+                    preSelectedGroupId.current = null;
                 }
             } else {
                 // add group's members who are not already in selectedFriends
@@ -719,9 +759,9 @@ export default function NewExpenseScreen() {
             upd = upd.filter((f) => f?._id !== user._id);
         }
         setSelectedFriends(upd);
-        if (String(preselectedFriendId.current) === String(friend?._id)) {
+        if (String(preSelectedFriendId.current) === String(friend?._id)) {
             hasPreselectedFriend.current = false;
-            preselectedFriendId.current = null;
+            preSelectedFriendId.current = null;
         }
     };
 
@@ -1181,15 +1221,9 @@ export default function NewExpenseScreen() {
         if (mode === "equal" && Number(oweTotal.toFixed(2)) !== num(amount)) return true;
         return false;
     }, [splitFieldsFilled, selectedFriends, mode, oweTotal, pctTotal, amount]);
-
-
-    // final: if either side has an issue, mark the summary buttons
-    const summaryHasIssue = useMemo(() => {
-        return paidHasIssue || splitHasIssue;
-    }, [paidHasIssue, splitHasIssue]);
-
     // ---------- submit ----------
     const handleSubmit = async () => {
+        console.log('createexpense');
         const amt = num(amount);
         try {
             setLoading(true);
@@ -1223,7 +1257,9 @@ export default function NewExpenseScreen() {
             }
 
             await createExpense(payload, userToken);
-            // logEvent?.("newExpense", { currency, amount: payload.amount, category: payload.category, type: payload.mode, splitMode: payload.splitMode });
+            console.log('createexpense');
+
+
 
             // reset
             setDesc("");
@@ -1238,17 +1274,19 @@ export default function NewExpenseScreen() {
             if (hasPreselectedGroup.current && groupSelect?._id) {
                 hasPreselectedGroup.current = false;
                 hasPreselectedFriend.current = false;
-                preselectedFriendId.current = null;
+                preSelectedFriendId.current = null;
                 return router.back();
             }
-            if (hasPreselectedFriend.current && preselectedFriendId.current) {
+            if (hasPreselectedFriend.current && preSelectedFriendId.current) {
                 hasPreselectedGroup.current = false;
                 hasPreselectedFriend.current = false;
-                preselectedFriendId.current = null;
+                preSelectedFriendId.current = null;
                 return router.back();
             }
 
+            console.log('dismiss');
 
+            sheetRef?.current?.dismiss?.();
             setBanner({ type: "success", text: "Expense saved." });
             setTimeout(() => setBanner(null), 2000);
         } catch (e) {
@@ -1259,503 +1297,571 @@ export default function NewExpenseScreen() {
         }
     };
 
-    // ---------- small helpers for UI summary ----------
-    const defaultSummaryText = useMemo(() => {
-        // default: "Paid by me — split by everyone equally"
-        const me = selectedFriends.find((f) => String(f?._id) === String(user?._id));
-        const others = selectedFriends.filter((f) => String(f?._id) !== String(user?._id));
-        if (!me || others.length === 0) return "";
-        return `Paid by you, split by ${others.length + 1} ${others.length + 1 === 1 ? "person" : "people"} equally`;
-    }, [selectedFriends, user]);
 
-    const editSummary = (which) => {
-        // switch to corresponding tab and let user edit
-        setActiveTab(which === "paid" ? "paid" : "owed");
-    };
-
-    // ---------- UI ----------
     return (
-        <SafeAreaView style={styles.safe} edges={["top"]}>
-            <StatusBar style="light" />
-            <Header title="New Expense" />
-            <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
-                <View style={styles.modeToggle}>
-                    <TouchableOpacity
-                        onPress={() => setExpenseMode("personal")}
-                        style={[styles.modeBtn, expenseMode === "personal" && styles.modeBtnActive]}
-                    >
-                        <Text style={[styles.modeText, expenseMode === "personal" && styles.modeTextActive]}>Personal Expense</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={() => setExpenseMode("split")}
-                        style={[styles.modeBtn, expenseMode === "split" && styles.modeBtnActive]}
-                    >
-                        <Text style={[styles.modeText, expenseMode === "split" && styles.modeTextActive]}>Split Expense</Text>
+        <BottomSheetModal
+            ref={sheetRef}
+            snapPoints={snapPoints}
+            enablePanDownToClose={false}
+            enableDynamicSizing={false}
+            enableOverDrag={false}
+            overDragResistanceFactor={0}
+            onDismiss={() => {
+                // clear applied flags so next open can pick up new preselected ids
+                hasPreselectedGroup.current = false;
+                hasPreselectedFriend.current = false;
+                appliedPreselectFromProps.current = false;
+
+                // call parent handler if provided
+                if (typeof onDismiss === "function") onDismiss();
+            }}
+            handleComponent={null}
+            backgroundComponent={() => <View style={[styles.bg]} />}
+            style={[styles.sheet, backgroundStyle]}
+        >
+            <View style={[styles.container]}>
+                {/* Header */}
+                <View style={[styles.header, { paddingHorizontal: 16, paddingTop: insets.top ? insets.top + 8 : 12 }]}>
+                    <Text style={styles.headerText}>Add Expense</Text>
+                    <TouchableOpacity onPress={handleLocalClose} style={styles.closeBtn}>
+                        <Text style={styles.closeText}>Cancel</Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* Search (split, when nothing selected) */}
-                {expenseMode === "split" && !groupSelect && selectedFriends.filter((f) => f?._id !== user._id).length === 0 ? (
-                    <View style={{ width: "100%", paddingTop: 10, flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4 }}>
-                        <TextInput
-                            placeholder="Search friends or groups"
-                            placeholderTextColor={styles.colors.mutedFallback}
-                            value={search}
-                            onChangeText={setSearch}
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            style={styles.input}
-                        />
-                        <Text style={styles.helperSmall}>Select a group or a friend you want to split with.</Text>
-                    </View>
-                ) : null}
-
-                {/* Banner */}
-                {banner ? (
-                    <View
-                        style={[
-                            styles.banner,
-                            banner?.type === "success" && styles.bannerSuccess,
-                            banner?.type === "error" && styles.bannerError,
-                            banner?.type === "info" && styles.bannerInfo,
-                        ]}
-                    >
-                        <Text style={styles.bannerText}>{banner?.text || "Banner Texxt"}</Text>
-                        <TouchableOpacity onPress={() => setBanner(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                            <Text style={{ color: styles.colors.mutedFallback }}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-                ) : null}
-
-                <ScrollView
+                {/* Mode toggle / banner / top controls live inside a ScrollView so everything scrolls under footer */}
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === "ios" ? "padding" : undefined}
+                    keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 64} // reasonable offset for modal header + status bar
                     style={{ flex: 1 }}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={styles.colors.ctaFallback} />}
-                    contentContainerStyle={{ paddingBottom: 150 }}
-                    showsVerticalScrollIndicator={false}
                 >
-                    {/* Split: suggestions + selection chips */}
-                    {expenseMode === "split" ? (
-                        <>
-                            {/* If no friends AND no groups -> show CTA prompting user to add friends or create groups */}
-                            {groups.length === 0 && friends.length === 0 ? (
-                                <View style={{ marginTop: 12 }}>
-                                    <EmptyCTA
-                                        visible={true}
-                                        title="No friends or groups yet"
-                                        subtitle="Add a friend or create a group to start splitting expenses."
-                                        ctaLabel="Add Friend"
-                                        onPress={() => router.push("/friends")}
-                                        secondaryLabel="Add Group"
-                                        onSecondaryPress={() => router.push("/groups")}
-                                    />
+                    <ScrollView
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                    >
 
-                                </View>
-                            ) : (
+                        <View style={styles.modeToggle}>
+                            <TouchableOpacity
+                                onPress={() => setExpenseMode("personal")}
+                                style={[styles.modeBtn, expenseMode === "personal" && styles.modeBtnActive]}
+                            >
+                                <Text style={[styles.modeText, expenseMode === "personal" && styles.modeTextActive]}>Personal Expense</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => setExpenseMode("split")}
+                                style={[styles.modeBtn, expenseMode === "split" && styles.modeBtnActive]}
+                            >
+                                <Text style={[styles.modeText, expenseMode === "split" && styles.modeTextActive]}>Split Expense</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Search (split, when nothing selected) */}
+                        {expenseMode === "split" && !groupSelect && selectedFriends.filter((f) => f?._id !== user._id).length === 0 ? (
+                            <View style={{ width: "100%", paddingTop: 10, flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4 }}>
+                                <TextInput
+                                    placeholder="Search friends or groups"
+                                    placeholderTextColor={styles.colors.mutedFallback}
+                                    value={search}
+                                    onChangeText={setSearch}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    style={styles.input}
+                                />
+                                <Text style={styles.helperSmall}>Select a group or a friend you want to split with.</Text>
+                            </View>
+                        ) : null}
+
+                        {/* Banner */}
+                        {banner ? (
+                            <View
+                                style={[
+                                    styles.banner,
+                                    banner?.type === "success" && styles.bannerSuccess,
+                                    banner?.type === "error" && styles.bannerError,
+                                    banner?.type === "info" && styles.bannerInfo,
+                                ]}
+                            >
+                                <Text style={styles.bannerText}>{banner?.text || "Banner Texxt"}</Text>
+                                <TouchableOpacity onPress={() => setBanner(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                    <Text style={{ color: styles.colors.mutedFallback }}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : null}
+
+                        <ScrollView
+                            style={{ flex: 1 }}
+                            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={styles.colors.ctaFallback} />}
+                            contentContainerStyle={{ paddingBottom: 150 }}
+                            showsVerticalScrollIndicator={false}
+                        >
+                            {/* Split: suggestions + selection chips */}
+                            {expenseMode === "split" ? (
                                 <>
-                                    {/* Existing suggestions UI (unchanged) */}
-                                    {(groups.length > 0 || friends.length > 0) && (
-                                        <>
-                                            {/* Selected summary */}
-                                            {(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
-                                                <View style={{ marginTop: 8, gap: 8 }}>
-                                                    {/* ...your existing selected summary block... */}
-                                                </View>
-                                            )}
+                                    {/* If no friends AND no groups -> show CTA prompting user to add friends or create groups */}
+                                    {groups.length === 0 && friends.length === 0 ? (
+                                        <View style={{ marginTop: 12 }}>
+                                            <EmptyCTA
+                                                visible={true}
+                                                title="No friends or groups yet"
+                                                subtitle="Add a friend or create a group to start splitting expenses."
+                                                ctaLabel="Add Friend"
+                                                onPress={() => router.push("/friends")}
+                                                secondaryLabel="Add Group"
+                                                onSecondaryPress={() => router.push("/groups")}
+                                            />
 
-                                            {/* Suggestions / search results */}
-                                            {!(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
-                                                <View style={{ marginTop: 12, gap: 12 }}>
-                                                    {filteredGroups.length > 0 && (
-                                                        <View>
-                                                            <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}GROUPS</Text>
-                                                            <View style={styles.chipsWrap}>
-                                                                {filteredGroups.map((g) => {
-                                                                    const active = groupSelect?._id === g._id;
-                                                                    return (
-                                                                        <TouchableOpacity key={g._id} onPress={() => toggleGroup(g)} style={[styles.chip, active && styles.chipActive]}>
-                                                                            <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
-                                                                                {g.name}
-                                                                            </Text>
+                                        </View>
+                                    ) : (
+                                        <>
+                                            {/* Existing suggestions UI (unchanged) */}
+                                            {(groups.length > 0 || friends.length > 0) && (
+                                                <>
+                                                    {/* Selected summary */}
+                                                    {(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
+                                                        <View style={{ marginTop: 8, gap: 8 }}>
+                                                            {!groupSelect ? (
+                                                                <View>
+                                                                    <Text style={styles.sectionLabel}>Friend Selected</Text>
+                                                                    {selectedFriends
+                                                                        .filter((f) => f?._id !== user._id)
+                                                                        .map((fr) => (
+                                                                            <View key={`sel-${fr._id}`} style={styles.selRow}>
+                                                                                <Text style={styles.selText}>{fr.name}</Text>
+                                                                                <TouchableOpacity onPress={() => removeFriend(fr)}>
+                                                                                    <Text style={{ color: styles.colors.dangerFallback }}>Remove</Text>
+                                                                                </TouchableOpacity>
+                                                                            </View>
+                                                                        ))}
+                                                                </View>
+                                                            ) : (
+                                                                <View>
+                                                                    <Text style={styles.sectionLabel}>Group Selected</Text>
+                                                                    <View style={styles.selRow}>
+                                                                        <Text style={styles.selText}>{groupSelect.name}</Text>
+                                                                        <TouchableOpacity onPress={() => toggleGroup(groupSelect)}>
+                                                                            <Text style={{ color: styles.colors.dangerFallback }}>Remove</Text>
                                                                         </TouchableOpacity>
-                                                                    );
-                                                                })}
-                                                            </View>
+                                                                    </View>
+                                                                </View>
+                                                            )}
                                                         </View>
                                                     )}
-                                                    {filteredFriends.length > 0 && (
-                                                        <View>
-                                                            <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}FRIENDS</Text>
-                                                            <View style={styles.chipsWrap}>
-                                                                {filteredFriends.map((fr) => {
-                                                                    const active = selectedFriends.some((s) => s._id === fr._id);
-                                                                    return (
-                                                                        <TouchableOpacity key={fr._id} onPress={() => toggleFriend(fr)} style={[styles.chip, active && styles.chipActive]}>
-                                                                            <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
-                                                                                {fr.name}
-                                                                            </Text>
-                                                                        </TouchableOpacity>
-                                                                    );
-                                                                })}
-                                                            </View>
+
+                                                    {/* Suggestions / search results */}
+                                                    {!(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
+                                                        <View style={{ marginTop: 12, gap: 12 }}>
+                                                            {filteredGroups.length > 0 && (
+                                                                <View>
+                                                                    <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}GROUPS</Text>
+                                                                    <View style={styles.chipsWrap}>
+                                                                        {filteredGroups.map((g) => {
+                                                                            const active = groupSelect?._id === g._id;
+                                                                            return (
+                                                                                <TouchableOpacity key={g._id} onPress={() => toggleGroup(g)} style={[styles.chip, active && styles.chipActive]}>
+                                                                                    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+                                                                                        {g.name}
+                                                                                    </Text>
+                                                                                </TouchableOpacity>
+                                                                            );
+                                                                        })}
+                                                                    </View>
+                                                                </View>
+                                                            )}
+                                                            {filteredFriends.length > 0 && (
+                                                                <View>
+                                                                    <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}FRIENDS</Text>
+                                                                    <View style={styles.chipsWrap}>
+                                                                        {filteredFriends.map((fr) => {
+                                                                            const active = selectedFriends.some((s) => s._id === fr._id);
+                                                                            return (
+                                                                                <TouchableOpacity key={fr._id} onPress={() => toggleFriend(fr)} style={[styles.chip, active && styles.chipActive]}>
+                                                                                    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+                                                                                        {fr.name}
+                                                                                    </Text>
+                                                                                </TouchableOpacity>
+                                                                            );
+                                                                        })}
+                                                                    </View>
+                                                                </View>
+                                                            )}
                                                         </View>
                                                     )}
-                                                </View>
+                                                </>
                                             )}
                                         </>
                                     )}
                                 </>
-                            )}
-                        </>
-                    ) : null}
+                            ) : null}
 
 
-                    {/* Create expense */}
-                    {(expenseMode === "personal" || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
-                        <View style={{ marginTop: 10, gap: 10 }}>
-                            {/* Description */}
-                            <TextInput placeholder="Description" placeholderTextColor={styles.colors.mutedFallback} value={desc} onChangeText={setDesc} style={styles.input} />
+                            {/* Create expense */}
+                            {(expenseMode === "personal" || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
+                                <View style={{ marginTop: 10, gap: 10 }}>
+                                    {/* Description */}
+                                    <TextInput placeholder="Description" placeholderTextColor={styles.colors.mutedFallback} value={desc} onChangeText={setDesc} style={styles.input} />
 
-                            {/* Currency + Amount */}
-                            <View style={{ flexDirection: "row", gap: 8 }}>
-                                <TouchableOpacity onPress={openCurrencySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
-                                    <Text style={[styles.btnLikeText, currency ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
-                                        {currency || "Currency"}
-                                    </Text>
-                                </TouchableOpacity>
-                                <TextInput
-                                    placeholder="Amount"
-                                    placeholderTextColor={styles.colors.mutedFallback}
-                                    keyboardType="number-pad"
-                                    value={String(amount)}
-                                    onChangeText={(text) => {
-                                        // allow digits and a single decimal point
-                                        const cleaned = text.replace(/[^0-9.]/g, "");
-                                        // prevent multiple dots
-                                        const parts = cleaned.split(".");
-                                        const numericValue = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
-                                        setAmount(numericValue);
-                                    }}
-
-                                    style={[styles.input, { flex: 2 }]}
-                                />
-                            </View>
-
-                            {/* Category + Date */}
-                            <View style={{ flexDirection: "row", gap: 8 }}>
-                                <TouchableOpacity onPress={openCategorySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
-                                    <Text style={[styles.btnLikeText, category ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{selectedCategory || category || "Category"}</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    onPress={() => setShowDatePicker(true)}
-                                    style={[styles.input, { flex: 1, justifyContent: "center" }]}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text style={expenseDate ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }}>
-                                        {expenseDate ? formatReadable(expenseDate) : "Select date"}
-                                    </Text>
-                                </TouchableOpacity>
-
-                                <DateTimePickerModal
-                                    isVisible={showDatePicker}
-                                    mode="date"
-                                    date={parseISODate(expenseDate)}
-                                    onConfirm={(date) => {
-                                        setShowDatePicker(false);
-                                        setExpenseDate(toISODate(date));
-                                    }}
-                                    onCancel={() => setShowDatePicker(false)}
-                                />
-                            </View>
-
-                            {/* Personal: pick account */}
-                            {expenseMode === "personal" && (
-                                <TouchableOpacity onPress={() => openPaymentSheet({ context: "personal" })} style={[styles.input, styles.btnLike]}>
-                                    <Text style={[styles.btnLikeText, paymentMethod ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
-                                        {paymentMethod ? (paymentMethods.find((a) => a._id === paymentMethod)?.label || "Payment Account") : "Payment Account"}
-                                    </Text>
-                                </TouchableOpacity>
-                            )}
-
-                            {/* Split flow */}
-                            {expenseMode === "split" && desc && num(amount) > 0 && category ? (
-                                <>
-
-
-                                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                                        {/* Paid by button */}
-                                        <TouchableOpacity
-                                            onPress={() => setActiveTab("paid")}
-                                            style={[
-                                                styles.summaryBtn,
-                                                activeTab === "paid" && styles.summaryBtnActive,
-                                                paidHasIssue && styles.summaryBtnError, // <-- add this
-                                            ]}
-                                        >
-                                            <Text style={[styles.summaryLabel, paidHasIssue && styles.summaryLabelError]}>Paid by</Text>
-                                            <Text style={styles.summaryValue}>
-                                                {(() => {
-                                                    const payers = selectedFriends.filter((f) => f.paying);
-                                                    if (payers.length === 0) return "—";
-                                                    if (payers.length === 1) {
-                                                        const p = payers[0];
-                                                        return p._id === user._id ? "You" : p.name;
-                                                    }
-                                                    return `${payers.length} people`;
-                                                })()}
+                                    {/* Currency + Amount */}
+                                    <View style={{ flexDirection: "row", gap: 8 }}>
+                                        <TouchableOpacity onPress={openCurrencySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
+                                            <Text style={[styles.btnLikeText, currency ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
+                                                {currency || "Currency"}
                                             </Text>
                                         </TouchableOpacity>
+                                        <TextInput
+                                            placeholder="Amount"
+                                            placeholderTextColor={styles.colors.mutedFallback}
+                                            keyboardType="number-pad"
+                                            value={String(amount)}
+                                            onChangeText={(text) => {
+                                                // allow digits and a single decimal point
+                                                const cleaned = text.replace(/[^0-9.]/g, "");
+                                                // prevent multiple dots
+                                                const parts = cleaned.split(".");
+                                                const numericValue = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
+                                                setAmount(numericValue);
+                                            }}
 
-                                        {/* Split by button */}
-                                        <TouchableOpacity
-                                            onPress={() => setActiveTab("owed")}
-                                            style={[
-                                                styles.summaryBtn,
-                                                activeTab === "owed" && styles.summaryBtnActive,
-                                                splitHasIssue && styles.summaryBtnError, // <-- add this
-                                            ]}
-                                        >
-                                            <Text style={[styles.summaryLabel, splitHasIssue && styles.summaryLabelError]}>Split by</Text>
-                                            <Text style={styles.summaryValue}>
-                                                {mode === "equal"
-                                                    ? "equally"
-                                                    : mode === "value"
-                                                        ? "amounts"
-                                                        : "percentages"}
-                                            </Text>
-                                        </TouchableOpacity>
+                                            style={[styles.input, { flex: 2 }]}
+                                        />
                                     </View>
 
+                                    {/* Category + Date */}
+                                    <View style={{ flexDirection: "row", gap: 8 }}>
+                                        <TouchableOpacity onPress={openCategorySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
+                                            <Text style={[styles.btnLikeText, category ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{selectedCategory || category || "Category"}</Text>
+                                        </TouchableOpacity>
 
-
-
-
-                                    {/* Paid by tab */}
-                                    {activeTab === "paid" ? (
-                                        <>
-                                            <Text style={[styles.sectionLabel, { marginTop: 8 }]}>
-                                                Paid by <Text style={styles.helperSmall}> (Select the people who paid.)</Text>
+                                        <TouchableOpacity
+                                            onPress={() => setShowDatePicker(true)}
+                                            style={[styles.input, { flex: 1, justifyContent: "center" }]}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Text style={expenseDate ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }}>
+                                                {expenseDate ? formatReadable(expenseDate) : "Select date"}
                                             </Text>
+                                        </TouchableOpacity>
 
-                                            <View style={styles.chipsWrap}>
-                                                {selectedFriends.map((f) => {
-                                                    const active = !!f.paying;
-                                                    return (
-                                                        <TouchableOpacity key={`pay-${f?._id}`} onPress={() => togglePaying(f?._id)} style={[styles.chip2, active && styles.chip2Active]}>
-                                                            <Text style={[styles.chip2Text, active && styles.chip2TextActive]} numberOfLines={1}>
-                                                                {f?.name}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    );
-                                                })}
+                                        <DateTimePickerModal
+                                            isVisible={showDatePicker}
+                                            mode="date"
+                                            date={parseISODate(expenseDate)}
+                                            onConfirm={(date) => {
+                                                setShowDatePicker(false);
+                                                setExpenseDate(toISODate(date));
+                                            }}
+                                            onCancel={() => setShowDatePicker(false)}
+                                        />
+                                    </View>
+
+                                    {/* Personal: pick account */}
+                                    {expenseMode === "personal" && (
+                                        <TouchableOpacity onPress={() => openPaymentSheet({ context: "personal" })} style={[styles.input, styles.btnLike]}>
+                                            <Text style={[styles.btnLikeText, paymentMethod ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
+                                                {paymentMethod ? (paymentMethods.find((a) => a._id === paymentMethod)?.label || "Payment Account") : "Payment Account"}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
+
+                                    {/* Split flow */}
+                                    {expenseMode === "split" && desc && num(amount) > 0 && category ? (
+                                        <>
+
+
+                                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                                                {/* Paid by button */}
+                                                <TouchableOpacity
+                                                    onPress={() => setActiveTab("paid")}
+                                                    style={[
+                                                        styles.summaryBtn,
+                                                        activeTab === "paid" && styles.summaryBtnActive,
+                                                        paidHasIssue && styles.summaryBtnError, // <-- add this
+                                                    ]}
+                                                >
+                                                    <Text style={[styles.summaryLabel, paidHasIssue && styles.summaryLabelError]}>Paid by</Text>
+                                                    <Text style={styles.summaryValue}>
+                                                        {(() => {
+                                                            const payers = selectedFriends.filter((f) => f.paying);
+                                                            if (payers.length === 0) return "—";
+                                                            if (payers.length === 1) {
+                                                                const p = payers[0];
+                                                                return p._id === user._id ? "You" : p.name;
+                                                            }
+                                                            return `${payers.length} people`;
+                                                        })()}
+                                                    </Text>
+                                                </TouchableOpacity>
+
+                                                {/* Split by button */}
+                                                <TouchableOpacity
+                                                    onPress={() => setActiveTab("owed")}
+                                                    style={[
+                                                        styles.summaryBtn,
+                                                        activeTab === "owed" && styles.summaryBtnActive,
+                                                        splitHasIssue && styles.summaryBtnError, // <-- add this
+                                                    ]}
+                                                >
+                                                    <Text style={[styles.summaryLabel, splitHasIssue && styles.summaryLabelError]}>Split by</Text>
+                                                    <Text style={styles.summaryValue}>
+                                                        {mode === "equal"
+                                                            ? "equally"
+                                                            : mode === "value"
+                                                                ? "amounts"
+                                                                : "percentages"}
+                                                    </Text>
+                                                </TouchableOpacity>
                                             </View>
 
-                                            {/* Per-payer inputs / PM pick */}
-                                            {selectedFriends.filter((f) => f.paying).length > 0 && (
-                                                <View style={{ gap: 8 }}>
-                                                    {selectedFriends
-                                                        .filter((f) => f.paying)
-                                                        .map((f) => {
-                                                            const many = Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1;
-                                                            const sel = f.paymentMethods?.find((m) => m.paymentMethodId === f.selectedPaymentMethodId);
-                                                            if (selectedFriends.filter((f) => f.paying).length == 1 && !many) {
-                                                                return null
-                                                            }
-                                                            return (
-                                                                <View key={`pr-${f?._id}`} style={styles.rowBetween}>
-                                                                    <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
-                                                                        {f?.name}
-                                                                    </Text>
-                                                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                                                        {many ? (
-                                                                            <TouchableOpacity
-                                                                                onPress={() => openPaymentSheet({ context: "split", friendId: f?._id })}
-                                                                                style={[
-                                                                                    styles.pmBtn,
-                                                                                    sel ? { borderColor: styles.colors.borderFallback, backgroundColor: "transparent" } : { borderColor: styles.colors.dangerFallback, backgroundColor: "rgba(244,67,54,0.08)" },
-                                                                                ]}
-                                                                            >
-                                                                                <Text style={[styles.pmBtnText, { color: sel ? styles.colors.textFallback : styles.colors.dangerFallback }]} numberOfLines={1}>
-                                                                                    {sel ? sel.label || sel.type || "Payment Method" : "Select"}
-                                                                                </Text>
-                                                                            </TouchableOpacity>
-                                                                        ) : null}
-                                                                        {selectedFriends.filter((x) => x.paying).length > 1 ? (
-                                                                            <TextInput
-                                                                                placeholder="Amount"
-                                                                                placeholderTextColor={styles.colors.mutedFallback}
-                                                                                keyboardType="decimal-pad"
-                                                                                value={String(f.payAmount || "")}
-                                                                                onChangeText={(v) => setPayAmount(f?._id, v)}
-                                                                                style={[styles.input, { width: 100, textAlign: "right" }]}
-                                                                            />
-                                                                        ) : null}
+
+
+
+
+
+                                            {activeTab === "paid" ? (
+                                                <>
+                                                    <Text style={styles.helperSmall}>(Select the people who paid.)</Text>
+
+
+                                                    {/* Use radio-style rows (like 'owed' block) instead of chips */}
+
+                                                    {selectedFriends.map((f) => {
+                                                        const isPaying = !!f.paying;
+                                                        const manyPMs = Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1;
+                                                        const selPM = f.paymentMethods?.find((m) => m.paymentMethodId === f.selectedPaymentMethodId);
+
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={`payrow-${f._id}`}
+                                                                onPress={() => {
+                                                                    // toggle paying and recompute pay distribution (togglePaying handles distributeEqualPay)
+                                                                    togglePaying(f._id);
+                                                                }}
+                                                                activeOpacity={0.8}
+                                                                style={[styles.rowBetween, { paddingVertical: 4, height: 45 }]}
+                                                            >
+                                                                <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
+                                                                    <View style={styles.radioWrap}>
+                                                                        <View style={[styles.radioOuter, isPaying && styles.radioOuterActive]}>
+                                                                            {isPaying ? <View style={styles.radioInner} /> : null}
+                                                                        </View>
                                                                     </View>
+
+                                                                    <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
+                                                                        {f.name}
+                                                                    </Text>
                                                                 </View>
-                                                            );
-                                                        })}
+
+                                                                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                                                    {/* Payment method selector if friend has >1 PMs */}
+                                                                    {manyPMs ? (
+                                                                        <TouchableOpacity
+                                                                            onPress={() => openPaymentSheet({ context: "split", friendId: f._id })}
+                                                                            style={[
+                                                                                styles.pmBtn,
+                                                                                selPM ? { borderColor: styles.colors.borderFallback, backgroundColor: "transparent" } : { borderColor: styles.colors.dangerFallback, backgroundColor: "rgba(244,67,54,0.08)" },
+                                                                            ]}
+                                                                        >
+                                                                            <Text style={[styles.pmBtnText, { color: selPM ? styles.colors.textFallback : styles.colors.dangerFallback }]} numberOfLines={1}>
+                                                                                {selPM ? selPM.label || selPM.type || "Payment Method" : "Select"}
+                                                                            </Text>
+                                                                        </TouchableOpacity>
+                                                                    ) : null}
+
+                                                                    {/* Amount field: only show when more than one payer (same as before) */}
+                                                                    {selectedFriends.filter((x) => x.paying).length > 1 ? (
+                                                                        <TextInput
+                                                                            placeholder="Amount"
+                                                                            placeholderTextColor={styles.colors.mutedFallback}
+                                                                            keyboardType="decimal-pad"
+                                                                            value={String(f.payAmount || "")}
+                                                                            onChangeText={(v) => setPayAmount(f._id, v)}
+                                                                            style={[styles.input, { width: 100, textAlign: "right" }]}
+                                                                        />
+                                                                    ) : null}
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+
+
+                                                    {/* Helper totals when multiple payers exist and sum mismatch */}
                                                     {selectedFriends.filter((f) => f.paying).length > 1 && !isPaidValid ? (
-                                                        <View style={{ alignItems: "center", marginTop: 4 }}>
+                                                        <View style={{ alignItems: "center", marginTop: 6 }}>
                                                             <Text style={styles.helperMono}>{fmtMoney(currency, paidTotal)} / {fmtMoney(currency, num(amount))}</Text>
                                                             <Text style={[styles.helperMono, { color: styles.colors.mutedFallback }]}>{fmtMoney(currency, num(amount) - paidTotal)} left</Text>
                                                         </View>
                                                     ) : null}
-                                                </View>
-                                            )}
-                                        </>
-                                    ) : null}
+                                                </>
+                                            ) : null}
 
-                                    {/* Owed by tab */}
-                                    {activeTab === "owed" ? (
 
-                                        <>
-                                            <Text style={[styles.sectionLabel, { marginTop: 10 }]}>
-                                                Owed by <Text style={styles.helperSmall}> (Select the people who owe.)</Text>
-                                            </Text>
+                                            {/* Owed by tab */}
+                                            {activeTab === "owed" ? (
 
-                                            {selectedFriends.length > 1 ? (
-                                                <View style={{ marginTop: 8 }}>
-                                                    <View style={{ flexDirection: "row", gap: 8 }}>
-                                                        {["equal", "value", "percent"].map((m) => {
-                                                            const active = mode === m;
-                                                            return (
-                                                                <TouchableOpacity
-                                                                    key={m}
-                                                                    onPress={() => {
-                                                                        // switch mode and apply the requested behavior
-                                                                        setMode(m);
+                                                <>
+                                                    <Text style={styles.helperSmall}>(Select the people who owe.)</Text>
 
-                                                                        if (m === "equal") {
-                                                                            // mark everyone who is eligible as owing and distribute equal owe amounts
-                                                                            setSelectedFriends((prev) => {
-                                                                                const marked = prev.map((f) => ({ ...f, owing: !!f.owing || true, owePercent: undefined }));
-                                                                                return distributeEqualOwe(marked);
-                                                                            });
-                                                                        } else if (m === "value") {
-                                                                            // set each owing person's oweAmount to 0 so user enters values
-                                                                            setSelectedFriends((prev) =>
-                                                                                prev.map((f) => (f.owing ? { ...f, oweAmount: 0, owePercent: undefined } : { ...f, oweAmount: 0 }))
-                                                                            );
-                                                                        } else if (m === "percent") {
-                                                                            // prepare percent inputs starting from 0%
-                                                                            setSelectedFriends((prev) => prev.map((f) => (f.owing ? { ...f, owePercent: f.owePercent ?? 0, oweAmount: 0 } : f)));
-                                                                        }
-                                                                    }}
-                                                                    style={[styles.modeMini, active && styles.modeMiniActive]}
-                                                                >
-                                                                    <Text style={[styles.modeMiniText, active && styles.modeMiniTextActive]}>
-                                                                        {m === "equal" ? "=" : m === "value" ? "1.23" : "%"}
-                                                                    </Text>
-                                                                </TouchableOpacity>
-                                                            );
-                                                        })}
+                                                    {selectedFriends.length > 1 ? (
+                                                        <View style={{ marginTop: 8 }}>
+                                                            <View style={{ flexDirection: "row", gap: 8 }}>
+                                                                {["equal", "value", "percent"].map((m) => {
+                                                                    const active = mode === m;
+                                                                    return (
+                                                                        <TouchableOpacity
+                                                                            key={m}
+                                                                            onPress={() => {
+                                                                                // switch mode and apply the requested behavior
+                                                                                setMode(m);
 
-                                                    </View>
+                                                                                if (m === "equal") {
+                                                                                    // mark everyone who is eligible as owing and distribute equal owe amounts
+                                                                                    setSelectedFriends((prev) => {
+                                                                                        const marked = prev.map((f) => ({ ...f, owing: !!f.owing || true, owePercent: undefined }));
+                                                                                        return distributeEqualOwe(marked);
+                                                                                    });
+                                                                                } else if (m === "value") {
+                                                                                    // set each owing person's oweAmount to 0 so user enters values
+                                                                                    setSelectedFriends((prev) =>
+                                                                                        prev.map((f) => (f.owing ? { ...f, oweAmount: 0, owePercent: undefined } : { ...f, oweAmount: 0 }))
+                                                                                    );
+                                                                                } else if (m === "percent") {
+                                                                                    // prepare percent inputs starting from 0%
+                                                                                    setSelectedFriends((prev) => prev.map((f) => (f.owing ? { ...f, owePercent: f.owePercent ?? 0, oweAmount: 0 } : f)));
+                                                                                }
+                                                                            }}
+                                                                            style={[styles.modeMini, active && styles.modeMiniActive]}
+                                                                        >
+                                                                            <Text style={[styles.modeMiniText, active && styles.modeMiniTextActive]}>
+                                                                                {m === "equal" ? "=" : m === "value" ? "1.23" : "%"}
+                                                                            </Text>
+                                                                        </TouchableOpacity>
+                                                                    );
+                                                                })}
 
-                                                    {/* Per-ower inputs based on mode */}
-                                                    <View style={{ marginTop: 6, gap: 8 }}>
-                                                        {selectedFriends
-                                                            .filter((f) => f.owing || mode === "equal") // show rows when equal mode too
-                                                            .map((f) => {
-                                                                const isOwing = !!f.owing;
-                                                                return (
-                                                                    <TouchableOpacity
-                                                                        key={`ow-${f?._id}`}
-                                                                        onPress={() => {
-                                                                            // toggle owing flag for this friend (works in all modes)
-                                                                            setSelectedFriends((prev) => {
-                                                                                const updated = prev.map((x) => (x._id === f?._id ? { ...x, owing: !x.owing } : x));
-                                                                                // re-run equal distribution if we're in equal mode
-                                                                                if (mode === "equal") return distributeEqualOwe(updated);
-                                                                                return updated;
-                                                                            });
-                                                                        }}
-                                                                        activeOpacity={0.8}
-                                                                        style={[styles.rowBetween, { paddingVertical: mode === "equal" ? 8 : 0 }]}
-                                                                    >
-                                                                        <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
-                                                                            {/* Radio (equal mode) or simple bullet */}
-                                                                            {mode === "equal" ? (
-                                                                                <View style={styles.radioWrap}>
-                                                                                    <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
-                                                                                        {isOwing ? <View style={styles.radioInner} /> : null}
-                                                                                    </View>
+                                                            </View>
+
+                                                            {/* Per-ower inputs based on mode */}
+                                                            <View style={{ marginTop: 6, gap: 8 }}>
+                                                                {selectedFriends
+                                                                    .filter((f) => f.owing || mode === "equal") // show rows when equal mode too
+                                                                    .map((f) => {
+                                                                        const isOwing = !!f.owing;
+                                                                        return (
+                                                                            <TouchableOpacity
+                                                                                key={`ow-${f?._id}`}
+                                                                                onPress={() => {
+                                                                                    // toggle owing flag for this friend (works in all modes)
+                                                                                    setSelectedFriends((prev) => {
+                                                                                        const updated = prev.map((x) => (x._id === f?._id ? { ...x, owing: !x.owing } : x));
+                                                                                        // re-run equal distribution if we're in equal mode
+                                                                                        if (mode === "equal") return distributeEqualOwe(updated);
+                                                                                        return updated;
+                                                                                    });
+                                                                                }}
+                                                                                activeOpacity={0.8}
+                                                                                style={[styles.rowBetween, { paddingVertical: 4, height: 45 }]}
+                                                                            >
+                                                                                <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
+                                                                                    {/* Radio (equal mode) or simple bullet */}
+                                                                                    {mode === "equal" ? (
+                                                                                        <View style={styles.radioWrap}>
+                                                                                            <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
+                                                                                                {isOwing ? <View style={styles.radioInner} /> : null}
+                                                                                            </View>
+                                                                                        </View>
+                                                                                    ) : null}
+
+                                                                                    <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
+                                                                                        {f?.name}
+                                                                                    </Text>
                                                                                 </View>
-                                                                            ) : null}
 
-                                                                            <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
-                                                                                {f?.name}
-                                                                            </Text>
-                                                                        </View>
+                                                                                {/* Right side: input or computed value depending on mode */}
+                                                                                {mode === "percent" ? (
+                                                                                    <TextInput
+                                                                                        placeholder="Percent"
+                                                                                        placeholderTextColor={styles.colors.mutedFallback}
+                                                                                        keyboardType="decimal-pad"
+                                                                                        value={String(f.owePercent ?? "")}
+                                                                                        onChangeText={(v) => setOwePercent(f?._id, v)}
+                                                                                        style={[styles.input, { width: 100, textAlign: "right" }]}
+                                                                                    />
+                                                                                ) : mode === "value" ? (
+                                                                                    <TextInput
+                                                                                        placeholder="Amount"
+                                                                                        placeholderTextColor={styles.colors.mutedFallback}
+                                                                                        keyboardType="decimal-pad"
+                                                                                        value={String(f.oweAmount || "")}
+                                                                                        onChangeText={(v) => setOweAmount(f?._id, v)}
+                                                                                        style={[styles.input, { width: 100, textAlign: "right" }]}
+                                                                                    />
+                                                                                ) : (
+                                                                                    // equal mode: display computed oweAmount
+                                                                                    <Text style={{ color: styles.colors.textFallback, marginVertical: 4 }}>
+                                                                                        {fmtMoney(currency, f.oweAmount || 0)}
+                                                                                    </Text>
+                                                                                )}
+                                                                            </TouchableOpacity>
+                                                                        );
+                                                                    })}
 
-                                                                        {/* Right side: input or computed value depending on mode */}
-                                                                        {mode === "percent" ? (
-                                                                            <TextInput
-                                                                                placeholder="Percent"
-                                                                                placeholderTextColor={styles.colors.mutedFallback}
-                                                                                keyboardType="decimal-pad"
-                                                                                value={String(f.owePercent ?? "")}
-                                                                                onChangeText={(v) => setOwePercent(f?._id, v)}
-                                                                                style={[styles.input, { width: 100, textAlign: "right" }]}
-                                                                            />
-                                                                        ) : mode === "value" ? (
-                                                                            <TextInput
-                                                                                placeholder="Amount"
-                                                                                placeholderTextColor={styles.colors.mutedFallback}
-                                                                                keyboardType="decimal-pad"
-                                                                                value={String(f.oweAmount || "")}
-                                                                                onChangeText={(v) => setOweAmount(f?._id, v)}
-                                                                                style={[styles.input, { width: 100, textAlign: "right" }]}
-                                                                            />
-                                                                        ) : (
-                                                                            // equal mode: display computed oweAmount
-                                                                            <Text style={{ color: styles.colors.textFallback, marginVertical: 4 }}>
-                                                                                {fmtMoney(currency, f.oweAmount || 0)}
-                                                                            </Text>
-                                                                        )}
-                                                                    </TouchableOpacity>
-                                                                );
-                                                            })}
-
-                                                    </View>
-                                                </View>
+                                                            </View>
+                                                        </View>
+                                                    ) : null}
+                                                </>
                                             ) : null}
                                         </>
                                     ) : null}
-                                </>
-                            ) : null}
-                            {/* If personal mode: show voice input component */}
-                            {/* {expenseMode === "personal" && (
-                                <View style={{ flex: 1, backgroundColor: '#333', flexDirection: 'column', height: '100%' }}>
-                                    
+                                    {/* If personal mode: show voice input component */}
+                                    {/* {expenseMode === "personal" && (
+                                            <View style={{ flex: 1, backgroundColor: '#333', flexDirection: 'column', height: '100%' }}>
+                                                
+                                            </View>
+                                        )} */}
                                 </View>
-                            )} */}
+                            )}
+                            {/* Lo  n CTA */}
+                        </ScrollView>
+
+                        <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
+                        <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
+                        <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />
+                    </ScrollView>
+                    <View
+                        style={[
+                            styles.footerWrap,
+                            {
+                                bottom: kbHeight > 0 ? kbHeight + 12 : Math.max(insets.bottom, 12),
+                                left: 16,
+                                right: 16,
+                            },
+                        ]}
+                    >
+                        <View style={styles.footerInner}>
+                            <View style={{ flex: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                                <Text style={styles.hint} numberOfLines={2}>
+                                    {hint}
+                                </Text>
+                                <TouchableOpacity style={[styles.submitBtn, { width: '100%' }]} onPress={handleSubmit}>
+                                    <Text style={styles.submitText}>Save Expense</Text>
+                                </TouchableOpacity>
+                            </View>
+                            {/* voice input / quick action slot: keep small square aligned to right */}
+                            <View style={{ marginLeft: 12 }}>
+                                <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
+                            </View>
                         </View>
-                    )}
-                    {/* Lo  n CTA */}
-                </ScrollView>
-                
-                <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
-                <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
-                <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />
-
-                <View style={styles.footer}>
-                    <View style={{flex: 1}}>
-                    <Text style={styles.hint} numberOfLines={2}>
-                        {hint}
-                    </Text>
-                    <TouchableOpacity onPress={handleSubmit} disabled={!canSubmit || loading} style={[styles.submitBtn, (!canSubmit || loading) ? styles.submitDisabled : null]}>
-                        <Text style={[styles.submitText, (!canSubmit || loading) && { opacity: 0.9 }]}>{loading ? "Saving…" : "Save Expense"}</Text>
-                    </TouchableOpacity>
                     </View>
-                    <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
-                </View>
+                </KeyboardAvoidingView>
             </View>
-        </SafeAreaView>
+        </BottomSheetModal>
     );
-}
+};
 
-// ---------------- Theme-aware styles ----------------
+export default MainBottomSheet;
+// final styles — paste in place of your existing createStyles + styles
+// Replace existing createStyles with this
 const createStyles = (theme = {}) => {
     const palette = {
         background: theme?.colors?.background ?? "#121212",
@@ -1770,20 +1876,52 @@ const createStyles = (theme = {}) => {
         danger: theme?.colors?.danger ?? "#ef4444",
     };
 
+    const spacing = {
+        pageHorizontal: 16,
+        xs: 6,
+        sm: 8,
+        md: 12,
+        lg: 16,
+    };
+
     const s = StyleSheet.create({
+        // top-level tokens
         safe: { flex: 1, backgroundColor: palette.background },
+
+        container: { flex: 1, backgroundColor: palette.background },
+
+        /* Header area */
         header: {
-            paddingHorizontal: 16,
-            paddingTop: Platform.OS === "android" ? 6 : 0,
-            paddingBottom: 10,
+            paddingVertical: 10,
+            paddingHorizontal: spacing.pageHorizontal,
             borderBottomWidth: StyleSheet.hairlineWidth,
-            borderBottomColor: palette.text,
+            borderBottomColor: palette.border,
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
+            backgroundColor: "transparent",
         },
-        headerTitle: { color: palette.text, fontSize: 24, fontWeight: "700" },
+        headerText: { color: palette.text, fontSize: 18, fontWeight: "700" },
+        closeBtn: { paddingHorizontal: 8, paddingVertical: 6 },
+        closeText: { color: palette.primary, fontSize: 14, fontWeight: "600" },
 
+        /* mode toggle + small controls reused from earlier */
+        modeToggle: {
+            flexDirection: "row",
+            alignSelf: "center",
+            backgroundColor: palette.card,
+            borderRadius: 999,
+            padding: 4,
+            borderWidth: 1,
+            borderColor: palette.border,
+            marginVertical: 8,
+        },
+        modeBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999 },
+        modeBtnActive: { backgroundColor: palette.text },
+        modeText: { color: palette.text, fontSize: 13, fontWeight: "600" },
+        modeTextActive: { color: palette.background },
+
+        /* Inputs / Buttons */
         input: {
             backgroundColor: palette.card,
             color: palette.text,
@@ -1798,42 +1936,118 @@ const createStyles = (theme = {}) => {
         btnLike: { justifyContent: "center" },
         btnLikeText: { fontSize: 16, color: palette.text },
 
-        modeToggle: {
-            flexDirection: "row",
-            alignSelf: "center",
-            backgroundColor: palette.card,
-            borderRadius: 999,
-            padding: 4,
+        /* chips */
+        chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+        chip: {
+            paddingHorizontal: 12,
+            height: 40,
+            borderRadius: 12,
             borderWidth: 1,
             borderColor: palette.border,
+            justifyContent: "center",
+            backgroundColor: palette.card,
         },
-        modeBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999 },
-        modeBtnActive: { backgroundColor: palette.text },
-        modeText: { color: palette.text, fontSize: 13, fontWeight: "600" },
-        modeTextActive: { color: palette.background },
-
-        sectionLabel: { color: palette.cta, fontSize: 12, letterSpacing: 1, textTransform: "uppercase" },
-        helperSmall: { color: palette.muted, fontSize: 12 },
-        helperMono: { color: palette.text, fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }) },
-
-        chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-        chip: { paddingHorizontal: 12, height: 40, borderRadius: 12, borderWidth: 1, borderColor: palette.border, justifyContent: "center", backgroundColor: palette.card },
         chipActive: { backgroundColor: "#DFF3E8", borderColor: "#DFF3E8" },
         chipText: { color: palette.text },
         chipTextActive: { color: palette.text, fontWeight: "700" },
-
         chip2: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, borderWidth: 2, borderColor: palette.muted, backgroundColor: "transparent" },
         chip2Active: { backgroundColor: `${palette.cta}33`, borderColor: `${palette.cta}33` },
         chip2Text: { color: palette.text },
         chip2TextActive: { color: palette.text, fontWeight: "700" },
 
         suggestHeader: { color: palette.primary, fontSize: 12, letterSpacing: 1, marginBottom: 5 },
+        /* helper text */
+        sectionLabel: { color: palette.cta, fontSize: 12, letterSpacing: 1, textTransform: "uppercase" },
+        helperSmall: { color: palette.muted, fontSize: 12 },
 
-        selRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", height: 30 },
-        selText: { color: palette.text, fontSize: 16, textTransform: "capitalize" },
+        /* banners */
+        banner: {
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            borderRadius: 8,
+            borderWidth: 1,
+            backgroundColor: palette.card,
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            marginTop: 10,
+        },
+        bannerSuccess: { backgroundColor: "rgba(0,150,136,0.16)", borderColor: "#009688" },
+        bannerError: { backgroundColor: "rgba(244,67,54,0.12)", borderColor: "#f44336" },
+        bannerInfo: { backgroundColor: "rgba(158,158,158,0.12)", borderColor: "#9e9e9e" },
+        bannerText: { color: palette.text, flex: 1 },
 
-        rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+        /* summary + radio */
+        summaryBtn: {
+            flex: 1,
+            paddingVertical: 10,
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: palette.border,
+            backgroundColor: palette.card,
+        },
+        summaryBtnActive: { borderColor: palette.cta },
+        summaryLabel: { fontSize: 12, color: palette.muted, marginBottom: 2 },
+        summaryValue: { fontSize: 14, color: palette.text, fontWeight: "600" },
 
+        radioWrap: { width: 28, alignItems: "center", justifyContent: "center" },
+        radioOuter: {
+            width: 18,
+            height: 18,
+            borderRadius: 18,
+            borderWidth: 2,
+            borderColor: "rgba(255,255,255,0.15)",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "transparent",
+        },
+        radioOuterActive: { borderColor: palette.cta, backgroundColor: `${palette.cta}22` },
+        radioInner: { width: 10, height: 10, borderRadius: 10, backgroundColor: palette.cta },
+
+        /* footer area (keyboard-friendly) */
+        footerWrap: {
+            position: "absolute",
+            left: spacing.pageHorizontal,
+            right: spacing.pageHorizontal,
+            bottom: 0,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 6,
+            borderTopColor: palette.border,
+            borderTopWidth: 1,
+            paddingTop: 8
+        },
+        footerInner: {
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: 'center',
+            gap: 4,
+            paddingHorizontal: 12,
+        },
+        hint: { color: palette.helperMuted, textAlign: "center", fontSize: 12, minHeight: 16, marginBottom: 6 },
+        submitBtn: {
+            height: 44,
+            borderRadius: 12,
+            backgroundColor: palette.cta,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingHorizontal: 16,
+        },
+        submitText: { color: palette.background, fontWeight: "700", fontSize: 15 },
+
+        voicePlaceholder: {
+            width: 44,
+            height: 44,
+            borderRadius: 10,
+            backgroundColor: palette.card,
+            borderWidth: 1,
+            borderColor: palette.border,
+        },
+
+        /* small variants */
         pmBtn: {
             borderWidth: 1,
             borderColor: palette.border,
@@ -1846,93 +2060,9 @@ const createStyles = (theme = {}) => {
         },
         pmBtnText: { fontSize: 14, color: palette.text },
 
-        banner: {
-            paddingHorizontal: 12,
-            paddingVertical: 10,
-            borderRadius: 8,
-            borderWidth: 1,
-            backgroundColor: palette.card,
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-        },
-        bannerSuccess: { backgroundColor: "rgba(0,150,136,0.16)", borderColor: "#009688" },
-        bannerError: { backgroundColor: "rgba(244,67,54,0.12)", borderColor: "#f44336" },
-        bannerInfo: { backgroundColor: "rgba(158,158,158,0.12)", borderColor: "#9e9e9e" },
-        bannerText: { color: palette.text, flex: 1 },
+        helperMono: { color: palette.text, fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }) },
 
-        footer: {
-            paddingTop: 6,
-            flexDirection: 'row',
-            paddingBottom: 12,
-            gap: 16,
-            paddingHorizontal: 4,
-            alignItems: "center",
-            borderTopWidth: StyleSheet.hairlineWidth,
-            borderTopColor: palette.border,
-            backgroundColor: palette.background,
-        },
-        hint: { color: palette.helperMuted, textAlign: "center", fontSize: 12, minHeight: 16, marginBottom: 6 },
-        submitBtn: { height: 48, borderRadius: 12, backgroundColor: palette.cta, alignItems: "center", justifyContent: "center" },
-        submitText: { color: palette.background, fontWeight: "700", fontSize: 16 },
-        submitDisabled: { backgroundColor: palette.muted },
-
-        // Modals
-        modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
-        modalCard: { backgroundColor: palette.card, borderRadius: 12, padding: 16, width: "100%" },
-        modalTitle: { color: palette.text, fontSize: 18, fontWeight: "700", marginBottom: 8 },
-        modalBtn: { backgroundColor: palette.card, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
-        modalBtnText: { color: palette.text, fontWeight: "600" },
-
-        pickerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 10, borderRadius: 8, marginBottom: 6, backgroundColor: "rgba(255,255,255,0.02)" },
-
-        // mini mode toggle buttons (=, %, 1.23)
-        modeMini: {
-            flex: 1,
-            paddingVertical: 6,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: palette.border,
-            alignItems: "center",
-            justifyContent: "center",
-            marginRight: 6,
-            backgroundColor: palette.card,
-        },
-        modeMiniActive: {
-            backgroundColor: `${palette.cta}33`,
-            borderColor: palette.cta,
-        },
-        modeMiniText: {
-            color: palette.text,
-            fontSize: 14,
-            fontWeight: "600",
-        },
-        modeMiniTextActive: {
-            color: palette.cta,
-            fontWeight: "700",
-        },
-
-        // tabs
-        tabBtn: {
-            flex: 1,
-            paddingVertical: 10,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: palette.card,
-        },
-        tabBtnActive: {
-            backgroundColor: `${palette.cta}22`,
-        },
-        tabText: {
-            color: palette.text,
-            fontWeight: "600",
-        },
-        tabTextActive: {
-            color: palette.cta,
-        },
-
-        // color tokens available for inline use
+        /* color tokens available for inline use from JSX */
         colors: {
             backgroundFallback: palette.background,
             cardFallback: palette.card,
@@ -1945,68 +2075,58 @@ const createStyles = (theme = {}) => {
             ctaFallback: palette.cta,
             dangerFallback: palette.danger,
         },
-        summaryBtn: {
+
+        /* smaller interactive controls used in flows */
+        modeMini: {
             flex: 1,
-            paddingVertical: 10,
-            paddingHorizontal: 12,
-            borderRadius: 12,
+            paddingVertical: 6,
+            borderRadius: 8,
             borderWidth: 1,
             borderColor: palette.border,
-            backgroundColor: palette.card,
-        },
-        summaryBtnActive: {
-            borderColor: palette.cta,
-        },
-        summaryLabel: {
-            fontSize: 12,
-            color: palette.muted,
-            marginBottom: 2,
-        },
-        summaryValue: {
-            fontSize: 14,
-            color: palette.text,
-            fontWeight: "600",
-        },
-        radioWrap: { width: 28, alignItems: "center", justifyContent: "center" },
-        radioOuter: {
-            width: 18,
-            height: 18,
-            borderRadius: 18,
-            borderWidth: 2,
-            borderColor: "rgba(255,255,255,0.15)",
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: "transparent",
+            marginRight: 6,
+            backgroundColor: palette.card,
         },
-        radioOuterActive: {
-            borderColor: palette.cta,
-            backgroundColor: `${palette.cta}22`,
-        },
-        radioInner: {
-            width: 10,
-            height: 10,
-            borderRadius: 10,
-            backgroundColor: palette.cta,
-        },
+        modeMiniActive: { backgroundColor: `${palette.cta}33`, borderColor: palette.cta },
+        modeMiniText: { color: palette.text, fontSize: 14, fontWeight: "600" },
+        modeMiniTextActive: { color: palette.cta, fontWeight: "700" },
 
-        summaryBtnError: {
-
-            backgroundColor: "rgba(244,67,54,0.06)",
-        },
-        summaryLabelError: {
-            color: palette.danger,
-        },
-        summaryValueError: {
-            color: palette.danger,
-        },
-
-
-
+        // errors / highlights
+        summaryBtnError: { backgroundColor: "rgba(244,67,54,0.06)" },
+        summaryLabelError: { color: palette.danger },
+        summaryValueError: { color: palette.danger },
+        suggestHeader: { color: palette.primary, fontSize: 12, letterSpacing: 1, marginBottom: 5 },
+        selRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", height: 30 },
+        selText: { color: palette.text, fontSize: 16, textTransform: "capitalize" },
+        rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     });
 
-    s.colors = s.colors;
+    // keep s.colors reference for backwards compatibility
+    s.colors = s.colors || s.colors;
     return s;
 };
+
+
+// Replace existing static styles `styles` with this
+const styles = StyleSheet.create({
+    sheet: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -9 },
+        shadowOpacity: 0.75,
+        shadowRadius: 12.35,
+        elevation: 19,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        overflow: "hidden",
+        backgroundColor: "transparent",
+    },
+    bg: {
+        flex: 1,
+        backgroundColor: "transparent",
+    },
+});
+
 
 // ---------- small date helpers (moved after styles for clarity) ----------
 const parseISODate = (isoStr) => {

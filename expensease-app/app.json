@@ -29,7 +29,8 @@
         "NSContactsUsageDescription": "We use your contacts to invite friends and find people you know in Expensease.",
         "NSLocationWhenInUseUsageDescription": "Optional — remove if not needed",
         "NSSpeechRecognitionUsageDescription": "Expensease needs speech recognition to convert your voice into text for creating expenses.",
-        "NSMicrophoneUsageDescription": "Expensease needs access to the microphone to record audio for voice input."
+        "NSMicrophoneUsageDescription": "Expensease needs access to the microphone to record audio for voice input.",
+        "NSPhotoLibraryUsageDescription": "Allow selecting receipts or photos to attach to expense items in the app."
       },
       "appleTeamId": "2TA4D4M36W"
     },
@@ -60,7 +61,15 @@
       "permissions": [
         "READ_CONTACTS",
         "RECORD_AUDIO"
-      ]
+      ],
+      "manifest": {
+        "application": {
+          "attributes": {
+            "tools:replace": "android:appComponentFactory",
+            "android:appComponentFactory": "androidx.core.app.CoreComponentFactory"
+          }
+        }
+      }
     },
     "web": {
       "favicon": "./assets/default/favicon.png"
@@ -86,7 +95,14 @@
       "expo-font",
       "expo-secure-store",
       "expo-asset",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+      "@react-native-voice/voice",
+      {
+        "microphonePermission": "Allow Expensease to access the microphone",
+        "speechRecognitionPermission": "Allow Expensease to securely recognize user speech"
+      }
+    ]
     ],
     "extra": {
       "router": {

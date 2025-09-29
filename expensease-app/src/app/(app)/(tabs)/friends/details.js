@@ -25,7 +25,8 @@ import { getFriendDetails } from "services/FriendService";
 import { getFriendExpense, settleExpense } from "services/ExpenseService";
 import { getLoans } from "services/LoanService";
 import { getSymbol, allCurrencies } from "utils/currencies";
-
+import FAB from "~/fab";
+import NewExpenseBottomSheet from "~/newExpenseBottomSheet";
 // The bottom-sheet component you asked to wire
 import BtmShtSettle from "~/btmShtSettle";
 
@@ -94,7 +95,7 @@ export default function FriendDetails() {
     const { user, userToken, defaultCurrency, preferredCurrencies } = useAuth() || {};
     const themeContext = useTheme?.() || {};
     const styles = useMemo(() => createStyles(themeContext?.theme), [themeContext?.theme]);
-
+    const newExpenseBottomSheetRef = useRef()
     // ui state
     const [activeTab] = useState("expenses"); // kept single-tab for now
     const [loading, setLoading] = useState(true);
@@ -802,7 +803,7 @@ export default function FriendDetails() {
                                     </View>
                                 ) : null} */}
                             </View>
-                            {settlementLists.length>0 && <TouchableOpacity style={[styles.outlineBtn2, { marginTop: 4 }]} onPress={() => settleRef.current?.present()}>
+                            {settlementLists.length > 0 && <TouchableOpacity style={[styles.outlineBtn2, { marginTop: 4 }]} onPress={() => settleRef.current?.present()}>
                                 <Text style={styles.outlineBtnText2}>Settle</Text>
                             </TouchableOpacity>}
                         </View>
@@ -819,7 +820,7 @@ export default function FriendDetails() {
                                 <Text style={styles.emptyText}>Add your first shared expense to see it here.</Text>
                                 <LineButton
                                     label="Add Expense"
-                                    onPress={() => router.push({ pathname: "/newExpense", params: { friendId: id } })}
+                                    onPress={() => newExpenseBottomSheetRef?.current?.present?.()}
                                     styles={styles}
                                 />
                             </View>
@@ -892,15 +893,10 @@ export default function FriendDetails() {
             )}
 
             {!loading && activeTab === "expenses" && (Array.isArray(expenses) ? expenses.length > 0 : (expenses?.expenses?.length > 0)) && (
-                <TouchableOpacity
-                    style={styles.fab}
-                    onPress={() => router.push({ pathname: "/newExpense", params: { friendId: id } })}
-                >
-                    <Plus width={22} height={22} color="#121212" />
-                    <Text style={styles.fabText}>Add Expense</Text>
-                </TouchableOpacity>
-            )}
 
+                <FAB onPress={() => { newExpenseBottomSheetRef?.current?.present?.(); }} />
+            )}
+            <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} preSelectedFriendId={id} />
             {/* Bottom-sheet settle wired with real data */}
             <BtmShtSettle
                 innerRef={settleRef}

@@ -58,7 +58,7 @@ export default function TabsLayout() {
                     tabBarIcon: ({ color, size }) => <Dash width={size} height={size} stroke={color} fill="none" />,
                 }}
             />
-            <Tabs.Screen
+            {/* <Tabs.Screen
                 name="newExpense"
                 options={{
                     title: "",
@@ -85,7 +85,7 @@ export default function TabsLayout() {
                         </View>
                     ),
                 }}
-            />
+            /> */}
             <Tabs.Screen
                 name="friends"
                 options={{

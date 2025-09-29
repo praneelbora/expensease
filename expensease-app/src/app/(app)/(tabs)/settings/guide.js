@@ -101,7 +101,7 @@ export default function GuideScreen() {
                         </Text>
                     </View>
                     <View style={{ marginTop: 10 }}>
-                        <Primary onPress={() => router.push("/new-expense")} icon={Plus} styles={styles}>
+                        <Primary onPress={() => router.push("/dashboard")} icon={Plus} styles={styles}>
                             Add Expense
                         </Primary>
                         <Ghost onPress={() => router.push("/paymentAccounts")} icon={Wallet} styles={styles}>
@@ -232,7 +232,7 @@ export default function GuideScreen() {
                 {/* Footer */}
                 <View style={styles.sectionCard}>
                     <Text style={styles.header2}>Ready to add your next expense?</Text>
-                    <Primary onPress={() => router.push("/new-expense")} icon={Plus} styles={styles}>
+                    <Primary onPress={() => router.push("/dashboard")} icon={Plus} styles={styles}>
                         Add Expense
                     </Primary>
                     <Ghost onPress={() => router.push("/paymentAccounts")} icon={Wallet} styles={styles}>

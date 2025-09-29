@@ -29,8 +29,8 @@ import { getGroupDetails, getGroupExpenses } from "services/GroupService";
 import { settleExpense } from "services/ExpenseService";
 import { getSymbol, allCurrencies } from "utils/currencies";
 import { useTheme } from "context/ThemeProvider";
-import Eye from "@/accIcons/eye.svg";
-import EyeOff from "@/accIcons/eyeOff.svg";
+import FAB from "~/fab";
+import NewExpenseBottomSheet from "~/newExpenseBottomSheet";
 import Copy from "@/accIcons/copy.svg";
 import Send from "@/accIcons/send.svg";
 import Settings from "@/accIcons/settings.svg";
@@ -81,7 +81,7 @@ export default function GroupDetails() {
     const [showSettle, setShowSettle] = useState(false);
     // show only debts involving me by default; toggle to reveal others
     const [showOthers, setShowOthers] = useState(false);
-
+    const newExpenseBottomSheetRef = useRef()
     // only show transactions involving me unless showOthers is true
     const visibleSimplified = useMemo(() => {
         if (!Array.isArray(simplifiedTransactions)) return [];
@@ -676,7 +676,7 @@ How to join:
                                     <>
                                         <Text style={styles.emptyTitle}>No Expenses Yet</Text>
                                         <Text style={styles.emptyText}>Add your first group expense to see it here.</Text>
-                                        <TouchableOpacity style={styles.ctaBtn} onPress={() => router.push({ pathname: "/newExpense", params: { groupId: id } })}>
+                                        <TouchableOpacity style={styles.ctaBtn} onPress={() => newExpenseBottomSheetRef?.current?.present?.()}>
                                             <Text style={[styles.ctaBtnText, { color: theme?.colors?.inverseText ?? "#121212" }]}>Add Expense</Text>
                                         </TouchableOpacity>
                                     </>
@@ -690,12 +690,9 @@ How to join:
 
                 {/* FAB */}
                 {!loadingExpenses && (expenses?.length || 0) > 0 && (
-                    <TouchableOpacity style={[styles.fab, { backgroundColor: theme?.colors?.primary ?? "#00C49F" }]} onPress={() => router.push({ pathname: "/newExpense", params: { groupId: id } })}>
-                        <Plus width={22} height={22} color={theme?.colors?.inverseText ?? "#121212"} />
-                        <Text style={styles.fabText}>Add Expense</Text>
-                    </TouchableOpacity>
+                    <FAB onPress={() => { newExpenseBottomSheetRef?.current?.present?.() }} />
                 )}
-
+                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} preSelectedGroupId={id} />
                 <BottomSheetSettle
                     innerRef={settleSheetRef}
                     onClose={() => settleSheetRef.current?.dismiss()}

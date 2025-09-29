@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
@@ -61,6 +62,7 @@
     "@babel/core": "^7.20.0",
     "babel-plugin-module-resolver": "^5.0.2",
     "mkdirp": "^3.0.1",
+    "patch-package": "^8.0.0",
     "react-native-dotenv": "^3.4.11",
     "react-native-svg-transformer": "^1.5.1",
     "sharp": "^0.34.4"

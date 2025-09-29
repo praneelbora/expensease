@@ -20,7 +20,9 @@ import { createPaymentMethod } from "services/PaymentMethodService";
 
 import Header from "~/header";
 import ExpenseRow from "~/expenseRow";
+import FAB from "~/fab";
 import EmptyCTA from "~/cta";
+import NewExpenseBottomSheet from "~/newExpenseBottomSheet";
 import { useTheme } from "context/ThemeProvider";
 
 import { FetchProvider, useFetch } from "context/FetchContext";
@@ -67,7 +69,7 @@ function DashboardScreenInner() {
     const router = useRouter();
     const { theme } = useTheme();
     const styles = useMemo(() => createStyles(theme), [theme]);
-
+    const newExpenseBottomSheetRef = useRef()
     const {
         user,
         userToken,
@@ -91,7 +93,7 @@ function DashboardScreenInner() {
         setPage,
     } = useFetch();
 
-    
+
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [selectedPM, setSelectedPM] = useState(null);
@@ -439,7 +441,7 @@ function DashboardScreenInner() {
        ----------------------- */
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
-            <Header main showProfile user={user}/>
+            <Header main showProfile user={user} />
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12, gap: 8 }}>
                 <ScrollView
                     style={styles.scroller}
@@ -500,7 +502,7 @@ function DashboardScreenInner() {
                                 title="No Expenses yet!"
                                 subtitle="You haven’t added any expenses yet. Start by adding your first one to see stats and insights."
                                 ctaLabel="Add Expemse"
-                                onPress={() => router.push("/newExpense")}
+                                onPress={() => newExpenseBottomSheetRef?.current?.present?.()}
                             />
                         </View>
                     ) : (
@@ -627,7 +629,10 @@ function DashboardScreenInner() {
                         </>
                     )}
                 </ScrollView>
-
+                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} />
+                <FAB onPress={() => {
+                    newExpenseBottomSheetRef?.current?.present?.();
+                }} />
                 {/* Modals (unchanged) */}
                 <Modal visible={!!showExpenseModal} transparent animationType="slide" onRequestClose={() => setShowExpenseModal(false)}>
                     <View style={styles.modalBackdrop}>
@@ -760,7 +765,7 @@ const createStyles = (theme) =>
         rangeBtn: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 4, backgroundColor: theme.colors.card },
         rangeBtnActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
         rangeBtnText: { color: theme.colors.text, fontSize: 12 },
-        rangeBtnTextActive: { color: theme.colors.textDark, fontWeight: "700" },
+        rangeBtnTextActive: { color: theme.colors.textDark, },
 
         modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
         modalCard: { backgroundColor: theme.colors.card, borderRadius: 12, padding: 16, width: "100%", borderWidth: 1, borderColor: theme.colors.border },

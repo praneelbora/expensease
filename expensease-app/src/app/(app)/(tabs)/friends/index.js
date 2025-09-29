@@ -35,6 +35,8 @@ import {
 } from "services/FriendService";
 import { getAllExpenses } from "services/ExpenseService";
 import { getLoans } from "services/LoanService";
+import NewExpenseBottomSheet from "~/newExpenseBottomSheet";
+import FAB from "~/fab";
 // import { logEvent } from "utils/analytics";
 import { getAllCurrencyCodes, getSymbol, toCurrencyOptions } from "utils/currencies";
 import { useTheme } from "context/ThemeProvider";
@@ -164,7 +166,7 @@ export default function FriendsScreen() {
 
     // derived (group simplification)
     const [simplifiedTransactions, setSimplifiedTransactions] = useState([]); // NEW: flat group txns per group {from,to,amount,currency,group:{_id,name}}
-
+    const newExpenseBottomSheetRef = useRef()
     // ui
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -773,6 +775,8 @@ export default function FriendsScreen() {
                         </View>
                     )}
                 </ScrollView>
+                <FAB onPress={() => { newExpenseBottomSheetRef?.current?.present?.(); }} />
+                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} selctedMode={"split"} />
 
                 <BottomSheetAddFriend innerRef={addFriendRef}
                     onRedirect={async () => {
