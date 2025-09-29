@@ -1,16 +1,19 @@
-// app/_tabs.js  (or wherever your TabsLayout lives)
+// app/_tabs.js
 import React, { useMemo } from "react";
 import { Tabs } from "expo-router";
+import { View, StyleSheet, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "context/ThemeProvider";
+
 import Dash from "@/tabIcons/dash.svg";
 import Cog from "@/tabIcons/cog.svg";
 import Plus from "@/tabIcons/plus.svg";
 import User from "@/tabIcons/user.svg";
 import Users from "@/tabIcons/users.svg";
-import { View, StyleSheet, Platform } from "react-native";
-import { useTheme } from "context/ThemeProvider";
 
 export default function TabsLayout() {
     const { theme } = useTheme();
+    const insets = useSafeAreaInsets();
 
     const opts = useMemo(
         () => ({
@@ -24,10 +27,8 @@ export default function TabsLayout() {
                         {
                             backgroundColor: theme.colors.background,
                             borderTopWidth: Platform.OS === "android" ? 1 : 0.5,
-                            // subtle translucent top border using theme border color
-                            borderTopColor: `${theme.colors.border}`,
+                            borderTopColor: theme.colors.border,
                             marginTop: -5,
-                            
                         },
                     ]}
                 />
@@ -35,7 +36,9 @@ export default function TabsLayout() {
             tabBarStyle: {
                 borderTopWidth: 0,
                 backgroundColor: theme.colors.background,
-                paddingHorizontal: 4
+                paddingHorizontal: 4,
+                paddingBottom: Platform.OS === "android" ? (insets.bottom || 8) + 6 : insets.bottom || 6,
+                height: 52 + (Platform.OS === "android" ? (insets.bottom || 8) : (insets.bottom || 0)),
             },
             tabBarLabelStyle: {
                 textAlign: "center",
@@ -45,8 +48,9 @@ export default function TabsLayout() {
             tabBarInactiveTintColor: theme.colors.muted,
             tabBarActiveTintColor: theme.colors.primary,
         }),
-        [theme]
+        [theme, insets]
     );
+
 
     return (
         <Tabs initialRouteName="dashboard" screenOptions={opts}>
@@ -58,34 +62,6 @@ export default function TabsLayout() {
                     tabBarIcon: ({ color, size }) => <Dash width={size} height={size} stroke={color} fill="none" />,
                 }}
             />
-            {/* <Tabs.Screen
-                name="newExpense"
-                options={{
-                    title: "",
-                    tabBarAccessibilityLabel: "New Expense",
-                    tabBarIcon: ({ color, size, focused }) => (
-                        <View
-                            style={{
-                                backgroundColor: focused ? theme.colors.primary : theme.colors.muted,
-                                width: 60,
-                                height: 40,
-                                alignContent: "center",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                marginTop: 12,
-                                borderRadius: 5,
-                                // subtle elevation on iOS/Android
-                                ...Platform.select({
-                                    ios: { shadowColor: "#000", shadowOpacity: focused ? 0.12 : 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-                                    android: { elevation: focused ? 4 : 1 },
-                                }),
-                            }}
-                        >
-                            <Plus width={30} height={30} strokeWidth={3} stroke={theme.mode === "dark" ? "#000" : "#fff"} />
-                        </View>
-                    ),
-                }}
-            /> */}
             <Tabs.Screen
                 name="friends"
                 options={{
@@ -102,9 +78,6 @@ export default function TabsLayout() {
                     tabBarIcon: ({ color, size }) => <Users width={size} height={size} stroke={color} fill="none" />,
                 }}
             />
-
-            
-            
             <Tabs.Screen
                 name="settings"
                 options={{

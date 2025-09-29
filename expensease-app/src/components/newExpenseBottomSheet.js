@@ -2012,10 +2012,6 @@ const createStyles = (theme = {}) => {
             left: spacing.pageHorizontal,
             right: spacing.pageHorizontal,
             bottom: 0,
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.08,
-            shadowRadius: 8,
-            elevation: 6,
             borderTopColor: palette.border,
             borderTopWidth: 1,
             paddingTop: 8

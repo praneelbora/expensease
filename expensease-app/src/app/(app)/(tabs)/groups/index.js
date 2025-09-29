@@ -463,7 +463,7 @@ const createStyles = (theme) =>
             borderColor: theme?.colors?.primary ?? "#EBF1D5",
         },
         filterChipText: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 12 },
-        filterChipTextActive: { color: theme?.colors?.inverseText ?? "#121212", fontWeight: "700" },
+        filterChipTextActive: { color: theme?.colors?.inverseText ?? "#121212" },
 
         // rows
         row: {

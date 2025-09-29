@@ -849,7 +849,7 @@ const createStyles = (theme = {}) =>
         filterChip: { borderWidth: 1, borderColor: theme?.colors?.border ?? "#2a2a2a", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 },
         filterChipActive: { backgroundColor: theme?.colors?.primary ?? "#EBF1D5", borderColor: theme?.colors?.primary ?? "#EBF1D5" },
         filterChipText: { color: theme?.colors?.text ?? "#EBF1D5", fontSize: 12 },
-        filterChipTextActive: { color: theme?.colors?.inverseText ?? "#121212", fontWeight: "700" },
+        filterChipTextActive: { color: theme?.colors?.inverseText ?? "#121212" },
 
         banner: {
             margin: 12,
