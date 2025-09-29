@@ -48,7 +48,7 @@ export default function PrivacyPolicyScreen() {
 
     const handleCTA = () => {
         if (userToken) {
-            router.push("/dashboard");
+            router.push("/home");
         } else {
             router.push("/login");
         }
@@ -76,7 +76,7 @@ export default function PrivacyPolicyScreen() {
                         <View style={styles.actionsRow}>
                             <TouchableOpacity style={styles.primaryBtn} onPress={handleCTA} activeOpacity={0.85}>
                                 <Grid width={16} height={16} color="#fff" style={{ marginRight: 8 }} />
-                                <Text style={styles.primaryBtnText}>{userToken ? "Open Dashboard" : "Create free account"}</Text>
+                                <Text style={styles.primaryBtnText}>{userToken ? "Home Screen" : "Create free account"}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity style={styles.ghostBtn} onPress={handleContact} activeOpacity={0.85}>
@@ -107,7 +107,7 @@ export default function PrivacyPolicyScreen() {
                                         <Text style={styles.quickLinkText}>Contact</Text>
                                     </TouchableOpacity>
 
-                                    
+
                                 </View>
                             </View>
                         </View>
@@ -200,7 +200,7 @@ export default function PrivacyPolicyScreen() {
                     <Text style={styles.ctaTitle}>Ready to try Expensease?</Text>
                     <Text style={styles.ctaSubtitle}>Create an account and start splitting expenses with friends — quick and private.</Text>
                     <TouchableOpacity style={styles.ctaBtn} onPress={handleCTA} activeOpacity={0.85}>
-                        <Text style={styles.ctaBtnText}>{userToken ? "Open Dashboard" : "Create free account"}</Text>
+                        <Text style={styles.ctaBtnText}>{userToken ? "Home Screen" : "Create free account"}</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -211,7 +211,7 @@ export default function PrivacyPolicyScreen() {
 const createStyles = (theme, isWide) =>
     StyleSheet.create({
         safe: { flex: 1, backgroundColor: theme.colors.background },
-        container: { padding: 16, paddingBottom: 48 },
+        container: { padding: 16, paddingBottom: 100 },
 
         /* Hero */
         heroRow: {

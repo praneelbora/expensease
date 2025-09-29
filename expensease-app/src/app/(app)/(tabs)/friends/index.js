@@ -720,7 +720,7 @@ export default function FriendsScreen() {
                 ) : null}
 
                 {/* Content */}
-                <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={theme?.colors?.primary ?? "#00d0b0"} />} contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+                <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={theme?.colors?.primary ?? "#00d0b0"} />} contentContainerStyle={{ paddingTop: 8, paddingBottom: 124 }} showsVerticalScrollIndicator={false}>
                     {/* Requests */}
                     {receivedRequests.length > 0 && (
                         <View style={styles.card}>
@@ -776,7 +776,7 @@ export default function FriendsScreen() {
                     )}
                 </ScrollView>
                 <FAB onPress={() => { newExpenseBottomSheetRef?.current?.present?.(); }} />
-                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} selctedMode={"split"} />
+                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} selctedMode={"split"} onSave={refreshAll} />
 
                 <BottomSheetAddFriend innerRef={addFriendRef}
                     onRedirect={async () => {

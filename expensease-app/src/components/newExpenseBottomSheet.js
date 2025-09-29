@@ -61,7 +61,7 @@ const TEST_MODE = process.env.EXPO_PUBLIC_TEST_MODE;
  * - exposes same API as before (innerRef, onDismiss, children)
  * - keeps handle hidden (handleComponent={null}) as before
  */
-const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismiss, snapPoints = ["100%"], backgroundStyle, addView = false, onClose, preSelectedFriendId, preSelectedGroupId }) => {
+const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismiss, snapPoints = ["100%"], backgroundStyle, addView = false, onClose, preSelectedFriendId, preSelectedGroupId, onSave }) => {
     const insets = useSafeAreaInsets();
     const { theme } = useTheme?.() || {};
     const colors = theme?.colors || {};
@@ -219,6 +219,12 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
         } catch (e) {
         }
     }, [userToken]);
+    // reset guards whenever props or the sheet ref change so reopen can re-apply preselection
+    useEffect(() => {
+        appliedPreselectFromProps.current = false;
+        hasPreselectedFriend.current = false;
+        hasPreselectedGroup.current = false;
+    }, [preSelectedFriendId, preSelectedGroupId, innerRef]);
 
     // Replace the existing handleVoiceParsed with this function (inside NewExpenseScreen)
     const mapParsedParticipantsToSelectedFriends = (participants = [], friendsList = [], userObj = {}) => {
@@ -313,7 +319,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
     const handleVoiceParsed = async (parsed) => {
         try {
-            console.log("voice parsed:", parsed);
             if (!parsed || typeof parsed !== "object") return;
 
             // Basic top-level fields
@@ -394,7 +399,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 // map participants -> selectedFriends
                 const mapped = mapParsedParticipantsToSelectedFriends(parsed.participants || [], friends || [], user || {});
                 let finalList = mapped;
-                console.log(mapped);
 
                 // After you've built finalList = mapParsedParticipantsToSelectedFriends(...)
 
@@ -509,8 +513,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             if (parsed.paymentMethod && parsed.mode === "split") {
                 // If parser suggests an overall paymentMethod and the payer is me, set my paymentMethod
                 const payByMe = Array.isArray(parsed.participants) && parsed.participants.some((p) => /^me$/i.test(String(p.name || "")) && p.paying);
-                console.log('payByMe: ', payByMe);
-
                 if (payByMe) {
                     const exists = (paymentMethods || []).find((pm) => String(pm._id) === String(parsed.paymentMethod));
                     if (exists) setPaymentMethod(parsed.paymentMethod);
@@ -617,7 +619,10 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
     // This is tailored for a BottomSheet: wait for data, then toggle selection.
     // We only apply once per open; the guards are reset on sheet dismiss below.
     useEffect(() => {
-        // if already applied, do nothing
+        if (!innerRef.current) {
+            return;
+        }
+
         if (appliedPreselectFromProps.current) return;
 
         // wait until lists are loaded
@@ -636,17 +641,45 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             }
         }
 
+
         if (preSelectedFriendId && !hasPreselectedFriend.current) {
             const f = friends.find((x) => String(x._id) === String(preSelectedFriendId));
             if (f) {
                 setExpenseMode("split");
                 hasPreselectedFriend.current = true;
                 appliedPreselectFromProps.current = true;
-                toggleFriend(f);
+
+                // Build initial selectedFriends: add the friend + ensure me is present
+                // then set defaults: me pays, everyone (including me) owes; distribute equal owes
+                const friendEntry = { ...f, paying: false, owing: true, payAmount: 0, oweAmount: 0, owePercent: 0 };
+                let initial = addMeIfNeeded([friendEntry]);
+
+                // mark me as payer (if user exists)
+                initial = initial.map((it) =>
+                    String(it._id) === String(user?._id)
+                        ? { ...it, paying: true, payAmount: num(amount) } // if amount empty -> 0
+                        : { ...it, paying: false }
+                );
+
+                // ensure owe flags for everyone (including me)
+                initial = initial.map((it) => ({ ...it, owing: true }));
+
+                // distribute equal owe among those owing
+                initial = distributeEqualOwe(initial);
+
+                setSelectedFriends(initial);
+                // update payment methods for real ids
+                // try {
+                //   const realIds = initial.filter((x) => x && String(x._id).indexOf("__tmp_") !== 0).map((x) => x._id);
+                //   if (realIds.length) await updateFriendsPaymentMethods(realIds);
+                // } catch (e) {
+                //   // ignore
+                // }
                 return;
             }
         }
-    }, [preSelectedFriendId, preSelectedGroupId, friends, groups]);
+
+    }, [preSelectedFriendId, preSelectedGroupId, friends, groups, innerRef]);
 
 
     // ---------- selection handlers ----------
@@ -786,6 +819,8 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
     };
 
     const distributeEqualOwe = (upd) => {
+        console.log(upd);
+
         const owing = upd.filter((f) => f.owing);
         const N = owing.length;
         if (N === 0) return upd.map((f) => ({ ...f, oweAmount: 0, owePercent: undefined }));
@@ -837,6 +872,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
     // replace the previous "reset on amount change" effect with this smarter one
     // update on amount change: recompute equal splits when appropriate, but do not
     // override user choices when mode !== "equal".
+    // react to amount change: smarter updates for equal splits and preselected rows
     useEffect(() => {
         setSelectedFriends((prev = []) => {
             const total = num(amount);
@@ -850,9 +886,18 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             const payers = current.filter((f) => f.paying);
             const owers = current.filter((f) => f.owing);
 
+            // HELPER: do any payers exist with payAmount === 0 (need recompute)
+            const payersWithZero = payers.some((p) => Number(p.payAmount || 0) === 0);
+            // HELPER: do any owers exist with oweAmount === 0 (need recompute)
+            const owersWithZero = owers.some((o) => Number(o.oweAmount || 0) === 0);
+
+            // If amount is not a positive number -> clear numeric fields to avoid stale values.
+            if (!(total > 0)) {
+                return current.map((f) => ({ ...f, payAmount: 0, oweAmount: 0, owePercent: 0 }));
+            }
+
             // If UI is in equal mode, recompute equal distributions for both sides
-            // (payers -> payAmount, owers -> oweAmount). If mode !== 'equal', leave
-            // existing numerical values untouched.
+            // (payers -> payAmount, owers -> oweAmount).
             if (mode === "equal") {
                 // Recompute payAmounts if there are payers
                 if (payers.length > 0) {
@@ -882,27 +927,87 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                     });
                 }
 
-                // neither payers nor owers: nothing to recompute, keep previous
+                // neither payers nor owers: nothing to recompute, keep previous numeric values
                 return current.map((f) => ({ ...f, payAmount: f.payAmount || 0, oweAmount: f.oweAmount || 0 }));
             }
 
-            // mode !== 'equal' -> preserve existing numeric values (don't overwrite manual edits)
-            // BUT if there are no payers/owers and user hasn't interacted, optionally keep neutral defaults:
-            const hasAnyPayers = payers.length > 0;
-            const hasAnyOwers = owers.length > 0;
+            // MODE != 'equal'
+            // If user/parser already set explicit flags/percent/amounts, we normally keep them.
+            // HOWEVER: if there are payers/owers but their numeric values are still zero (e.g. preselection applied before amount),
+            // recompute sensible defaults so fields aren't left at 0 after user types amount.
+            const anyExplicit = current.some(
+                (f) =>
+                    !!f.paying ||
+                    !!f.owing ||
+                    (typeof f.owePercent === "number" && !isNaN(Number(f.owePercent))) ||
+                    (typeof f.payAmount === "number" && Number(f.payAmount) > 0)
+            );
 
-            if (!hasAnyPayers && !hasAnyOwers) {
-                // keep neutral default: no auto-assign here to avoid surprising the user
-                // (other existing code already sets sensible defaults when selection changes)
+            if (anyExplicit) {
+                // If payers exist but none have payAmount > 0, compute equal pay distribution across payers
+                if (payers.length > 0 && payersWithZero) {
+                    return distributeEqualPay(current);
+                }
+
+                // If owers exist but none have oweAmount > 0, compute equal owe distribution across owers
+                if (owers.length > 0 && owersWithZero) {
+                    return distributeEqualOwe(current);
+                }
+
+                // otherwise preserve current (user likely intentionally set numbers)
                 return current;
             }
 
-            // if there are payers but mode !== 'equal' we leave payAmount as-is (user likely edited them)
-            // if there are owers but mode !== 'equal' we leave oweAmount as-is
-            return current;
+            // No explicit flags or numbers -> compute neutral defaults (same logic as before)
+            const participantsExcludingMe = current.filter((f) => String(f?._id) !== String(user?._id));
+
+            // baseline: clear flags/numbers
+            let neutral = current.map((f) => ({
+                ...f,
+                paying: false,
+                owing: false,
+                payAmount: 0,
+                oweAmount: 0,
+                owePercent: 0,
+            }));
+
+            if (participantsExcludingMe.length === 0) {
+                // Only me is present — make me payer and owe = 0
+                neutral = neutral.map((f) =>
+                    String(f?._id) === String(user?._id)
+                        ? { ...f, paying: true, payAmount: total, owing: false, oweAmount: 0, owePercent: 0 }
+                        : f
+                );
+            } else {
+                // There are others: default: you paid and everyone owes equally
+                neutral = neutral.map((f) => {
+                    if (String(f?._id) === String(user?._id)) {
+                        return {
+                            ...f,
+                            paying: true,
+                            payAmount: total,
+                            owing: true, // include me in owe split
+                            owePercent: undefined,
+                        };
+                    }
+                    return {
+                        ...f,
+                        paying: false,
+                        payAmount: 0,
+                        owing: true,
+                        owePercent: undefined,
+                    };
+                });
+
+                // distribute equal owe among everyone who is owing (now includes me)
+                neutral = distributeEqualOwe(neutral);
+            }
+
+            return neutral;
         });
-        // note: include mode in deps so equal recompute runs when mode flips to 'equal' too
+        // note: include `mode` and `amount` so recompute runs at appropriate times
     }, [amount, mode]);
+
 
 
 
@@ -1223,7 +1328,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
     }, [splitFieldsFilled, selectedFriends, mode, oweTotal, pctTotal, amount]);
     // ---------- submit ----------
     const handleSubmit = async () => {
-        console.log('createexpense');
         const amt = num(amount);
         try {
             setLoading(true);
@@ -1256,10 +1360,8 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 if (groupSelect?._id) payload.groupId = groupSelect._id;
             }
 
-            await createExpense(payload, userToken);
-            console.log('createexpense');
-
-
+            const response = await createExpense(payload, userToken);
+            onSave?.()
 
             // reset
             setDesc("");
@@ -1283,8 +1385,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 preSelectedFriendId.current = null;
                 return router.back();
             }
-
-            console.log('dismiss');
 
             sheetRef?.current?.dismiss?.();
             setBanner({ type: "success", text: "Expense saved." });
@@ -1843,7 +1943,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                 <Text style={styles.hint} numberOfLines={2}>
                                     {hint}
                                 </Text>
-                                <TouchableOpacity style={[styles.submitBtn, { width: '100%' }]} onPress={handleSubmit}>
+                                <TouchableOpacity disabled={!canSubmit} style={[styles.submitBtn, { backgroundColor: canSubmit ? theme?.colors?.primary : theme?.colors?.muted ?? '#212121', width: '100%' }]} onPress={handleSubmit}>
                                     <Text style={styles.submitText}>Save Expense</Text>
                                 </TouchableOpacity>
                             </View>
@@ -1903,7 +2003,7 @@ const createStyles = (theme = {}) => {
         },
         headerText: { color: palette.text, fontSize: 18, fontWeight: "700" },
         closeBtn: { paddingHorizontal: 8, paddingVertical: 6 },
-        closeText: { color: palette.primary, fontSize: 14, fontWeight: "600" },
+        closeText: { color: '#EA4335', fontSize: 14, fontWeight: "600" },
 
         /* mode toggle + small controls reused from earlier */
         modeToggle: {

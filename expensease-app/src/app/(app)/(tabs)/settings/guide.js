@@ -97,11 +97,11 @@ export default function GuideScreen() {
                             4. Invite Friends or create a Group.
                         </Text>
                         <Text style={styles.listItem}>
-                            5. Review balances on the Dashboard.
+                            5. Review balances on the Home Screen.
                         </Text>
                     </View>
                     <View style={{ marginTop: 10 }}>
-                        <Primary onPress={() => router.push("/dashboard")} icon={Plus} styles={styles}>
+                        <Primary onPress={() => router.push("/home")} icon={Plus} styles={styles}>
                             Add Expense
                         </Primary>
                         <Ghost onPress={() => router.push("/paymentAccounts")} icon={Wallet} styles={styles}>
@@ -197,15 +197,15 @@ export default function GuideScreen() {
                         ]}
                         styles={styles}
                     />
-                    <Workflow
+                    {/* <Workflow
                         title="Check balances quickly"
                         steps={[
-                            "Dashboard → Payment Accounts.",
+                            "H → Payment Accounts.",
                             "Tap card → reveal balances briefly.",
                             "Adjust balances in Accounts page.",
                         ]}
                         styles={styles}
-                    />
+                    /> */}
                 </Section>
 
                 {/* Tips */}
@@ -232,7 +232,7 @@ export default function GuideScreen() {
                 {/* Footer */}
                 <View style={styles.sectionCard}>
                     <Text style={styles.header2}>Ready to add your next expense?</Text>
-                    <Primary onPress={() => router.push("/dashboard")} icon={Plus} styles={styles}>
+                    <Primary onPress={() => router.push("/home")} icon={Plus} styles={styles}>
                         Add Expense
                     </Primary>
                     <Ghost onPress={() => router.push("/paymentAccounts")} icon={Wallet} styles={styles}>
@@ -329,7 +329,7 @@ const createStyles = (theme = {}) => {
 
     const s = StyleSheet.create({
         safe: { flex: 1, backgroundColor: palette.background },
-        container: { padding: 16, gap: 16 },
+        container: { padding: 16, paddingBottom: 80, gap: 16 },
         header: { fontSize: 28, fontWeight: "700", color: palette.text, marginBottom: 12 },
         header2: { fontSize: 20, fontWeight: "700", color: palette.text, marginBottom: 8 },
         sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },

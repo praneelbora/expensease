@@ -603,7 +603,7 @@ How to join:
                             router.push({ pathname: "/groups/settings", params: { id: group._id } });
                         }}
                     >
-                        <Settings width={20} height={20} color={theme?.colors?.primary ?? "#60DFC9"} />
+                        <Settings width={20} height={20} color={theme?.colors?.text} />
                     </TouchableOpacity>
                 }
             />
@@ -685,14 +685,14 @@ How to join:
                         )
                     }
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme?.colors?.primary ?? "#00d0b0"} />}
-                    contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
+                    contentContainerStyle={{ paddingBottom: 124, flexGrow: 1 }}
                 />
 
                 {/* FAB */}
                 {!loadingExpenses && (expenses?.length || 0) > 0 && (
                     <FAB onPress={() => { newExpenseBottomSheetRef?.current?.present?.() }} />
                 )}
-                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} preSelectedGroupId={id} />
+                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} preSelectedGroupId={id} onSave={onRefresh} />
                 <BottomSheetSettle
                     innerRef={settleSheetRef}
                     onClose={() => settleSheetRef.current?.dismiss()}

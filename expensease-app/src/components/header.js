@@ -45,26 +45,26 @@ export default function Header({
 }) {
     const router = useRouter();
     const { theme } = useTheme();
-    const {user} = useAuth();
+    const { user } = useAuth();
     const styles = React.useMemo(() => createStyles(theme), [theme]);
     const [selectedAvatar, setSelectedAvatar] = useState(user?.avatarId || null);
     const handleBack = () => {
         if (onBack) return onBack();
         if (router.canGoBack()) router.back();
-        else router.replace("/dashboard");
+        else router.replace("/home");
     };
-    useEffect(()=>{
+    useEffect(() => {
         setSelectedAvatar(user?.avatarId || null)
-    },[user])
+    }, [user])
     function getInitials(name) {
-    if (!name) return "";
-    const parts = name.trim().split(" ").filter(Boolean);
-    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
-    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
-}
+        if (!name) return "";
+        const parts = name.trim().split(" ").filter(Boolean);
+        if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+        return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    }
     const handleClose = () => {
         if (onClose) return onClose();
-        router.replace("/dashboard");
+        router.replace("/home");
     };
 
     const handleShare = async () => {
@@ -151,28 +151,28 @@ export default function Header({
                 )}
                 {showProfile && (
                     <TouchableOpacity
-                    onPress={()=>router.push('/settings')}>
-                    <View style={styles.avatarBorder}>
-                    <View
-                        style={[
-                            styles.avatarContainer,
-                            selectedAvatar ? { justifyContent: "flex-end" } : { justifyContent: "center" },
-                        ]}
-                    >
-                        {selectedAvatar ? (
-                            (() => {
-                                const found = avatars.find((a) => a.id === selectedAvatar);
-                                const AvatarComp = found?.Component || null;
-                                return AvatarComp ? <AvatarComp width={36} height={36} /> : <Text style={{ color: theme.colors.muted }}>—</Text>;
-                            })()
-                        ) : (
-                            <View style={[styles.placeholderCircle, { backgroundColor: theme.colors.card }]}>
-                                <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>{getInitials(user?.name || "")}</Text>
+                        onPress={() => router.push('settings')}>
+                        <View style={styles.avatarBorder}>
+                            <View
+                                style={[
+                                    styles.avatarContainer,
+                                    selectedAvatar ? { justifyContent: "flex-end" } : { justifyContent: "center" },
+                                ]}
+                            >
+                                {selectedAvatar ? (
+                                    (() => {
+                                        const found = avatars.find((a) => a.id === selectedAvatar);
+                                        const AvatarComp = found?.Component || null;
+                                        return AvatarComp ? <AvatarComp width={36} height={36} /> : <Text style={{ color: theme.colors.muted }}>—</Text>;
+                                    })()
+                                ) : (
+                                    <View style={[styles.placeholderCircle, { backgroundColor: theme.colors.card }]}>
+                                        <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>{getInitials(user?.name || "")}</Text>
+                                    </View>
+                                )}
                             </View>
-                        )}
-                    </View>
-                </View>
-                </TouchableOpacity>
+                        </View>
+                    </TouchableOpacity>
                 )}
 
                 {button ? button : null}

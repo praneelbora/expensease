@@ -158,7 +158,7 @@ export default function Login() {
             const resp = await verifyOTP(lastSentPhone, code, expoPushToken, Platform.OS);
             if (resp?.userToken) {
                 await setUserToken(resp.userToken);
-                router.replace("dashboard");
+                router.replace("home");
             } else {
                 setOtpError(resp?.error || "OTP verification failed");
             }
@@ -203,9 +203,9 @@ export default function Login() {
 
                 if (userToken && !authLoading && user) {
                     try {
-                        router.replace("dashboard");
+                        router.replace("home");
                     } catch (e) {
-                        console.warn("[Login] Failed to route to dashboard:", e);
+                        console.warn("[Login] Failed to route to home:", e);
                     }
                     return;
                 }
@@ -215,9 +215,9 @@ export default function Login() {
                 console.warn("[Login] Version check failed:", err);
                 if (userToken && !authLoading && user) {
                     try {
-                        router.replace("dashboard");
+                        router.replace("home");
                     } catch (e) {
-                        console.warn("[Login] Failed to route to dashboard after version-check error:", e);
+                        console.warn("[Login] Failed to route to home after version-check error:", e);
                     }
                 } else {
                     setUnderReview(false);
@@ -297,7 +297,7 @@ export default function Login() {
             if (response?.outdated) {
                 router.replace("updateScreen");
             } else {
-                router.replace("dashboard");
+                router.replace("home");
             }
         } catch (err) {
             console.warn("[Login] Credential login error:", err?.message || err);
@@ -343,7 +343,7 @@ export default function Login() {
             if (response?.outdated) {
                 router.replace("updateScreen");
             } else {
-                router.replace("dashboard");
+                router.replace("home");
             }
         } catch (err) {
             setError(err?.message || "Login failed. Please try again.");

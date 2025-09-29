@@ -127,9 +127,9 @@ export default function Login() {
                 if (userToken && !authLoading && user) {
                     try {
                         setNavigating(true);
-                        router.replace("dashboard");
+                        router.replace("home");
                     } catch (e) {
-                        console.warn("[Login] Failed to route to dashboard:", e);
+                        console.warn("[Login] Failed to route to home:", e);
                         setNavigating(false);
                     }
                     return;
@@ -143,9 +143,9 @@ export default function Login() {
                 if (userToken && !authLoading && user) {
                     try {
                         setNavigating(true);
-                        router.replace("dashboard");
+                        router.replace("home");
                     } catch (e) {
-                        console.warn("[Login] Failed to route to dashboard after version-check error:", e);
+                        console.warn("[Login] Failed to route to home after version-check error:", e);
                         setNavigating(false);
                     }
                 }
@@ -261,7 +261,7 @@ export default function Login() {
                 await setUserToken(resp.userToken);
                 // show loading while we navigate
                 setNavigating(true);
-                router.replace("dashboard");
+                router.replace("home");
             } else {
                 setOtpError(resp?.error || "OTP verification failed");
             }
@@ -320,7 +320,7 @@ export default function Login() {
                 router.replace("updateScreen");
             } else {
                 setNavigating(true);
-                router.replace("dashboard");
+                router.replace("home");
             }
         } catch (err) {
             setError(err?.message || "Google login failed. Please try again.");
@@ -373,7 +373,7 @@ export default function Login() {
                     router.replace("updateScreen");
                 } else {
                     setNavigating(true);
-                    router.replace("dashboard");
+                    router.replace("home");
                 }
             } else {
                 throw new Error("Apple login failed: invalid server response");
@@ -411,7 +411,7 @@ export default function Login() {
             if (res?.userToken) {
                 await setUserToken(res.userToken);
                 setNavigating(true);
-                router.replace("dashboard");
+                router.replace("home");
             } else {
                 setDevError(res?.error || "Dev login failed.");
             }

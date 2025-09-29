@@ -1,6 +1,6 @@
 // components/ExpenseRow.js
 import React, { useRef } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Alert } from "react-native";
 import { useAuth } from "context/AuthContext";
 import { useTheme } from "context/ThemeProvider";
 import { getSymbol } from "utils/currencies";
@@ -9,15 +9,23 @@ import { categoryMap } from "utils/categories";
 import { deleteExpense, updateExpense } from "services/ExpenseService";
 import SettleIcon from "@/icons/handshake";
 import BottomSheetExpense from "./btmShtExpense";
+import Ionicons from "@expo/vector-icons/Ionicons";
+
+// Gesture handler + Reanimated Swipeable
+import { RectButton } from "react-native-gesture-handler";
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Reanimated, { useAnimatedStyle } from 'react-native-reanimated';
 
 const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
     const { categories = [] } = useAuth() || {};
     const { theme } = useTheme();
     const styles = React.useMemo(() => createStyles(theme), [theme]);
+    const [isSwiped, setIsSwiped] = React.useState(false);
 
     const isSettle = expense.typeOf === "settle";
     const isSplit = expense.mode === "split";
     const expenseSheetRef = useRef(null);
+    const swipeableRef = useRef(null);
 
     const date = expense.date ? new Date(expense.date) : new Date();
     const month = date.toLocaleString("default", { month: "short" });
@@ -35,7 +43,6 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
         return "No one paid";
     };
 
-    // Shorten names (e.g. Rahul Dev Singh → Rahul D S)
     const shortenName = (fullName, isYou = false) => {
         if (isYou) return fullName;
         if (!fullName) return "";
@@ -85,7 +92,6 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
         return { text: "no balance", amount: "", oweAmount, payAmount };
     };
 
-    // Expense context (Group / Friend / Personal)
     const getExpenseContext = () => {
         if (expense.groupId) {
             return `Group: ${expense.groupId.name}`;
@@ -99,7 +105,6 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
         return "Personal expense";
     };
 
-    // Category
     const categoryKey = isSettle ? "settle" : expense.category;
     const categoryConfig = categoryMap[categoryKey] || categoryMap.notepad;
     const showIcon = !!categoryConfig || isSettle;
@@ -109,101 +114,175 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
         expenseSheetRef.current?.present();
     };
 
+    const handleDelete = async (swipeableMethods) => {
+        try {
+            swipeableMethods?.close?.();
+        } catch (e) { }
+
+        Alert.alert(
+            "Delete expense",
+            "Are you sure you want to delete this expense?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await deleteExpense(expense._id);
+                            typeof update === "function" && update();
+                        } catch (err) {
+                            console.warn("deleteExpense failed:", err);
+                        } finally {
+                            expenseSheetRef?.current?.dismiss?.();
+                        }
+                    },
+                },
+            ],
+            { cancelable: true }
+        );
+    };
+
+    const renderRightActions = (progress, translation, swipeableMethods) => {
+        const actionWidth = 88;
+
+        const animatedStyle = useAnimatedStyle(() => {
+            const tx = Math.min(Math.max(translation.value + actionWidth, 0), actionWidth);
+            return {
+                transform: [{ translateX: tx }],
+            };
+        });
+
+        return (
+            <Reanimated.View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
+                <Reanimated.View
+                    style={[
+                        styles.actionBtn,
+                        animatedStyle,
+                        {
+                            backgroundColor: theme.colors.negative || "#E55353",
+                            marginLeft: 16,
+                            marginRight: 4,
+                            marginVertical: 8,
+                            borderRadius: 30,
+                        },
+                    ]}
+                >
+                    <RectButton
+                        style={styles.actionInner}
+                        rippleColor="transparent"
+                        underlayColor="transparent"
+                        activeOpacity={1}
+                        onPress={() => handleDelete(swipeableMethods)}
+                    >
+                        <Ionicons name="trash-outline" size={22} color="#fff" />
+                    </RectButton>
+                </Reanimated.View>
+            </Reanimated.View>
+        );
+    };
+
     return (
         <>
-            <TouchableOpacity
-                style={styles.row}
-                activeOpacity={0.85}
-                onPress={openSheet}
+            <ReanimatedSwipeable
+                ref={swipeableRef}
+                friction={1}
+                overshootRight={false}
+                overshootLeft={false}
+                enableTrackpadTwoFingerGesture
+                renderRightActions={renderRightActions}
+                rightThreshold={40}
+                onSwipeableWillOpen={() => setIsSwiped(true)}
+                onSwipeableWillClose={() => setIsSwiped(false)}
             >
-                {/* Date */}
-                <View style={styles.dateBox}>
-                    <Text style={styles.dateMonth}>{month}</Text>
-                    <Text style={styles.dateDay}>{day}</Text>
-                </View>
-
-                {/* Divider */}
-                <View style={styles.divider} />
-
-                {/* Icon */}
-                {showIcon && !isSettle ? (
-                    <View style={styles.iconBox}>
-                        {isSettle ? (
-                            <SettleIcon width={20} height={20} color={theme.colors.text} />
-                        ) : (
-                            <CategoryIcon category={expense.category} size={20} color={theme.colors.text} />
-                        )}
-                    </View>
-                ) : null}
-
-                {/* Main content */}
-                <View style={styles.main}>
-                    {/* Left */}
-                    <View style={styles.left}>
-                        {!isSettle ? (
-                            <>
-                                <Text style={styles.title} numberOfLines={1}>
-                                    {expense.description || "—"}
-                                </Text>
-                                <Text style={styles.sub} numberOfLines={1}>
-                                    {showExpense
-                                        ? getExpenseContext()
-                                        : isSplit
-                                            ? getPayerInfo(expense.splits || []) !== false
-                                                ? `${getPayerInfo(expense.splits || [])} ${getSymbol(expense.currency)} ${Number(expense.amount || 0).toFixed(2)}`
-                                                : "not involved"
-                                            : (categoryConfig?.label || expense.category || "")}
-                                </Text>
-                            </>
-                        ) : (
-                            <Text style={[styles.sub,{marginLeft: 10}]} numberOfLines={1}>
-                                {getSettleDirectionText(expense.splits || [])} {getSymbol(expense.currency)} {Number(expense.amount || 0).toFixed(2)}
-                            </Text>
-                        )}
+                <RectButton
+                    style={styles.row}
+                    rippleColor="transparent"
+                    underlayColor="transparent"
+                    activeOpacity={1}
+                    onPress={openSheet}
+                >
+                    <View style={styles.dateBox}>
+                        <Text style={styles.dateMonth}>{month}</Text>
+                        <Text style={styles.dateDay}>{day}</Text>
                     </View>
 
-                    {/* Right */}
-                    {!isSettle && (
-                        <View style={styles.right}>
-                            {isSplit && oweInfo ? (
-                                showExpense ? (
-                                    // Show "your share"
-                                    <>
-                                        <Text style={[styles.oweText, { color: theme.colors.muted }]}>your share</Text>
-                                        <Text style={[styles.oweAmt, { color: theme.colors.negative ?? theme.colors.text }]}>
-                                            {getSymbol(expense.currency)} {Number(oweInfo.oweAmount || 0).toFixed(2)}
-                                        </Text>
-                                    </>
-                                ) : (
-                                    // Show net owe/lent
-                                    <>
-                                        <Text
-                                            style={[
-                                                styles.oweText,
-                                                oweInfo.positive ? { color: theme.colors.positive } : oweInfo.negative ? { color: theme.colors.negative } : { color: theme.colors.muted },
-                                            ]}
-                                        >
-                                            {oweInfo.text}
-                                        </Text>
-                                        <Text
-                                            style={[
-                                                styles.oweAmt,
-                                                oweInfo.positive ? { color: theme.colors.positive } : oweInfo.negative ? { color: theme.colors.negative } : { color: theme.colors.text },
-                                            ]}
-                                        >
-                                            {oweInfo.amount}
-                                        </Text>
-                                    </>
-                                )
+                    <View style={styles.divider} />
+
+                    {showIcon && !isSettle ? (
+                        <View style={styles.iconBox}>
+                            {isSettle ? (
+                                <SettleIcon width={20} height={20} color={theme.colors.text} />
                             ) : (
-                                <Text style={[styles.amount, { color: theme.colors.negative ?? theme.colors.text }]}>
-                                    {getSymbol(expense.currency)} {Math.abs(Number(expense.amount || 0)).toFixed(2)}
+                                <CategoryIcon category={expense.category} size={20} color={theme.colors.text} />
+                            )}
+                        </View>
+                    ) : null}
+
+                    <View style={styles.main}>
+                        <View style={styles.left}>
+                            {!isSettle ? (
+                                <>
+                                    <Text style={styles.title} numberOfLines={1}>
+                                        {expense.description || "—"}
+                                    </Text>
+                                    <Text style={styles.sub} numberOfLines={1}>
+                                        {showExpense
+                                            ? getExpenseContext()
+                                            : isSplit
+                                                ? getPayerInfo(expense.splits || []) !== false
+                                                    ? `${getPayerInfo(expense.splits || [])} ${getSymbol(expense.currency)} ${Number(expense.amount || 0).toFixed(2)}`
+                                                    : "not involved"
+                                                : (categoryConfig?.label || expense.category || "")}
+                                    </Text>
+                                </>
+                            ) : (
+                                <Text style={[styles.sub, { marginLeft: 10 }]} numberOfLines={1}>
+                                    {getSettleDirectionText(expense.splits || [])} {getSymbol(expense.currency)} {Number(expense.amount || 0).toFixed(2)}
                                 </Text>
                             )}
                         </View>
-                    )}
-                </View>
-            </TouchableOpacity>
+
+                        {!isSettle && (
+                            <View style={styles.right}>
+                                {isSplit && oweInfo ? (
+                                    showExpense ? (
+                                        <>
+                                            <Text style={[styles.oweText, { color: theme.colors.muted }]}>your share</Text>
+                                            <Text style={[styles.oweAmt, { color: theme.colors.negative ?? theme.colors.text }]}>
+                                                {getSymbol(expense.currency)} {Number(oweInfo.oweAmount || 0).toFixed(2)}
+                                            </Text>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Text
+                                                style={[
+                                                    styles.oweText,
+                                                    oweInfo.positive ? { color: theme.colors.positive } : oweInfo.negative ? { color: theme.colors.negative } : { color: theme.colors.muted },
+                                                ]}
+                                            >
+                                                {oweInfo.text}
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.oweAmt,
+                                                    oweInfo.positive ? { color: theme.colors.positive } : oweInfo.negative ? { color: theme.colors.negative } : { color: theme.colors.text },
+                                                ]}
+                                            >
+                                                {oweInfo.amount}
+                                            </Text>
+                                        </>
+                                    )
+                                ) : (
+                                    <Text style={[styles.amount, { color: theme.colors.negative ?? theme.colors.text }]}>
+                                        {getSymbol(expense.currency)} {Math.abs(Number(expense.amount || 0)).toFixed(2)}
+                                    </Text>
+                                )}
+                            </View>
+                        )}
+                    </View>
+                </RectButton>
+            </ReanimatedSwipeable>
 
             <BottomSheetExpense
                 innerRef={expenseSheetRef}
@@ -212,7 +291,7 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
                 onUpdateExpense={async (id, payload) => {
                     try {
                         await updateExpense(id, payload);
-                        update()
+                        update();
                     } catch (error) {
                         console.warn("updateExpense failed:", error);
                     }
@@ -220,9 +299,8 @@ const ExpenseRow = ({ expense = {}, userId, showExpense = false, update }) => {
                 onDeleteExpense={async (id) => {
                     try {
                         await deleteExpense(id);
-                        update()
+                        update();
                     } catch (e) {
-                        // swallow; sheet or parent should show error if needed
                         console.warn("deleteExpense failed:", e);
                     } finally {
                         expenseSheetRef?.current?.dismiss?.();
@@ -244,6 +322,7 @@ const createStyles = (theme) =>
             borderRadius: 12,
             marginBottom: 6,
             backgroundColor: "transparent",
+            overflow: "hidden",
         },
         dateBox: { width: 28, alignItems: "center" },
         dateMonth: { fontSize: 12, color: theme.colors.muted, textTransform: "uppercase" },
@@ -268,4 +347,20 @@ const createStyles = (theme) =>
         oweText: { fontSize: 12, color: theme.colors.muted },
         oweAmt: { fontSize: 16, fontWeight: "600", color: theme.colors.text, marginTop: -2 },
         amount: { fontSize: 16, fontWeight: "700", color: theme.colors.text },
+
+        actionBtn: {
+            width: 64,
+            justifyContent: "center",
+            alignItems: "center",
+        },
+        actionInner: {
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 8,
+        },
+        actionText: {
+            fontWeight: "700",
+            fontSize: 14,
+        },
     });

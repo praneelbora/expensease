@@ -160,7 +160,7 @@ export default function CurrencySettingsScreen() {
                 <FlatList
                     data={currencies}
                     keyExtractor={(i) => i.code}
-                    style={{}}
+                    contentContainerStyle={{ paddingBottom: 80, }}
                     renderItem={({ item }) => {
                         const active = String(item.code) === String(selected || authDefaultCurrency);
                         return (
@@ -191,7 +191,7 @@ export default function CurrencySettingsScreen() {
 
 const createStyles = (theme) =>
     StyleSheet.create({
-        safe: { flex: 1, backgroundColor: theme.colors.background },
+        safe: { flex: 1, backgroundColor: theme.colors.background, },
         infoRow: { flexDirection: "row", gap: 12, alignItems: "center" },
         iconWrap: {
             width: 56,

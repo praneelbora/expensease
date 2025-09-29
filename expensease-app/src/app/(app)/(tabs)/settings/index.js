@@ -73,10 +73,20 @@ function getInitials(name) {
 
 export default function AccountScreen() {
     const router = useRouter();
+
     const { logout, user, userToken, defaultCurrency, preferredCurrencies, setUser, loadUserData, version } = useAuth() || {};
     const { theme } = useTheme();
 
     const styles = useMemo(() => createStyles(theme), [theme]);
+    const isIos = Platform.OS === 'ios';
+    // Platform.Version is number on Android, string or number on iOS — normalize
+    const platformVersionNumber = (() => {
+        const v = Platform.Version;
+        if (typeof v === 'string') return parseFloat(v) || 0;
+        if (typeof v === 'number') return v;
+        return 0;
+    })();
+    const isIosLessThan26 = isIos && platformVersionNumber < 26;
 
     // state
     const [dc, setDc] = useState(defaultCurrency || "");
@@ -376,6 +386,7 @@ export default function AccountScreen() {
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <StatusBar style={theme.statusBarStyle === "dark-content" ? "dark" : "light"} />
+            {!isIos || isIosLessThan26 && <Header showBack />}
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
                 <ScrollView ref={scrollerRef} style={styles.scroller} contentContainerStyle={{ paddingBottom: 24 }}>
                     {loading ? (
@@ -387,62 +398,59 @@ export default function AccountScreen() {
                     ) : user || userToken ? (
                         <View style={{ gap: 12 }}>
                             {/* Account card */}
-                            <View style={styles.cardBox}>
-                                <View style={{ gap: 6 }}>
-                                    <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-                                        <TouchableOpacity activeOpacity={0.8} onPress={openAvatarSheet} style={styles.avatarTouchable}>
-                                            <View style={styles.avatarBorder}>
-                                                <View
-                                                    style={[
-                                                        styles.avatarContainer,
-                                                        selectedAvatar ? { justifyContent: "flex-end" } : { justifyContent: "center" },
-                                                    ]}
-                                                >
-                                                    {selectedAvatar ? (
-                                                        (() => {
-                                                            const found = avatars.find((a) => a.id === selectedAvatar);
-                                                            const AvatarComp = found?.Component || null;
-                                                            return AvatarComp ? <AvatarComp width={50} height={50} /> : <Text style={{ color: theme.colors.muted }}>—</Text>;
-                                                        })()
-                                                    ) : (
-                                                        <View style={[styles.placeholderCircle, { backgroundColor: theme.colors.card }]}>
-                                                            <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>{getInitials(user?.name || "")}</Text>
-                                                        </View>
-                                                    )}
-                                                </View>
-                                            </View>
 
-                                            <View style={[styles.penBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.card }]}>
-                                                <Edit width={12} height={12} stroke={theme.colors.background} />
-                                            </View>
-                                        </TouchableOpacity>
 
-                                        <View style={{ flex: 1 }}>
-                                            <TouchableOpacity onPress={openEditName} activeOpacity={0.85}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                    <Text style={styles.strongText}>{user?.name || "—"}</Text>
-                                                    <View style={{ marginLeft: 6 }}>
-                                                        {/* Small inline edit icon */}
-                                                        <Edit width={16} height={16} stroke={theme.colors.muted} />
-                                                    </View>
+                            <View style={{ flexDirection: "row", gap: 16, marginHorizontal: 12, alignItems: "center", }}>
+                                <TouchableOpacity activeOpacity={0.8} onPress={openAvatarSheet} style={styles.avatarTouchable}>
+                                    <View style={styles.avatarBorder}>
+                                        <View
+                                            style={[
+                                                styles.avatarContainer,
+                                                selectedAvatar ? { justifyContent: "flex-end" } : { justifyContent: "center" },
+                                            ]}
+                                        >
+                                            {selectedAvatar ? (
+                                                (() => {
+                                                    const found = avatars.find((a) => a.id === selectedAvatar);
+                                                    const AvatarComp = found?.Component || null;
+                                                    return AvatarComp ? <AvatarComp width={58} height={58} /> : <Text style={{ color: theme.colors.muted }}>—</Text>;
+                                                })()
+                                            ) : (
+                                                <View style={[styles.placeholderCircle, { backgroundColor: theme.colors.card }]}>
+                                                    <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>{getInitials(user?.name || "")}</Text>
                                                 </View>
-                                            </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    </View>
 
-                                            <View style={styles.rowBetween}>
-                                                <View style={{ flex: 1, paddingRight: 8 }}>
-                                                    {user?.email && <Text style={[styles.strongText2, { textTransform: "lowercase" }]} numberOfLines={1}>
-                                                        {user?.email}
-                                                    </Text>}
-                                                    {user?.phone && <Text style={[styles.strongText2, { textTransform: "lowercase" }]} numberOfLines={1}>
-                                                        {user?.phone}
-                                                    </Text>}
-                                                </View>
+                                    <View style={[styles.penBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.card }]}>
+                                        <Edit width={12} height={12} stroke={theme.colors.background} />
+                                    </View>
+                                </TouchableOpacity>
+
+                                <View style={{ flex: 1 }}>
+                                    <TouchableOpacity onPress={openEditName} activeOpacity={0.85}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                            <Text style={styles.strongText}>{user?.name || "—"}</Text>
+                                            <View style={{ marginLeft: 6 }}>
+                                                {/* Small inline edit icon */}
+                                                <Edit width={16} height={16} stroke={theme.colors.muted} />
                                             </View>
                                         </View>
-
+                                    </TouchableOpacity>
+                                    <View>
+                                        {user?.email && <Text style={[styles.strongText2, { textTransform: "lowercase" }]} numberOfLines={1}>
+                                            {user?.email}
+                                        </Text>}
+                                        {user?.phone && <Text style={[styles.strongText2, { textTransform: "lowercase" }]} numberOfLines={1}>
+                                            {user?.phone}
+                                        </Text>}
                                     </View>
                                 </View>
+
                             </View>
+
+
 
 
 
@@ -712,12 +720,12 @@ const createStyles = (theme) =>
         sectionLabelSmall: { color: theme.colors.muted, fontSize: 12, marginBottom: 6 },
         dividerV: { width: 1, height: 18, backgroundColor: theme.colors.border },
 
-        cardBox: { gap: 8 },
+        cardBox: { gap: 8, paddingHorizontal: 12, },
         rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
 
         hintText: { color: theme.colors.muted, fontSize: 12 },
         strongText: { color: theme.colors.text, fontSize: 22, fontWeight: "700", textTransform: "capitalize" },
-        strongText2: { color: theme.colors.text, fontSize: 16, fontWeight: "500", textTransform: "lowercase" },
+        strongText2: { color: theme.colors.muted, fontSize: 14, fontWeight: "400", textTransform: "lowercase" },
         mutedText: { color: theme.colors.muted, fontSize: 13 },
 
         selectBtn: {
@@ -762,33 +770,33 @@ const createStyles = (theme) =>
 
         // avatar styles
         avatarTouchable: {
-            width: 64,
-            height: 64,
+            width: 72,
+            height: 72,
             alignItems: "center",
             justifyContent: "center",
             position: "relative",
         },
         avatarBorder: {
-            width: 64,
-            height: 64,
-            borderRadius: 32,
+            width: 72,
+            height: 72,
+            borderRadius: 36,
             borderWidth: 2,
             borderColor: theme.colors.card,
             alignItems: "center",
             justifyContent: "center",
         },
         avatarContainer: {
-            width: 60,
-            height: 60,
-            borderRadius: 30,
+            width: 68,
+            height: 68,
+            borderRadius: 34,
             overflow: "hidden",
             alignItems: "center",
             backgroundColor: "transparent",
         },
         placeholderCircle: {
-            width: 56,
-            height: 56,
-            borderRadius: 28,
+            width: 64,
+            height: 64,
+            borderRadius: 32,
             alignItems: "center",
             justifyContent: "center",
         },

@@ -117,7 +117,7 @@ export default function FAQScreen() {
                     </View>
                 </View>
 
-                <View style={{ marginTop: 10 }}>
+                <View style={{ marginTop: 10, }}>
                     {filtered.length === 0 ? (
                         <View style={styles.empty}>
                             <Text style={styles.emptyTitle}>No results found</Text>
@@ -131,6 +131,7 @@ export default function FAQScreen() {
                             data={filtered}
                             keyExtractor={(item) => String(item.id)}
                             scrollEnabled={false}
+                            contentContainerStyle={{}}
                             renderItem={({ item }) => {
                                 const isOpen = openId === item.id;
                                 return (
@@ -140,10 +141,10 @@ export default function FAQScreen() {
                                                 <Text style={styles.faqQ}>{item.q}</Text>
                                             </View>
                                             <View>
-                                                {isOpen?
-                                                <ChevronUp height={20} width={20} color={theme.colors.muted}/>
-                                                :
-                                                <ChevronDown height={20} width={20} color={theme.colors.muted}/>
+                                                {isOpen ?
+                                                    <ChevronUp height={20} width={20} color={theme.colors.muted} />
+                                                    :
+                                                    <ChevronDown height={20} width={20} color={theme.colors.muted} />
                                                 }
                                             </View>
                                         </TouchableOpacity>
@@ -202,7 +203,7 @@ export default function FAQScreen() {
 const createStyles = (theme) =>
     StyleSheet.create({
         safe: { flex: 1, backgroundColor: theme.colors.background },
-        container: { paddingHorizontal: 16, paddingBottom: 48 },
+        container: { paddingHorizontal: 16, paddingBottom: 100 },
         hero: { marginBottom: 6 },
         h1: { fontSize: 22, fontWeight: "800", color: theme.colors.primary },
         lead: { marginTop: 6, color: theme.colors.muted },

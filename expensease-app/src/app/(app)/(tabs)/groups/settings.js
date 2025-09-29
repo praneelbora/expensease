@@ -526,13 +526,11 @@ export default function GroupSettingsScreen() {
                             if (confirmAction === "leave") {
                                 await leaveGroup(id, userToken);
                             } else {
-                                console.log("delete 1");
                                 await deleteGroup(id, userToken);
                             }
 
                             // Close the modal immediately so the native modal/backdrop will be dismissed
                             setConfirmAction(null);
-                            console.log("delete 2");
 
                             // give React Native a moment to unmount/dismiss the native modal to avoid it capturing touches
                             // Prefer using onDismiss prop of Modal if you want to be exact; timeout is a lightweight fallback
