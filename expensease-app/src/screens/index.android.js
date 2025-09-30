@@ -396,7 +396,7 @@ export default function Login() {
                                         textContainerStyle={styles.phoneTextContainer}
                                         textInputStyle={styles.phoneTextInput}
                                         flagButtonStyle={styles.flagButton}
-                                        codeTextStyle={{ display: "none" }}   // 👈 hides country code
+                                        codeTextStyle={styles.codeText}   // 👈 hides country code
                                         renderDropdownImage={
                                             <Ionicons name="chevron-down" size={18} color={theme.colors.text} />
                                         }
@@ -638,7 +638,7 @@ const createStyles = (theme, insets) =>
             alignItems: "center",
         },
         flagButton: {
-            width: 80,
+            width: 40,
             justifyContent: "center",
             alignItems: "center",
             paddingHorizontal: 8,
