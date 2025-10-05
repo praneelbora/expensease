@@ -53,12 +53,12 @@ export default function TabsLayout() {
 
 
     return (
-        <Tabs initialRouteName="dashboard" screenOptions={opts}>
+        <Tabs initialRouteName="home" screenOptions={opts}>
             <Tabs.Screen
-                name="dashboard"
+                name="home"
                 options={{
-                    title: "Dashboard",
-                    tabBarAccessibilityLabel: "Dashboard",
+                    title: "Home",
+                    tabBarAccessibilityLabel: "home",
                     tabBarIcon: ({ color, size }) => <Dash width={size} height={size} stroke={color} fill="none" />,
                 }}
             />
@@ -87,7 +87,6 @@ export default function TabsLayout() {
                     tabBarIcon: ({ color, size }) => <Cog width={size} height={size} stroke={color} fill="none" />,
                 }}
             />
-            <Tabs.Screen name="expenses" options={{ href: null, title: "Expenses" }} />
         </Tabs>
     );
 }

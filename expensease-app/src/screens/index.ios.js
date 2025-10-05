@@ -28,7 +28,8 @@ import { useAuth } from "context/AuthContext";
 import { NotificationContext } from "context/NotificationContext";
 import { router } from "expo-router";
 import * as AppleAuthentication from 'expo-apple-authentication';
-import PhoneInput from "react-native-phone-number-input";
+import PhoneInput from "@linhnguyen96114/react-native-phone-input";
+
 import { OtpInput } from "react-native-otp-entry";
 
 export default function Login() {
@@ -127,9 +128,9 @@ export default function Login() {
                 if (userToken && !authLoading && user) {
                     try {
                         setNavigating(true);
-                        router.replace("dashboard");
+                        router.replace("home");
                     } catch (e) {
-                        console.warn("[Login] Failed to route to dashboard:", e);
+                        console.warn("[Login] Failed to route to home:", e);
                         setNavigating(false);
                     }
                     return;
@@ -143,9 +144,9 @@ export default function Login() {
                 if (userToken && !authLoading && user) {
                     try {
                         setNavigating(true);
-                        router.replace("dashboard");
+                        router.replace("home");
                     } catch (e) {
-                        console.warn("[Login] Failed to route to dashboard after version-check error:", e);
+                        console.warn("[Login] Failed to route to home after version-check error:", e);
                         setNavigating(false);
                     }
                 }
@@ -261,7 +262,7 @@ export default function Login() {
                 await setUserToken(resp.userToken);
                 // show loading while we navigate
                 setNavigating(true);
-                router.replace("dashboard");
+                router.replace("home");
             } else {
                 setOtpError(resp?.error || "OTP verification failed");
             }
@@ -277,13 +278,13 @@ export default function Login() {
     const formatSentPhone = (phone) => {
         // Prefer the stored split values (we stored them on send); fallback to lastSentPhone or provided phone
         const p = phone || lastSentPhone;
-        if (callingCode && nationalNumber) return `${nationalNumber}`;
+        if (callingCode && nationalNumber) return `+${callingCode} ${nationalNumber}`;
         if (p) {
             // p should already be "+<cc><number>", show with space after cc for readability
             const onlyDigits = String(p).replace(/\D/g, "");
             const cc = onlyDigits.slice(0, Math.min(3, onlyDigits.length - 4));
             const num = onlyDigits.slice(cc.length);
-            return cc ? `${num}` : p;
+            return cc ? `+${cc} ${num}` : p;
         }
         return "";
     };
@@ -320,7 +321,7 @@ export default function Login() {
                 router.replace("updateScreen");
             } else {
                 setNavigating(true);
-                router.replace("dashboard");
+                router.replace("home");
             }
         } catch (err) {
             setError(err?.message || "Google login failed. Please try again.");
@@ -373,7 +374,7 @@ export default function Login() {
                     router.replace("updateScreen");
                 } else {
                     setNavigating(true);
-                    router.replace("dashboard");
+                    router.replace("home");
                 }
             } else {
                 throw new Error("Apple login failed: invalid server response");
@@ -411,7 +412,7 @@ export default function Login() {
             if (res?.userToken) {
                 await setUserToken(res.userToken);
                 setNavigating(true);
-                router.replace("dashboard");
+                router.replace("home");
             } else {
                 setDevError(res?.error || "Dev login failed.");
             }
@@ -548,7 +549,7 @@ export default function Login() {
                                             textContainerStyle={styles.phoneTextContainer}
                                             textInputStyle={styles.phoneTextInput}
                                             flagButtonStyle={styles.flagButton}
-                                            codeTextStyle={{ display: "none" }}   // 👈 hides country code
+                                            codeTextStyle={styles.codeText}   // 👈 hides country code
                                             renderDropdownImage={
                                                 <Ionicons name="chevron-down" size={18} color={theme.colors.text} />
                                             }
@@ -807,7 +808,7 @@ const createStyles = (theme, insets) =>
 
         // compact flag + code area so phone number gets most space
         flagButton: {
-            width: 80, // smaller than full input
+            width: 40, // smaller than full input
             justifyContent: "center",
             alignItems: "center",
             paddingHorizontal: 8,

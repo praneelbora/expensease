@@ -348,7 +348,7 @@ export default function GroupsScreen() {
                     data={loading ? [] : filteredGroups}
                     keyExtractor={(item) => String(item._id)}
                     renderItem={renderItem}
-                    contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}
+                    contentContainerStyle={{ paddingTop: 8, paddingBottom: 124, }}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme?.colors?.primary} />}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={
@@ -384,7 +384,7 @@ export default function GroupsScreen() {
                     }
                 />
                 <FAB onPress={() => { newExpenseBottomSheetRef?.current?.present?.() }} />
-                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} selctedMode={"split"} />
+                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} selctedMode={"split"} onSave={onRefresh} />
 
 
                 <BottomSheetGroups

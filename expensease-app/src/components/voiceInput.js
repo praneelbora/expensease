@@ -439,7 +439,7 @@ export default function VoiceInput({
                     style={s.floatingMic}
                     accessibilityLabel="Open voice input"
                 >
-                    <Feather name="mic" size={20} color={colors.text} />
+                    <Feather name="mic" size={20} color={colors.background} />
                 </TouchableOpacity>
             </View>
 
@@ -577,7 +577,7 @@ const compactStyles = (colors, opts = {}) =>
             width: 58,
             height: 58,
             borderRadius: 32,
-            backgroundColor: colors.cta || colors.primary || "#00C49F",
+            backgroundColor: colors.primary || "#00C49F",
             justifyContent: "center",
             alignItems: "center",
             shadowColor: "#000",

@@ -287,7 +287,7 @@ export default function ContactScreen() {
 const createStyles = (theme) =>
     StyleSheet.create({
         safe: { flex: 1, backgroundColor: theme.colors.background },
-        container: { padding: 16, paddingBottom: 48 },
+        container: { padding: 16, paddingBottom: 100 },
         hero: { flexDirection: "row", gap: 12, alignItems: "flex-start", marginBottom: 6 },
         heroIcon: {
             width: 48,

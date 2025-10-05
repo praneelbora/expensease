@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import PhoneInput from "react-native-phone-number-input";
+import PhoneInput from "@linhnguyen96114/react-native-phone-input";
 import { OtpInput } from "react-native-otp-entry";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -141,7 +141,10 @@ export default function Login() {
             setSending(false);
         }
     };
-
+    const callingCodeRef = useRef(callingCode); // keep a mutable ref in sync
+    useEffect(() => {
+        callingCodeRef.current = String(callingCode || "");
+    }, [callingCode]);
     const handleVerifyOtp = async () => {
         setOtpError("");
         const code = (otpCode || "").trim();
@@ -158,7 +161,7 @@ export default function Login() {
             const resp = await verifyOTP(lastSentPhone, code, expoPushToken, Platform.OS);
             if (resp?.userToken) {
                 await setUserToken(resp.userToken);
-                router.replace("dashboard");
+                router.replace("home");
             } else {
                 setOtpError(resp?.error || "OTP verification failed");
             }
@@ -203,9 +206,9 @@ export default function Login() {
 
                 if (userToken && !authLoading && user) {
                     try {
-                        router.replace("dashboard");
+                        router.replace("home");
                     } catch (e) {
-                        console.warn("[Login] Failed to route to dashboard:", e);
+                        console.warn("[Login] Failed to route to home:", e);
                     }
                     return;
                 }
@@ -215,9 +218,9 @@ export default function Login() {
                 console.warn("[Login] Version check failed:", err);
                 if (userToken && !authLoading && user) {
                     try {
-                        router.replace("dashboard");
+                        router.replace("home");
                     } catch (e) {
-                        console.warn("[Login] Failed to route to dashboard after version-check error:", e);
+                        console.warn("[Login] Failed to route to home after version-check error:", e);
                     }
                 } else {
                     setUnderReview(false);
@@ -297,7 +300,7 @@ export default function Login() {
             if (response?.outdated) {
                 router.replace("updateScreen");
             } else {
-                router.replace("dashboard");
+                router.replace("home");
             }
         } catch (err) {
             console.warn("[Login] Credential login error:", err?.message || err);
@@ -343,7 +346,7 @@ export default function Login() {
             if (response?.outdated) {
                 router.replace("updateScreen");
             } else {
-                router.replace("dashboard");
+                router.replace("home");
             }
         } catch (err) {
             setError(err?.message || "Login failed. Please try again.");
@@ -381,25 +384,65 @@ export default function Login() {
                                         defaultCode={defaultCountryCode}
                                         layout="first"
                                         value={nationalNumber}
-                                        onChangeText={(text) => setNationalNumber(text.replace(/\D/g, ""))}
+                                        onChangeText={(text) => {
+                                            // direct manual typing into the national input (no formatting)
+                                            setNationalNumber(String(text || "").replace(/\D/g, ""));
+                                        }}
                                         onChangeFormattedText={(formatted) => {
-                                            const cc = phoneInputRef.current?.getCallingCode?.() || "";
+                                            // Defensive: get digits-only version of formatted text
                                             const digitsOnly = String(formatted || "").replace(/\D/g, "");
-                                            if (cc && digitsOnly.startsWith(cc)) {
-                                                setCallingCode(cc);
-                                                setNationalNumber(digitsOnly.slice(cc.length));
+                                            // canonical calling code from the phone input at this instant
+                                            const ccNow = String(phoneInputRef.current?.getCallingCode?.() || "");
+
+                                            // 1) If user pasted a full E.164 like "+91xxxxxxxx" (formatted likely starts with +)
+                                            //    treat it as explicit paste: update both callingCode and nationalNumber.
+                                            const maybeE164 = (formatted || "").trim().startsWith("+");
+                                            if (maybeE164 && ccNow) {
+                                                // If digitsOnly starts with ccNow, peel it off and set national number
+                                                if (digitsOnly.startsWith(ccNow)) {
+                                                    const nat = digitsOnly.slice(ccNow.length);
+                                                    setCallingCode(ccNow.replace(/\D/g, ""));
+                                                    callingCodeRef.current = ccNow.replace(/\D/g, "");
+                                                    setNationalNumber(nat);
+                                                    return;
+                                                }
+                                            }
+
+                                            // 2) If the canonical calling code reported by the input just changed compared to our ref,
+                                            //    treat this onChangeFormattedText as the country-change event and bail out.
+                                            //    The country-change handler (onSelectCountry) will set the official calling code.
+                                            if (ccNow && ccNow !== (callingCodeRef.current || "")) {
+                                                // Update ref so subsequent onChangeFormattedText won't repeat this branch.
+                                                // But DO NOT copy ccNow text into national number — the user didn't type it.
+                                                callingCodeRef.current = ccNow;
+                                                // Optionally also update state callingCode so other pieces can see it immediately.
+                                                setCallingCode(ccNow.replace(/\D/g, ""));
+                                                return;
+                                            }
+
+                                            // 3) Normal typing / editing case: set the national number only (strip any stray CC)
+                                            const ccToStrip = ccNow || callingCodeRef.current || "";
+                                            if (ccToStrip && digitsOnly.startsWith(String(ccToStrip))) {
+                                                setNationalNumber(digitsOnly.slice(String(ccToStrip).length));
                                             } else {
                                                 setNationalNumber(digitsOnly);
                                             }
+                                        }}
+                                        // Preferred: this callback triggers when user actively selects a country via picker
+                                        onSelectCountry={(country) => {
+                                            // typical shape: country.callingCode is ['91']
+                                            const newCc = (country?.callingCode && country.callingCode[0]) || "";
+                                            const newCcDigits = String(newCc).replace(/\D/g, "");
+                                            setCallingCode(newCcDigits);
+                                            callingCodeRef.current = newCcDigits;
+                                            // We don't touch nationalNumber here; don't copy previous displayed text into it.
                                         }}
                                         containerStyle={styles.phoneContainer}
                                         textContainerStyle={styles.phoneTextContainer}
                                         textInputStyle={styles.phoneTextInput}
                                         flagButtonStyle={styles.flagButton}
-                                        codeTextStyle={{ display: "none" }}   // 👈 hides country code
-                                        renderDropdownImage={
-                                            <Ionicons name="chevron-down" size={18} color={theme.colors.text} />
-                                        }
+                                        codeTextStyle={styles.codeText}
+                                        renderDropdownImage={<Ionicons name="chevron-down" size={18} color={theme.colors.text} />}
                                         placeholder="9876543210"
                                     />
 

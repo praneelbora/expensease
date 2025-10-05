@@ -218,7 +218,7 @@ export default function PaymentAccountsScreen() {
 
                 <FlatList
                     data={loadingPaymentMethods ? [] : filtered}
-                    contentContainerStyle={{ gap: 12 }}
+                    contentContainerStyle={{ gap: 12, paddingBottom: 80, }}
                     keyExtractor={(it) => String(it._id)}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00d0b0" />}
                     renderItem={({ item }) => (

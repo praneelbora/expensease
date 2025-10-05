@@ -532,9 +532,13 @@ export default function FriendDetails() {
         }
     }, [userToken]);
 
-    const fetchData = useCallback(async () => {
+    const fetchData = useCallback(async (refresh) => {
         try {
-            setLoading(true);
+            if (!refresh) {
+                console.log('setloading - true');
+
+                setLoading(true);
+            }
             const data = await getFriendDetails(id, userToken);
             setFriend(data.friend);
             setUserId(data.id);
@@ -586,7 +590,7 @@ export default function FriendDetails() {
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        try { await fetchData(); } finally { setRefreshing(false); }
+        try { await fetchData(true); } finally { setRefreshing(false); }
     }, [fetchData]);
 
     // actions
@@ -625,7 +629,7 @@ export default function FriendDetails() {
             // optional: close bottom sheet (if your sheet supports dismiss)
             settleRef.current?.dismiss?.();
             setShowSettle(false);
-            await fetchData();
+            await fetchData(true);
         } catch (e) {
             console.error("Settle submit error:", e);
             // optionally show user-facing error: toast/alert
@@ -654,7 +658,7 @@ export default function FriendDetails() {
             }
             settleRef.current?.dismiss?.();
             setShowSettle(false);
-            await fetchData();
+            await fetchData(true);
         } catch (e) {
             console.error("Settle all error:", e);
         }
@@ -896,7 +900,11 @@ export default function FriendDetails() {
 
                 <FAB onPress={() => { newExpenseBottomSheetRef?.current?.present?.(); }} />
             )}
-            <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} preSelectedFriendId={id} />
+            <NewExpenseBottomSheet
+                innerRef={newExpenseBottomSheetRef}
+                preSelectedFriendId={id}
+                onSave={onRefresh}
+            />
             {/* Bottom-sheet settle wired with real data */}
             <BtmShtSettle
                 innerRef={settleRef}
@@ -939,7 +947,7 @@ const createStyles = (theme = {}) => {
 
         statusBar: theme?.statusBarStyle === "dark-content" ? "dark" : "light",
 
-        listContent: { paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8, flexGrow: 1 },
+        listContent: { paddingHorizontal: 16, paddingBottom: 124, paddingTop: 8, flexGrow: 1 },
 
         headerRow: { flex: 1, flexDirection: "column", justifyContent: "space-between", paddingHorizontal: 0, paddingBottom: 12 },
         balanceColumn: { flexDirection: "column", flex: 1 },

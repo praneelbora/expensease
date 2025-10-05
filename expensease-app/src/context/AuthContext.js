@@ -246,9 +246,9 @@ export const AuthProvider = ({ children }) => {
             // If we now have a token and user data and we're on an auth entry route, redirect to dashboard
             if ((justHydrated || tokenBecameTruthy) && userToken && !authLoading && user && AUTH_ENTRY_ROUTES.includes(currentRootLower)) {
                 try {
-                    router.replace("dashboard");
+                    router.replace("home");
                 } catch (e) {
-                    console.warn("Auth -> navigation to dashboard failed:", e);
+                    console.warn("Auth -> navigation to home failed:", e);
                 }
                 // update prev refs after redirect attempt
                 prevHydrated.current = hydrated;

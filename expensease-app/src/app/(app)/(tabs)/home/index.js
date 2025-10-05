@@ -20,8 +20,8 @@ import { createPaymentMethod } from "services/PaymentMethodService";
 
 import Header from "~/header";
 import ExpenseRow from "~/expenseRow";
-import FAB from "~/fab";
 import EmptyCTA from "~/cta";
+import FAB from "~/fab";
 import NewExpenseBottomSheet from "~/newExpenseBottomSheet";
 import { useTheme } from "context/ThemeProvider";
 
@@ -501,7 +501,7 @@ function DashboardScreenInner() {
                             <EmptyCTA
                                 title="No Expenses yet!"
                                 subtitle="You haven’t added any expenses yet. Start by adding your first one to see stats and insights."
-                                ctaLabel="Add Expemse"
+                                ctaLabel="Add Expense"
                                 onPress={() => newExpenseBottomSheetRef?.current?.present?.()}
                             />
                         </View>
@@ -531,7 +531,7 @@ function DashboardScreenInner() {
 
                                 <View style={styles.cardsGrid}>
                                     {/* Total */}
-                                    <TouchableOpacity style={styles.card} onPress={() => router.push("/expenses")} activeOpacity={0.8}>
+                                    <TouchableOpacity style={styles.card} onPress={() => router.push("home/expenses")} activeOpacity={0.8}>
                                         <Text style={styles.cardLabel}>Total Expenses</Text>
                                         <View style={{ marginTop: 4 }}>
                                             {Object.entries(statsByRange.total).map(([code, amt]) => (
@@ -546,7 +546,7 @@ function DashboardScreenInner() {
 
                                     {/* Personal */}
                                     {Object.keys(statsByRange.personal.amount).length > 0 && (
-                                        <TouchableOpacity style={styles.card} onPress={() => router.push("/expenses?type=personal")} activeOpacity={0.8}>
+                                        <TouchableOpacity style={styles.card} onPress={() => router.push("home/expenses?type=personal")} activeOpacity={0.8}>
                                             <Text style={styles.cardLabel}>Personal Expenses</Text>
                                             <View style={{ marginTop: 4 }}>
                                                 {Object.entries(statsByRange.personal.amount).map(([code, amt]) => (
@@ -561,7 +561,7 @@ function DashboardScreenInner() {
 
                                     {/* Group */}
                                     {Object.keys(statsByRange.group.amount).length > 0 && (
-                                        <TouchableOpacity style={styles.card} onPress={() => router.push("/expenses?type=group")} activeOpacity={0.8}>
+                                        <TouchableOpacity style={styles.card} onPress={() => router.push("home/expenses?type=group")} activeOpacity={0.8}>
                                             <Text style={styles.cardLabel}>Group Expenses</Text>
                                             <View style={{ marginTop: 4 }}>
                                                 {Object.entries(statsByRange.group.amount).map(([code, amt]) => (
@@ -576,7 +576,7 @@ function DashboardScreenInner() {
 
                                     {/* Friend */}
                                     {Object.keys(statsByRange.friend.amount).length > 0 && (
-                                        <TouchableOpacity style={styles.card} onPress={() => router.push("/expenses?type=friend")} activeOpacity={0.8}>
+                                        <TouchableOpacity style={styles.card} onPress={() => router.push("home/expenses?type=friend")} activeOpacity={0.8}>
                                             <Text style={styles.cardLabel}>Friend Expenses</Text>
                                             <View style={{ marginTop: 4 }}>
                                                 {Object.entries(statsByRange.friend.amount).map(([code, amt]) => (
@@ -596,7 +596,7 @@ function DashboardScreenInner() {
                                 <View style={{}}>
                                     <View style={styles.rowBetween}>
                                         <Text style={styles.sectionLabel}>Recent Expenses</Text>
-                                        {/* <TouchableOpacity onPress={() => router.push("/expenses")} activeOpacity={0.7}>
+                                        {/* <TouchableOpacity onPress={() => router.push("home/expenses")} activeOpacity={0.7}>
                                             <Text style={[styles.linkText, { color: theme.colors.primary }]}>View All</Text>
                                         </TouchableOpacity> */}
                                     </View>
@@ -604,7 +604,7 @@ function DashboardScreenInner() {
                                     {recentByDay.map(([day, list]) => (
                                         <View key={day} style={{ gap: 0 }}>
                                             <FlatList
-                                                data={(list || []).slice(0, 3)}
+                                                data={(list || []).slice(0, 5)}
                                                 keyExtractor={(item) => item._id}
                                                 scrollEnabled={false}
                                                 renderItem={({ item }) => (
@@ -620,7 +620,7 @@ function DashboardScreenInner() {
 
                                     {/* NEW CTA: View all expenses button below the recent list */}
                                     <View style={{ alignItems: "center", marginTop: 12 }}>
-                                        <TouchableOpacity style={styles.viewAllCta} onPress={() => router.push("/expenses")} activeOpacity={0.8}>
+                                        <TouchableOpacity style={styles.viewAllCta} onPress={() => router.push("home/expenses")} activeOpacity={0.8}>
                                             <Text style={styles.viewAllCtaText}>View all expenses</Text>
                                         </TouchableOpacity>
                                     </View>
@@ -629,7 +629,10 @@ function DashboardScreenInner() {
                         </>
                     )}
                 </ScrollView>
-                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} />
+                <NewExpenseBottomSheet
+                    innerRef={newExpenseBottomSheetRef}
+                    onSave={onRefresh}
+                />
                 <FAB onPress={() => {
                     newExpenseBottomSheetRef?.current?.present?.();
                 }} />
@@ -695,7 +698,7 @@ const createStyles = (theme) =>
     StyleSheet.create({
         safe: { flex: 1, backgroundColor: theme.colors.background },
         headerTitle: { color: theme.colors.text, fontSize: 24, fontWeight: "700" },
-        scroller: { flex: 1 },
+        scroller: { flex: 1,paddingBottom:124,  },
         centerBox: { paddingVertical: 24, alignItems: "center", justifyContent: "center" },
 
         emptyCard: {

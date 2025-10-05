@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { SectionList } from "react-native";
 
+import FAB from "~/fab";
+import NewExpenseBottomSheet from "~/newExpenseBottomSheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
@@ -62,7 +64,7 @@ export default function ExpensesScreen() {
     const [query, setQuery] = useState("");
     const [showFilter, setShowFilter] = useState(false);
     const filterSheetRef = useRef(null);
-
+    const newExpenseBottomSheetRef = useRef()
     const currencyOptions = useMemo(() => {
         const base = new Set([defaultCurrency, ...(preferredCurrencies || [])]);
         return allCurrencies
@@ -129,7 +131,7 @@ export default function ExpensesScreen() {
             }, {});
 
         const q = new URLSearchParams(qp).toString();
-        router.replace(`/expenses${q ? `?${q}` : ""}`);
+        // router.replace(`/dashboard/expenses${q ? `?${q}` : ""}`);
     }, [appliedFilter, router]);
 
     // fetch
@@ -505,7 +507,7 @@ export default function ExpensesScreen() {
                 title="Expenses"
                 showFilter
                 showBack
-                onBack={() => router.push("/dashboard")}
+                onBack={() => router.push("/home")}
                 onFilterPress={() => filterSheetRef.current?.present()}
                 filterBtnActive={JSON.stringify(appliedFilter) !== JSON.stringify(DEFAULT_FILTER)}
             />
@@ -515,6 +517,10 @@ export default function ExpensesScreen() {
                 {expenses.length > 0 && (
                     <SearchBar value={query} onChangeText={setQuery} placeholder="Search Descriptions / Names / Amounts / Currencies" />
                 )}
+                <NewExpenseBottomSheet innerRef={newExpenseBottomSheetRef} onSave={onRefresh} />
+                <FAB onPress={() => {
+                    newExpenseBottomSheetRef?.current?.present?.();
+                }} />
                 <SectionList
                     sections={loading ? [] : sections}
                     keyExtractor={(item) => String(item._id)}
@@ -528,7 +534,7 @@ export default function ExpensesScreen() {
                     )}
                     renderSectionHeader={({ section }) => (<MonthHeader title={section.title} summary={section.summary} />)}
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
+                    contentContainerStyle={{ paddingVertical: 8, paddingBottom:124, flexGrow: 1 }}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
                     ListEmptyComponent={
                         loading ? (

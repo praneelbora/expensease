@@ -2,7 +2,8 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "context/ThemeProvider";
-// app/newExpense.js
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     View,
@@ -16,7 +17,8 @@ import {
     Platform,
     Alert,
     KeyboardAvoidingView,
-    Keyboard
+    Keyboard,
+    Animated
 } from "react-native";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect } from "@react-navigation/native";
@@ -61,7 +63,7 @@ const TEST_MODE = process.env.EXPO_PUBLIC_TEST_MODE;
  * - exposes same API as before (innerRef, onDismiss, children)
  * - keeps handle hidden (handleComponent={null}) as before
  */
-const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismiss, snapPoints = ["100%"], backgroundStyle, addView = false, onClose, preSelectedFriendId, preSelectedGroupId }) => {
+const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismiss, snapPoints = ["100%"], backgroundStyle, addView = false, onClose, preSelectedFriendId, preSelectedGroupId, onSave }) => {
     const insets = useSafeAreaInsets();
     const { theme } = useTheme?.() || {};
     const colors = theme?.colors || {};
@@ -94,28 +96,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
         // also dismiss keyboard
         Keyboard.dismiss();
     };
-    // keyboard tracking so absolutely-positioned footer moves above keyboard
-    const [kbHeight, setKbHeight] = useState(0);
 
-    useEffect(() => {
-        // keyboard events differ between platforms; use keyboardDidShow/Hide for consistency
-        const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-        const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-        const onShow = (e) => {
-            const h = (e?.endCoordinates?.height) ? e.endCoordinates.height : (e?.end?.height ?? 0);
-            setKbHeight(h);
-        };
-        const onHide = () => setKbHeight(0);
-
-        const subShow = Keyboard.addListener(showEvent, onShow);
-        const subHide = Keyboard.addListener(hideEvent, onHide);
-
-        return () => {
-            subShow.remove();
-            subHide.remove();
-        };
-    }, []);
 
     // ------------ state ------------
     const [loading, setLoading] = useState(true);
@@ -219,6 +200,12 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
         } catch (e) {
         }
     }, [userToken]);
+    // reset guards whenever props or the sheet ref change so reopen can re-apply preselection
+    useEffect(() => {
+        appliedPreselectFromProps.current = false;
+        hasPreselectedFriend.current = false;
+        hasPreselectedGroup.current = false;
+    }, [preSelectedFriendId, preSelectedGroupId, innerRef]);
 
     // Replace the existing handleVoiceParsed with this function (inside NewExpenseScreen)
     const mapParsedParticipantsToSelectedFriends = (participants = [], friendsList = [], userObj = {}) => {
@@ -313,7 +300,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
     const handleVoiceParsed = async (parsed) => {
         try {
-            console.log("voice parsed:", parsed);
             if (!parsed || typeof parsed !== "object") return;
 
             // Basic top-level fields
@@ -394,7 +380,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 // map participants -> selectedFriends
                 const mapped = mapParsedParticipantsToSelectedFriends(parsed.participants || [], friends || [], user || {});
                 let finalList = mapped;
-                console.log(mapped);
 
                 // After you've built finalList = mapParsedParticipantsToSelectedFriends(...)
 
@@ -509,8 +494,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             if (parsed.paymentMethod && parsed.mode === "split") {
                 // If parser suggests an overall paymentMethod and the payer is me, set my paymentMethod
                 const payByMe = Array.isArray(parsed.participants) && parsed.participants.some((p) => /^me$/i.test(String(p.name || "")) && p.paying);
-                console.log('payByMe: ', payByMe);
-
                 if (payByMe) {
                     const exists = (paymentMethods || []).find((pm) => String(pm._id) === String(parsed.paymentMethod));
                     if (exists) setPaymentMethod(parsed.paymentMethod);
@@ -617,7 +600,10 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
     // This is tailored for a BottomSheet: wait for data, then toggle selection.
     // We only apply once per open; the guards are reset on sheet dismiss below.
     useEffect(() => {
-        // if already applied, do nothing
+        if (!innerRef.current) {
+            return;
+        }
+
         if (appliedPreselectFromProps.current) return;
 
         // wait until lists are loaded
@@ -636,17 +622,45 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             }
         }
 
+
         if (preSelectedFriendId && !hasPreselectedFriend.current) {
             const f = friends.find((x) => String(x._id) === String(preSelectedFriendId));
             if (f) {
                 setExpenseMode("split");
                 hasPreselectedFriend.current = true;
                 appliedPreselectFromProps.current = true;
-                toggleFriend(f);
+
+                // Build initial selectedFriends: add the friend + ensure me is present
+                // then set defaults: me pays, everyone (including me) owes; distribute equal owes
+                const friendEntry = { ...f, paying: false, owing: true, payAmount: 0, oweAmount: 0, owePercent: 0 };
+                let initial = addMeIfNeeded([friendEntry]);
+
+                // mark me as payer (if user exists)
+                initial = initial.map((it) =>
+                    String(it._id) === String(user?._id)
+                        ? { ...it, paying: true, payAmount: num(amount) } // if amount empty -> 0
+                        : { ...it, paying: false }
+                );
+
+                // ensure owe flags for everyone (including me)
+                initial = initial.map((it) => ({ ...it, owing: true }));
+
+                // distribute equal owe among those owing
+                initial = distributeEqualOwe(initial);
+
+                setSelectedFriends(initial);
+                // update payment methods for real ids
+                // try {
+                //   const realIds = initial.filter((x) => x && String(x._id).indexOf("__tmp_") !== 0).map((x) => x._id);
+                //   if (realIds.length) await updateFriendsPaymentMethods(realIds);
+                // } catch (e) {
+                //   // ignore
+                // }
                 return;
             }
         }
-    }, [preSelectedFriendId, preSelectedGroupId, friends, groups]);
+
+    }, [preSelectedFriendId, preSelectedGroupId, friends, groups, innerRef]);
 
 
     // ---------- selection handlers ----------
@@ -786,6 +800,8 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
     };
 
     const distributeEqualOwe = (upd) => {
+        console.log(upd);
+
         const owing = upd.filter((f) => f.owing);
         const N = owing.length;
         if (N === 0) return upd.map((f) => ({ ...f, oweAmount: 0, owePercent: undefined }));
@@ -837,6 +853,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
     // replace the previous "reset on amount change" effect with this smarter one
     // update on amount change: recompute equal splits when appropriate, but do not
     // override user choices when mode !== "equal".
+    // react to amount change: smarter updates for equal splits and preselected rows
     useEffect(() => {
         setSelectedFriends((prev = []) => {
             const total = num(amount);
@@ -850,9 +867,18 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             const payers = current.filter((f) => f.paying);
             const owers = current.filter((f) => f.owing);
 
+            // HELPER: do any payers exist with payAmount === 0 (need recompute)
+            const payersWithZero = payers.some((p) => Number(p.payAmount || 0) === 0);
+            // HELPER: do any owers exist with oweAmount === 0 (need recompute)
+            const owersWithZero = owers.some((o) => Number(o.oweAmount || 0) === 0);
+
+            // If amount is not a positive number -> clear numeric fields to avoid stale values.
+            if (!(total > 0)) {
+                return current.map((f) => ({ ...f, payAmount: 0, oweAmount: 0, owePercent: 0 }));
+            }
+
             // If UI is in equal mode, recompute equal distributions for both sides
-            // (payers -> payAmount, owers -> oweAmount). If mode !== 'equal', leave
-            // existing numerical values untouched.
+            // (payers -> payAmount, owers -> oweAmount).
             if (mode === "equal") {
                 // Recompute payAmounts if there are payers
                 if (payers.length > 0) {
@@ -882,27 +908,87 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                     });
                 }
 
-                // neither payers nor owers: nothing to recompute, keep previous
+                // neither payers nor owers: nothing to recompute, keep previous numeric values
                 return current.map((f) => ({ ...f, payAmount: f.payAmount || 0, oweAmount: f.oweAmount || 0 }));
             }
 
-            // mode !== 'equal' -> preserve existing numeric values (don't overwrite manual edits)
-            // BUT if there are no payers/owers and user hasn't interacted, optionally keep neutral defaults:
-            const hasAnyPayers = payers.length > 0;
-            const hasAnyOwers = owers.length > 0;
+            // MODE != 'equal'
+            // If user/parser already set explicit flags/percent/amounts, we normally keep them.
+            // HOWEVER: if there are payers/owers but their numeric values are still zero (e.g. preselection applied before amount),
+            // recompute sensible defaults so fields aren't left at 0 after user types amount.
+            const anyExplicit = current.some(
+                (f) =>
+                    !!f.paying ||
+                    !!f.owing ||
+                    (typeof f.owePercent === "number" && !isNaN(Number(f.owePercent))) ||
+                    (typeof f.payAmount === "number" && Number(f.payAmount) > 0)
+            );
 
-            if (!hasAnyPayers && !hasAnyOwers) {
-                // keep neutral default: no auto-assign here to avoid surprising the user
-                // (other existing code already sets sensible defaults when selection changes)
+            if (anyExplicit) {
+                // If payers exist but none have payAmount > 0, compute equal pay distribution across payers
+                if (payers.length > 0 && payersWithZero) {
+                    return distributeEqualPay(current);
+                }
+
+                // If owers exist but none have oweAmount > 0, compute equal owe distribution across owers
+                if (owers.length > 0 && owersWithZero) {
+                    return distributeEqualOwe(current);
+                }
+
+                // otherwise preserve current (user likely intentionally set numbers)
                 return current;
             }
 
-            // if there are payers but mode !== 'equal' we leave payAmount as-is (user likely edited them)
-            // if there are owers but mode !== 'equal' we leave oweAmount as-is
-            return current;
+            // No explicit flags or numbers -> compute neutral defaults (same logic as before)
+            const participantsExcludingMe = current.filter((f) => String(f?._id) !== String(user?._id));
+
+            // baseline: clear flags/numbers
+            let neutral = current.map((f) => ({
+                ...f,
+                paying: false,
+                owing: false,
+                payAmount: 0,
+                oweAmount: 0,
+                owePercent: 0,
+            }));
+
+            if (participantsExcludingMe.length === 0) {
+                // Only me is present — make me payer and owe = 0
+                neutral = neutral.map((f) =>
+                    String(f?._id) === String(user?._id)
+                        ? { ...f, paying: true, payAmount: total, owing: false, oweAmount: 0, owePercent: 0 }
+                        : f
+                );
+            } else {
+                // There are others: default: you paid and everyone owes equally
+                neutral = neutral.map((f) => {
+                    if (String(f?._id) === String(user?._id)) {
+                        return {
+                            ...f,
+                            paying: true,
+                            payAmount: total,
+                            owing: true, // include me in owe split
+                            owePercent: undefined,
+                        };
+                    }
+                    return {
+                        ...f,
+                        paying: false,
+                        payAmount: 0,
+                        owing: true,
+                        owePercent: undefined,
+                    };
+                });
+
+                // distribute equal owe among everyone who is owing (now includes me)
+                neutral = distributeEqualOwe(neutral);
+            }
+
+            return neutral;
         });
-        // note: include mode in deps so equal recompute runs when mode flips to 'equal' too
+        // note: include `mode` and `amount` so recompute runs at appropriate times
     }, [amount, mode]);
+
 
 
 
@@ -1223,7 +1309,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
     }, [splitFieldsFilled, selectedFriends, mode, oweTotal, pctTotal, amount]);
     // ---------- submit ----------
     const handleSubmit = async () => {
-        console.log('createexpense');
         const amt = num(amount);
         try {
             setLoading(true);
@@ -1256,10 +1341,8 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 if (groupSelect?._id) payload.groupId = groupSelect._id;
             }
 
-            await createExpense(payload, userToken);
-            console.log('createexpense');
-
-
+            const response = await createExpense(payload, userToken);
+            onSave?.()
 
             // reset
             setDesc("");
@@ -1284,8 +1367,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 return router.back();
             }
 
-            console.log('dismiss');
-
             sheetRef?.current?.dismiss?.();
             setBanner({ type: "success", text: "Expense saved." });
             setTimeout(() => setBanner(null), 2000);
@@ -1296,6 +1377,53 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             setLoading(false);
         }
     };
+    // animated keyboard height (pixels)
+    // Animated keyboard height value (pixels)
+    const kbAnim = useRef(new Animated.Value(0)).current;
+
+    // Optional: keep numeric kbHeight if other code uses it
+    const [kbHeight, setKbHeight] = useState(0);
+    const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+    useEffect(() => {
+        // choose events per platform for best timing
+        const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+        const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+        const onShow = (e) => {
+            const height = e?.endCoordinates?.height || 0;
+            console.log(e?.endCoordinates?.height);
+            
+            setKbHeight(height);
+            setKeyboardOpen(true);
+
+            Animated.timing(kbAnim, {
+                toValue: height,
+                duration: e?.duration || 220,
+                useNativeDriver: true,
+            }).start();
+        };
+
+        const onHide = (e) => {
+            setKbHeight(0);
+            setKeyboardOpen(false);
+
+            Animated.timing(kbAnim, {
+                toValue: 0,
+                duration: e?.duration || 180,
+                useNativeDriver: true,
+            }).start();
+        };
+
+        const s = Keyboard.addListener(showEvent, onShow);
+        const h = Keyboard.addListener(hideEvent, onHide);
+
+        return () => {
+            s.remove();
+            h.remove();
+        };
+    }, [kbAnim]);
+
 
 
     return (
@@ -1306,58 +1434,71 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             enableDynamicSizing={false}
             enableOverDrag={false}
             overDragResistanceFactor={0}
+            // helpful props for keyboard integration on Android/iOS (gorhom supports these)
+            keyboardBehavior={"interactive"}
+            keyboardBlurBehavior={"restore"}
             onDismiss={() => {
-                // clear applied flags so next open can pick up new preselected ids
                 hasPreselectedGroup.current = false;
                 hasPreselectedFriend.current = false;
                 appliedPreselectFromProps.current = false;
-
-                // call parent handler if provided
                 if (typeof onDismiss === "function") onDismiss();
             }}
             handleComponent={null}
             backgroundComponent={() => <View style={[styles.bg]} />}
             style={[styles.sheet, backgroundStyle]}
         >
-            <View style={[styles.container]}>
+            <View style={[styles.container, { flex: 1 }]}>
                 {/* Header */}
-                <View style={[styles.header, { paddingHorizontal: 16, paddingTop: insets.top ? insets.top + 8 : 12 }]}>
+                <View
+                    style={[
+                        styles.header,
+                        { paddingHorizontal: 16, paddingTop: insets.top ? insets.top + 8 : 12 },
+                    ]}
+                >
                     <Text style={styles.headerText}>Add Expense</Text>
-                    <TouchableOpacity onPress={handleLocalClose} style={styles.closeBtn}>
+                    <TouchableOpacity onPress={handleLocalClose} style={styles.closeBtn} accessibilityRole="button">
                         <Text style={styles.closeText}>Cancel</Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* Mode toggle / banner / top controls live inside a ScrollView so everything scrolls under footer */}
+                {/* Body: single keyboard-aware scroll container */}
                 <KeyboardAvoidingView
                     behavior={Platform.OS === "ios" ? "padding" : undefined}
-                    keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 64} // reasonable offset for modal header + status bar
+                    keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 64}
                     style={{ flex: 1 }}
                 >
-                    <ScrollView
-                        style={{ flex: 1 }}
+                    <KeyboardAwareScrollView
                         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-                        nestedScrollEnabled
-                        keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false}
+  enableOnAndroid={true}
+  enableAutomaticScroll={false}      // Important: disable auto scrolling to focused input
+  extraScrollHeight={Platform.OS === "android" ? 0 : 40} // reduce extra height
+  keyboardOpeningTime={0}
+  keyboardShouldPersistTaps="handled"
+  showsVerticalScrollIndicator={false}
+  nestedScrollEnabled={false}
+  scrollEnabled={!keyboardOpen} // important: avoid nested scrolling on Android
                     >
-
+                        {/* Mode toggle */}
                         <View style={styles.modeToggle}>
                             <TouchableOpacity
                                 onPress={() => setExpenseMode("personal")}
                                 style={[styles.modeBtn, expenseMode === "personal" && styles.modeBtnActive]}
                             >
-                                <Text style={[styles.modeText, expenseMode === "personal" && styles.modeTextActive]}>Personal Expense</Text>
+                                <Text style={[styles.modeText, expenseMode === "personal" && styles.modeTextActive]}>
+                                    Personal Expense
+                                </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={() => setExpenseMode("split")}
                                 style={[styles.modeBtn, expenseMode === "split" && styles.modeBtnActive]}
                             >
-                                <Text style={[styles.modeText, expenseMode === "split" && styles.modeTextActive]}>Split Expense</Text>
+                                <Text style={[styles.modeText, expenseMode === "split" && styles.modeTextActive]}>
+                                    Split Expense
+                                </Text>
                             </TouchableOpacity>
                         </View>
 
-                        {/* Search (split, when nothing selected) */}
+                        {/* Search area */}
                         {expenseMode === "split" && !groupSelect && selectedFriends.filter((f) => f?._id !== user._id).length === 0 ? (
                             <View style={{ width: "100%", paddingTop: 10, flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4 }}>
                                 <TextInput
@@ -1375,31 +1516,23 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
                         {/* Banner */}
                         {banner ? (
-                            <View
-                                style={[
-                                    styles.banner,
-                                    banner?.type === "success" && styles.bannerSuccess,
-                                    banner?.type === "error" && styles.bannerError,
-                                    banner?.type === "info" && styles.bannerInfo,
-                                ]}
-                            >
-                                <Text style={styles.bannerText}>{banner?.text || "Banner Texxt"}</Text>
+                            <View style={[
+                                styles.banner,
+                                banner?.type === "success" && styles.bannerSuccess,
+                                banner?.type === "error" && styles.bannerError,
+                                banner?.type === "info" && styles.bannerInfo,
+                            ]}>
+                                <Text style={styles.bannerText}>{banner?.text || "Banner Text"}</Text>
                                 <TouchableOpacity onPress={() => setBanner(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                                     <Text style={{ color: styles.colors.mutedFallback }}>✕</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : null}
 
-                        <ScrollView
-                            style={{ flex: 1 }}
-                            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={styles.colors.ctaFallback} />}
-                            contentContainerStyle={{ paddingBottom: 150 }}
-                            showsVerticalScrollIndicator={false}
-                        >
-                            {/* Split: suggestions + selection chips */}
+                        {/* Suggestions / Groups / Friends (single scrollable area) */}
+                        <View style={{ paddingBottom: 12 }}>
                             {expenseMode === "split" ? (
                                 <>
-                                    {/* If no friends AND no groups -> show CTA prompting user to add friends or create groups */}
                                     {groups.length === 0 && friends.length === 0 ? (
                                         <View style={{ marginTop: 12 }}>
                                             <EmptyCTA
@@ -1411,29 +1544,24 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                 secondaryLabel="Add Group"
                                                 onSecondaryPress={() => router.push("/groups")}
                                             />
-
                                         </View>
                                     ) : (
                                         <>
-                                            {/* Existing suggestions UI (unchanged) */}
                                             {(groups.length > 0 || friends.length > 0) && (
                                                 <>
-                                                    {/* Selected summary */}
                                                     {(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
                                                         <View style={{ marginTop: 8, gap: 8 }}>
                                                             {!groupSelect ? (
                                                                 <View>
                                                                     <Text style={styles.sectionLabel}>Friend Selected</Text>
-                                                                    {selectedFriends
-                                                                        .filter((f) => f?._id !== user._id)
-                                                                        .map((fr) => (
-                                                                            <View key={`sel-${fr._id}`} style={styles.selRow}>
-                                                                                <Text style={styles.selText}>{fr.name}</Text>
-                                                                                <TouchableOpacity onPress={() => removeFriend(fr)}>
-                                                                                    <Text style={{ color: styles.colors.dangerFallback }}>Remove</Text>
-                                                                                </TouchableOpacity>
-                                                                            </View>
-                                                                        ))}
+                                                                    {selectedFriends.filter((f) => f?._id !== user._id).map((fr) => (
+                                                                        <View key={`sel-${fr._id}`} style={styles.selRow}>
+                                                                            <Text style={styles.selText}>{fr.name}</Text>
+                                                                            <TouchableOpacity onPress={() => removeFriend(fr)}>
+                                                                                <Text style={{ color: styles.colors.dangerFallback }}>Remove</Text>
+                                                                            </TouchableOpacity>
+                                                                        </View>
+                                                                    ))}
                                                                 </View>
                                                             ) : (
                                                                 <View>
@@ -1449,7 +1577,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                         </View>
                                                     )}
 
-                                                    {/* Suggestions / search results */}
+                                                    {/* Suggestions lists */}
                                                     {!(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
                                                         <View style={{ marginTop: 12, gap: 12 }}>
                                                             {filteredGroups.length > 0 && (
@@ -1460,15 +1588,14 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                             const active = groupSelect?._id === g._id;
                                                                             return (
                                                                                 <TouchableOpacity key={g._id} onPress={() => toggleGroup(g)} style={[styles.chip, active && styles.chipActive]}>
-                                                                                    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
-                                                                                        {g.name}
-                                                                                    </Text>
+                                                                                    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{g.name}</Text>
                                                                                 </TouchableOpacity>
                                                                             );
                                                                         })}
                                                                     </View>
                                                                 </View>
                                                             )}
+
                                                             {filteredFriends.length > 0 && (
                                                                 <View>
                                                                     <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}FRIENDS</Text>
@@ -1477,9 +1604,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                             const active = selectedFriends.some((s) => s._id === fr._id);
                                                                             return (
                                                                                 <TouchableOpacity key={fr._id} onPress={() => toggleFriend(fr)} style={[styles.chip, active && styles.chipActive]}>
-                                                                                    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
-                                                                                        {fr.name}
-                                                                                    </Text>
+                                                                                    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{fr.name}</Text>
                                                                                 </TouchableOpacity>
                                                                             );
                                                                         })}
@@ -1495,19 +1620,14 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                 </>
                             ) : null}
 
-
-                            {/* Create expense */}
+                            {/* Create expense block */}
                             {(expenseMode === "personal" || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
                                 <View style={{ marginTop: 10, gap: 10 }}>
-                                    {/* Description */}
                                     <TextInput placeholder="Description" placeholderTextColor={styles.colors.mutedFallback} value={desc} onChangeText={setDesc} style={styles.input} />
 
-                                    {/* Currency + Amount */}
                                     <View style={{ flexDirection: "row", gap: 8 }}>
                                         <TouchableOpacity onPress={openCurrencySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
-                                            <Text style={[styles.btnLikeText, currency ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
-                                                {currency || "Currency"}
-                                            </Text>
+                                            <Text style={[styles.btnLikeText, currency ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{currency || "Currency"}</Text>
                                         </TouchableOpacity>
                                         <TextInput
                                             placeholder="Amount"
@@ -1515,29 +1635,21 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                             keyboardType="number-pad"
                                             value={String(amount)}
                                             onChangeText={(text) => {
-                                                // allow digits and a single decimal point
                                                 const cleaned = text.replace(/[^0-9.]/g, "");
-                                                // prevent multiple dots
                                                 const parts = cleaned.split(".");
                                                 const numericValue = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
                                                 setAmount(numericValue);
                                             }}
-
                                             style={[styles.input, { flex: 2 }]}
                                         />
                                     </View>
 
-                                    {/* Category + Date */}
                                     <View style={{ flexDirection: "row", gap: 8 }}>
                                         <TouchableOpacity onPress={openCategorySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
-                                            <Text style={[styles.btnLikeText, category ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{selectedCategory || category || "Category"}</Text>
+                                            <Text style={[styles.btnLikeText, selectedCategory || category ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{selectedCategory || category || "Category"}</Text>
                                         </TouchableOpacity>
 
-                                        <TouchableOpacity
-                                            onPress={() => setShowDatePicker(true)}
-                                            style={[styles.input, { flex: 1, justifyContent: "center" }]}
-                                            activeOpacity={0.7}
-                                        >
+                                        <TouchableOpacity onPress={() => setShowDatePicker(true)} style={[styles.input, { flex: 1, justifyContent: "center" }]} activeOpacity={0.7}>
                                             <Text style={expenseDate ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }}>
                                                 {expenseDate ? formatReadable(expenseDate) : "Select date"}
                                             </Text>
@@ -1555,7 +1667,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                         />
                                     </View>
 
-                                    {/* Personal: pick account */}
                                     {expenseMode === "personal" && (
                                         <TouchableOpacity onPress={() => openPaymentSheet({ context: "personal" })} style={[styles.input, styles.btnLike]}>
                                             <Text style={[styles.btnLikeText, paymentMethod ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
@@ -1564,7 +1675,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                         </TouchableOpacity>
                                     )}
 
-                                    {/* Split flow */}
                                     {expenseMode === "split" && desc && num(amount) > 0 && category ? (
                                         <>
 
@@ -1643,7 +1753,9 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                 <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
                                                                     <View style={styles.radioWrap}>
                                                                         <View style={[styles.radioOuter, isPaying && styles.radioOuterActive]}>
-                                                                            {isPaying ? <View style={styles.radioInner} /> : null}
+                                                                            {isPaying ? 
+                                                                            <View style={styles.radioInnerActive} /> : 
+                                                                            <View style={styles.radioInner} />}
                                                                         </View>
                                                                     </View>
 
@@ -1767,7 +1879,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                                     {mode === "equal" ? (
                                                                                         <View style={styles.radioWrap}>
                                                                                             <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
-                                                                                                {isOwing ? <View style={styles.radioInner} /> : null}
+                                                                                                {isOwing ? <View style={styles.radioInnerActive} /> : <View style={styles.radioInner} />}
                                                                                             </View>
                                                                                         </View>
                                                                                     ) : null}
@@ -1819,44 +1931,71 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                 
                                             </View>
                                         )} */}
+                                    {/* SPLIT flow (omitted here for brevity — keep your existing logic) */}
+                                    {/* ... your paid/owed UI, lists and inputs (kept the same structure) ... */}
                                 </View>
                             )}
-                            {/* Lo  n CTA */}
-                        </ScrollView>
+                        </View>
 
-                        <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
-                        <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
-                        <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />
-                    </ScrollView>
-                    <View
-                        style={[
-                            styles.footerWrap,
-                            {
-                                bottom: kbHeight > 0 ? kbHeight + 12 : Math.max(insets.bottom, 12),
-                                left: 16,
-                                right: 16,
-                            },
-                        ]}
+                        {/* Spacing at bottom so content can scroll above footer */}
+                        <View style={{ height: Math.max(kbHeight, 120) + 80 }} />
+                    </KeyboardAwareScrollView>
+
+                    {/* Sheets (keep them here, outside the scrollable content) */}
+                    <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
+                    <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
+                    <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />
+
+                    {/* Animated footer overlay */}
+                    <Animated.View
+                        pointerEvents="box-none"
+                        style={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            bottom: kbHeight > 0 ? 12 : Math.max(insets.bottom, 12),
+                            // move up by keyboard height smoothly: translateY = -kbAnim
+                            transform: [{ translateY: Platform.OS=='ios'?Animated.multiply(kbAnim, -1):0 }],
+                            zIndex: 9999,
+                            elevation: 20,
+                        }}
                     >
-                        <View style={styles.footerInner}>
-                            <View style={{ flex: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                                <Text style={styles.hint} numberOfLines={2}>
-                                    {hint}
-                                </Text>
-                                <TouchableOpacity style={[styles.submitBtn, { width: '100%' }]} onPress={handleSubmit}>
-                                    <Text style={styles.submitText}>Save Expense</Text>
-                                </TouchableOpacity>
-                            </View>
-                            {/* voice input / quick action slot: keep small square aligned to right */}
-                            <View style={{ marginLeft: 12 }}>
-                                <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
+                        <View style={styles.footerWrap} pointerEvents="auto">
+                            <View style={styles.footerInner}>
+                                <View style={{ flex: 1, flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                                    <Text style={styles.hint} numberOfLines={2}>{hint}</Text>
+
+                                    <TouchableOpacity
+                                        disabled={!canSubmit}
+                                        onPress={handleSubmit}
+                                        activeOpacity={0.8}
+                                        accessibilityRole="button"
+                                        style={[
+                                            styles.submitBtn,
+                                            {
+                                                backgroundColor: canSubmit ? theme?.colors?.primary : (theme?.colors?.muted ?? "#212121"),
+                                                width: "100%",
+                                                opacity: canSubmit ? 1 : 0.6,
+                                            },
+                                        ]}
+                                    >
+                                        <Text style={styles.submitText}>Save Expense</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={{ marginLeft: 12 }}>
+                                    <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
+                                </View>
                             </View>
                         </View>
-                    </View>
+                    </Animated.View>
+
+
                 </KeyboardAvoidingView>
             </View>
         </BottomSheetModal>
     );
+
 };
 
 export default MainBottomSheet;
@@ -1903,7 +2042,7 @@ const createStyles = (theme = {}) => {
         },
         headerText: { color: palette.text, fontSize: 18, fontWeight: "700" },
         closeBtn: { paddingHorizontal: 8, paddingVertical: 6 },
-        closeText: { color: palette.primary, fontSize: 14, fontWeight: "600" },
+        closeText: { color: '#EA4335', fontSize: 14, fontWeight: "600" },
 
         /* mode toggle + small controls reused from earlier */
         modeToggle: {
@@ -1998,13 +2137,14 @@ const createStyles = (theme = {}) => {
             height: 18,
             borderRadius: 18,
             borderWidth: 2,
-            borderColor: "rgba(255,255,255,0.15)",
+            borderColor: palette.border,
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: "transparent",
         },
-        radioOuterActive: { borderColor: palette.cta, backgroundColor: `${palette.cta}22` },
-        radioInner: { width: 10, height: 10, borderRadius: 10, backgroundColor: palette.cta },
+        radioOuterActive: { borderColor: palette.cta,},
+        radioInner: { width: 10, height: 10, borderRadius: 10, backgroundColor: palette.border},
+        radioInnerActive: { width: 10, height: 10, borderRadius: 10, backgroundColor: palette.cta },
 
         /* footer area (keyboard-friendly) */
         footerWrap: {

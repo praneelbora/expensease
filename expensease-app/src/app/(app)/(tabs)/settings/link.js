@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import PhoneInput from "react-native-phone-number-input";
+import PhoneInput from "@linhnguyen96114/react-native-phone-input";
 import Header from "~/header";
 import { useTheme } from "context/ThemeProvider";
 import { useAuth } from "context/AuthContext";

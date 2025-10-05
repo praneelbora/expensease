@@ -65,7 +65,15 @@ export default function ExpenseBottomSheet({
     const currencySheetRef = useRef(null);
     const categorySheetRef = useRef(null);
     const paymentSheetRef = useRef(null);
-
+    const paymentModalCtxInitial = { context: "personal", friendId: null };
+    const [paymentModalCtx, setPaymentModalCtx] = useState(paymentModalCtxInitial);
+        const openCategorySheet = () => categorySheetRef.current?.present();
+    const openPaymentSheet = (ctx) => {
+        setPaymentModalCtx(ctx);
+        paymentSheetRef.current?.present();
+    };
+    const openCurrencySheet = () => currencySheetRef.current?.present();
+    
     // control state
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -789,12 +797,12 @@ export default function ExpenseBottomSheet({
 
                     {/* Split editing */}
                     {form.mode === "split" && (
-                        <View style={{ gap: 12 }}>
+                        <>
                             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                                 <TouchableOpacity
                                     onPress={() => setActiveTab("paid")}
                                     style={[
-                                        styles.summaryBtn || { padding: 8, borderRadius: 8 }, // fallback if you don't have summaryBtn in stylesheet
+                                        styles.summaryBtn || { padding: 8, borderRadius: 8 }, //  if you don't have summaryBtn in stylesheet
                                         activeTab === "paid" && styles.summaryBtnActive,
                                         paidHasIssue && styles.summaryBtnError,
                                     ]}
@@ -826,51 +834,84 @@ export default function ExpenseBottomSheet({
                             </View>
 
                             {/* Paid tab */}
-                            {activeTab === "paid" && (
+                            {activeTab === "paid" ? (
                                 <>
-                                    <Text style={styles.sectionTitle}>Paid by <Text style={styles.sectionHint}>(Select who paid)</Text></Text>
-                                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                                        {selectedFriends.map((f) => (
-                                            <TouchableOpacity key={`p-${f._id}`} onPress={() => togglePaying(f._id)} style={[styles.chip2, f.paying ? styles.chip2Active : styles.chip2]}>
-                                                <Text style={f.paying ? styles.chip2TextActive : styles.chip2Text}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
+                                    <Text style={styles.helperSmall}>(Select the people who paid.)</Text>
 
-                                    {selectedFriends.filter((f) => f.paying).length > 0 && (
-                                        <View style={{ gap: 8 }}>
-                                            {selectedFriends.filter((f) => f.paying).map((f) => {
-                                                const many = Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1;
-                                                const sel = (f.paymentMethods || []).find((m) => m.paymentMethodId === f.selectedPaymentMethodId);
-                                                // if only one payer and no multiple PMs, there's no per-payer input needed
-                                                const showAmountInput = selectedFriends.filter((p) => p.paying).length > 1;
-                                                return (
-                                                    <View key={`payer-${f._id}`} style={styles.splitRow}>
-                                                        <Text style={{ color: colors.text || "#fff" }}>{f.name}{f._id === userId ? " (You)" : ""}</Text>
-                                                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                                            {many && (
-                                                                <TouchableOpacity onPress={() => { setPaymentModal({ open: true, context: "split", friendId: f._id }); paymentSheetRef.current?.present?.(); }} style={styles.smallBtn}>
-                                                                    <Text style={styles.smallBtnText}>{sel ? sel.label || "Pay" : "Select"}</Text>
-                                                                </TouchableOpacity>
-                                                            )}
-                                                            {showAmountInput ? (
-                                                                <TextInput keyboardType="decimal-pad" style={styles.smallInput} value={String(f.payAmount || "")} onChangeText={(v) => setPayAmount(f._id, v)} />
-                                                            ) : null}
+
+                                    {/* Use radio-style rows (like 'owed' block) instead of chips */}
+
+                                    {selectedFriends.map((f) => {
+                                        const isPaying = !!f.paying;
+                                        const manyPMs = Array.isArray(f.paymentMethods) && f.paymentMethods.length > 1;
+                                        const selPM = f.paymentMethods?.find((m) => m.paymentMethodId === f.selectedPaymentMethodId);
+
+                                        return (
+                                            <TouchableOpacity
+                                                key={`payrow-${f._id}`}
+                                                onPress={() => {
+                                                    // toggle paying and recompute pay distribution (togglePaying handles distributeEqualPay)
+                                                    togglePaying(f._id);
+                                                }}
+                                                activeOpacity={0.8}
+                                                style={[styles.rowBetween, { paddingVertical: 4, height: 45 }]}
+                                            >
+                                                <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
+                                                    <View style={styles.radioWrap}>
+                                                        <View style={[styles.radioOuter, isPaying && styles.radioOuterActive]}>
+                                                            {isPaying ?
+                                                                <View style={styles.radioInnerActive} /> :
+                                                                <View style={styles.radioInner} />}
                                                         </View>
                                                     </View>
-                                                );
-                                            })}
 
-                                            {!isPaidValid && (
-                                                <View style={styles.centerMono}>
-                                                    <Text style={styles.monoText}>{getSymbol(form.currency)} {paidTotal.toFixed(2)} / {getSymbol(form.currency)} {Number(form.amount || 0).toFixed(2)}</Text>
-                                                    <Text style={styles.mutedText}>{getSymbol(form.currency)} {Number(Number(form.amount || 0) - paidTotal).toFixed(2)} left</Text>
+                                                    <Text style={{ color: theme.colors.text, flex: 1 }} numberOfLines={1}>
+                                                        {f.name}
+                                                    </Text>
                                                 </View>
-                                            )}
+
+                                                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                                    {/* Payment method selector if friend has >1 PMs */}
+                                                    {manyPMs ? (
+                                                        <TouchableOpacity
+                                                            onPress={() => openPaymentSheet({ context: "split", friendId: f._id })}
+                                                            style={[
+                                                                styles.pmBtn,
+                                                                selPM ? { borderColor: theme.colors.border, backgroundColor: "transparent" } : { borderColor: theme.colors.negative, backgroundColor: "rgba(244,67,54,0.08)" },
+                                                            ]}
+                                                        >
+                                                            <Text style={[styles.pmBtnText, { color: selPM ? theme.colors.text : theme.colors.negative }]} numberOfLines={1}>
+                                                                {selPM ? selPM.label || selPM.type || "Payment Method" : "Select"}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ) : null}
+
+                                                    {/* Amount field: only show when more than one payer (same as before) */}
+                                                    {selectedFriends.filter((x) => x.paying).length > 1 ? (
+                                                        <TextInput
+                                                            placeholder="Amount"
+                                                            placeholderTextColor={theme.colors.muted}
+                                                            keyboardType="decimal-pad"
+                                                            value={String(f.payAmount || "")}
+                                                            onChangeText={(v) => setPayAmount(f._id, v)}
+                                                            style={[styles.input, { width: 100, textAlign: "right" }]}
+                                                        />
+                                                    ) : null}
+                                                </View>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+
+
+                                    {/* Helper totals when multiple payers exist and sum mismatch */}
+                                    {selectedFriends.filter((f) => f.paying).length > 1 && !isPaidValid ? (
+                                        <View style={{ alignItems: "center", marginTop: 6 }}>
+                                            <Text style={styles.helperMono}>{fmtMoney(currency, paidTotal)} / {fmtMoney(currency, num(amount))}</Text>
+                                            <Text style={[styles.helperMono, { color: theme.colors.muted }]}>{fmtMoney(currency, num(amount) - paidTotal)} left</Text>
                                         </View>
-                                    )}
+                                    ) : null}
                                 </>
-                            )}
+                            ) : null}
 
                             {/* Owed tab */}
                             {activeTab === "owed" && (
@@ -923,7 +964,7 @@ export default function ExpenseBottomSheet({
                                                                 {mode === "equal" ? (
                                                                     <View style={styles.radioWrap}>
                                                                         <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
-                                                                            {isOwing ? <View style={styles.radioInner} /> : null}
+                                                                            {isOwing ? <View style={styles.radioInnerActive} /> : <View style={styles.radioInner} />}
                                                                         </View>
                                                                     </View>
                                                                 ) : null}
@@ -948,7 +989,7 @@ export default function ExpenseBottomSheet({
                                     )}
                                 </>
                             )}
-                        </View>
+                        </>
                     )}
 
                 </View>
@@ -1154,7 +1195,7 @@ const createStyles = (c = {}) =>
         summaryBtnActive: {
             borderColor: c.cta,
         },
-         summaryLabel: {
+        summaryLabel: {
             fontSize: 12,
             color: c.muted,
             marginBottom: 2,
@@ -1170,30 +1211,40 @@ const createStyles = (c = {}) =>
             height: 18,
             borderRadius: 18,
             borderWidth: 2,
-            borderColor: "rgba(255,255,255,0.15)",
+            borderColor: c.border,
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: "transparent",
         },
-        radioOuterActive: {
-            borderColor: c.cta,
-            backgroundColor: `${c.cta}22`,
-        },
-        radioInner: {
-            width: 10,
-            height: 10,
-            borderRadius: 10,
-            backgroundColor: c.cta,
-        },
+        radioOuterActive: { borderColor: c.cta, },
+        radioInner: { width: 10, height: 10, borderRadius: 10, backgroundColor: c.border },
+        radioInnerActive: { width: 10, height: 10, borderRadius: 10, backgroundColor: c.cta },
+
 
         summaryBtnError: {
 
             backgroundColor: "rgba(244,67,54,0.06)",
         },
         summaryLabelError: {
-            color: c.danger,
+            color: c.negative,
         },
         summaryValueError: {
-            color: c.danger,
+            color: c.negative,
         },
+                pmBtn: {
+            borderWidth: 1,
+            borderColor: c.border,
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            borderRadius: 10,
+            maxWidth: 180,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        pmBtnText: { fontSize: 14, color: c.text },
+
+        selRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", height: 30 },
+        selText: { color: c.text, fontSize: 16, textTransform: "capitalize" },
+                rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+
     });
