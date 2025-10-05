@@ -1766,7 +1766,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
                                                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                                                     {/* Payment method selector if friend has >1 PMs */}
-                                                                    {manyPMs ? (
+                                                                    {manyPMs && isPaying ? (
                                                                         <TouchableOpacity
                                                                             onPress={() => openPaymentSheet({ context: "split", friendId: f._id })}
                                                                             style={[
@@ -1781,7 +1781,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                     ) : null}
 
                                                                     {/* Amount field: only show when more than one payer (same as before) */}
-                                                                    {selectedFriends.filter((x) => x.paying).length > 1 ? (
+                                                                    {selectedFriends.filter((x) => x.paying).length > 1 && isPaying ? (
                                                                         <TextInput
                                                                             placeholder="Amount"
                                                                             placeholderTextColor={styles.colors.mutedFallback}
@@ -1856,7 +1856,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                             {/* Per-ower inputs based on mode */}
                                                             <View style={{ marginTop: 6, gap: 8 }}>
                                                                 {selectedFriends
-                                                                    .filter((f) => f.owing || mode === "equal") // show rows when equal mode too
                                                                     .map((f) => {
                                                                         const isOwing = !!f.owing;
                                                                         return (
@@ -1865,7 +1864,18 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                                 onPress={() => {
                                                                                     // toggle owing flag for this friend (works in all modes)
                                                                                     setSelectedFriends((prev) => {
-                                                                                        const updated = prev.map((x) => (x._id === f?._id ? { ...x, owing: !x.owing } : x));
+                                                                                        const updated = prev.map((x) => {
+                                                                                        if (x._id === f?._id) {
+                                                                                            const newOwing = !x.owing;
+                                                                                            return {
+                                                                                            ...x,
+                                                                                            owing: newOwing,
+                                                                                            oweAmount: newOwing ? x.oweAmount : 0, // or null, depending on your logic
+                                                                                            };
+                                                                                        }
+                                                                                        return x;
+                                                                                        });
+
                                                                                         // re-run equal distribution if we're in equal mode
                                                                                         if (mode === "equal") return distributeEqualOwe(updated);
                                                                                         return updated;
@@ -1876,19 +1886,20 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                             >
                                                                                 <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
                                                                                     {/* Radio (equal mode) or simple bullet */}
-                                                                                    {mode === "equal" ? (
+
                                                                                         <View style={styles.radioWrap}>
                                                                                             <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
                                                                                                 {isOwing ? <View style={styles.radioInnerActive} /> : <View style={styles.radioInner} />}
                                                                                             </View>
                                                                                         </View>
-                                                                                    ) : null}
+
 
                                                                                     <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
                                                                                         {f?.name}
                                                                                     </Text>
                                                                                 </View>
-
+                                                                                {isOwing && <>
+                                                                                
                                                                                 {/* Right side: input or computed value depending on mode */}
                                                                                 {mode === "percent" ? (
                                                                                     <TextInput
@@ -1914,6 +1925,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                                         {fmtMoney(currency, f.oweAmount || 0)}
                                                                                     </Text>
                                                                                 )}
+                                                                                </>}
                                                                             </TouchableOpacity>
                                                                         );
                                                                     })}
