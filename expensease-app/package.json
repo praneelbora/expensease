@@ -2,9 +2,6 @@
   "name": "app",
   "version": "1.0.0",
   "main": "expo-router/entry",
-  "overrides": {
-    "react-native-renderer": "19.1.1"
-  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -56,12 +53,12 @@
     "react-dom": "19.1.0",
     "react-native": "0.81.4",
     "react-native-gesture-handler": "~2.28.0",
+    "react-native-keyboard-aware-scroll-view": "^0.9.5",
     "react-native-modal-datetime-picker": "^18.0.0",
     "react-native-otp-entry": "^1.8.5",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
-    "react-native-svg": "15.12.1",
-    "react-native-renderer": "19.1.1"
+    "react-native-svg": "15.12.1"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

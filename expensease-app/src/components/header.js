@@ -14,6 +14,8 @@ import { useTheme } from "context/ThemeProvider";
 import { useAuth } from "context/AuthContext";
 import { ChevronLeft, X, Bell, Filter, Search, Share2 } from "lucide-react-native";
 import avatars from "@/avatars";
+import UserIcon from "@/tabIcons/user.svg";
+
 const FRONTEND_URL = process.env.EXPO_PUBLIC_FRONTEND_URL || "https://www.expensease.in";
 
 /**
@@ -163,13 +165,24 @@ export default function Header({
                                     (() => {
                                         const found = avatars.find((a) => a.id === selectedAvatar);
                                         const AvatarComp = found?.Component || null;
-                                        return AvatarComp ? <AvatarComp width={36} height={36} /> : <Text style={{ color: theme.colors.muted }}>—</Text>;
+                                        return AvatarComp ? (
+                                            <AvatarComp width={33} height={33} />
+                                        ) : (
+                                            <UserIcon size={26} color={theme.colors.muted} />
+                                        );
                                     })()
+                                ) : !user?.name ? (
+                                    <View style={[styles.placeholderCircle, { backgroundColor: theme.colors.card }]}>
+                                        <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>
+                                            {getInitials(user?.name)}
+                                        </Text>
+                                    </View>
                                 ) : (
                                     <View style={[styles.placeholderCircle, { backgroundColor: theme.colors.card }]}>
-                                        <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>{getInitials(user?.name || "")}</Text>
+                                        <UserIcon size={22} color={theme.colors.muted} />
                                     </View>
                                 )}
+
                             </View>
                         </View>
                     </TouchableOpacity>
@@ -186,12 +199,10 @@ const createStyles = (theme) =>
         header: {
             backgroundColor: "transparent",
             width: "100%",
-            height: 44,
+            height: 48,
             alignItems: "center",
             flexDirection: "row",
             justifyContent: "space-between",
-            borderBottomWidth: Platform.select({ ios: 0, android: 0.5 }),
-            borderBottomColor: theme.colors.border,
             paddingHorizontal: 16,
         },
         leftWrap: {
@@ -235,33 +246,33 @@ const createStyles = (theme) =>
             textShadowOffset: { width: 0, height: 0 },
         },
         avatarTouchable: {
-            width: 64,
-            height: 64,
+            width: 52,
+            height: 52,
             alignItems: "center",
             justifyContent: "center",
             position: "relative",
         },
         avatarBorder: {
-            width: 48,
-            height: 48,
-            borderRadius: 24,
+            width: 40,
+            height: 40,
+            borderRadius: 20,
             borderWidth: 2,
-            borderColor: theme.colors.card,
+            borderColor: theme.colors.cardAlt,
             alignItems: "center",
             justifyContent: "center",
         },
         avatarContainer: {
-            width: 44,
-            height: 44,
-            borderRadius: 22,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
             overflow: "hidden",
             alignItems: "center",
             backgroundColor: "transparent",
         },
         placeholderCircle: {
-            width: 40,
-            height: 40,
-            borderRadius: 20,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
             alignItems: "center",
             justifyContent: "center",
         },

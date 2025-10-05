@@ -501,7 +501,7 @@ function DashboardScreenInner() {
                             <EmptyCTA
                                 title="No Expenses yet!"
                                 subtitle="You haven’t added any expenses yet. Start by adding your first one to see stats and insights."
-                                ctaLabel="Add Expemse"
+                                ctaLabel="Add Expense"
                                 onPress={() => newExpenseBottomSheetRef?.current?.present?.()}
                             />
                         </View>

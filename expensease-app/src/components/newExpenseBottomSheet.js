@@ -2,7 +2,8 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "context/ThemeProvider";
-// app/newExpense.js
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     View,
@@ -16,7 +17,8 @@ import {
     Platform,
     Alert,
     KeyboardAvoidingView,
-    Keyboard
+    Keyboard,
+    Animated
 } from "react-native";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect } from "@react-navigation/native";
@@ -94,28 +96,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
         // also dismiss keyboard
         Keyboard.dismiss();
     };
-    // keyboard tracking so absolutely-positioned footer moves above keyboard
-    const [kbHeight, setKbHeight] = useState(0);
 
-    useEffect(() => {
-        // keyboard events differ between platforms; use keyboardDidShow/Hide for consistency
-        const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-        const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-        const onShow = (e) => {
-            const h = (e?.endCoordinates?.height) ? e.endCoordinates.height : (e?.end?.height ?? 0);
-            setKbHeight(h);
-        };
-        const onHide = () => setKbHeight(0);
-
-        const subShow = Keyboard.addListener(showEvent, onShow);
-        const subHide = Keyboard.addListener(hideEvent, onHide);
-
-        return () => {
-            subShow.remove();
-            subHide.remove();
-        };
-    }, []);
 
     // ------------ state ------------
     const [loading, setLoading] = useState(true);
@@ -1396,6 +1377,53 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             setLoading(false);
         }
     };
+    // animated keyboard height (pixels)
+    // Animated keyboard height value (pixels)
+    const kbAnim = useRef(new Animated.Value(0)).current;
+
+    // Optional: keep numeric kbHeight if other code uses it
+    const [kbHeight, setKbHeight] = useState(0);
+    const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+    useEffect(() => {
+        // choose events per platform for best timing
+        const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+        const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+        const onShow = (e) => {
+            const height = e?.endCoordinates?.height || 0;
+            console.log(e?.endCoordinates?.height);
+            
+            setKbHeight(height);
+            setKeyboardOpen(true);
+
+            Animated.timing(kbAnim, {
+                toValue: height,
+                duration: e?.duration || 220,
+                useNativeDriver: true,
+            }).start();
+        };
+
+        const onHide = (e) => {
+            setKbHeight(0);
+            setKeyboardOpen(false);
+
+            Animated.timing(kbAnim, {
+                toValue: 0,
+                duration: e?.duration || 180,
+                useNativeDriver: true,
+            }).start();
+        };
+
+        const s = Keyboard.addListener(showEvent, onShow);
+        const h = Keyboard.addListener(hideEvent, onHide);
+
+        return () => {
+            s.remove();
+            h.remove();
+        };
+    }, [kbAnim]);
+
 
 
     return (
@@ -1406,58 +1434,71 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             enableDynamicSizing={false}
             enableOverDrag={false}
             overDragResistanceFactor={0}
+            // helpful props for keyboard integration on Android/iOS (gorhom supports these)
+            keyboardBehavior={"interactive"}
+            keyboardBlurBehavior={"restore"}
             onDismiss={() => {
-                // clear applied flags so next open can pick up new preselected ids
                 hasPreselectedGroup.current = false;
                 hasPreselectedFriend.current = false;
                 appliedPreselectFromProps.current = false;
-
-                // call parent handler if provided
                 if (typeof onDismiss === "function") onDismiss();
             }}
             handleComponent={null}
             backgroundComponent={() => <View style={[styles.bg]} />}
             style={[styles.sheet, backgroundStyle]}
         >
-            <View style={[styles.container]}>
+            <View style={[styles.container, { flex: 1 }]}>
                 {/* Header */}
-                <View style={[styles.header, { paddingHorizontal: 16, paddingTop: insets.top ? insets.top + 8 : 12 }]}>
+                <View
+                    style={[
+                        styles.header,
+                        { paddingHorizontal: 16, paddingTop: insets.top ? insets.top + 8 : 12 },
+                    ]}
+                >
                     <Text style={styles.headerText}>Add Expense</Text>
-                    <TouchableOpacity onPress={handleLocalClose} style={styles.closeBtn}>
+                    <TouchableOpacity onPress={handleLocalClose} style={styles.closeBtn} accessibilityRole="button">
                         <Text style={styles.closeText}>Cancel</Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* Mode toggle / banner / top controls live inside a ScrollView so everything scrolls under footer */}
+                {/* Body: single keyboard-aware scroll container */}
                 <KeyboardAvoidingView
                     behavior={Platform.OS === "ios" ? "padding" : undefined}
-                    keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 64} // reasonable offset for modal header + status bar
+                    keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 64}
                     style={{ flex: 1 }}
                 >
-                    <ScrollView
-                        style={{ flex: 1 }}
+                    <KeyboardAwareScrollView
                         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-                        nestedScrollEnabled
-                        keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false}
+  enableOnAndroid={true}
+  enableAutomaticScroll={false}      // Important: disable auto scrolling to focused input
+  extraScrollHeight={Platform.OS === "android" ? 0 : 40} // reduce extra height
+  keyboardOpeningTime={0}
+  keyboardShouldPersistTaps="handled"
+  showsVerticalScrollIndicator={false}
+  nestedScrollEnabled={false}
+  scrollEnabled={!keyboardOpen} // important: avoid nested scrolling on Android
                     >
-
+                        {/* Mode toggle */}
                         <View style={styles.modeToggle}>
                             <TouchableOpacity
                                 onPress={() => setExpenseMode("personal")}
                                 style={[styles.modeBtn, expenseMode === "personal" && styles.modeBtnActive]}
                             >
-                                <Text style={[styles.modeText, expenseMode === "personal" && styles.modeTextActive]}>Personal Expense</Text>
+                                <Text style={[styles.modeText, expenseMode === "personal" && styles.modeTextActive]}>
+                                    Personal Expense
+                                </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={() => setExpenseMode("split")}
                                 style={[styles.modeBtn, expenseMode === "split" && styles.modeBtnActive]}
                             >
-                                <Text style={[styles.modeText, expenseMode === "split" && styles.modeTextActive]}>Split Expense</Text>
+                                <Text style={[styles.modeText, expenseMode === "split" && styles.modeTextActive]}>
+                                    Split Expense
+                                </Text>
                             </TouchableOpacity>
                         </View>
 
-                        {/* Search (split, when nothing selected) */}
+                        {/* Search area */}
                         {expenseMode === "split" && !groupSelect && selectedFriends.filter((f) => f?._id !== user._id).length === 0 ? (
                             <View style={{ width: "100%", paddingTop: 10, flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4 }}>
                                 <TextInput
@@ -1475,31 +1516,23 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
                         {/* Banner */}
                         {banner ? (
-                            <View
-                                style={[
-                                    styles.banner,
-                                    banner?.type === "success" && styles.bannerSuccess,
-                                    banner?.type === "error" && styles.bannerError,
-                                    banner?.type === "info" && styles.bannerInfo,
-                                ]}
-                            >
-                                <Text style={styles.bannerText}>{banner?.text || "Banner Texxt"}</Text>
+                            <View style={[
+                                styles.banner,
+                                banner?.type === "success" && styles.bannerSuccess,
+                                banner?.type === "error" && styles.bannerError,
+                                banner?.type === "info" && styles.bannerInfo,
+                            ]}>
+                                <Text style={styles.bannerText}>{banner?.text || "Banner Text"}</Text>
                                 <TouchableOpacity onPress={() => setBanner(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                                     <Text style={{ color: styles.colors.mutedFallback }}>✕</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : null}
 
-                        <ScrollView
-                            style={{ flex: 1 }}
-                            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={styles.colors.ctaFallback} />}
-                            contentContainerStyle={{ paddingBottom: 150 }}
-                            showsVerticalScrollIndicator={false}
-                        >
-                            {/* Split: suggestions + selection chips */}
+                        {/* Suggestions / Groups / Friends (single scrollable area) */}
+                        <View style={{ paddingBottom: 12 }}>
                             {expenseMode === "split" ? (
                                 <>
-                                    {/* If no friends AND no groups -> show CTA prompting user to add friends or create groups */}
                                     {groups.length === 0 && friends.length === 0 ? (
                                         <View style={{ marginTop: 12 }}>
                                             <EmptyCTA
@@ -1511,29 +1544,24 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                 secondaryLabel="Add Group"
                                                 onSecondaryPress={() => router.push("/groups")}
                                             />
-
                                         </View>
                                     ) : (
                                         <>
-                                            {/* Existing suggestions UI (unchanged) */}
                                             {(groups.length > 0 || friends.length > 0) && (
                                                 <>
-                                                    {/* Selected summary */}
                                                     {(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
                                                         <View style={{ marginTop: 8, gap: 8 }}>
                                                             {!groupSelect ? (
                                                                 <View>
                                                                     <Text style={styles.sectionLabel}>Friend Selected</Text>
-                                                                    {selectedFriends
-                                                                        .filter((f) => f?._id !== user._id)
-                                                                        .map((fr) => (
-                                                                            <View key={`sel-${fr._id}`} style={styles.selRow}>
-                                                                                <Text style={styles.selText}>{fr.name}</Text>
-                                                                                <TouchableOpacity onPress={() => removeFriend(fr)}>
-                                                                                    <Text style={{ color: styles.colors.dangerFallback }}>Remove</Text>
-                                                                                </TouchableOpacity>
-                                                                            </View>
-                                                                        ))}
+                                                                    {selectedFriends.filter((f) => f?._id !== user._id).map((fr) => (
+                                                                        <View key={`sel-${fr._id}`} style={styles.selRow}>
+                                                                            <Text style={styles.selText}>{fr.name}</Text>
+                                                                            <TouchableOpacity onPress={() => removeFriend(fr)}>
+                                                                                <Text style={{ color: styles.colors.dangerFallback }}>Remove</Text>
+                                                                            </TouchableOpacity>
+                                                                        </View>
+                                                                    ))}
                                                                 </View>
                                                             ) : (
                                                                 <View>
@@ -1549,7 +1577,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                         </View>
                                                     )}
 
-                                                    {/* Suggestions / search results */}
+                                                    {/* Suggestions lists */}
                                                     {!(groupSelect || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
                                                         <View style={{ marginTop: 12, gap: 12 }}>
                                                             {filteredGroups.length > 0 && (
@@ -1560,15 +1588,14 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                             const active = groupSelect?._id === g._id;
                                                                             return (
                                                                                 <TouchableOpacity key={g._id} onPress={() => toggleGroup(g)} style={[styles.chip, active && styles.chipActive]}>
-                                                                                    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
-                                                                                        {g.name}
-                                                                                    </Text>
+                                                                                    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{g.name}</Text>
                                                                                 </TouchableOpacity>
                                                                             );
                                                                         })}
                                                                     </View>
                                                                 </View>
                                                             )}
+
                                                             {filteredFriends.length > 0 && (
                                                                 <View>
                                                                     <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}FRIENDS</Text>
@@ -1577,9 +1604,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                             const active = selectedFriends.some((s) => s._id === fr._id);
                                                                             return (
                                                                                 <TouchableOpacity key={fr._id} onPress={() => toggleFriend(fr)} style={[styles.chip, active && styles.chipActive]}>
-                                                                                    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
-                                                                                        {fr.name}
-                                                                                    </Text>
+                                                                                    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{fr.name}</Text>
                                                                                 </TouchableOpacity>
                                                                             );
                                                                         })}
@@ -1595,19 +1620,14 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                 </>
                             ) : null}
 
-
-                            {/* Create expense */}
+                            {/* Create expense block */}
                             {(expenseMode === "personal" || selectedFriends.filter((f) => f?._id !== user._id).length > 0) && (
                                 <View style={{ marginTop: 10, gap: 10 }}>
-                                    {/* Description */}
                                     <TextInput placeholder="Description" placeholderTextColor={styles.colors.mutedFallback} value={desc} onChangeText={setDesc} style={styles.input} />
 
-                                    {/* Currency + Amount */}
                                     <View style={{ flexDirection: "row", gap: 8 }}>
                                         <TouchableOpacity onPress={openCurrencySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
-                                            <Text style={[styles.btnLikeText, currency ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
-                                                {currency || "Currency"}
-                                            </Text>
+                                            <Text style={[styles.btnLikeText, currency ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{currency || "Currency"}</Text>
                                         </TouchableOpacity>
                                         <TextInput
                                             placeholder="Amount"
@@ -1615,29 +1635,21 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                             keyboardType="number-pad"
                                             value={String(amount)}
                                             onChangeText={(text) => {
-                                                // allow digits and a single decimal point
                                                 const cleaned = text.replace(/[^0-9.]/g, "");
-                                                // prevent multiple dots
                                                 const parts = cleaned.split(".");
                                                 const numericValue = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
                                                 setAmount(numericValue);
                                             }}
-
                                             style={[styles.input, { flex: 2 }]}
                                         />
                                     </View>
 
-                                    {/* Category + Date */}
                                     <View style={{ flexDirection: "row", gap: 8 }}>
                                         <TouchableOpacity onPress={openCategorySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
-                                            <Text style={[styles.btnLikeText, category ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{selectedCategory || category || "Category"}</Text>
+                                            <Text style={[styles.btnLikeText, selectedCategory || category ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{selectedCategory || category || "Category"}</Text>
                                         </TouchableOpacity>
 
-                                        <TouchableOpacity
-                                            onPress={() => setShowDatePicker(true)}
-                                            style={[styles.input, { flex: 1, justifyContent: "center" }]}
-                                            activeOpacity={0.7}
-                                        >
+                                        <TouchableOpacity onPress={() => setShowDatePicker(true)} style={[styles.input, { flex: 1, justifyContent: "center" }]} activeOpacity={0.7}>
                                             <Text style={expenseDate ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }}>
                                                 {expenseDate ? formatReadable(expenseDate) : "Select date"}
                                             </Text>
@@ -1655,7 +1667,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                         />
                                     </View>
 
-                                    {/* Personal: pick account */}
                                     {expenseMode === "personal" && (
                                         <TouchableOpacity onPress={() => openPaymentSheet({ context: "personal" })} style={[styles.input, styles.btnLike]}>
                                             <Text style={[styles.btnLikeText, paymentMethod ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
@@ -1664,7 +1675,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                         </TouchableOpacity>
                                     )}
 
-                                    {/* Split flow */}
                                     {expenseMode === "split" && desc && num(amount) > 0 && category ? (
                                         <>
 
@@ -1743,7 +1753,9 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                 <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
                                                                     <View style={styles.radioWrap}>
                                                                         <View style={[styles.radioOuter, isPaying && styles.radioOuterActive]}>
-                                                                            {isPaying ? <View style={styles.radioInner} /> : null}
+                                                                            {isPaying ? 
+                                                                            <View style={styles.radioInnerActive} /> : 
+                                                                            <View style={styles.radioInner} />}
                                                                         </View>
                                                                     </View>
 
@@ -1867,7 +1879,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                                     {mode === "equal" ? (
                                                                                         <View style={styles.radioWrap}>
                                                                                             <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
-                                                                                                {isOwing ? <View style={styles.radioInner} /> : null}
+                                                                                                {isOwing ? <View style={styles.radioInnerActive} /> : <View style={styles.radioInner} />}
                                                                                             </View>
                                                                                         </View>
                                                                                     ) : null}
@@ -1919,44 +1931,71 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                 
                                             </View>
                                         )} */}
+                                    {/* SPLIT flow (omitted here for brevity — keep your existing logic) */}
+                                    {/* ... your paid/owed UI, lists and inputs (kept the same structure) ... */}
                                 </View>
                             )}
-                            {/* Lo  n CTA */}
-                        </ScrollView>
+                        </View>
 
-                        <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
-                        <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
-                        <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />
-                    </ScrollView>
-                    <View
-                        style={[
-                            styles.footerWrap,
-                            {
-                                bottom: kbHeight > 0 ? kbHeight + 12 : Math.max(insets.bottom, 12),
-                                left: 16,
-                                right: 16,
-                            },
-                        ]}
+                        {/* Spacing at bottom so content can scroll above footer */}
+                        <View style={{ height: Math.max(kbHeight, 120) + 80 }} />
+                    </KeyboardAwareScrollView>
+
+                    {/* Sheets (keep them here, outside the scrollable content) */}
+                    <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
+                    <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
+                    <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />
+
+                    {/* Animated footer overlay */}
+                    <Animated.View
+                        pointerEvents="box-none"
+                        style={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            bottom: kbHeight > 0 ? 12 : Math.max(insets.bottom, 12),
+                            // move up by keyboard height smoothly: translateY = -kbAnim
+                            transform: [{ translateY: Platform.OS=='ios'?Animated.multiply(kbAnim, -1):0 }],
+                            zIndex: 9999,
+                            elevation: 20,
+                        }}
                     >
-                        <View style={styles.footerInner}>
-                            <View style={{ flex: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                                <Text style={styles.hint} numberOfLines={2}>
-                                    {hint}
-                                </Text>
-                                <TouchableOpacity disabled={!canSubmit} style={[styles.submitBtn, { backgroundColor: canSubmit ? theme?.colors?.primary : theme?.colors?.muted ?? '#212121', width: '100%' }]} onPress={handleSubmit}>
-                                    <Text style={styles.submitText}>Save Expense</Text>
-                                </TouchableOpacity>
-                            </View>
-                            {/* voice input / quick action slot: keep small square aligned to right */}
-                            <View style={{ marginLeft: 12 }}>
-                                <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
+                        <View style={styles.footerWrap} pointerEvents="auto">
+                            <View style={styles.footerInner}>
+                                <View style={{ flex: 1, flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                                    <Text style={styles.hint} numberOfLines={2}>{hint}</Text>
+
+                                    <TouchableOpacity
+                                        disabled={!canSubmit}
+                                        onPress={handleSubmit}
+                                        activeOpacity={0.8}
+                                        accessibilityRole="button"
+                                        style={[
+                                            styles.submitBtn,
+                                            {
+                                                backgroundColor: canSubmit ? theme?.colors?.primary : (theme?.colors?.muted ?? "#212121"),
+                                                width: "100%",
+                                                opacity: canSubmit ? 1 : 0.6,
+                                            },
+                                        ]}
+                                    >
+                                        <Text style={styles.submitText}>Save Expense</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={{ marginLeft: 12 }}>
+                                    <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
+                                </View>
                             </View>
                         </View>
-                    </View>
+                    </Animated.View>
+
+
                 </KeyboardAvoidingView>
             </View>
         </BottomSheetModal>
     );
+
 };
 
 export default MainBottomSheet;
@@ -2098,13 +2137,14 @@ const createStyles = (theme = {}) => {
             height: 18,
             borderRadius: 18,
             borderWidth: 2,
-            borderColor: "rgba(255,255,255,0.15)",
+            borderColor: palette.border,
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: "transparent",
         },
-        radioOuterActive: { borderColor: palette.cta, backgroundColor: `${palette.cta}22` },
-        radioInner: { width: 10, height: 10, borderRadius: 10, backgroundColor: palette.cta },
+        radioOuterActive: { borderColor: palette.cta,},
+        radioInner: { width: 10, height: 10, borderRadius: 10, backgroundColor: palette.border},
+        radioInnerActive: { width: 10, height: 10, borderRadius: 10, backgroundColor: palette.cta },
 
         /* footer area (keyboard-friendly) */
         footerWrap: {
