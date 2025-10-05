@@ -214,7 +214,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
         const results = [];
         let tmpIdCounter = 0;
 
-        const findFriendById = (id) => friendsList.find((f) => String(f._id) === String(id));
+        const findFriendById = (id) => friendsList.find((f) => String(f?._id) === String(id));
         const findFriendByName = (name) => {
             if (!name) return null;
             const lower = name.trim().toLowerCase();
@@ -226,9 +226,9 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 const name = String(p.name || "").trim();
                 // Map "Me" or self mentions to the current user
                 const isMeName = /^me$/i.test(name) || /^(i|me|my)$/i.test(name);
-                if (isMeName && userObj && userObj._id) {
+                if (isMeName && userObj && userObj?._id) {
                     results.push({
-                        _id: userObj._id,
+                        _id: userObj?._id,
                         name: `${userObj.name} (Me)`,
                         paying: !!p.paying,
                         owing: !!p.owing,
@@ -340,7 +340,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             // Group mention
             if (parsed.groupMention && (parsed.groupMention.groupId || parsed.groupMention.groupName)) {
                 if (parsed.groupMention.groupId) {
-                    const g = groups.find((x) => String(x._id) === String(parsed.groupMention.groupId));
+                    const g = groups.find((x) => String(x?._id) === String(parsed.groupMention.groupId));
                     if (g) {
                         setGroupSelect(g);
                     } else {
@@ -407,13 +407,13 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 }
 
                 // Ensure current user is present if parser identified "Me" or if any participant has user id
-                const hasUser = finalList.some((f) => String(f._id) === String(user?._id));
+                const hasUser = finalList.some((f) => String(f?._id) === String(user?._id));
                 if (!hasUser && parsed.participants && parsed.participants.some((p) => /^me$/i.test(String(p.name || "")))) {
                     // inject me at top
                     finalList = addMeIfNeeded(finalList);
                 } else {
                     // still prefer to ensure me is included when splitting with others
-                    const others = finalList.filter((f) => String(f._id) !== String(user?._id));
+                    const others = finalList.filter((f) => String(f?._id) !== String(user?._id));
                     if (others.length > 0 && !hasUser) {
                         finalList = addMeIfNeeded(finalList);
                     }
@@ -443,7 +443,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 // set selectedFriends and fetch payment methods for those with real ids
                 setSelectedFriends(finalList);
                 try {
-                    const realIds = finalList.filter((f) => f && String(f._id).indexOf("__tmp_") !== 0).map((f) => f._id);
+                    const realIds = finalList.filter((f) => f && String(f?._id).indexOf("__tmp_") !== 0).map((f) => f?._id);
                     if (realIds.length) await updateFriendsPaymentMethods(realIds);
                 } catch (e) {
                     // ignore
@@ -459,7 +459,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 // if parsed mentions participants but only Me => treat as personal
                 // pick paymentMethod if present (and exists in user's methods)
                 if (parsed.paymentMethod) {
-                    const exists = (paymentMethods || []).find((pm) => String(pm._id) === String(parsed.paymentMethod));
+                    const exists = (paymentMethods || []).find((pm) => String(pm?._id) === String(parsed.paymentMethod));
                     if (exists) setPaymentMethod(parsed.paymentMethod);
                 }
 
@@ -469,12 +469,12 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                     // map participants but keep personal mode: we will add the payer friend (if any) as selected friend
                     const mapped = mapParsedParticipantsToSelectedFriends(parsed.participants || [], friends || [], user || {});
                     // filter out me (we don't want selectedFriends to be only me in personal mode)
-                    const others = mapped.filter((f) => String(f._id) !== String(user?._id));
+                    const others = mapped.filter((f) => String(f?._id) !== String(user?._id));
                     if (others.length > 0) {
                         // add these friends as selectedFriends so user can convert to split quickly
                         setSelectedFriends((prev) => {
                             // avoid duplicates
-                            const existingIds = new Set((prev || []).map((x) => String(x._id)));
+                            const existingIds = new Set((prev || []).map((x) => String(x?._id)));
                             const merged = [...prev];
                             others.forEach((o) => {
                                 if (!existingIds.has(String(o._id))) merged.push(o);
@@ -483,7 +483,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                         });
                         // fetch payment methods for these friends
                         try {
-                            const ids = others.filter((f) => String(f._id).indexOf("__tmp_") !== 0).map((f) => f._id);
+                            const ids = others.filter((f) => String(f?._id).indexOf("__tmp_") !== 0).map((f) => f?._id);
                             if (ids.length) await updateFriendsPaymentMethods(ids);
                         } catch { }
                     }
@@ -495,7 +495,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 // If parser suggests an overall paymentMethod and the payer is me, set my paymentMethod
                 const payByMe = Array.isArray(parsed.participants) && parsed.participants.some((p) => /^me$/i.test(String(p.name || "")) && p.paying);
                 if (payByMe) {
-                    const exists = (paymentMethods || []).find((pm) => String(pm._id) === String(parsed.paymentMethod));
+                    const exists = (paymentMethods || []).find((pm) => String(pm?._id) === String(parsed.paymentMethod));
                     if (exists) setPaymentMethod(parsed.paymentMethod);
                 }
             }
@@ -572,7 +572,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
             let arr = groups.map((g) => ({
                 ...g,
-                suggested: suggestedIds.includes(String(g._id)),
+                suggested: suggestedIds.includes(String(g?._id)),
             }));
 
             if (!q) {
@@ -611,7 +611,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
         // prefer group preselection if both provided
         if (preSelectedGroupId && !hasPreselectedGroup.current) {
-            const g = groups.find((x) => String(x._id) === String(preSelectedGroupId));
+            const g = groups.find((x) => String(x?._id) === String(preSelectedGroupId));
             if (g) {
                 setExpenseMode("split");
                 hasPreselectedGroup.current = true;
@@ -624,7 +624,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
 
         if (preSelectedFriendId && !hasPreselectedFriend.current) {
-            const f = friends.find((x) => String(x._id) === String(preSelectedFriendId));
+            const f = friends.find((x) => String(x?._id) === String(preSelectedFriendId));
             if (f) {
                 setExpenseMode("split");
                 hasPreselectedFriend.current = true;
@@ -651,7 +651,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 setSelectedFriends(initial);
                 // update payment methods for real ids
                 // try {
-                //   const realIds = initial.filter((x) => x && String(x._id).indexOf("__tmp_") !== 0).map((x) => x._id);
+                //   const realIds = initial.filter((x) => x && String(x?._id).indexOf("__tmp_") !== 0).map((x) => x?._id);
                 //   if (realIds.length) await updateFriendsPaymentMethods(realIds);
                 // } catch (e) {
                 //   // ignore
@@ -667,14 +667,14 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
     const addMeIfNeeded = (list) => {
         if (!user || !user._id) return list;
         let updated = list.map((x) => {
-            if (String(x._id) === String(user._id)) {
+            if (String(x?._id) === String(user._id)) {
                 return { ...x, name: `${user.name} (Me)` };
             }
             return x;
         });
 
-        const hasNonMe = updated.some((x) => String(x._id) !== String(user._id));
-        const meExists = updated.some((x) => String(x._id) === String(user._id));
+        const hasNonMe = updated.some((x) => String(x?._id) !== String(user._id));
+        const meExists = updated.some((x) => String(x?._id) === String(user._id));
 
         if (hasNonMe && !meExists) {
             updated = [
@@ -720,7 +720,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             const exists = upd.some((f) => String(f?._id) === String(friend?._id));
             if (exists) {
                 upd = upd.filter((f) => String(f?._id) !== String(friend?._id));
-                if (String(preSelectedFriendId.current) === String(friend._id)) {
+                if (String(preSelectedFriendId.current) === String(friend?._id)) {
                     hasPreselectedFriend.current = false;
                     preSelectedFriendId.current = null;
                 }
@@ -742,7 +742,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
         try {
             if (groupSelect?._id === group._id) {
                 // deselect group: remove group members from selectedFriends (but keep any other non-group selections)
-                const ids = new Set((group.members || []).map((m) => String(m._id)));
+                const ids = new Set((group.members || []).map((m) => String(m?._id)));
                 const upd = selectedFriends.filter((f) => !ids.has(String(f?._id)));
                 setSelectedFriends(upd);
                 setGroupSelect(null);
@@ -754,7 +754,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 // add group's members who are not already in selectedFriends
                 const existingIds = new Set((selectedFriends || []).map((f) => String(f?._id)));
                 const newMembers = (group.members || [])
-                    .filter((gm) => !existingIds.has(String(gm._id)) && String(gm._id) !== String(user?._id))
+                    .filter((gm) => !existingIds.has(String(gm?._id)) && String(gm?._id) !== String(user?._id))
                     .map((gm) => ({ ...gm, paying: false, owing: false, payAmount: 0, oweAmount: 0, owePercent: 0 }));
                 const upd = addMeIfNeeded([...selectedFriends, ...newMembers]);
                 setSelectedFriends(upd);
@@ -1135,19 +1135,19 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
             list.find((pm) => pm.isDefaultSend) ||
             list.find((pm) => pm.isDefaultReceive) ||
             (list.length === 1 ? list[0] : null);
-        if (preferred?._id) setPaymentMethod(preferred._id);
+        if (preferred?._id) setPaymentMethod(preferred?._id);
     }, [expenseMode, paymentMethods, paymentMethod]);
 
     // ----- payment modal data -----
     const paymentOptions = useMemo(() => {
         if (paymentModalCtx.context === "personal") return paymentMethods || [];
-        const f = selectedFriends.find((x) => x._id === paymentModalCtx.friendId);
+        const f = selectedFriends.find((x) => x?._id === paymentModalCtx.friendId);
         return (f?.paymentMethods || []).map((m) => ({ _id: m.paymentMethodId, ...m }));
     }, [paymentModalCtx, paymentMethods, selectedFriends]);
 
     const paymentValue = useMemo(() => {
         if (paymentModalCtx.context === "personal") return paymentMethod || null;
-        const f = selectedFriends.find((x) => x._id === paymentModalCtx.friendId);
+        const f = selectedFriends.find((x) => x?._id === paymentModalCtx.friendId);
         return f?.selectedPaymentMethodId ?? null;
     }, [paymentModalCtx, paymentMethod, selectedFriends]);
 
@@ -1585,9 +1585,9 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                     <Text style={styles.suggestHeader}>{search.length === 0 ? "SUGGESTED " : ""}GROUPS</Text>
                                                                     <View style={styles.chipsWrap}>
                                                                         {filteredGroups.map((g) => {
-                                                                            const active = groupSelect?._id === g._id;
+                                                                            const active = groupSelect?._id === g?._id;
                                                                             return (
-                                                                                <TouchableOpacity key={g._id} onPress={() => toggleGroup(g)} style={[styles.chip, active && styles.chipActive]}>
+                                                                                <TouchableOpacity key={g?._id} onPress={() => toggleGroup(g)} style={[styles.chip, active && styles.chipActive]}>
                                                                                     <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{g.name}</Text>
                                                                                 </TouchableOpacity>
                                                                             );
@@ -1670,7 +1670,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                     {expenseMode === "personal" && (
                                         <TouchableOpacity onPress={() => openPaymentSheet({ context: "personal" })} style={[styles.input, styles.btnLike]}>
                                             <Text style={[styles.btnLikeText, paymentMethod ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
-                                                {paymentMethod ? (paymentMethods.find((a) => a._id === paymentMethod)?.label || "Payment Account") : "Payment Account"}
+                                                {paymentMethod ? (paymentMethods.find((a) => a?._id === paymentMethod)?.label || "Payment Account") : "Payment Account"}
                                             </Text>
                                         </TouchableOpacity>
                                     )}
@@ -1742,10 +1742,10 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
                                                         return (
                                                             <TouchableOpacity
-                                                                key={`payrow-${f._id}`}
+                                                                key={`payrow-${f?._id}`}
                                                                 onPress={() => {
                                                                     // toggle paying and recompute pay distribution (togglePaying handles distributeEqualPay)
-                                                                    togglePaying(f._id);
+                                                                    togglePaying(f?._id);
                                                                 }}
                                                                 activeOpacity={0.8}
                                                                 style={[styles.rowBetween, { paddingVertical: 4, height: 45 }]}
@@ -1766,9 +1766,9 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
                                                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                                                     {/* Payment method selector if friend has >1 PMs */}
-                                                                    {manyPMs ? (
+                                                                    {manyPMs && isPaying ? (
                                                                         <TouchableOpacity
-                                                                            onPress={() => openPaymentSheet({ context: "split", friendId: f._id })}
+                                                                            onPress={() => openPaymentSheet({ context: "split", friendId: f?._id })}
                                                                             style={[
                                                                                 styles.pmBtn,
                                                                                 selPM ? { borderColor: styles.colors.borderFallback, backgroundColor: "transparent" } : { borderColor: styles.colors.dangerFallback, backgroundColor: "rgba(244,67,54,0.08)" },
@@ -1781,13 +1781,13 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                     ) : null}
 
                                                                     {/* Amount field: only show when more than one payer (same as before) */}
-                                                                    {selectedFriends.filter((x) => x.paying).length > 1 ? (
+                                                                    {selectedFriends.filter((x) => x.paying).length > 1 && isPaying ? (
                                                                         <TextInput
                                                                             placeholder="Amount"
                                                                             placeholderTextColor={styles.colors.mutedFallback}
                                                                             keyboardType="decimal-pad"
                                                                             value={String(f.payAmount || "")}
-                                                                            onChangeText={(v) => setPayAmount(f._id, v)}
+                                                                            onChangeText={(v) => setPayAmount(f?._id, v)}
                                                                             style={[styles.input, { width: 100, textAlign: "right" }]}
                                                                         />
                                                                     ) : null}
@@ -1856,7 +1856,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                             {/* Per-ower inputs based on mode */}
                                                             <View style={{ marginTop: 6, gap: 8 }}>
                                                                 {selectedFriends
-                                                                    .filter((f) => f.owing || mode === "equal") // show rows when equal mode too
                                                                     .map((f) => {
                                                                         const isOwing = !!f.owing;
                                                                         return (
@@ -1865,7 +1864,18 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                                 onPress={() => {
                                                                                     // toggle owing flag for this friend (works in all modes)
                                                                                     setSelectedFriends((prev) => {
-                                                                                        const updated = prev.map((x) => (x._id === f?._id ? { ...x, owing: !x.owing } : x));
+                                                                                        const updated = prev.map((x) => {
+                                                                                        if (x?._id === f?._id) {
+                                                                                            const newOwing = !x.owing;
+                                                                                            return {
+                                                                                            ...x,
+                                                                                            owing: newOwing,
+                                                                                            oweAmount: newOwing ? x.oweAmount : 0, // or null, depending on your logic
+                                                                                            };
+                                                                                        }
+                                                                                        return x;
+                                                                                        });
+
                                                                                         // re-run equal distribution if we're in equal mode
                                                                                         if (mode === "equal") return distributeEqualOwe(updated);
                                                                                         return updated;
@@ -1876,19 +1886,20 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                             >
                                                                                 <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
                                                                                     {/* Radio (equal mode) or simple bullet */}
-                                                                                    {mode === "equal" ? (
+
                                                                                         <View style={styles.radioWrap}>
                                                                                             <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
                                                                                                 {isOwing ? <View style={styles.radioInnerActive} /> : <View style={styles.radioInner} />}
                                                                                             </View>
                                                                                         </View>
-                                                                                    ) : null}
+
 
                                                                                     <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
                                                                                         {f?.name}
                                                                                     </Text>
                                                                                 </View>
-
+                                                                                {isOwing && <>
+                                                                                
                                                                                 {/* Right side: input or computed value depending on mode */}
                                                                                 {mode === "percent" ? (
                                                                                     <TextInput
@@ -1914,6 +1925,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                                         {fmtMoney(currency, f.oweAmount || 0)}
                                                                                     </Text>
                                                                                 )}
+                                                                                </>}
                                                                             </TouchableOpacity>
                                                                         );
                                                                     })}

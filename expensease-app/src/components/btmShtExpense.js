@@ -17,7 +17,7 @@ import BottomSheetLayout from "./btmShtHeaderFooter"; // your reusable layout
 import SheetCurrencies from "~/shtCurrencies";
 import SheetCategories from "~/shtCategories";
 import SheetPayments from "~/shtPayments";
-import { getSymbol } from "../utils/currencies";
+import { getSymbol, formatMoney } from "../utils/currencies";
 import { useTheme } from "context/ThemeProvider";
 import { getCategoryLabel, getCategoryOptions } from "../utils/categoryOptions";
 import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
@@ -56,6 +56,7 @@ export default function ExpenseBottomSheet({
     fetchFriendsPaymentMethods: fetchFriendsPM = fetchFriendsPaymentMethods,
     onSaved,
 }) {
+
     const insets = useSafeAreaInsets();
     const { theme } = useTheme();
     const colors = theme?.colors || {};
@@ -67,13 +68,13 @@ export default function ExpenseBottomSheet({
     const paymentSheetRef = useRef(null);
     const paymentModalCtxInitial = { context: "personal", friendId: null };
     const [paymentModalCtx, setPaymentModalCtx] = useState(paymentModalCtxInitial);
-        const openCategorySheet = () => categorySheetRef.current?.present();
+    const openCategorySheet = () => categorySheetRef.current?.present();
     const openPaymentSheet = (ctx) => {
         setPaymentModalCtx(ctx);
         paymentSheetRef.current?.present();
     };
     const openCurrencySheet = () => currencySheetRef.current?.present();
-    
+
     // control state
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -190,13 +191,13 @@ export default function ExpenseBottomSheet({
     const unifiedOptions = useMemo(() => {
         if (!paymentModal.open) return [];
         if (paymentModal.context === "personal") return paymentMethods || [];
-        const f = selectedFriends.find((x) => x._id === paymentModal.friendId);
+        const f = selectedFriends.find((x) => x?._id === paymentModal.friendId);
         return (f?.paymentMethods || []).map((m) => ({ _id: m.paymentMethodId, ...m }));
     }, [paymentModal, selectedFriends, paymentMethods]);
 
     const unifiedValue = useMemo(() => {
         if (paymentModal.context === "personal") return personalPaymentMethod || null;
-        const f = selectedFriends.find((x) => x._id === paymentModal.friendId);
+        const f = selectedFriends.find((x) => x?._id === paymentModal.friendId);
         return f?.selectedPaymentMethodId ?? null;
     }, [paymentModal, personalPaymentMethod, selectedFriends]);
 
@@ -279,8 +280,8 @@ export default function ExpenseBottomSheet({
         setSelectedFriends((prev) => (prev.some((f) => f?._id === friendId) ? prev : [...prev, { _id: friendId, name: name || "Member", paying: false, payAmount: 0, owing: false, oweAmount: 0 }]));
     };
 
-    const selectedIds = new Set(selectedFriends.map((m) => m._id));
-    const availableMembers = groupMembers.filter((m) => !selectedIds.has(m._id));
+    const selectedIds = new Set(selectedFriends.map((m) => m?._id));
+    const availableMembers = groupMembers.filter((m) => !selectedIds.has(m?._id));
 
     const getRemainingTop = () => {
         const owingFriends = selectedFriends.filter((f) => f.owing);
@@ -309,6 +310,7 @@ export default function ExpenseBottomSheet({
         }
         return "";
     };
+    const num = (x) => (isNaN(Number(x)) ? 0 : Number(x));
 
     const buildEqualResplit = (totalAmount, currentSplits) => {
         const members = currentSplits?.length || 0;
@@ -460,13 +462,13 @@ export default function ExpenseBottomSheet({
     const getUserNameById = (idOrObj) => {
         if (!idOrObj) return "";
         if (typeof idOrObj === "object") {
-            if (idOrObj._id === userId) return "You";
+            if (idOrObj?._id === userId) return "You";
             return idOrObj.name || "";
         }
         const id = idOrObj;
         if (id === userId) return "You";
         if ((expense?.createdBy?._id) === id) return expense.createdBy.name;
-        const gm = groupMembers.find((m) => m._id === id);
+        const gm = groupMembers.find((m) => m?._id === id);
         if (gm) return gm.name;
         const splitUser = (expense?.splits || []).map((s) => s.friendId).find((u) => (typeof u === "object" ? u._id : u) === id);
         if (splitUser && typeof splitUser === "object") return splitUser.name || "";
@@ -836,7 +838,8 @@ export default function ExpenseBottomSheet({
                             {/* Paid tab */}
                             {activeTab === "paid" ? (
                                 <>
-                                    <Text style={styles.helperSmall}>(Select the people who paid.)</Text>
+                                    <Text style={styles.sectionHint}>Select the people who paid</Text>
+
 
 
                                     {/* Use radio-style rows (like 'owed' block) instead of chips */}
@@ -848,10 +851,10 @@ export default function ExpenseBottomSheet({
 
                                         return (
                                             <TouchableOpacity
-                                                key={`payrow-${f._id}`}
+                                                key={`payrow-${f?._id}`}
                                                 onPress={() => {
                                                     // toggle paying and recompute pay distribution (togglePaying handles distributeEqualPay)
-                                                    togglePaying(f._id);
+                                                    togglePaying(f?._id);
                                                 }}
                                                 activeOpacity={0.8}
                                                 style={[styles.rowBetween, { paddingVertical: 4, height: 45 }]}
@@ -872,9 +875,9 @@ export default function ExpenseBottomSheet({
 
                                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                                     {/* Payment method selector if friend has >1 PMs */}
-                                                    {manyPMs ? (
+                                                    {manyPMs && isPaying ? (
                                                         <TouchableOpacity
-                                                            onPress={() => openPaymentSheet({ context: "split", friendId: f._id })}
+                                                            onPress={() => openPaymentSheet({ context: "split", friendId: f?._id })}
                                                             style={[
                                                                 styles.pmBtn,
                                                                 selPM ? { borderColor: theme.colors.border, backgroundColor: "transparent" } : { borderColor: theme.colors.negative, backgroundColor: "rgba(244,67,54,0.08)" },
@@ -887,13 +890,13 @@ export default function ExpenseBottomSheet({
                                                     ) : null}
 
                                                     {/* Amount field: only show when more than one payer (same as before) */}
-                                                    {selectedFriends.filter((x) => x.paying).length > 1 ? (
+                                                    {selectedFriends.filter((x) => x.paying).length > 1 && isPaying ? (
                                                         <TextInput
                                                             placeholder="Amount"
                                                             placeholderTextColor={theme.colors.muted}
                                                             keyboardType="decimal-pad"
                                                             value={String(f.payAmount || "")}
-                                                            onChangeText={(v) => setPayAmount(f._id, v)}
+                                                            onChangeText={(v) => setPayAmount(f?._id, v)}
                                                             style={[styles.input, { width: 100, textAlign: "right" }]}
                                                         />
                                                     ) : null}
@@ -906,8 +909,9 @@ export default function ExpenseBottomSheet({
                                     {/* Helper totals when multiple payers exist and sum mismatch */}
                                     {selectedFriends.filter((f) => f.paying).length > 1 && !isPaidValid ? (
                                         <View style={{ alignItems: "center", marginTop: 6 }}>
-                                            <Text style={styles.helperMono}>{fmtMoney(currency, paidTotal)} / {fmtMoney(currency, num(amount))}</Text>
-                                            <Text style={[styles.helperMono, { color: theme.colors.muted }]}>{fmtMoney(currency, num(amount) - paidTotal)} left</Text>
+                                            {console.log(paidTotal, amountNum)}
+                                            <Text style={[styles.helperMono]}>{formatMoney(currency, num(amountNum) - paidTotal)} left</Text>
+                                            <Text style={[styles.helperMono, { color: theme.colors.muted }]}>{formatMoney(currency, paidTotal)} / {formatMoney(currency, num(amountNum))}</Text>
                                         </View>
                                     ) : null}
                                 </>
@@ -916,7 +920,7 @@ export default function ExpenseBottomSheet({
                             {/* Owed tab */}
                             {activeTab === "owed" && (
                                 <>
-                                    <Text style={styles.sectionTitle}>Owed by <Text style={styles.sectionHint}>(Select who owes)</Text></Text>
+                                    <Text style={styles.sectionHint}>Select who owes</Text>
 
                                     {selectedFriends.length > 1 ? (
                                         <View style={{ gap: 8 }}>
@@ -945,14 +949,25 @@ export default function ExpenseBottomSheet({
                                             </View>
 
                                             <View style={{ gap: 8 }}>
-                                                {selectedFriends.filter((f) => f.owing || mode === "equal").map((f) => {
+                                                {selectedFriends.map((f) => {
                                                     const isOwing = !!f.owing;
                                                     return (
                                                         <TouchableOpacity
-                                                            key={`ow-${f._id}`}
+                                                            key={`ow-${f?._id}`}
                                                             onPress={() => {
                                                                 setSelectedFriends((prev) => {
-                                                                    const updated = prev.map((x) => x._id === f._id ? { ...x, owing: !x.owing } : x);
+                                                                    const updated = prev.map((x) => {
+                                                                    if (x?._id === f?._id) {
+                                                                        const newOwing = !x.owing;
+                                                                        return {
+                                                                        ...x,
+                                                                        owing: newOwing,
+                                                                        oweAmount: newOwing ? x.oweAmount : 0, // or null, depending on your logic
+                                                                        };
+                                                                    }
+                                                                    return x;
+                                                                    });
+
                                                                     if (mode === "equal") return distributeEqualOwe(updated);
                                                                     return updated;
                                                                 });
@@ -961,28 +976,33 @@ export default function ExpenseBottomSheet({
                                                             style={[styles.splitRow, { paddingVertical: mode === "equal" ? 8 : 0 }]}
                                                         >
                                                             <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-                                                                {mode === "equal" ? (
+
                                                                     <View style={styles.radioWrap}>
                                                                         <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
                                                                             {isOwing ? <View style={styles.radioInnerActive} /> : <View style={styles.radioInner} />}
                                                                         </View>
                                                                     </View>
-                                                                ) : null}
+
 
                                                                 <Text style={{ color: colors.text || "#fff", flex: 1 }}>{f.name}</Text>
                                                             </View>
-
+                                                            {isOwing && <>
                                                             {mode === "percent" ? (
-                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.owePercent ?? "")} onChangeText={(v) => setOwePercent(f._id, v)} />
+                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.owePercent ?? "")} onChangeText={(v) => setOwePercent(f?._id, v)} />
                                                             ) : mode === "value" ? (
-                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.oweAmount ?? "")} onChangeText={(v) => setOweAmount(f._id, v)} />
+                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.oweAmount ?? "")} onChangeText={(v) => setOweAmount(f?._id, v)} />
                                                             ) : (
                                                                 <Text style={{ color: colors.text || "#fff' " }}>{Number(f.oweAmount || 0).toFixed(2)}</Text>
-                                                            )}
+                                                            )}</>}
                                                         </TouchableOpacity>
                                                     );
                                                 })}
                                             </View>
+                                            <View style={{ alignItems: "center", marginTop: 6 }}>
+                                            <Text style={[styles.helperMono, { color: theme.colors.muted }]}>{getRemainingBottom()}</Text>
+                                            <Text style={[styles.helperMono]}>{getRemainingTop()}</Text>
+                                            </View>
+
                                         </View>
                                     ) : (
                                         <Text style={styles.mutedText}>Add more people to split this expense.</Text>
@@ -1096,9 +1116,9 @@ export default function ExpenseBottomSheet({
         );
 
         const merged = members.map((m) => {
-            const prev = byId.get(m._id);
+            const prev = byId.get(m?._id);
             return {
-                _id: m._id,
+                _id: m?._id,
                 name: m.name || prev?.name || "Member",
                 paying: prev?.paying || false,
                 owing: prev?.owing || false,
@@ -1112,7 +1132,7 @@ export default function ExpenseBottomSheet({
 
         (splitsArr || []).forEach((s) => {
             const id = s?.friendId?._id || s?.friendId;
-            if (!merged.some((x) => x._id === id)) {
+            if (!merged.some((x) => x?._id === id)) {
                 merged.push({
                     _id: id,
                     name: s?.friendId?.name || s?.name || "Member",
@@ -1166,7 +1186,7 @@ const createStyles = (c = {}) =>
         chip2Text: { color: c.text },
         chip2TextActive: { color: c.text, fontWeight: "700" },
 
-        splitRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+        splitRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4, height: 45  },
         smallInput: { width: 100, padding: 8, borderBottomWidth: 1, borderColor: c.border || "#333", color: c.text || "#fff", textAlign: "right", borderRadius: 6, backgroundColor: c.cardAlt || "#111" },
         smallBtn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: c.cardAlt || "#111", borderWidth: 1, borderColor: c.border || "#444" },
         smallBtnText: { color: c.text || "#fff" },
@@ -1231,7 +1251,7 @@ const createStyles = (c = {}) =>
         summaryValueError: {
             color: c.negative,
         },
-                pmBtn: {
+        pmBtn: {
             borderWidth: 1,
             borderColor: c.border,
             paddingHorizontal: 10,
@@ -1245,6 +1265,7 @@ const createStyles = (c = {}) =>
 
         selRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", height: 30 },
         selText: { color: c.text, fontSize: 16, textTransform: "capitalize" },
-                rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+        rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+        helperMono: { color: c.text, fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }) },
 
     });
