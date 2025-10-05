@@ -28,7 +28,8 @@ import { useAuth } from "context/AuthContext";
 import { NotificationContext } from "context/NotificationContext";
 import { router } from "expo-router";
 import * as AppleAuthentication from 'expo-apple-authentication';
-import PhoneInput from "react-native-phone-number-input";
+import PhoneInput from "@linhnguyen96114/react-native-phone-input";
+
 import { OtpInput } from "react-native-otp-entry";
 
 export default function Login() {

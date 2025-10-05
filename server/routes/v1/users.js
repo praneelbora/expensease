@@ -1435,6 +1435,25 @@ router.post("/logging", async (req, res) => {
     }
 });
 
+router.get("/verifyWhatsapp", async (req, res) => {
+    console.log('req: ', req);
+    console.log('res: ', res);
+    try {
+        const { 'hub.mode': mode, 'hub.challenge': challenge, 'hub.verify_token': token } = req.query;
+
+        if (mode === 'subscribe') {
+            console.log('WEBHOOK VERIFIED');
+            res.status(200).send(challenge);
+        } else {
+            res.status(403).end();
+        }
+    } catch (error) {
+        console.log(error);
+
+    }
+
+});
+
 
 // POST /verifyOTP (MSG91 only, no dev bypass)
 router.post('/verifyOTP', async (req, res) => {

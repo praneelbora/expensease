@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import PhoneInput from "react-native-phone-number-input";
+import PhoneInput from "@linhnguyen96114/react-native-phone-input";
 import { OtpInput } from "react-native-otp-entry";
 import { Ionicons } from "@expo/vector-icons";
 
