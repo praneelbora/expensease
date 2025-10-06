@@ -32,9 +32,13 @@ import { getAllExpenses } from "services/ExpenseService";
 
 import { getSymbol, getDigits, formatMoney, allCurrencies } from "utils/currencies";
 import SearchBar from "~/searchBar";
+
+//
+// NOTE: DEFAULT_FILTER.category is now an ARRAY to support multi-select
+//
 const DEFAULT_FILTER = {
     type: "all",
-    category: "all",
+    category: ["all"],      // <-- changed to array
     currency: "",
     sort: "newest",
     mode: "split",
@@ -72,10 +76,22 @@ export default function ExpensesScreen() {
             .concat(allCurrencies.filter((c) => !base.has(c.code)))
             .map((c) => ({ value: c.code, label: `${c.name} (${c.symbol})`, code: c.code }));
     }, [defaultCurrency, preferredCurrencies]);
+
+    // parse possible incoming URL "category" param: could be comma-separated list or single string
+    const parseCategoryParam = (c) => {
+        if (c == null) return DEFAULT_FILTER.category;
+        if (Array.isArray(c)) return c;
+        if (String(c).trim() === "") return DEFAULT_FILTER.category;
+        // allow comma separated values
+        const parts = String(c).split(",").map((p) => p.trim()).filter(Boolean);
+        return parts.length ? parts : DEFAULT_FILTER.category;
+    };
+
     const initialFilter = useMemo(() => {
         // params come from useLocalSearchParams(), values are strings
         const pType = (params?.type || params?.filter || DEFAULT_FILTER.type).toString();
-        const pCategory = (params?.category || DEFAULT_FILTER.category).toString();
+        const pCategoryRaw = (params?.category ?? DEFAULT_FILTER.category);
+        const pCategory = parseCategoryParam(pCategoryRaw);
         const pSort = (params?.sort || DEFAULT_FILTER.sort).toString();
 
         return {
@@ -88,7 +104,7 @@ export default function ExpensesScreen() {
 
     // URL-style initial state (type/category/sort) via router params
     const initialType = (params?.type || params?.filter || "all").toString();
-    const initialCategory = (params?.category || "all").toString();
+    const initialCategory = parseCategoryParam(params?.category ?? DEFAULT_FILTER.category);
     const initialSort = (params?.sort || "newest").toString();
 
     const [appliedFilter, setAppliedFilter] = useState(initialFilter);
@@ -103,7 +119,6 @@ export default function ExpensesScreen() {
         }));
     }, [initialFilter.type, initialFilter.category, initialFilter.sort]);
 
-
     useEffect(() => {
         setAppliedFilter((s) => ({
             ...s,
@@ -115,14 +130,13 @@ export default function ExpensesScreen() {
 
 
     useEffect(() => {
-        // only include keys that are meaningful (avoid long empty params)
+        // update URL params (stringify category array as comma-separated)
         const paramsObj = {
             type: appliedFilter.type,
-            category: appliedFilter.category,
+            category: Array.isArray(appliedFilter.category) ? appliedFilter.category.join(",") : appliedFilter.category,
             sort: appliedFilter.sort,
         };
 
-        // build query string with only non-empty values
         const qp = Object.entries(paramsObj)
             .filter(([, v]) => v !== null && v !== undefined && String(v) !== "")
             .reduce((acc, [k, v]) => {
@@ -149,11 +163,10 @@ export default function ExpensesScreen() {
     useFocusEffect(
         useCallback(() => {
             fetchExpenses()
-            // optional cleanup when screen loses focus
-            return () => {
-            };
+            return () => {};
         }, [fetchExpenses])
     );
+
     const [refreshing, setRefreshing] = useState(false);
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -164,7 +177,7 @@ export default function ExpensesScreen() {
         }
     }, [fetchExpenses]);
 
-    // helpers (ported)
+    // helpers
     const getSettleDirectionText = (splits = []) => {
         const payer = splits.find((s) => s.paying && s.payAmount > 0);
         const receiver = splits.find((s) => s.owing && s.oweAmount > 0);
@@ -193,11 +206,11 @@ export default function ExpensesScreen() {
         return null;
     };
     const areFiltersActive = (filter) => {
-        // compare relevant keys only (type/category/currency/sort/mode/date/dateRange)
         const f = filter || {};
         return (
             f.type !== DEFAULT_FILTER.type ||
-            f.category !== DEFAULT_FILTER.category ||
+            // compare categories carefully (array vs default)
+            (Array.isArray(f.category) ? !(f.category.length === 1 && f.category[0] === "all") : f.category !== DEFAULT_FILTER.category) ||
             f.currency !== DEFAULT_FILTER.currency ||
             f.sort !== DEFAULT_FILTER.sort ||
             f.mode !== DEFAULT_FILTER.mode ||
@@ -226,7 +239,7 @@ export default function ExpensesScreen() {
         return ["all", ...arr];
     }, [expenses]);
 
-    // Put these helpers near the top of the file (inside the component or above it)
+    // helpers date etc unchanged...
     const parseISOSafe = (v) => {
         if (!v) return null;
         try {
@@ -249,7 +262,7 @@ export default function ExpensesScreen() {
         return x;
     };
 
-    // Replace your existing filteredExpenses useMemo with the block below
+    // Replace your existing filteredExpenses useMemo with the block below (updated category logic)
     const filteredExpenses = useMemo(() => {
         const filterExpenses = (items, { type, category, currency, sort, date, dateRange }, q) => {
             let out = [...items];
@@ -273,10 +286,13 @@ export default function ExpensesScreen() {
             }
 
             // --- category ---
-            if (category && category !== "all") {
+            // category can be an array (multi-select) OR a string for legacy cases
+            if (category && !(Array.isArray(category) && category.length === 1 && category[0] === "all")) {
+                // build list of selected labels
+                const sel = Array.isArray(category) ? category : [category];
                 out = out.filter((e) => {
                     const catLabel = categoryMap[e?.category]?.label || e?.category;
-                    return catLabel === category;
+                    return sel.includes(catLabel);
                 });
             }
 
@@ -308,48 +324,39 @@ export default function ExpensesScreen() {
             }
 
             // --- DATE FILTERING BEGIN ---
-            // Determine effective from/to instants (Date objects or null)
             let effectiveFrom = null;
             let effectiveTo = null;
 
-            // If a named preset (week/month) was used, prefer dateRange from filter (your sheet sets this)
             if ((date === "week" || date === "month") && dateRange) {
                 effectiveFrom = parseISOSafe(dateRange.from);
                 effectiveTo = parseISOSafe(dateRange.to);
             } else if (date === "custom") {
-                // custom: dateRange may have from/to as ISO strings or null
                 const fromISO = dateRange?.from ?? null;
                 const toISO = dateRange?.to ?? null;
                 const fromDate = parseISOSafe(fromISO);
                 const toDate = parseISOSafe(toISO);
 
                 if (!fromDate && !toDate) {
-                    // no restriction
                     effectiveFrom = null;
                     effectiveTo = null;
                 } else if (!fromDate && toDate) {
-                    // from: all past -> set from to epoch (or very early)
-                    effectiveFrom = new Date(0); // 1970-01-01
+                    effectiveFrom = new Date(0);
                     effectiveTo = endOfDay(toDate);
                 } else if (fromDate && !toDate) {
-                    // to: until today
                     effectiveFrom = startOfDay(fromDate);
-                    effectiveTo = endOfDay(new Date()); // today end
+                    effectiveTo = endOfDay(new Date());
                 } else {
-                    // both present
                     effectiveFrom = startOfDay(fromDate);
                     effectiveTo = endOfDay(toDate);
                 }
             } else {
-                // no date filter present
                 effectiveFrom = null;
                 effectiveTo = null;
             }
 
-            // Apply date filter if at least one bound exists
             if (effectiveFrom || effectiveTo) {
                 out = out.filter((exp) => {
-                    if (!exp?.date) return false; // exclude if no date on expense
+                    if (!exp?.date) return false;
                     const expDate = new Date(exp.date);
                     const t = expDate.getTime();
                     if (effectiveFrom && t < effectiveFrom.getTime()) return false;
@@ -367,11 +374,10 @@ export default function ExpensesScreen() {
         return filterExpenses(expenses, appliedFilter, query);
     }, [expenses, appliedFilter, query]);
 
-
+    // sections & rest unchanged; keep original implementations
     const sections = useMemo(() => {
         if (!filteredExpenses || filteredExpenses.length === 0) return [];
 
-        // helper to get month key "YYYY-MM" and readable label "Sep 2025"
         const getMonthKey = (isoDate) => {
             const d = new Date(isoDate);
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -380,10 +386,8 @@ export default function ExpensesScreen() {
         };
 
         const map = new Map();
-
-        // group by month key
         filteredExpenses.forEach((e) => {
-            if (!e?.date) return; // skip if no date
+            if (!e?.date) return;
             const { key, label, ts } = getMonthKey(e.date);
             if (!map.has(key)) {
                 map.set(key, { key, label, ts, items: [] });
@@ -391,25 +395,18 @@ export default function ExpensesScreen() {
             map.get(key).items.push(e);
         });
 
-        // convert to array and sort months descending (newest first)
         const arr = Array.from(map.values()).sort((a, b) => b.ts - a.ts);
 
-        // compute per-month owe totals for current user
         const sectionsWithSummary = arr.map((group) => {
             const totals = group.items.reduce((acc, e) => {
-                // skip settlement records completely
                 if (e.typeOf === "settle") {
                     return acc;
                 }
 
-                // determine how much this user owes for this expense (default 0)
                 let owe = 0;
-
-                // 1) personal mode: if the expense was created by someone else, user owes the whole amount
                 if (e.mode === "personal") {
                     acc[e.currency] = (acc[e.currency] || 0) + Math.abs(e.amount)
                 } else {
-                    // 2) split mode (or default): find user's split and use oweAmount
                     const splits = e.splits || [];
                     const userSplit = splits.find((s) => {
                         const fid = s.friendId?._id ?? s.friendId;
@@ -423,9 +420,8 @@ export default function ExpensesScreen() {
                     acc[cur] = (acc[cur] || 0) + owe;
                 }
 
-                return acc; // important: always return accumulator
+                return acc;
             }, {});
-            // format amounts (only non-zero)
             const amountEntries = Object.entries(totals).filter(([, v]) => v > 0);
             const amountStrings = amountEntries.map(([cur, amt]) => {
                 const digits = getDigits(cur) ?? 2;
@@ -435,7 +431,6 @@ export default function ExpensesScreen() {
                     : `${cur} ${Number(amt).toFixed(digits)}`;
             });
 
-            // also count only those items where user owes > 0 (optional)
             const oweCount = group.items.filter((e) => {
                 if (e.typeOf === "settle") return false;
                 if (e.mode === "personal") {
@@ -453,7 +448,7 @@ export default function ExpensesScreen() {
             return {
                 title: group.label,
                 key: group.key,
-                data: group.items, // SectionList expects `data` array
+                data: group.items,
                 summary: {
                     totalByCurrency: totals,
                     amountStrings,
@@ -465,9 +460,7 @@ export default function ExpensesScreen() {
         return sectionsWithSummary;
     }, [filteredExpenses, userId, defaultCurrency]);
 
-    ///// ---------- Month summary header component ----------
     const MonthHeader = ({ title, summary }) => {
-        // nothing to show if no owe amounts
         const { amountStrings = [], oweCount = 0 } = summary || {};
         return (
             <View style={{ paddingTop: 6, }}>
@@ -476,10 +469,6 @@ export default function ExpensesScreen() {
                         <Text style={{ color: theme.colors.text, fontWeight: "700", fontSize: 15 }}>
                             {title}
                         </Text>
-                        {/* <Text style={{ color: theme.colors.muted, marginTop: 4, fontSize: 12 }}>
-                        {summary?.itemCount ?? 0} {summary?.itemCount === 1 ? "expense" : "expenses"}
-                        {oweCount > 0 ? ` • ${oweCount} ${oweCount === 1 ? "owe" : "owes"}` : ""}
-                    </Text> */}
                     </View>
 
                     <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
@@ -496,24 +485,19 @@ export default function ExpensesScreen() {
         );
     };
 
-    ///// ---------- SectionList rendering (replace your FlatList) ----------
-
-
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
-            {/* StatusBar uses theme.statusBarStyle if present, otherwise derive from theme.mode */}
             <StatusBar style={theme?.statusBarStyle === "dark-content" ? "dark" : "light"} />
             <Header
                 title="Expenses"
                 showFilter
                 showBack
-                onBack={() => router.push("/home")}
+                onBack={() => router.back()}
                 onFilterPress={() => filterSheetRef.current?.present()}
                 filterBtnActive={JSON.stringify(appliedFilter) !== JSON.stringify(DEFAULT_FILTER)}
             />
 
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
-                {/* Search */}
                 {expenses.length > 0 && (
                     <SearchBar value={query} onChangeText={setQuery} placeholder="Search Descriptions / Names / Amounts / Currencies" />
                 )}
@@ -559,71 +543,23 @@ export default function ExpensesScreen() {
                             </View>
                         )
                     }
-                    // optional: keep headers sticky
                     stickySectionHeadersEnabled={false}
                 />
-                {/* List */}
-                {/* <FlatList
-                    data={loading ? [] : filteredExpenses}
-                    keyExtractor={(item) => String(item._id)}
-                    renderItem={({ item }) => (
-                        <ExpenseRow
-                            expense={item}
-                            userId={userId}
-                            showExpense={appliedFilter.mode === "expense"}
-                            update={fetchExpenses}
-                        />
-                    )}
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
-                    ListHeaderComponent={
-                        areFiltersActive(appliedFilter) && summary ? <SummaryHeader summary={summary} /> : null
-                    }
-                    ListEmptyComponent={
-                        loading ? (
-                            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-                                <Feather name="loader" size={22} color={theme.colors.text} />
-                            </View>
-                        ) : expenses.length === 0 ? (
-                            <View style={styles.emptyWrap}>
-                                <Text style={styles.emptyTitle}>No expenses found.</Text>
-                                <Text style={styles.emptyText}>Add your first expense to see it here.</Text>
-                            </View>
-                        ) : (
-                            <View style={styles.emptyWrap}>
-                                <Text style={[styles.emptyTitle, { marginBottom: 6 }]}>No results.</Text>
-                                <Text style={styles.emptyText}>Clear filters to view more.</Text>
-                                <TouchableOpacity
-                                    style={[styles.ctaBtn, { marginTop: 10 }]}
-                                    onPress={() => setAppliedFilter(DEFAULT_FILTER)}
-                                >
-                                    <Text style={styles.ctaBtnText}>Clear Filters</Text>
-                                </TouchableOpacity>
-                            </View>
-                        )
-                    }
-                    ListFooterComponent={
-                        !loading && filteredExpenses.length > 0 && (appliedFilter !== DEFAULT_FILTER) ? (
-                            <Text style={styles.footerHint}>
-                                End of Results.{" "}
-                                <Text onPress={() => setAppliedFilter(DEFAULT_FILTER)} style={{ color: theme.colors.primary, textDecorationLine: "underline" }}>
-                                    Clear Filters
-                                </Text>{" "}
-                                to view more.
-                            </Text>
-                        ) : null
-                    }
-                /> */}
 
-                {/* Filters sheet */}
                 <BottomSheetFilters
                     innerRef={filterSheetRef}
                     selected={appliedFilter}
                     filters={FILTERS}
                     defaultFilter={DEFAULT_FILTER}
                     categories={categoryOptions}
-                    onApply={(newFilters) => setAppliedFilter(newFilters)}
+                    onApply={(newFilters) => {
+                        // ensure category is in expected shape (array)
+                        const nf = { ...newFilters };
+                        if (!Array.isArray(nf.category)) {
+                            nf.category = parseCategoryParam(nf.category);
+                        }
+                        setAppliedFilter(nf);
+                    }}
                 />
             </View>
         </SafeAreaView>

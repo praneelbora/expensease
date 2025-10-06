@@ -27,6 +27,8 @@ import * as ContactsService from 'services/ContactService';
 import { useTheme } from 'context/ThemeProvider';
 import { useAuth } from 'context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { BottomSheetFlatList } from '@gorhom/bottom-sheet';
 
 /**
  * Updated BottomSheetFriendManager
@@ -296,9 +298,15 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
 
             // upload unique hashes
             const uniq = Array.from(new Set(hashes));
-            const toUpload = uniq.slice(0, 2000);
-            let resp = await ContactsService.uploadContactHashes(toUpload);
-            if (resp && resp.data) resp = resp.data;
+            const toUpload = uniq; // <-- remove the old slice(0,2000)
+
+            let resp = await ContactsService.uploadContactHashesBatched(toUpload, { batchSize: 500, concurrency: 1 });
+            // if your other code expects resp.data, normalize:
+            if (resp && resp.matches !== undefined) {
+                // resp is already aggregated result
+            } else if (resp && resp.data) {
+                resp = resp.data;
+            }
 
             const matches = Array.isArray(resp?.matches) ? resp.matches : [];
             const uploaded = Number.isFinite(resp?.uploaded) ? resp.uploaded : toUpload.length;
@@ -906,32 +914,37 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                     <View style={{ marginTop: 8, flex: 1 }}>
                         {scanning && <ActivityIndicator style={{ marginVertical: 8 }} color={colors.cta || colors.primary} />}
 
-                        <FlatList
+                        <BottomSheetFlatList
                             data={filteredContacts}
-                            keyExtractor={(item) => item.id}
-                            initialNumToRender={20}
-                            maxToRenderPerBatch={20}
-                            windowSize={21}
-                            ItemSeparatorComponent={() => <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border || '#333' }} />}
+                            keyExtractor={(it, idx) => it?.id ?? `row-${idx}`}
+                            keyboardShouldPersistTaps="handled"
+                            nestedScrollEnabled={Platform.OS === 'android'}
                             showsVerticalScrollIndicator={false}
+                            contentContainerStyle={{ paddingBottom: insets.bottom, paddingHorizontal: 0 }}
+                            initialNumToRender={12}
+                            maxToRenderPerBatch={20}
+                            windowSize={8}
+                            removeClippedSubviews={true}
+                            ListEmptyComponent={() => <Text style={styles.emptyText}>No contacts found</Text>}
+                            /* if your rows are fixed-height, uncomment these two lines and tune ROW_HEIGHT */
+                            // getItemLayout={(data, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
+                            // extraData={user?.friends}
+
                             renderItem={({ item }) => {
-                                // determine if there's an incoming/outgoing request for this row
                                 const { type: reqType, req: matchedReq } = rowRequestForItem(item);
 
-                                // determine friendship: check aggregatedUsers against user.friends
                                 const friendsSet = new Set((user?.friends || []).map((f) => String(f)));
                                 const aggUsers = Array.isArray(item.aggregatedUsers) ? item.aggregatedUsers : [];
                                 const isFriend = aggUsers.some((u) => {
-                                    const uid = String(u.userId || u.userId || u.id || u.userId || '').trim();
+                                    const uid = String(u.userId || u.id || '').trim();
                                     return uid && friendsSet.has(uid);
                                 });
 
-                                // button element(s) to render on the right
                                 let rightElement = null;
 
                                 if (reqType === 'incoming' && matchedReq) {
                                     rightElement = (
-                                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                             <TouchableOpacity
                                                 onPress={async () => {
                                                     try {
@@ -941,7 +954,7 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                                                         Alert.alert('Error', e?.message || 'Failed to accept request');
                                                     }
                                                 }}
-                                                style={[styles.reqBtn, { borderColor: colors.cta || colors.primary }]}
+                                                style={[styles.reqBtn, { borderColor: colors.cta || colors.primary, marginRight: 8 }]}
                                             >
                                                 <Text style={{ color: colors.cta || colors.primary }}>Accept</Text>
                                             </TouchableOpacity>
@@ -962,18 +975,14 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                                         </View>
                                     );
                                 } else if (reqType === 'outgoing' && matchedReq) {
-                                    // Outgoing: show request-sent text (you could optionally show Cancel)
                                     rightElement = (
                                         <View style={{ alignItems: 'flex-end' }}>
                                             <Text style={{ color: colors.muted || '#999', fontSize: 12 }}>Request Sent</Text>
                                         </View>
                                     );
                                 } else if (isFriend) {
-                                    rightElement = (
-                                        <Text style={{ color: colors.muted || '#999', fontSize: 12 }}>Friends</Text>
-                                    );
+                                    rightElement = <Text style={{ color: colors.muted || '#999', fontSize: 12 }}>Friends</Text>;
                                 } else if (item.isOnApp) {
-                                    // on-app user and not friend and no pending request -> Add
                                     rightElement = (
                                         <TouchableOpacity
                                             onPress={() => handleSendFriendRequestToUser(item)}
@@ -983,7 +992,6 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                                         </TouchableOpacity>
                                     );
                                 } else {
-                                    // not on app and no requests -> invite
                                     rightElement = (
                                         <TouchableOpacity
                                             onPress={() => handleInviteRow(item)}
@@ -995,14 +1003,11 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                                 }
 
                                 return (
-                                    <View style={styles.reqRow}>
+                                    <View key={item.id} style={styles.reqRow}>
                                         <View style={{ flex: 1 }}>
                                             <Text style={styles.reqName}>{item.name || item.label || 'Contact'}</Text>
                                             <Text style={styles.reqEmail}>
-                                                {[
-                                                    ...(item.phones || []),
-                                                    ...(item.emails || [])
-                                                ].filter(Boolean).join(', ')}
+                                                {[...(item.phones || []), ...(item.emails || [])].filter(Boolean).join(', ')}
                                             </Text>
 
                                             {Array.isArray(item.aggregatedUsers) && item.aggregatedUsers.length > 1 && (
@@ -1010,14 +1015,10 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                                             )}
                                         </View>
 
-                                        {rightElement}
+                                        <View style={{ marginLeft: 12 }}>{rightElement}</View>
                                     </View>
                                 );
                             }}
-
-
-                            ListEmptyComponent={<Text style={styles.emptyText}>No contacts found</Text>}
-                            style={{ flex: 1 }}
                         />
                     </View>
                 </View>
@@ -1030,54 +1031,52 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                         <Text style={[styles.smallNote, { color: colors.cta || colors.primary, marginBottom: 12 }]}>← Back to contacts</Text>
                     </TouchableOpacity>
                     {!loading && incoming.length > 0 && <>
-                    <Text style={styles.sectionTitle}>Incoming Requests</Text>
-                    {loading ? (
-                        <ActivityIndicator color={colors.primary || colors.cta} />
-                    ) : incoming.length === 0 ? (
-                        <Text style={styles.emptyText}>No incoming requests</Text>
-                    ) : (
-                        incoming.map((req) => (
-                            <View key={req._id} style={styles.reqRow}>
-                                <View>
-                                    <Text style={styles.reqName}>{req?.sender?.name || req?.email}</Text>
-                                    <Text style={styles.reqEmail}>{req?.sender?.email}</Text>
+                        <Text style={styles.sectionTitle}>Incoming Requests</Text>
+                        {loading ? (
+                            <ActivityIndicator color={colors.primary || colors.cta} />
+                        ) : incoming.length === 0 ? (
+                            <Text style={styles.emptyText}>No incoming requests</Text>
+                        ) : (
+                            incoming.map((req) => (
+                                <View key={req._id} style={styles.reqRow}>
+                                    <View>
+                                        <Text style={styles.reqName}>{req?.sender?.name || req?.email}</Text>
+                                        <Text style={styles.reqEmail}>{req?.sender?.email}</Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                        <TouchableOpacity onPress={() => acceptFriendRequest(req._id).then(() => pullRequests())} style={[styles.reqBtn, { borderColor: colors.cta || colors.primary }]}>
+                                            <Text style={{ color: colors.cta || colors.primary }}>Accept</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={() => rejectFriendRequest(req._id).then(() => pullRequests())} style={[styles.reqBtn, { borderColor: colors.negative || '#ef4444' }]}>
+                                            <Text style={{ color: colors.negative || '#ef4444' }}>Decline</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
-                                <View style={{ flexDirection: 'row', gap: 8 }}>
-                                    <TouchableOpacity onPress={() => acceptFriendRequest(req._id).then(() => pullRequests())} style={[styles.reqBtn, { borderColor: colors.cta || colors.primary }]}>
-                                        <Text style={{ color: colors.cta || colors.primary }}>Accept</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => rejectFriendRequest(req._id).then(() => pullRequests())} style={[styles.reqBtn, { borderColor: colors.negative || '#ef4444' }]}>
-                                        <Text style={{ color: colors.negative || '#ef4444' }}>Decline</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        ))
-                    )}
+                            ))
+                        )}
                     </>}
                     {!loading && outgoing.length > 0 && <>
-                    <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Outgoing Requests</Text>
-                    {loading ? (
-                        <ActivityIndicator color={colors.primary || colors.cta} />
-                    ) : outgoing.length === 0 ? (
-                        <Text style={styles.emptyText}>No outgoing requests</Text>
-                    ) : (
-                        outgoing.map((req) => (
-                            <View key={req._id} style={styles.reqRow}>
-                                <View>
-                                    <Text style={styles.reqName}>{req?.receiver?.name || req?.email}</Text>
-                                    <Text style={styles.reqEmail}>{req?.receiver?.email}</Text>
+                        <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Outgoing Requests</Text>
+                        {loading ? (
+                            <ActivityIndicator color={colors.primary || colors.cta} />
+                        ) : outgoing.length === 0 ? (
+                            <Text style={styles.emptyText}>No outgoing requests</Text>
+                        ) : (
+                            outgoing.map((req) => (
+                                <View key={req._id} style={styles.reqRow}>
+                                    <View>
+                                        <Text style={styles.reqName}>{req?.receiver?.name || req?.email}</Text>
+                                        <Text style={styles.reqEmail}>{req?.receiver?.email}</Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => cancelFriendRequest(req._id).then(() => pullRequests())} style={[styles.reqBtn, { borderColor: colors.negative || '#ef4444' }]}>
+                                        <Text style={{ color: colors.negative || '#ef4444' }}>Cancel</Text>
+                                    </TouchableOpacity>
                                 </View>
-                                <TouchableOpacity onPress={() => cancelFriendRequest(req._id).then(() => pullRequests())} style={[styles.reqBtn, { borderColor: colors.negative || '#ef4444' }]}>
-                                    <Text style={{ color: colors.negative || '#ef4444' }}>Cancel</Text>
-                                </TouchableOpacity>
-                            </View>
-                        ))
-                    )}
+                            ))
+                        )}
                     </>}
                 </View>
             )}
-
-            <View style={{ height: insets.bottom + 16 }} />
         </MainBottomSheet>
     );
 };

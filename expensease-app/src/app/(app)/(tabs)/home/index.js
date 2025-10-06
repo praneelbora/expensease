@@ -22,6 +22,7 @@ import Header from "~/header";
 import ExpenseRow from "~/expenseRow";
 import EmptyCTA from "~/cta";
 import FAB from "~/fab";
+import CategoryDistribution from '~/charts/category';
 import NewExpenseBottomSheet from "~/newExpenseBottomSheet";
 import { useTheme } from "context/ThemeProvider";
 
@@ -236,22 +237,13 @@ function DashboardScreenInner() {
                 const userSplit = exp.splits?.find((s) => String(s.friendId?._id || s.friendId) === String(userId));
                 const share = Number(userSplit?.oweAmount);
 
-                if (exp.groupId) {
+                if (exp.groupId || exp.splits?.length > 0) {
                     if (userSplit?.owing && Number.isFinite(share)) {
                         const pmForThisShare = userSplit?.paidFromPaymentMethodId || exp.paidFromPaymentMethodId;
                         if (!pmIsExcludedForUser(pmForThisShare, exp, userSplit)) {
                             acc.group.amount[code] = (acc.group.amount[code] || 0) + share;
                             acc.total[code] = (acc.total[code] || 0) + share;
                             acc.group.count += 1;
-                        }
-                    }
-                } else if (exp.splits?.length > 0) {
-                    if (userSplit?.owing && Number.isFinite(share)) {
-                        const pmForThisShare = userSplit?.paidFromPaymentMethodId || exp.paidFromPaymentMethodId;
-                        if (!pmIsExcludedForUser(pmForThisShare, exp, userSplit)) {
-                            acc.friend.amount[code] = (acc.friend.amount[code] || 0) + share;
-                            acc.total[code] = (acc.total[code] || 0) + share;
-                            acc.friend.count += 1;
                         }
                     }
                 } else {
@@ -541,7 +533,7 @@ function DashboardScreenInner() {
                                             ))}
                                             {Object.keys(statsByRange.total).length === 0 && <Text style={styles.cardValue}>—</Text>}
                                         </View>
-                                        {deltas.total && <Text style={[styles.cardMeta, deltas.total ? { color: deltas.total.color } : { color: theme.colors.muted }]}>{deltas.total ? `${deltas.total.text}` : ""}</Text>}
+                                        {!Object.keys(statsByRange.total).length === 0 && deltas.total && <Text style={[styles.cardMeta, deltas.total ? { color: deltas.total.color } : { color: theme.colors.muted }]}>{deltas.total ? `${deltas.total.text}` : ""}</Text>}
                                     </TouchableOpacity>
 
                                     {/* Personal */}
@@ -562,7 +554,7 @@ function DashboardScreenInner() {
                                     {/* Group */}
                                     {Object.keys(statsByRange.group.amount).length > 0 && (
                                         <TouchableOpacity style={styles.card} onPress={() => router.push("home/expenses?type=group")} activeOpacity={0.8}>
-                                            <Text style={styles.cardLabel}>Group Expenses</Text>
+                                            <Text style={styles.cardLabel}>Split Expenses</Text>
                                             <View style={{ marginTop: 4 }}>
                                                 {Object.entries(statsByRange.group.amount).map(([code, amt]) => (
                                                     <Text key={`group-${code}`} style={styles.cardValue}>
@@ -604,7 +596,7 @@ function DashboardScreenInner() {
                                     {recentByDay.map(([day, list]) => (
                                         <View key={day} style={{ gap: 0 }}>
                                             <FlatList
-                                                data={(list || []).slice(0, 5)}
+                                                data={(list || []).slice(0, 4)}
                                                 keyExtractor={(item) => item._id}
                                                 scrollEnabled={false}
                                                 renderItem={({ item }) => (
@@ -626,6 +618,8 @@ function DashboardScreenInner() {
                                     </View>
                                 </View>
                             )}
+                                        <CategoryDistribution expenses={expenses} defaultCurrenc={defaultCurrency} userId={userId}/>
+                                        <View style={{height: 144, width: '100%'}} />
                         </>
                     )}
                 </ScrollView>
@@ -698,7 +692,7 @@ const createStyles = (theme) =>
     StyleSheet.create({
         safe: { flex: 1, backgroundColor: theme.colors.background },
         headerTitle: { color: theme.colors.text, fontSize: 24, fontWeight: "700" },
-        scroller: { flex: 1,paddingBottom:124,  },
+        scroller: { flex: 1, paddingBottom: 124, },
         centerBox: { paddingVertical: 24, alignItems: "center", justifyContent: "center" },
 
         emptyCard: {

@@ -6,13 +6,16 @@ import {
     StyleSheet,
     Dimensions,
     TouchableOpacity,
-    Modal,
-    FlatList,
     ScrollView,
+    Pressable,
 } from "react-native";
 import { PieChart } from "react-native-gifted-charts";
 import { getSymbol } from "../../utils/currencies";
 import { getCategoryLabel } from "../../utils/categoryOptions";
+import { useTheme } from "context/ThemeProvider";
+
+import ChevronUp from "@/accIcons/chevronUp.svg";
+import ChevronDown from "@/accIcons/chevronDown.svg";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const getCurrencyCode = (exp) =>
@@ -22,20 +25,76 @@ const getCurrencyCode = (exp) =>
     exp?.meta?.currency ||
     "INR";
 
+/* ---------- Dropdown component (only one open allowed) ---------- */
+function Dropdown({ id, openId, setOpenId, options = [], value, onChange, colors }) {
+    const open = openId === id;
+    console.log(id);
+    
+    return (
+        <View style={{ position: "relative", marginRight: 8 }}>
+            <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setOpenId(open ? null : id)}
+                style={[
+                    styles.selectorBtn,
+                    { backgroundColor: colors.card, borderColor: colors.border, minWidth: id=='range'?120:105, },
+                ]}
+            >
+                <Text style={[styles.selectorBtnText, { color: colors.text }]}>
+                    {options.find((o) => o.value === value)?.label || String(value)}
+                </Text>
+
+                {open ? (
+                    <ChevronUp width={16} height={16} color={colors.text} />
+                ) : (
+                    <ChevronDown width={16} height={16} color={colors.text} />
+                )}
+            </TouchableOpacity>
+
+            {open && (
+                <View style={[styles.dropdownCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <ScrollView style={{ maxHeight: 220 }}>
+                        {options.map((opt) => (
+                            <TouchableOpacity
+                                key={String(opt.value)}
+                                onPress={() => {
+                                    onChange(opt.value);
+                                    setOpenId(null);
+                                }}
+                                style={styles.dropdownItem}
+                            >
+                                <Text style={[styles.dropdownItemText, { color: colors.text }]}>{opt.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
+        </View>
+    );
+}
+
+/* ----------------------------- Main component ----------------------------- */
 export default function CategoryDistribution({
     expenses = [],
     userId,
     defaultCurrency = "INR",
     showControls = true,
 }) {
+    const { theme } = useTheme();
+    const colors = theme?.colors || {
+        background: "#121212",
+        text: "#EDEDED",
+        card: "#212121",
+        cardAlt: "#191919",
+        border: "#2a2a2a",
+        muted: "#888888",
+        primary: "#14b8a6",
+    };
+
     const [timeRange, setTimeRange] = useState("thisMonth");
     const [expenseType, setExpenseType] = useState("all");
     const [currency, setCurrency] = useState(defaultCurrency);
-
-    const [modalVisible, setModalVisible] = useState(false);
-    const [modalItems, setModalItems] = useState([]);
-    const [modalTitle, setModalTitle] = useState("");
-    const [activeSetter, setActiveSetter] = useState(() => { });
+    const [openDropdown, setOpenDropdown] = useState(null); // "range" | "type" | "currency"
     const [debugOpen, setDebugOpen] = useState(false);
 
     const baseFiltered = useMemo(() => {
@@ -99,6 +158,7 @@ export default function CategoryDistribution({
             if (pct >= 7 || big.length <= 4) big.push({ name, value });
             else otherSum += value;
         }
+        if (otherSum > 0) big.push({ name: "Other", value: otherSum });
         return big;
     }, [filteredExpenses, userId]);
 
@@ -132,24 +192,17 @@ export default function CategoryDistribution({
 
     const totalSum = pieData.reduce((s, it) => s + (it.value || 0), 0);
     const chartSize = Math.min(340, SCREEN_WIDTH - 24);
-    const donutWidth = 0
+    const donutWidth = 0;
     const symbol = getSymbol(currency) || "";
 
-
-    const openSelector = (title, items, setter) => {
-        setModalTitle(title);
-        setModalItems(items);
-        setActiveSetter(() => setter);
-        setModalVisible(true);
-    };
-
+    // Dropdown option lists
     const timeOptions = [
         { label: "This Month", value: "thisMonth" },
-        { label: "Last 3 Months", value: "last3m" },
+        { label: "3 Months", value: "last3m" },
         { label: "This Year", value: "thisYear" },
     ];
     const typeOptions = [
-        { label: "All Expenses", value: "all" },
+        { label: "All", value: "all" },
         { label: "Personal", value: "personal" },
         { label: "Group", value: "group" },
         { label: "Friend", value: "friend" },
@@ -159,58 +212,87 @@ export default function CategoryDistribution({
         : [{ label: `${getSymbol(currency) || ""} ${currency}`, value: currency }];
 
     return (
-        <View style={localStyles.container}>
-            <Text style={localStyles.title}>Category Distribution</Text>
+        <View style={[styles.container, { backgroundColor: colors.background || "#121212" }]}>
+            <View style={styles.rowBetween}>
+            <Text style={[styles.sectionLabel,{color: colors.primary}]}>Categories</Text>
+            </View>
 
             {showControls && (
-                <View style={localStyles.controlsRow}>
-                    <TouchableOpacity style={localStyles.selectorBtn} onPress={() => openSelector("Range", timeOptions, (v) => setTimeRange(v))}>
-                        <Text style={localStyles.selectorBtnText}>{timeOptions.find((o) => o.value === timeRange)?.label || "Range"}</Text>
-                    </TouchableOpacity>
+                <>
+                    {openDropdown && <Pressable style={styles.outsideOverlay} onPress={() => setOpenDropdown(null)} />}
 
-                    <TouchableOpacity style={localStyles.selectorBtn} onPress={() => openSelector("Type", typeOptions, (v) => setExpenseType(v))}>
-                        <Text style={localStyles.selectorBtnText}>{typeOptions.find((o) => o.value === expenseType)?.label || "Type"}</Text>
-                    </TouchableOpacity>
+                    <View style={styles.controlsRow}>
+                        <Dropdown
+                            id="range"
+                            openId={openDropdown}
+                            setOpenId={setOpenDropdown}
+                            options={timeOptions}
+                            value={timeRange}
+                            onChange={(v) => setTimeRange(v)}
+                            colors={colors}
+                        />
 
-                    <TouchableOpacity style={localStyles.selectorBtn} onPress={() => openSelector("Currency", currencyOptions, (v) => setCurrency(v))}>
-                        <Text style={localStyles.selectorBtnText}>{currencyOptions.find((o) => o.value === currency)?.label || currency}</Text>
-                    </TouchableOpacity>
+                        <Dropdown
+                            id="type"
+                            openId={openDropdown}
+                            setOpenId={setOpenDropdown}
+                            options={typeOptions}
+                            value={expenseType}
+                            onChange={(v) => setExpenseType(v)}
+                            colors={colors}
+                        />
 
-                    <TouchableOpacity style={localStyles.debugBtn} onPress={() => setDebugOpen((s) => !s)}>
-                        <Text style={localStyles.debugBtnText}>{debugOpen ? "Hide Debug" : "Show Debug"}</Text>
-                    </TouchableOpacity>
-                </View>
+                        {showCurrencySelect ? (
+                            <Dropdown
+                                id="currency"
+                                openId={openDropdown}
+                                setOpenId={setOpenDropdown}
+                                options={currencyOptions}
+                                value={currency}
+                                onChange={(v) => setCurrency(v)}
+                                colors={colors}
+                            />
+                        ) : (
+                            <View style={[styles.selectorBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                                <Text style={[styles.selectorBtnText, { color: colors.text }]}>{currencyOptions[0].label}</Text>
+                            </View>
+                        )}
+                    </View>
+                </>
             )}
 
             <View style={{ marginTop: 8, alignItems: "center" }}>
                 {pieData.length === 0 ? (
-                    <View style={localStyles.emptyBox}>
-                        <Text style={localStyles.emptyText}>No expenses found for selected filters.</Text>
+                    <View style={styles.emptyBox}>
+                        <Text style={[styles.emptyText, { color: colors.muted || "#888" }]}>No expenses found for selected filters.</Text>
                     </View>
                 ) : (
                     <>
-                        <PieChart
-                            data={pieData}
-                            donut
-                            radius={chartSize / 2}
-                            innerRadius={donutWidth}
-                            centerLabelComponent={() => (
-                                <View style={localStyles.centerLabel}>
-                                    <Text style={localStyles.centerLabelValue}>{symbol} {totalSum.toFixed(2)}</Text>
-                                    <Text style={localStyles.centerLabelSub}>Total</Text>
-                                </View>
-                            )}
-                            onPress={() => { }}
-                            showStrip
-                        />
+                        <View style={{ width: chartSize, height: chartSize, alignItems: "center", justifyContent: "center" }}>
+                            <PieChart
+                                data={pieData}
+                                donut
+                                radius={chartSize / 2}
+                                innerRadius={donutWidth}
+                                innerCircleColor={colors.card}
+                                centerLabelComponent={() => (
+                                    <View style={styles.centerLabel}>
+                                        <Text style={[styles.centerLabelValue, { color: colors.text }]}>{symbol} {totalSum.toFixed(2)}</Text>
+                                        <Text style={[styles.centerLabelSub, { color: colors.muted || "#aaa" }]}>Total</Text>
+                                    </View>
+                                )}
+                                onPress={() => { }}
+                                showStrip
+                                showText={false}
+                            />
+                        </View>
 
-                        {/* FORCE-VISIBLE legend: big labels & amounts below the chart */}
                         <View style={{ marginTop: 12, width: "100%", paddingHorizontal: 8 }}>
                             {pieData.map((d) => d.label === "__empty__" ? null : (
-                                <View key={d.label} style={localStyles.forceLegendRow}>
-                                    <View style={[localStyles.legendSwatch, { backgroundColor: d.color }]} />
-                                    <Text style={localStyles.forceLegendLabel}>{d.label}</Text>
-                                    <Text style={localStyles.forceLegendAmount}>{symbol}{Number(d.value || 0).toFixed(2)}</Text>
+                                <View key={d.label} style={styles.forceLegendRow}>
+                                    <View style={[styles.legendSwatch, { backgroundColor: d.color }]} />
+                                    <Text style={[styles.forceLegendLabel, { color: colors.text }]}>{d.label}</Text>
+                                    <Text style={[styles.forceLegendAmount, { color: colors.text }]}>{symbol}{Number(d.value || 0).toFixed(2)}</Text>
                                 </View>
                             ))}
                         </View>
@@ -218,79 +300,88 @@ export default function CategoryDistribution({
                 )}
             </View>
 
-            {/* debug JSON */}
             {debugOpen && (
-                <View style={localStyles.debugPanel}>
+                <View style={[styles.debugPanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
                     <ScrollView style={{ maxHeight: 220 }}>
-                        <Text style={localStyles.debugText}>categoryChartRaw: {JSON.stringify(categoryChartRaw, null, 2)}</Text>
-                        <Text style={localStyles.debugText}>pieData: {JSON.stringify(pieData, null, 2)}</Text>
-                        <Text style={localStyles.debugText}>totalSum: {JSON.stringify(totalSum)}</Text>
-                        <Text style={localStyles.debugText}>filteredExpenses: {filteredExpenses.length}</Text>
+                        <Text style={[styles.debugText, { color: colors.text }]}>categoryChartRaw: {JSON.stringify(categoryChartRaw, null, 2)}</Text>
+                        <Text style={[styles.debugText, { color: colors.text }]}>pieData: {JSON.stringify(pieData, null, 2)}</Text>
+                        <Text style={[styles.debugText, { color: colors.text }]}>totalSum: {JSON.stringify(totalSum)}</Text>
+                        <Text style={[styles.debugText, { color: colors.text }]}>filteredExpenses: {filteredExpenses.length}</Text>
                     </ScrollView>
                 </View>
             )}
-
-            {/* Modal selector */}
-            <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
-                <View style={modalStyles.backdrop}>
-                    <View style={modalStyles.card}>
-                        <Text style={modalStyles.modalTitle}>{modalTitle}</Text>
-                        <FlatList
-                            data={modalItems}
-                            keyExtractor={(i) => i.value}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        setModalVisible(false);
-                                        activeSetter(item.value);
-                                    }}
-                                    style={modalStyles.modalItem}
-                                >
-                                    <Text style={modalStyles.modalItemText}>{item.label}</Text>
-                                </TouchableOpacity>
-                            )}
-                            ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#222", marginVertical: 4 }} />}
-                        />
-                        <TouchableOpacity style={[modalStyles.modalClose]} onPress={() => setModalVisible(false)}>
-                            <Text style={modalStyles.modalCloseText}>Cancel</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
         </View>
     );
 }
 
-const localStyles = StyleSheet.create({
-    container: { backgroundColor: "#1f1f1f", padding: 12, borderRadius: 12 },
-    title: { color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 6, textAlign: "left" },
-    controlsRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "center" },
-    selectorBtn: { backgroundColor: "#212121", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginRight: 8, borderWidth: 1, borderColor: "#444" },
-    selectorBtnText: { color: "#EBF1D5", fontSize: 13 },
-    debugBtn: { backgroundColor: "#333", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
-    debugBtnText: { color: "#fff", fontSize: 12 },
+/* ----------------------------- styles (theme applied at runtime) ----------------------------- */
+const styles = StyleSheet.create({
+    title: { fontSize: 16, fontWeight: "700", marginBottom: 6, textAlign: "left" },
+    controlsRow: { flexDirection: "row", rowGap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 },
+    selectorBtn: {
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        marginRight: 8,
+        borderWidth: 1,
+        maxWidth: 125,
+        alignItems: "center",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        gap: 8,
+    },
+    selectorBtnText: { fontSize: 13, flex: 1 },
+    caret: { marginLeft: 8, fontSize: 16 },
+
+    dropdownCard: {
+        position: "absolute",
+        top: 40,
+        left: 0,
+        minWidth: 140,
+        maxWidth: 300,
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingVertical: 4,
+        zIndex: 50,
+        elevation: 6,
+        shadowColor: "#000",
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 4 },
+    },
+    dropdownItem: { paddingVertical: 10, paddingHorizontal: 12 },
+    dropdownItemText: { fontSize: 14 },
+
+    outsideOverlay: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 40,
+    },
+
+    debugBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+    debugBtnText: { fontSize: 12 },
+
     emptyBox: { padding: 20, alignItems: "center", justifyContent: "center" },
-    emptyText: { color: "#bbb" },
+    emptyText: { fontSize: 13 },
 
-    centerLabel: { alignItems: "center", justifyContent: "center" },
-    centerLabelValue: { color: "#fff", fontWeight: "800", fontSize: 18 },
-    centerLabelSub: { color: "#ccc", fontSize: 12, marginTop: 2 },
+    centerLabel: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    centerLabelValue: { fontWeight: "800", fontSize: 18, textAlign: "center" },
+    centerLabelSub: { fontSize: 12, marginTop: 2, textAlign: "center" },
 
-    forceLegendRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#171717" },
+    forceLegendRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8 },
     legendSwatch: { width: 16, height: 16, borderRadius: 4, marginRight: 12 },
-    forceLegendLabel: { color: "#fff", flex: 1, fontSize: 15, fontWeight: "600" },
-    forceLegendAmount: { color: "#EDEDED", fontSize: 15, fontWeight: "700" },
+    forceLegendLabel: { flex: 1, fontSize: 15, fontWeight: "600" },
+    forceLegendAmount: { fontSize: 15, fontWeight: "700" },
 
-    debugPanel: { marginTop: 12, backgroundColor: "#0b0b0b", padding: 10, borderRadius: 8, borderWidth: 1, borderColor: "#222" },
-    debugText: { color: "#ddd", fontSize: 12, marginBottom: 8 },
-});
-
-const modalStyles = StyleSheet.create({
-    backdrop: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
-    card: { width: "100%", maxWidth: 420, backgroundColor: "#121212", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#222" },
-    modalTitle: { color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 8 },
-    modalItem: { paddingVertical: 12, paddingHorizontal: 8 },
-    modalItemText: { color: "#EDEDED", fontSize: 14 },
-    modalClose: { marginTop: 12, alignSelf: "flex-end", paddingVertical: 8, paddingHorizontal: 12 },
-    modalCloseText: { color: "#ccc" },
+    debugPanel: { marginTop: 12, padding: 10, borderRadius: 8, borderWidth: 1 },
+    debugText: { fontSize: 12, marginBottom: 8 },
+    sectionLabel: { fontSize: 12, letterSpacing: 1, textTransform: "uppercase" },
+    rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingBottom: 8 },
 });

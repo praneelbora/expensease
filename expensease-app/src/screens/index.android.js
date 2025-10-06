@@ -379,72 +379,59 @@ export default function Login() {
                         {stage !== "sent" ? (
                             <>
                                 <View style={{ width: "100%", marginTop: 8 }}>
-                                    <PhoneInput
-                                        ref={phoneInputRef}
-                                        defaultCode={defaultCountryCode}
-                                        layout="first"
-                                        value={nationalNumber}
-                                        onChangeText={(text) => {
-                                            // direct manual typing into the national input (no formatting)
-                                            setNationalNumber(String(text || "").replace(/\D/g, ""));
-                                        }}
-                                        onChangeFormattedText={(formatted) => {
-                                            // Defensive: get digits-only version of formatted text
-                                            const digitsOnly = String(formatted || "").replace(/\D/g, "");
-                                            // canonical calling code from the phone input at this instant
-                                            const ccNow = String(phoneInputRef.current?.getCallingCode?.() || "");
+                                    {/* Phone input row: left = flag box (library), right = number input.
+    Both boxes use same visual style (styles.inputBox), flag is narrower. */}
+                                    <View style={{ flexDirection: "row", alignItems: "center", width: "100%", gap: 8 }}>
+                                        {/* Flag box (uses library for picker, but hide library text input) */}
+                                        <View style={[styles.inputBox, { width: 88, paddingHorizontal: 8, justifyContent: "center" }]}>
+                                            <PhoneInput
+                                                ref={phoneInputRef}
+                                                defaultCode={defaultCountryCode}
+                                                layout="first"
+                                                // hide the library's internal text field so it doesn't clash
+                                                textContainerStyle={{ width: 0, height: 0, padding: 0, margin: 0 }}
+                                                textInputStyle={{ width: 0, height: 0, padding: 0, margin: 0 }}
+                                                containerStyle={{ width: "100%", height: "100%", backgroundColor: "transparent" }}
+                                                flagButtonStyle={{ width: 80, justifyContent: "center", alignItems: "center", backgroundColor: "transparent" }}
+                                                codeTextStyle={{ fontSize: 12, fontWeight: "600" }}
+                                                renderDropdownImage={<Ionicons name="chevron-down" size={18} color={theme.colors.text} />}
+                                                onSelectCountry={(country) => {
+                                                    const newCc = (country?.callingCode && country.callingCode[0]) || "";
+                                                    const newCcDigits = String(newCc).replace(/\D/g, "");
+                                                    setCallingCode(newCcDigits);
+                                                    callingCodeRef.current = newCcDigits;
+                                                }}
+                                            />
+                                        </View>
 
-                                            // 1) If user pasted a full E.164 like "+91xxxxxxxx" (formatted likely starts with +)
-                                            //    treat it as explicit paste: update both callingCode and nationalNumber.
-                                            const maybeE164 = (formatted || "").trim().startsWith("+");
-                                            if (maybeE164 && ccNow) {
-                                                // If digitsOnly starts with ccNow, peel it off and set national number
-                                                if (digitsOnly.startsWith(ccNow)) {
-                                                    const nat = digitsOnly.slice(ccNow.length);
-                                                    setCallingCode(ccNow.replace(/\D/g, ""));
-                                                    callingCodeRef.current = ccNow.replace(/\D/g, "");
-                                                    setNationalNumber(nat);
+                                        {/* Number input box - visually same as flag box but flexible width */}
+                                        <TextInput
+                                            style={[styles.inputBox, { flex: 1, paddingHorizontal: 12, height: 48 }]}
+                                            placeholder="9876543210"
+                                            placeholderTextColor={theme.colors.muted}
+                                            keyboardType="phone-pad"
+                                            value={nationalNumber}
+                                            onChangeText={(t) => {
+                                                const raw = String(t || "");
+                                                const onlyDigits = raw.replace(/\D/g, "");
+                                                if (raw.trim().startsWith("+")) {
+                                                    const ccNow = String(phoneInputRef.current?.getCallingCode?.() || callingCodeRef.current || "");
+                                                    if (ccNow && onlyDigits.startsWith(ccNow)) {
+                                                        setCallingCode(ccNow);
+                                                        callingCodeRef.current = ccNow;
+                                                        setNationalNumber(onlyDigits.slice(ccNow.length));
+                                                        return;
+                                                    }
+                                                    setNationalNumber(onlyDigits);
                                                     return;
                                                 }
-                                            }
-
-                                            // 2) If the canonical calling code reported by the input just changed compared to our ref,
-                                            //    treat this onChangeFormattedText as the country-change event and bail out.
-                                            //    The country-change handler (onSelectCountry) will set the official calling code.
-                                            if (ccNow && ccNow !== (callingCodeRef.current || "")) {
-                                                // Update ref so subsequent onChangeFormattedText won't repeat this branch.
-                                                // But DO NOT copy ccNow text into national number — the user didn't type it.
-                                                callingCodeRef.current = ccNow;
-                                                // Optionally also update state callingCode so other pieces can see it immediately.
-                                                setCallingCode(ccNow.replace(/\D/g, ""));
-                                                return;
-                                            }
-
-                                            // 3) Normal typing / editing case: set the national number only (strip any stray CC)
-                                            const ccToStrip = ccNow || callingCodeRef.current || "";
-                                            if (ccToStrip && digitsOnly.startsWith(String(ccToStrip))) {
-                                                setNationalNumber(digitsOnly.slice(String(ccToStrip).length));
-                                            } else {
-                                                setNationalNumber(digitsOnly);
-                                            }
-                                        }}
-                                        // Preferred: this callback triggers when user actively selects a country via picker
-                                        onSelectCountry={(country) => {
-                                            // typical shape: country.callingCode is ['91']
-                                            const newCc = (country?.callingCode && country.callingCode[0]) || "";
-                                            const newCcDigits = String(newCc).replace(/\D/g, "");
-                                            setCallingCode(newCcDigits);
-                                            callingCodeRef.current = newCcDigits;
-                                            // We don't touch nationalNumber here; don't copy previous displayed text into it.
-                                        }}
-                                        containerStyle={styles.phoneContainer}
-                                        textContainerStyle={styles.phoneTextContainer}
-                                        textInputStyle={styles.phoneTextInput}
-                                        flagButtonStyle={styles.flagButton}
-                                        codeTextStyle={styles.codeText}
-                                        renderDropdownImage={<Ionicons name="chevron-down" size={18} color={theme.colors.text} />}
-                                        placeholder="9876543210"
-                                    />
+                                                setNationalNumber(onlyDigits);
+                                            }}
+                                            returnKeyType="done"
+                                            importantForAutofill="no"
+                                            editable
+                                        />
+                                    </View>
 
 
                                     <TouchableOpacity style={[styles.signInBtn, { marginTop: 12 }]} onPress={handleSendOTP} disabled={sending}>
@@ -668,16 +655,25 @@ const createStyles = (theme, insets) =>
             borderColor: theme?.colors?.primary ?? "#0B5FFF",
         },
 
-        // PhoneInput styles
-        phoneContainer: {
-            width: "100%",
+        // add this in createStyles
+        inputBox: {
             height: 48,
             borderRadius: 8,
             borderWidth: 1,
-            borderColor: theme?.colors?.border ?? "#E6EEF8",
-            backgroundColor: theme?.colors?.background ?? "#fff",
-            overflow: "hidden",
+            borderColor: theme?.colors?.border,             // same as existing input border
+            backgroundColor: theme.colors.background, // matches card/input bg
+            color: theme.colors.text,
+            alignItems: "center",
             flexDirection: "row",
+        },
+        // optional: ensure library container doesn't add its own border
+        phoneContainer: {
+            width: "100%",   // library wrapper - we keep it simple and transparent
+            height: 48,
+            backgroundColor: "transparent",
+            borderRadius: 8,
+            overflow: "hidden",
+            justifyContent: "center",
             alignItems: "center",
         },
         flagButton: {

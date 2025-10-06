@@ -446,6 +446,10 @@ export default function Login() {
             phoneInputRef.current?.focus && phoneInputRef.current.focus();
         }, 120);
     };
+    const callingCodeRef = useRef(callingCode); // keep a mutable ref in sync
+    useEffect(() => {
+        callingCodeRef.current = String(callingCode || "");
+    }, [callingCode]);
 
     // Prevent UI flash while auth context bootstraps OR while version check / navigation is in progress
     if (!hydrated || (userToken && (authLoading || !user)) || checkingVersion || navigating) {
@@ -527,36 +531,60 @@ export default function Login() {
                             {stage !== "sent" ? (
                                 // PHONE ENTRY
                                 <>
-                                    {/* Phone input */}
+                                    {/* Phone input row: left = flag box (library), right = number input.
+    Both boxes use same visual style (styles.inputBox), flag is narrower. */}
                                     <View style={{ flexDirection: "row", alignItems: "center", width: "100%", gap: 8 }}>
-                                        <PhoneInput
-                                            ref={phoneInputRef}
-                                            defaultCode={defaultCountryCode}
-                                            layout="first"
-                                            value={nationalNumber}
-                                            onChangeText={(text) => setNationalNumber(text.replace(/\D/g, ""))}
-                                            onChangeFormattedText={(formatted) => {
-                                                const cc = phoneInputRef.current?.getCallingCode?.() || "";
-                                                const digitsOnly = String(formatted || "").replace(/\D/g, "");
-                                                if (cc && digitsOnly.startsWith(cc)) {
-                                                    setCallingCode(cc);
-                                                    setNationalNumber(digitsOnly.slice(cc.length));
-                                                } else {
-                                                    setNationalNumber(digitsOnly);
-                                                }
-                                            }}
-                                            containerStyle={styles.phoneContainer}
-                                            textContainerStyle={styles.phoneTextContainer}
-                                            textInputStyle={styles.phoneTextInput}
-                                            flagButtonStyle={styles.flagButton}
-                                            codeTextStyle={styles.codeText}   // 👈 hides country code
-                                            renderDropdownImage={
-                                                <Ionicons name="chevron-down" size={18} color={theme.colors.text} />
-                                            }
-                                            placeholder="9876543210"
-                                        />
+                                        {/* Flag box (uses library for picker, but hide library text input) */}
+                                        <View style={[styles.inputBox, { width: 88, paddingHorizontal: 8, justifyContent: "center" }]}>
+                                            <PhoneInput
+                                                ref={phoneInputRef}
+                                                defaultCode={defaultCountryCode}
+                                                layout="first"
+                                                // hide the library's internal text field so it doesn't clash
+                                                textContainerStyle={{ width: 0, height: 0, padding: 0, margin: 0 }}
+                                                textInputStyle={{ width: 0, height: 0, padding: 0, margin: 0 }}
+                                                containerStyle={{ width: "100%", height: "100%", backgroundColor: "transparent" }}
+                                                flagButtonStyle={{ width: 80, justifyContent: "center", alignItems: "center", backgroundColor: "transparent" }}
+                                                codeTextStyle={{ fontSize: 12, fontWeight: "600" }}
+                                                renderDropdownImage={<Ionicons name="chevron-down" size={18} color={theme.colors.text} />}
+                                                onSelectCountry={(country) => {
+                                                    const newCc = (country?.callingCode && country.callingCode[0]) || "";
+                                                    const newCcDigits = String(newCc).replace(/\D/g, "");
+                                                    setCallingCode(newCcDigits);
+                                                    callingCodeRef.current = newCcDigits;
+                                                }}
+                                            />
+                                        </View>
 
+                                        {/* Number input box - visually same as flag box but flexible width */}
+                                        <TextInput
+                                            style={[styles.inputBox, { flex: 1, paddingHorizontal: 12, height: 48 }]}
+                                            placeholder="9876543210"
+                                            placeholderTextColor={theme.colors.muted}
+                                            keyboardType="phone-pad"
+                                            value={nationalNumber}
+                                            onChangeText={(t) => {
+                                                const raw = String(t || "");
+                                                const onlyDigits = raw.replace(/\D/g, "");
+                                                if (raw.trim().startsWith("+")) {
+                                                    const ccNow = String(phoneInputRef.current?.getCallingCode?.() || callingCodeRef.current || "");
+                                                    if (ccNow && onlyDigits.startsWith(ccNow)) {
+                                                        setCallingCode(ccNow);
+                                                        callingCodeRef.current = ccNow;
+                                                        setNationalNumber(onlyDigits.slice(ccNow.length));
+                                                        return;
+                                                    }
+                                                    setNationalNumber(onlyDigits);
+                                                    return;
+                                                }
+                                                setNationalNumber(onlyDigits);
+                                            }}
+                                            returnKeyType="done"
+                                            importantForAutofill="no"
+                                            editable
+                                        />
                                     </View>
+
 
                                     <TouchableOpacity style={[styles.signInBtn, { marginTop: 0 }]} onPress={handleSendOTP} disabled={sending}>
                                         {sending ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Send OTP</Text>}
@@ -732,7 +760,7 @@ const createStyles = (theme, insets) =>
             height: 44,
             borderRadius: 8,
             borderWidth: 1,
-            borderColor: "#E6EEF8",
+            borderColor: theme?.colors?.border,
             paddingHorizontal: 12,
             marginTop: 10,
             color: theme.colors.text,
@@ -794,21 +822,32 @@ const createStyles = (theme, insets) =>
         activePinCodeContainer: {
             borderColor: theme.colors.primary,
         },
-        phoneContainer: {
-            width: "100%",
+        // add this in createStyles
+        inputBox: {
             height: 48,
             borderRadius: 8,
             borderWidth: 1,
-            borderColor: theme.colors.border || "#E6EEF8",
-            backgroundColor: theme.colors.background ?? theme.colors.background,
-            overflow: "hidden",
+            borderColor: theme?.colors?.border,          // same as existing input border
+            backgroundColor: theme.colors.background, // matches card/input bg
+            color: theme.colors.text,
+            alignItems: "center",
             flexDirection: "row",
+        },
+        // optional: ensure library container doesn't add its own border
+        phoneContainer: {
+            width: "100%",   // library wrapper - we keep it simple and transparent
+            height: 48,
+            backgroundColor: "transparent",
+            borderRadius: 8,
+            overflow: "hidden",
+            justifyContent: "center",
             alignItems: "center",
         },
 
+
         // compact flag + code area so phone number gets most space
         flagButton: {
-            width: 40, // smaller than full input
+
             justifyContent: "center",
             alignItems: "center",
             paddingHorizontal: 8,
