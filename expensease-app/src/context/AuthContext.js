@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }) => {
     const [paymentMethods, setPaymentMethods] = useState([]);
     const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
 
-    const version = "0.1.0";
+    const version = "0.1.1";
 
     // refs to track previous values so we only redirect on meaningful changes
     const prevHydrated = useRef(false);

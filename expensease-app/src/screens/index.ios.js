@@ -464,7 +464,7 @@ export default function Login() {
         <View style={styles.wrapper}>
             <ScrollView
                 style={{ width: "100%" }}
-                contentContainerStyle={{ flexGrow: 1, width: "100%", justifyContent: "center" }}
+                contentContainerStyle={{ flexGrow: 1, width: "100%", justifyContent: "center", alignItems: 'center' }}
                 keyboardShouldPersistTaps="handled"
             >
                 <Animated.View style={[styles.container, { alignItems: "center", opacity: fade }]}>
@@ -531,8 +531,6 @@ export default function Login() {
                             {stage !== "sent" ? (
                                 // PHONE ENTRY
                                 <>
-                                    {/* Phone input row: left = flag box (library), right = number input.
-    Both boxes use same visual style (styles.inputBox), flag is narrower. */}
                                     <View style={{ flexDirection: "row", alignItems: "center", width: "100%", gap: 8 }}>
                                         {/* Flag box (uses library for picker, but hide library text input) */}
                                         <View style={[styles.inputBox, { width: 88, paddingHorizontal: 8, justifyContent: "center" }]}>
@@ -703,7 +701,12 @@ export default function Login() {
 
 const createStyles = (theme, insets) =>
     StyleSheet.create({
-        wrapper: { flex: 1, backgroundColor: theme.colors.background },
+        wrapper: {
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: theme.colors.background
+        },
         container: {
             justifyContent: "center",
             alignItems: "center",
@@ -711,6 +714,7 @@ const createStyles = (theme, insets) =>
             padding: 20,
             paddingTop: (insets?.top || 0) + 40,
             paddingBottom: (insets?.bottom || 0) + 24,
+            maxWidth: 700
         },
         logo: { color: theme.colors.text, fontSize: 32, fontWeight: "800", marginBottom: 6 },
         subtitle: { color: theme.colors.muted, fontSize: 14, marginBottom: 20 },
@@ -728,6 +732,7 @@ const createStyles = (theme, insets) =>
         googleBtn: {
             height: 50,
             width: "100%",
+            minWidth: '100%',
             borderRadius: 10,
             borderWidth: 1,
             borderColor: "#E6EEF8",
@@ -741,6 +746,7 @@ const createStyles = (theme, insets) =>
         signInBtn: {
             height: 44,
             width: "100%",
+            minWidth: '100%',
             borderRadius: 10,
             backgroundColor: theme.colors.background,
             alignItems: "center",
@@ -875,6 +881,7 @@ const createStyles = (theme, insets) =>
         },
         appleButton: {
             width: "100%",   // full width like your Google button
+            minWidth: "100%",   // full width like your Google button
             height: 50,      // must provide explicit height
             marginBottom: 10,
         },

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Expensease",
     "slug": "expensease",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "scheme": "expensease",
     "orientation": "portrait",
     "icon": "./assets/default/icon.png",
@@ -30,7 +30,8 @@
         "NSLocationWhenInUseUsageDescription": "Optional — remove if not needed",
         "NSSpeechRecognitionUsageDescription": "Expensease needs speech recognition to convert your voice into text for creating expenses.",
         "NSMicrophoneUsageDescription": "Expensease needs access to the microphone to record audio for voice input.",
-        "NSPhotoLibraryUsageDescription": "Allow selecting receipts or photos to attach to expense items in the app."
+        "NSPhotoLibraryUsageDescription": "Allow selecting receipts or photos to attach to expense items in the app.",
+        "ITSAppUsesNonExemptEncryption": false
       },
       "appleTeamId": "2TA4D4M36W"
     },
@@ -60,7 +61,8 @@
       },
       "permissions": [
         "READ_CONTACTS",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
       ],
       "manifest": {
         "application": {
@@ -97,12 +99,12 @@
       "expo-asset",
       "expo-apple-authentication",
       [
-      "@react-native-voice/voice",
-      {
-        "microphonePermission": "Allow Expensease to access the microphone",
-        "speechRecognitionPermission": "Allow Expensease to securely recognize user speech"
-      }
-    ]
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Allow Expensease to access the microphone",
+          "speechRecognitionPermission": "Allow Expensease to securely recognize user speech"
+        }
+      ]
     ],
     "extra": {
       "router": {
