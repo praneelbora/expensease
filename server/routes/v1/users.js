@@ -1903,6 +1903,44 @@ router.post('/link-google', auth, async (req, res) => {
     }
 });
 
+router.get("/verifyWhatsapp", async (req, res) => {
+    console.log('GET req: ', req.body);
+    // console.log('res: ', res);
+    console.log('req.query: ', req.query);
+    try {
+        const { 'hub.mode': mode, 'hub.challenge': challenge, 'hub.verify_token': token } = req.query;
+
+        if (mode === 'subscribe') {
+            console.log('WEBHOOK VERIFIED');
+            res.status(200).send(challenge);
+        } else {
+            res.status(403).end();
+        }
+    } catch (error) {
+        console.log(error);
+
+    }
+
+});
+router.post("/verifyWhatsapp", async (req, res) => {
+    console.log('POST req: ', JSON.stringify(req.body));
+    // console.log('res: ', res);
+    try {
+        const { 'hub.mode': mode, 'hub.challenge': challenge, 'hub.verify_token': token } = req.query;
+
+        if (mode === 'subscribe') {
+            console.log('WEBHOOK VERIFIED');
+            res.status(200).send(challenge);
+        } else {
+            res.status(403).end();
+        }
+    } catch (error) {
+        console.log(error);
+
+    }
+
+});
+
 
 
 module.exports = router;
