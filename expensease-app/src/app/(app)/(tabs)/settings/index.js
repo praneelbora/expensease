@@ -10,12 +10,12 @@ import {
     UIManager,
     Platform,
     Modal,
-    Linking,
     TextInput,
     ActivityIndicator,
 } from "react-native";
 import * as Application from "expo-application";
 import { checkAppVersion } from "services/UserService";
+import * as Linking from "expo-linking";
 
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,6 +26,7 @@ import Guide from "@/accIcons/guide.svg";
 import Logout from "@/accIcons/logout.svg";
 import Payment from "@/accIcons/payment.svg";
 import Contact from "@/accIcons/contact.svg";
+import Instagram from "@/accIcons/instagram.svg";
 import Privacy from "@/accIcons/privacy.svg";
 import FAQ from "@/accIcons/faq.svg";
 import Sun from "@/accIcons/sun.svg";
@@ -563,6 +564,13 @@ export default function AccountScreen() {
                                             <Contact width={30} height={30} stroke={theme.colors.primary} />
                                         </View>
                                         <Text style={styles.gridLabel}>Contact</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={() => Linking.openURL("https://www.instagram.com/_expensease")}>
+                                        <View style={styles.iconWrap}>
+                                            <Instagram width={30} height={30} stroke={theme.colors.primary} />
+                                        </View>
+                                        <Text style={styles.gridLabel}>Instagram</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity style={styles.gridItem} activeOpacity={0.8} onPress={onLogout}>
