@@ -909,7 +909,6 @@ export default function ExpenseBottomSheet({
                                     {/* Helper totals when multiple payers exist and sum mismatch */}
                                     {selectedFriends.filter((f) => f.paying).length > 1 && !isPaidValid ? (
                                         <View style={{ alignItems: "center", marginTop: 6 }}>
-                                            {console.log(paidTotal, amountNum)}
                                             <Text style={[styles.helperMono]}>{formatMoney(currency, num(amountNum) - paidTotal)} left</Text>
                                             <Text style={[styles.helperMono, { color: theme.colors.muted }]}>{formatMoney(currency, paidTotal)} / {formatMoney(currency, num(amountNum))}</Text>
                                         </View>

@@ -800,8 +800,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
     };
 
     const distributeEqualOwe = (upd) => {
-        console.log(upd);
-
         const owing = upd.filter((f) => f.owing);
         const N = owing.length;
         if (N === 0) return upd.map((f) => ({ ...f, oweAmount: 0, owePercent: undefined }));
@@ -1392,8 +1390,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
         const onShow = (e) => {
             const height = e?.endCoordinates?.height || 0;
-            console.log(e?.endCoordinates?.height);
-            
             setKbHeight(height);
             setKeyboardOpen(true);
 
