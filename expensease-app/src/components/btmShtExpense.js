@@ -191,13 +191,13 @@ export default function ExpenseBottomSheet({
     const unifiedOptions = useMemo(() => {
         if (!paymentModal.open) return [];
         if (paymentModal.context === "personal") return paymentMethods || [];
-        const f = selectedFriends.find((x) => x._id === paymentModal.friendId);
+        const f = selectedFriends.find((x) => x?._id === paymentModal.friendId);
         return (f?.paymentMethods || []).map((m) => ({ _id: m.paymentMethodId, ...m }));
     }, [paymentModal, selectedFriends, paymentMethods]);
 
     const unifiedValue = useMemo(() => {
         if (paymentModal.context === "personal") return personalPaymentMethod || null;
-        const f = selectedFriends.find((x) => x._id === paymentModal.friendId);
+        const f = selectedFriends.find((x) => x?._id === paymentModal.friendId);
         return f?.selectedPaymentMethodId ?? null;
     }, [paymentModal, personalPaymentMethod, selectedFriends]);
 
@@ -280,8 +280,8 @@ export default function ExpenseBottomSheet({
         setSelectedFriends((prev) => (prev.some((f) => f?._id === friendId) ? prev : [...prev, { _id: friendId, name: name || "Member", paying: false, payAmount: 0, owing: false, oweAmount: 0 }]));
     };
 
-    const selectedIds = new Set(selectedFriends.map((m) => m._id));
-    const availableMembers = groupMembers.filter((m) => !selectedIds.has(m._id));
+    const selectedIds = new Set(selectedFriends.map((m) => m?._id));
+    const availableMembers = groupMembers.filter((m) => !selectedIds.has(m?._id));
 
     const getRemainingTop = () => {
         const owingFriends = selectedFriends.filter((f) => f.owing);
@@ -462,13 +462,13 @@ export default function ExpenseBottomSheet({
     const getUserNameById = (idOrObj) => {
         if (!idOrObj) return "";
         if (typeof idOrObj === "object") {
-            if (idOrObj._id === userId) return "You";
+            if (idOrObj?._id === userId) return "You";
             return idOrObj.name || "";
         }
         const id = idOrObj;
         if (id === userId) return "You";
         if ((expense?.createdBy?._id) === id) return expense.createdBy.name;
-        const gm = groupMembers.find((m) => m._id === id);
+        const gm = groupMembers.find((m) => m?._id === id);
         if (gm) return gm.name;
         const splitUser = (expense?.splits || []).map((s) => s.friendId).find((u) => (typeof u === "object" ? u._id : u) === id);
         if (splitUser && typeof splitUser === "object") return splitUser.name || "";
@@ -851,10 +851,10 @@ export default function ExpenseBottomSheet({
 
                                         return (
                                             <TouchableOpacity
-                                                key={`payrow-${f._id}`}
+                                                key={`payrow-${f?._id}`}
                                                 onPress={() => {
                                                     // toggle paying and recompute pay distribution (togglePaying handles distributeEqualPay)
-                                                    togglePaying(f._id);
+                                                    togglePaying(f?._id);
                                                 }}
                                                 activeOpacity={0.8}
                                                 style={[styles.rowBetween, { paddingVertical: 4, height: 45 }]}
@@ -877,7 +877,7 @@ export default function ExpenseBottomSheet({
                                                     {/* Payment method selector if friend has >1 PMs */}
                                                     {manyPMs && isPaying ? (
                                                         <TouchableOpacity
-                                                            onPress={() => openPaymentSheet({ context: "split", friendId: f._id })}
+                                                            onPress={() => openPaymentSheet({ context: "split", friendId: f?._id })}
                                                             style={[
                                                                 styles.pmBtn,
                                                                 selPM ? { borderColor: theme.colors.border, backgroundColor: "transparent" } : { borderColor: theme.colors.negative, backgroundColor: "rgba(244,67,54,0.08)" },
@@ -896,7 +896,7 @@ export default function ExpenseBottomSheet({
                                                             placeholderTextColor={theme.colors.muted}
                                                             keyboardType="decimal-pad"
                                                             value={String(f.payAmount || "")}
-                                                            onChangeText={(v) => setPayAmount(f._id, v)}
+                                                            onChangeText={(v) => setPayAmount(f?._id, v)}
                                                             style={[styles.input, { width: 100, textAlign: "right" }]}
                                                         />
                                                     ) : null}
@@ -909,7 +909,6 @@ export default function ExpenseBottomSheet({
                                     {/* Helper totals when multiple payers exist and sum mismatch */}
                                     {selectedFriends.filter((f) => f.paying).length > 1 && !isPaidValid ? (
                                         <View style={{ alignItems: "center", marginTop: 6 }}>
-                                            {console.log(paidTotal, amountNum)}
                                             <Text style={[styles.helperMono]}>{formatMoney(currency, num(amountNum) - paidTotal)} left</Text>
                                             <Text style={[styles.helperMono, { color: theme.colors.muted }]}>{formatMoney(currency, paidTotal)} / {formatMoney(currency, num(amountNum))}</Text>
                                         </View>
@@ -953,11 +952,11 @@ export default function ExpenseBottomSheet({
                                                     const isOwing = !!f.owing;
                                                     return (
                                                         <TouchableOpacity
-                                                            key={`ow-${f._id}`}
+                                                            key={`ow-${f?._id}`}
                                                             onPress={() => {
                                                                 setSelectedFriends((prev) => {
                                                                     const updated = prev.map((x) => {
-                                                                    if (x._id === f?._id) {
+                                                                    if (x?._id === f?._id) {
                                                                         const newOwing = !x.owing;
                                                                         return {
                                                                         ...x,
@@ -988,9 +987,9 @@ export default function ExpenseBottomSheet({
                                                             </View>
                                                             {isOwing && <>
                                                             {mode === "percent" ? (
-                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.owePercent ?? "")} onChangeText={(v) => setOwePercent(f._id, v)} />
+                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.owePercent ?? "")} onChangeText={(v) => setOwePercent(f?._id, v)} />
                                                             ) : mode === "value" ? (
-                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.oweAmount ?? "")} onChangeText={(v) => setOweAmount(f._id, v)} />
+                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.oweAmount ?? "")} onChangeText={(v) => setOweAmount(f?._id, v)} />
                                                             ) : (
                                                                 <Text style={{ color: colors.text || "#fff' " }}>{Number(f.oweAmount || 0).toFixed(2)}</Text>
                                                             )}</>}
@@ -1116,9 +1115,9 @@ export default function ExpenseBottomSheet({
         );
 
         const merged = members.map((m) => {
-            const prev = byId.get(m._id);
+            const prev = byId.get(m?._id);
             return {
-                _id: m._id,
+                _id: m?._id,
                 name: m.name || prev?.name || "Member",
                 paying: prev?.paying || false,
                 owing: prev?.owing || false,
@@ -1132,7 +1131,7 @@ export default function ExpenseBottomSheet({
 
         (splitsArr || []).forEach((s) => {
             const id = s?.friendId?._id || s?.friendId;
-            if (!merged.some((x) => x._id === id)) {
+            if (!merged.some((x) => x?._id === id)) {
                 merged.push({
                     _id: id,
                     name: s?.friendId?.name || s?.name || "Member",

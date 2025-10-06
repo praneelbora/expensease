@@ -28,8 +28,6 @@ const getCurrencyCode = (exp) =>
 /* ---------- Dropdown component (only one open allowed) ---------- */
 function Dropdown({ id, openId, setOpenId, options = [], value, onChange, colors }) {
     const open = openId === id;
-    console.log(id);
-    
     return (
         <View style={{ position: "relative", marginRight: 8 }}>
             <TouchableOpacity
