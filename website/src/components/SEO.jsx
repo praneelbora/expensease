@@ -16,6 +16,7 @@ const SEO = ({ title, description, canonical, schema }) => {
             <Meta property="og:description" content={description} />
             {canonical && <Meta property="og:url" content={canonical} />}
             <Meta property="og:type" content="website" />
+            <Meta property="og:image" content="/image2.png" />
 
             {/* Twitter Cards */}
             <Meta name="twitter:card" content="summary_large_image" />
