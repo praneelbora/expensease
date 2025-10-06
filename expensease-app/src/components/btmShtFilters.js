@@ -1,3 +1,4 @@
+// btmShtFilters (FilterSheet) - updated multi-select category chips
 import React, { useEffect, useState, useMemo } from "react";
 import {
     View,
@@ -5,7 +6,6 @@ import {
     TouchableOpacity,
     StyleSheet,
     ScrollView,
-    Modal,
     Platform,
 } from "react-native";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
@@ -24,12 +24,11 @@ const FormatDateLabel = (d) => {
             day: "2-digit",
             month: "short",
             year: "numeric",
-        }).replace(" ", " "); // ensures "16 Sep 2025" → "16 Sep, 2025"
+        }).replace(" ", " ");
     } catch (e) {
         return "";
     }
 };
-
 
 const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onApply, onClose, defaultFilter }) => {
     const insets = useSafeAreaInsets();
@@ -37,7 +36,19 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
     const colors = theme?.colors || {};
     const styles = useMemo(() => createStyles(colors), [colors]);
 
-    const [local, setLocal] = useState(selected || {});
+    // ensure selected.category is normalized to array
+    const normalizeSelected = (sel) => {
+        const s = sel || {};
+        const cat = s.category;
+        if (Array.isArray(cat)) return { ...s, category: cat.length ? cat : ["all"] };
+        if (cat == null) return { ...s, category: ["all"] };
+        if (String(cat).trim() === "") return { ...s, category: ["all"] };
+        // comma separated or single string
+        const parts = String(cat).split(",").map((p) => p.trim()).filter(Boolean);
+        return { ...s, category: parts.length ? parts : ["all"] };
+    };
+
+    const [local, setLocal] = useState(() => normalizeSelected(selected));
 
     // Date picker state
     const [showPicker, setShowPicker] = useState(false);
@@ -45,21 +56,18 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
     const [pickerValue, setPickerValue] = useState(new Date());
 
     useEffect(() => {
-        setLocal(selected || {});
+        setLocal(normalizeSelected(selected));
     }, [selected]);
 
     const setKey = (k, v) => setLocal((s) => ({ ...s, [k]: v }));
 
-    // helper to set date range
     const setDateRange = (from, to) => {
         setKey("dateRange", { from: from ? new Date(from).toISOString() : null, to: to ? new Date(to).toISOString() : null });
     };
 
-    // Pre-compute labels for chips when week/month are selected
     const applyWeekRange = () => {
         const now = new Date();
         const day = now.getDay();
-        // assuming week starts on Sunday
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - day);
         startOfWeek.setHours(0, 0, 0, 0);
@@ -87,7 +95,6 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
         setKey("date", "custom");
     };
 
-    // ===== confirm / cancel handlers for the modal picker =====
     const onPickerConfirm = (selectedDate) => {
         setShowPicker(false);
         if (!selectedDate) return;
@@ -119,6 +126,30 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
     };
     const isCustomEmpty = local.date === "custom" && !(local.dateRange?.from || local.dateRange?.to);
 
+    // ---- category multi-select helpers ----
+    const toggleCategory = (cat) => {
+        setLocal((prev) => {
+            const cur = Array.isArray(prev.category) ? [...prev.category] : ["all"];
+            // selecting 'all' resets to ['all']
+            if (cat === "all") {
+                return { ...prev, category: ["all"] };
+            }
+            // if currently had 'all', remove it before toggling
+            const idxAll = cur.indexOf("all");
+            if (idxAll !== -1) cur.splice(idxAll, 1);
+
+            const idx = cur.indexOf(cat);
+            if (idx === -1) {
+                cur.push(cat);
+            } else {
+                cur.splice(idx, 1);
+            }
+            // if nothing selected, fallback to 'all'
+            if (cur.length === 0) cur.push("all");
+            return { ...prev, category: cur };
+        });
+    };
+
     return (
         <BottomSheetLayout
             innerRef={innerRef}
@@ -127,7 +158,6 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                 onClose?.();
                 innerRef?.current?.dismiss?.();
             }}
-            // use footerOptions for standard layout behavior and disabling
             footerOptions={{
                 showDelete: true,
                 deleteLabel: "Reset",
@@ -144,7 +174,9 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                 },
                 primaryLabel: "Apply",
                 onPrimary: () => {
-                    onApply?.(local);
+                    // ensure category is array when applying
+                    const toApply = { ...local, category: Array.isArray(local.category) ? local.category : [local.category] };
+                    onApply?.(toApply);
                     onClose?.();
                     innerRef?.current?.dismiss?.();
                 },
@@ -154,10 +186,10 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
         >
             <ScrollView
                 style={styles.container}
-                contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+                contentContainerStyle={{ paddingBottom: insets.bottom + 16, paddingHorizontal: 12 }}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Type (same as before) */}
+                {/* Type */}
                 <Text style={styles.sectionLabel}>Type</Text>
                 <View style={styles.chipsRow}>
                     {filters.map((f) => (
@@ -166,7 +198,7 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                             style={[styles.chip, local.type === f.key && styles.chipActive]}
                             onPress={() => {
                                 if (f.key === "settle") {
-                                    setKey("category", "all");
+                                    setKey("category", ["all"]);
                                     setKey("mode", "splits");
                                 }
                                 setKey("type", f.key);
@@ -179,7 +211,7 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                     ))}
                 </View>
 
-                {/* Category */}
+                {/* Category (multi-select chips) */}
                 {local.type !== "settle" && (
                     <>
                         <Text style={styles.sectionLabel}>Category</Text>
@@ -187,12 +219,12 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                             {categories.map((c) => {
                                 const entry = Object.values(categoryMap).find((cat) => cat.label === c);
                                 const Icon = entry ? iconMap[entry.icon] : null;
-                                const active = local.category === c;
+                                const active = Array.isArray(local.category) ? local.category.includes(c) : local.category === c;
                                 return (
                                     <TouchableOpacity
                                         key={String(c)}
                                         style={[styles.chip, active && styles.chipActive, { flexDirection: "row", alignItems: "center" }]}
-                                        onPress={() => setKey("category", c)}
+                                        onPress={() => toggleCategory(c)}
                                     >
                                         {Icon && (
                                             <Icon
@@ -212,7 +244,7 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                     </>
                 )}
 
-                {/* Mode (same) */}
+                {/* Mode */}
                 {local.type !== "settle" && (
                     <>
                         <Text style={styles.sectionLabel}>Mode</Text>
@@ -233,7 +265,7 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                     </>
                 )}
 
-                {/* Sort (same) */}
+                {/* Sort */}
                 <Text style={styles.sectionLabel}>Sort</Text>
                 <View style={styles.chipsRow}>
                     {[{ k: "newest", label: "Newest" }, { k: "oldest", label: "Oldest" }].map(({ k, label }) => (
@@ -247,60 +279,10 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                     ))}
                 </View>
 
-                {/* Date */}
-                {/* <Text style={styles.sectionLabel}>Date</Text>
-                <View style={styles.chipsRow}>
-                    <TouchableOpacity
-                        style={[styles.chip, local.date === "week" && styles.chipActive]}
-                        onPress={() => applyWeekRange()}
-                    >
-                        <Text style={[styles.chipText, local.date === "week" && styles.chipTextActive]}>This Week</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.chip, local.date === "month" && styles.chipActive]}
-                        onPress={() => applyMonthRange()}
-                    >
-                        <Text style={[styles.chipText, local.date === "month" && styles.chipTextActive]}>This Month</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.chip, local.date === "custom" && styles.chipActive]}
-                        onPress={() => {
-                            // enable custom but don't open picker immediately; show the from/to buttons below
-                            setKey("date", "custom");
-                            if (!local.dateRange) setDateRange(null, null);
-                        }}
-                    >
-                        <Text style={[styles.chipText, local.date === "custom" && styles.chipTextActive]}>Custom</Text>
-                    </TouchableOpacity>
-                </View>
-                {local.date === "custom" && (
-                    <View style={{}}>
-                        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                            <TouchableOpacity style={[styles.chip, { flex: 1 }]} onPress={() => openCustomPicker('from')}>
-                                <Text style={[styles.chipText, local.dateRange?.from && styles.chipTextActive]}>
-                                    From: {FormatDateLabel(local.dateRange?.from)}
-                                </Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity style={[styles.chip, { flex: 1 }]} onPress={() => openCustomPicker('to')}>
-                                <Text style={[styles.chipText, local.dateRange?.to && styles.chipTextActive]}>
-                                    To: {FormatDateLabel(local.dateRange?.to)}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <Text style={styles.sectionHint}>Tap a field to pick a date. 'From' time is set to start of day and 'To' to end of day automatically.</Text>
-                    </View>
-                )} */}
-
-                {/* Footer Actions */}
-
+                {/* (date UI omitted / same as before if needed) */}
 
             </ScrollView>
 
-            {/* Native Date Picker Modal (uses @react-native-community/datetimepicker) */}
             <DateTimePickerModal
                 isVisible={showPicker}
                 mode="date"
@@ -310,13 +292,10 @@ const FilterSheet = ({ innerRef, selected, filters = [], categories = [], onAppl
                 headerTextIOS={pickerMode === 'from' ? 'Pick start date' : 'Pick end date'}
                 confirmTextIOS="Done"
                 cancelTextIOS="Cancel"
-                // Android: prefer spinner and force light-mode for readable text
                 display={Platform.OS === "android" ? "spinner" : undefined}
                 isDarkModeEnabled={Platform.OS === 'android' ? false : !!theme?.dark}
-                // iOS: optionally set textColor if your datetimepicker version supports it
                 {...(Platform.OS === 'ios' && { textColor: theme?.colors?.text })}
             />
-
         </BottomSheetLayout>
     );
 };

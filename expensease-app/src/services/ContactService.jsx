@@ -227,14 +227,154 @@ export async function fetchAndHashContacts({
 
 /* ---------------- API Calls ---------------- */
 
-// Upload contacts for matching
-export const uploadContactHashes = (hashes) =>
-    api.post(`${BASE}/upload`, {
-        contacts: hashes.map((h) => ({
-            contactHash: h.contactHash,
-            type: h.type,
-        })),
-    });
+
+/**
+ * Upload contact hashes in batches of 500.
+ *
+ * @param {Array<string>} hashes - array of contactHash strings OR objects { contactHash, type }
+ * @param {Object} opts
+ *   - batchSize (default 500)
+ *   - concurrency (default 1) - how many requests to run in parallel
+ *   - maxRetries (default 2)
+ *   - retryBaseMs (default 300)
+ *
+ * Returns aggregated result:
+ * {
+ *   uploaded: number,            // sum of uploaded values from backend responses (best-effort)
+ *   matches: [ { contactHash, type, matchedUsers: [...] }, ... ]  // aggregated (unique by contactHash)
+ *   matchedUsers: [ ... ]       // aggregated unique matched users
+ *   summary: { totalReceived, totalUnique, matchedCount }
+ *   errors: [ { batchIndex, error } ]
+ * }
+ */
+export async function uploadContactHashesBatched(hashes = [], opts = {}) {
+  const batchSize = Number(opts.batchSize || 500);
+  const concurrency = Number(opts.concurrency || 1);
+  const MAX_RETRIES = Number(opts.maxRetries ?? 2);
+  const RETRY_BASE_MS = Number(opts.retryBaseMs ?? 300);
+
+  // Normalize incoming items to objects { contactHash, type }
+  const normalize = (h) => {
+    if (!h) return null;
+    if (typeof h === 'string') return { contactHash: String(h).trim(), type: 'phone' }; // default type if unknown
+    if (typeof h === 'object') {
+      const ch = h.contactHash || h.hash || h.key || '';
+      const type = (h.type || h.t || '').toString().toLowerCase() || 'phone';
+      return { contactHash: String(ch).trim(), type };
+    }
+    return null;
+  };
+
+  const normalized = hashes.map(normalize).filter(Boolean);
+
+  // dedupe by contactHash
+  const uniqMap = new Map();
+  for (const it of normalized) {
+    if (!it.contactHash) continue;
+    if (!uniqMap.has(it.contactHash)) uniqMap.set(it.contactHash, it);
+  }
+  const uniq = Array.from(uniqMap.values());
+
+  // chunk helper
+  const chunkArray = (arr, size) => {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  };
+
+  const batches = chunkArray(uniq, batchSize);
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const aggregatedMatchesMap = new Map();
+  const aggregatedUsersMap = new Map();
+  let totalUploaded = 0;
+  const errors = [];
+
+  // sequential worker queue (concurrency control)
+  let idx = 0;
+  const runWorker = async () => {
+    while (true) {
+      const i = idx++;
+      if (i >= batches.length) return;
+      const batch = batches[i];
+      let attempt = 0;
+      while (attempt <= MAX_RETRIES) {
+        try {
+          const payload = { contacts: batch.map((b) => ({ contactHash: b.contactHash, type: b.type })) };
+          // adapt path if your api base differs
+          const resp = await api.post('/v1/contacts/upload', payload);
+          const data = resp && resp.data ? resp.data : resp;
+
+          // aggregate uploaded
+          if (Number.isFinite(data?.uploaded)) totalUploaded += Number(data.uploaded);
+          else totalUploaded += batch.length; // best-effort fall back
+
+          // aggregate matches array (per contactHash)
+          if (Array.isArray(data?.matches)) {
+            for (const m of data.matches) {
+              const key = String(m.contactHash);
+              const existing = aggregatedMatchesMap.get(key) || { contactHash: key, type: m.type || null, matchedUsers: [] };
+              // merge matchedUsers (avoid dup by _id or email/phone)
+              const seen = new Set(existing.matchedUsers.map((u) => String(u._id || u.email || u.phone)));
+              for (const mu of (m.matchedUsers || [])) {
+                const mk = String(mu._id || mu.email || mu.phone || JSON.stringify(mu));
+                if (!seen.has(mk)) {
+                  existing.matchedUsers.push(mu);
+                  seen.add(mk);
+                }
+                // also aggregate into aggregatedUsersMap
+                const userKey = String(mu._id || mu.email || mu.phone || mk);
+                if (!aggregatedUsersMap.has(userKey)) aggregatedUsersMap.set(userKey, mu);
+              }
+              aggregatedMatchesMap.set(key, existing);
+            }
+          }
+
+          // aggregate matchedUsers top-level if returned
+          if (Array.isArray(data?.matchedUsers)) {
+            for (const mu of data.matchedUsers) {
+              const userKey = String(mu._id || mu.email || mu.phone || JSON.stringify(mu));
+              if (!aggregatedUsersMap.has(userKey)) aggregatedUsersMap.set(userKey, mu);
+            }
+          }
+
+          break; // success -> break retry loop
+        } catch (err) {
+          attempt += 1;
+          const shouldRetry = attempt <= MAX_RETRIES;
+          if (!shouldRetry) {
+            errors.push({ batchIndex: i, error: String(err?.message || err) });
+            break;
+          }
+          const backoff = RETRY_BASE_MS * Math.pow(2, attempt - 1);
+          await sleep(backoff + Math.random() * 100);
+        }
+      }
+    }
+  };
+
+  // start N workers
+  const workers = Array.from({ length: Math.max(1, Math.min(concurrency, batches.length)) }, () => runWorker());
+  await Promise.all(workers);
+
+  // prepare aggregated response
+  const matches = Array.from(aggregatedMatchesMap.values());
+  const matchedUsers = Array.from(aggregatedUsersMap.values());
+
+  return {
+    uploaded: totalUploaded,
+    matches,
+    matchedUsers,
+    summary: {
+      totalReceived: hashes.length,
+      totalUnique: uniq.length,
+      matchedCount: matchedUsers.length,
+      batches: batches.length,
+    },
+    errors,
+  };
+}
 
 // Get uploaded contacts (paginated)
 export const listUploadedContacts = ({ limit = 50, skip = 0 } = {}) =>

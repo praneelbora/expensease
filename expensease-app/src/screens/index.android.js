@@ -629,7 +629,7 @@ const createStyles = (theme, insets) =>
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
-            borderColor: "#E6EEF8",
+            borderColor: theme?.colors?.border,
         },
         secondaryText: { color: theme?.colors?.primary ?? "#0B5FFF", fontWeight: "600" },
 

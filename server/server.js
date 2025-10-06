@@ -13,6 +13,7 @@ const contacts = require('./routes/v1/contacts');
 const voice = require('./routes/v1/voice');
 
 const expenses2 = require('./routes/v2/expenses');
+const contacts2 = require('./routes/v2/contacts');
 
 const app = express();
 app.use(cors());
@@ -40,6 +41,7 @@ app.use('/api/v1/contacts', contacts);
 app.use('/api/v1/voice', voice);
 
 app.use('/api/v2/expenses', expenses2);
+app.use('/api/v2/contacts', contacts2);
 module.exports = app;
 // const PORT = process.env.PORT || 3000;
 // app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
