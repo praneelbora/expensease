@@ -8,6 +8,7 @@ import {
     TouchableOpacity,
     ScrollView,
     Pressable,
+    useWindowDimensions,
 } from "react-native";
 import { PieChart } from "react-native-gifted-charts";
 import { getSymbol } from "../../utils/currencies";
@@ -17,7 +18,7 @@ import { useTheme } from "context/ThemeProvider";
 import ChevronUp from "@/accIcons/chevronUp.svg";
 import ChevronDown from "@/accIcons/chevronDown.svg";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const SCREEN_WIDTH = Dimensions.get("window").width;
 const getCurrencyCode = (exp) =>
     exp?.currencyCode ||
     exp?.currency?.code ||
@@ -35,7 +36,7 @@ function Dropdown({ id, openId, setOpenId, options = [], value, onChange, colors
                 onPress={() => setOpenId(open ? null : id)}
                 style={[
                     styles.selectorBtn,
-                    { backgroundColor: colors.card, borderColor: colors.border, minWidth: id=='range'?120:105, },
+                    { backgroundColor: colors.card, borderColor: colors.border, minWidth: id == "range" ? 120 : 105 },
                 ]}
             >
                 <Text style={[styles.selectorBtnText, { color: colors.text }]}>
@@ -88,6 +89,9 @@ export default function CategoryDistribution({
         muted: "#888888",
         primary: "#14b8a6",
     };
+
+    const { width } = useWindowDimensions();
+    const isLarge = width >= 900; // change threshold as needed
 
     const [timeRange, setTimeRange] = useState("thisMonth");
     const [expenseType, setExpenseType] = useState("all");
@@ -189,7 +193,9 @@ export default function CategoryDistribution({
     }
 
     const totalSum = pieData.reduce((s, it) => s + (it.value || 0), 0);
-    const chartSize = Math.min(340, SCREEN_WIDTH - 24);
+
+    // Chart size: slightly larger on wide screens
+    const chartSize = isLarge ? Math.min(480, Math.round(width * 0.45)) : Math.min(340, SCREEN_WIDTH - 24);
     const donutWidth = 0;
     const symbol = getSymbol(currency) || "";
 
@@ -212,7 +218,7 @@ export default function CategoryDistribution({
     return (
         <View style={[styles.container, { backgroundColor: colors.background || "#121212" }]}>
             <View style={styles.rowBetween}>
-            <Text style={[styles.sectionLabel,{color: colors.primary}]}>Categories</Text>
+                <Text style={[styles.sectionLabel, { color: colors.primary }]}>Categories</Text>
             </View>
 
             {showControls && (
@@ -259,13 +265,14 @@ export default function CategoryDistribution({
                 </>
             )}
 
-            <View style={{ marginTop: 8, alignItems: "center" }}>
-                {pieData.length === 0 ? (
-                    <View style={styles.emptyBox}>
-                        <Text style={[styles.emptyText, { color: colors.muted || "#888" }]}>No expenses found for selected filters.</Text>
-                    </View>
-                ) : (
-                    <>
+            {pieData.length === 0 ? (
+                <View style={styles.emptyBox}>
+                    <Text style={[styles.emptyText, { color: colors.muted || "#888" }]}>No expenses found for selected filters.</Text>
+                </View>
+            ) : (
+                // Main content: column on small, row on large (chart | legend)
+                <View style={[isLarge ? styles.rowLarge : {}, { marginTop: 8 }]}>
+                    <View style={[isLarge ? styles.leftLarge : { alignItems: "center", width: "100%" }]}>
                         <View style={{ width: chartSize, height: chartSize, alignItems: "center", justifyContent: "center" }}>
                             <PieChart
                                 data={pieData}
@@ -285,18 +292,51 @@ export default function CategoryDistribution({
                             />
                         </View>
 
-                        <View style={{ marginTop: 12, width: "100%", paddingHorizontal: 8 }}>
-                            {pieData.map((d) => d.label === "__empty__" ? null : (
-                                <View key={d.label} style={styles.forceLegendRow}>
-                                    <View style={[styles.legendSwatch, { backgroundColor: d.color }]} />
-                                    <Text style={[styles.forceLegendLabel, { color: colors.text }]}>{d.label}</Text>
-                                    <Text style={[styles.forceLegendAmount, { color: colors.text }]}>{symbol}{Number(d.value || 0).toFixed(2)}</Text>
-                                </View>
-                            ))}
+                        {/* Small-screen legend (under chart) */}
+                        {!isLarge && (
+                            <View style={{ marginTop: 12, width: "100%", paddingHorizontal: 8 }}>
+                                {pieData.map((d) => d.label === "__empty__" ? null : (
+                                    <View key={d.label} style={styles.forceLegendRow}>
+                                        <View style={[styles.legendSwatch, { backgroundColor: d.color }]} />
+                                        <Text style={[styles.forceLegendLabel, { color: colors.text }]}>{d.label}</Text>
+                                        <Text style={[styles.forceLegendAmount, { color: colors.text }]}>{symbol}{Number(d.value || 0).toFixed(2)}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Large-screen legend on the right */}
+                    {isLarge && (
+                        <View style={[styles.rightLegend, { borderColor: colors.border }]}>
+
+                            <ScrollView style={styles.legendList} contentContainerStyle={{ paddingBottom: 12 }}>
+                                {pieData.map((d) => d.label === "__empty__" ? null : (
+                                    <View key={d.label} style={[styles.legendItem, { borderBottomColor: colors.border }]}>
+                                        {/* LEFT: swatch + label (flexes and will truncate) */}
+                                        <View style={styles.legendLeft}>
+                                            <View style={[styles.legendSwatch, { backgroundColor: d.color }]} />
+                                            <Text
+                                                style={[styles.legendLabel, { color: colors.text }]}
+                                                numberOfLines={1}
+                                                ellipsizeMode="tail"
+                                            >
+                                                {d.label}
+                                            </Text>
+                                        </View>
+
+                                        {/* RIGHT: amount (fixed/min width, right aligned) */}
+                                        <Text style={[styles.legendAmount, { color: colors.muted }]}>
+                                            {symbol}{Number(d.value || 0).toFixed(2)}
+                                        </Text>
+                                    </View>
+                                ))}
+                            </ScrollView>
                         </View>
-                    </>
-                )}
-            </View>
+                    )}
+
+                </View>
+            )}
 
             {debugOpen && (
                 <View style={[styles.debugPanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -382,4 +422,51 @@ const styles = StyleSheet.create({
     debugText: { fontSize: 12, marginBottom: 8 },
     sectionLabel: { fontSize: 12, letterSpacing: 1, textTransform: "uppercase" },
     rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingBottom: 8 },
+    /* large layout helpers */
+    rowLarge: { flexDirection: "row", alignItems: "flex-start", },
+    leftLarge: { width: '50%', alignItems: "center", justifyContent: "flex-start" },
+
+    // make right legend a fixed reasonable width on large screens
+    rightLegend: { width: '50%', paddingLeft: 12 },
+
+    legendTitle: { fontSize: 13, fontWeight: "700", marginBottom: 8 },
+
+    legendList: { maxHeight: 420 },
+
+    // each legend row: left flexes, right is fixed width
+    legendItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+    },
+
+    // left group (swatch + label) — this flexes and allows label to truncate
+    legendLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        flex: 1,
+        marginRight: 8,
+        minWidth: 0, // important so flex children can shrink
+    },
+
+    legendSwatch: { width: 16, height: 16, borderRadius: 4, marginRight: 12 },
+
+    legendLabel: {
+        fontSize: 14,
+        fontWeight: "600",
+        flexShrink: 1, // allow truncation
+    },
+
+    // amount on right — keep a fixed/minimum width so it doesn't overflow
+    legendAmount: {
+        fontSize: 12,
+        fontWeight: "600",
+        textAlign: "right",
+        minWidth: 80,
+        paddingLeft: 8,
+        flexShrink: 0,
+    },
+
 });

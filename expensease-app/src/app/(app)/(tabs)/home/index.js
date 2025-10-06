@@ -18,6 +18,9 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "context/AuthContext";
 import { createPaymentMethod } from "services/PaymentMethodService";
 
+import ChevronUp from "@/accIcons/chevronUp.svg";
+import ChevronDown from "@/accIcons/chevronDown.svg";
+
 import Header from "~/header";
 import ExpenseRow from "~/expenseRow";
 import EmptyCTA from "~/cta";
@@ -62,6 +65,54 @@ function SkeletonRow({ theme, style }) {
     );
 }
 
+/* ---------- Dropdown component (only one open allowed) ---------- */
+function Dropdown({ id, openId, setOpenId, options = [], value, onChange, colors }) {
+    const open = openId === id;
+    const { theme } = useTheme();
+    const styles = useMemo(() => createStyles(theme), [theme]);
+    return (
+        <View style={{ position: "relative", marginRight: 8 }}>
+            <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setOpenId(open ? null : id)}
+                style={[
+                    styles.selectorBtn,
+                    { backgroundColor: theme.colors.card, borderColor: theme.colors.border, minWidth: id == "range" ? 120 : 105 },
+                ]}
+            >
+                <Text style={[styles.selectorBtnText, { color: theme.colors.text }]}>
+                    {options.find((o) => o.value === value)?.label || String(value)}
+                </Text>
+
+                {open ? (
+                    <ChevronUp width={16} height={16} color={theme.colors.text} />
+                ) : (
+                    <ChevronDown width={16} height={16} color={theme.colors.text} />
+                )}
+            </TouchableOpacity>
+
+            {open && (
+                <View style={[styles.dropdownCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <ScrollView style={{ maxHeight: 220 }}>
+                        {options.map((opt) => (
+                            <TouchableOpacity
+                                key={String(opt.value)}
+                                onPress={() => {
+                                    onChange(opt.value);
+                                    setOpenId(null);
+                                }}
+                                style={styles.dropdownItem}
+                            >
+                                <Text style={[styles.dropdownItemText, { color: theme.colors.text }]}>{opt.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
+        </View>
+    );
+}
+
 /**
  * DashboardScreenInner
  * - consumes FetchContext via useFetch()
@@ -100,7 +151,8 @@ function DashboardScreenInner() {
     const [selectedPM, setSelectedPM] = useState(null);
     const [showBalances, setShowBalances] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-
+    const [openDropdown, setOpenDropdown] = useState(null); // "range" | "type" | "currency"
+    const [timeRange, setTimeRange] = useState("thisMonth");
     const expenseSheetRef = useRef(null);
     const [selectedExpense, setSelectedExpense] = useState(null);
 
@@ -419,7 +471,7 @@ function DashboardScreenInner() {
         (expenses || [])
             .filter((e) => e.typeOf === "expense")
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .slice(0, 5)
+            .slice(0, 4)
             .forEach((e) => {
                 const d = new Date(e.date);
                 const key = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(d);
@@ -446,19 +498,18 @@ function DashboardScreenInner() {
                             <View style={styles.rowBetween}>
                                 <Text style={styles.sectionLabel}>Summary</Text>
                                 <View style={styles.rangeRow}>
-                                    {[
-                                        { key: "thisMonth", label: "This Month" },
-                                        { key: "last3m", label: "Last 3M" },
-                                        { key: "thisYear", label: "This Year" },
-                                    ].map((opt) => (
-                                        <TouchableOpacity
-                                            key={opt.key}
-                                            style={[styles.rangeBtn, summaryRange === opt.key && styles.rangeBtnActive]}
-                                            onPress={() => setSummaryRange(opt.key)}
-                                        >
-                                            <Text style={[styles.rangeBtnText, summaryRange === opt.key && styles.rangeBtnTextActive]}>{opt.label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
+                                    <Dropdown
+                                        id="range"
+                                        openId={openDropdown}
+                                        setOpenId={setOpenDropdown}
+                                        options={[
+                                            { value: "thisMonth", label: "This Month" },
+                                            { value: "last3m", label: "Last 3M" },
+                                            { value: "thisYear", label: "This Year" },
+                                        ]}
+                                        value={summaryRange}
+                                        onChange={(v) => setSummaryRange(v)}
+                                    />
                                 </View>
                             </View>
 
@@ -505,19 +556,18 @@ function DashboardScreenInner() {
                                     <Text style={styles.sectionLabel}>Summary</Text>
 
                                     <View style={styles.rangeRow}>
-                                        {[
-                                            { key: "thisMonth", label: "This Month" },
-                                            { key: "last3m", label: "Last 3M" },
-                                            { key: "thisYear", label: "This Year" },
-                                        ].map((opt) => (
-                                            <TouchableOpacity
-                                                key={opt.key}
-                                                style={[styles.rangeBtn, summaryRange === opt.key && styles.rangeBtnActive]}
-                                                onPress={() => setSummaryRange(opt.key)}
-                                            >
-                                                <Text style={[styles.rangeBtnText, summaryRange === opt.key && styles.rangeBtnTextActive]}>{opt.label}</Text>
-                                            </TouchableOpacity>
-                                        ))}
+                                        <Dropdown
+                                            id="range"
+                                            openId={openDropdown}
+                                            setOpenId={setOpenDropdown}
+                                            options={[
+                                                { value: "thisMonth", label: "This Month" },
+                                                { value: "last3m", label: "Last 3M" },
+                                                { value: "thisYear", label: "This Year" },
+                                            ]}
+                                            value={summaryRange}
+                                            onChange={(v) => setSummaryRange(v)}
+                                        />
                                     </View>
                                 </View>
 
@@ -618,8 +668,8 @@ function DashboardScreenInner() {
                                     </View>
                                 </View>
                             )}
-                                        <CategoryDistribution expenses={expenses} defaultCurrenc={defaultCurrency} userId={userId}/>
-                                        <View style={{height: 144, width: '100%'}} />
+                            <CategoryDistribution expenses={expenses} defaultCurrenc={defaultCurrency} userId={userId} />
+                            <View style={{ height: 180, width: '100%' }} />
                         </>
                     )}
                 </ScrollView>
@@ -783,5 +833,47 @@ const createStyles = (theme) =>
         viewAllCtaText: {
             color: theme.colors.primary,
             fontWeight: "700",
+        },
+        selectorBtn: {
+            borderRadius: 8,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            marginRight: 8,
+            borderWidth: 1,
+            maxWidth: 125,
+            alignItems: "center",
+            flexDirection: "row",
+            justifyContent: "space-between",
+            gap: 8,
+        },
+        selectorBtnText: { fontSize: 13, flex: 1 },
+        caret: { marginLeft: 8, fontSize: 16 },
+
+        dropdownCard: {
+            position: "absolute",
+            top: 40,
+            left: 0,
+            minWidth: 140,
+            maxWidth: 300,
+            borderWidth: 1,
+            borderRadius: 8,
+            paddingVertical: 4,
+            zIndex: 50,
+            elevation: 6,
+            shadowColor: "#000",
+            shadowOpacity: 0.2,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 4 },
+        },
+        dropdownItem: { paddingVertical: 10, paddingHorizontal: 12 },
+        dropdownItemText: { fontSize: 14 },
+
+        outsideOverlay: {
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 40,
         },
     });
