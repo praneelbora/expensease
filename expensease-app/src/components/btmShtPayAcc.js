@@ -234,7 +234,7 @@ const BottomSheetPaymentAccount = ({
             }}
         >
             {/* Content goes here (children of BottomSheetLayout) */}
-            <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start", marginTop: 12 }}>
                 <View style={{ flex: 1.8 }}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                         <Text style={styles.sectionTitle}>Label</Text>

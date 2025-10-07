@@ -120,6 +120,7 @@ export default function PaymentAccountsScreen() {
             await fetchPaymentMethods();
             setShowEdit(false);
             setEditing(null);
+            paymentSheetRef.current?.dismiss();
         } catch (e) {
             console.error(e);
             alert(e.message || "Failed to delete payment account");

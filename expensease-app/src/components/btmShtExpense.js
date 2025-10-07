@@ -12,6 +12,7 @@ import {
     ScrollView,
     Alert,
 } from "react-native";
+import BottomSheetPaymentAccount from "~/btmShtPayAcc";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BottomSheetLayout from "./btmShtHeaderFooter"; // your reusable layout
 import SheetCurrencies from "~/shtCurrencies";
@@ -21,7 +22,7 @@ import { getSymbol, formatMoney } from "../utils/currencies";
 import { useTheme } from "context/ThemeProvider";
 import { getCategoryLabel } from "../utils/categoryOptions";
 import { categoryMap } from "../utils/categories";
-import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
+import { fetchFriendsPaymentMethods, createPaymentMethod } from "../services/PaymentMethodService";
 import { getGroupDetails } from "../services/GroupService";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import ChevronDown from "@/accIcons/chevronDown.svg"; // should exist in your accIcons folder
@@ -60,7 +61,7 @@ export default function ExpenseBottomSheet({
 
     const insets = useSafeAreaInsets();
     const { theme } = useTheme();
-    const { paymentMethods } = useAuth()
+    const { paymentMethods, fetchPaymentMethods } = useAuth()
     const colors = theme?.colors || {};
     const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -68,6 +69,7 @@ export default function ExpenseBottomSheet({
     const currencySheetRef = useRef(null);
     const categorySheetRef = useRef(null);
     const paymentSheetRef = useRef(null);
+    const newPaymentSheetRef = useRef(null);
     const paymentModalCtxInitial = { context: "personal", friendId: null };
     const [paymentModalCtx, setPaymentModalCtx] = useState(paymentModalCtxInitial);
     const openCategorySheet = () => categorySheetRef.current?.present();
@@ -86,15 +88,15 @@ export default function ExpenseBottomSheet({
     // date picker modal control
     const [showDatePicker, setShowDatePicker] = useState(false);
     const categoryOptions = useMemo(
-            () =>
-                Object.entries(categoryMap || [])?.map(([key, cfg]) => ({
-                    value: key,
-                    label: cfg.label,
-                    icon: cfg.icon,
-                    keywords: cfg.keywords,
-                })),
-            []
-        );
+        () =>
+            Object.entries(categoryMap || [])?.map(([key, cfg]) => ({
+                value: key,
+                label: cfg.label,
+                icon: cfg.icon,
+                keywords: cfg.keywords,
+            })),
+        []
+    );
 
     // readable label for the input (e.g. "19 Sep 2025")
     const formatReadable = (isoStr) => {
@@ -188,7 +190,18 @@ export default function ExpenseBottomSheet({
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [_id, expense]);
+    const onSave = async (payload) => {
 
+        try {
+            await createPaymentMethod(payload, userToken);
+            await fetchPaymentMethods();
+        } catch (e) {
+            console.error(e);
+            alert(e.message || "Failed to save payment account");
+        } finally {
+
+        }
+    };
     // when editing, fetch friends' payment methods
     useEffect(() => {
         if (!isEditing) return;
@@ -968,15 +981,15 @@ export default function ExpenseBottomSheet({
                                                             onPress={() => {
                                                                 setSelectedFriends((prev) => {
                                                                     const updated = prev.map((x) => {
-                                                                    if (x?._id === f?._id) {
-                                                                        const newOwing = !x.owing;
-                                                                        return {
-                                                                        ...x,
-                                                                        owing: newOwing,
-                                                                        oweAmount: newOwing ? x.oweAmount : 0, // or null, depending on your logic
-                                                                        };
-                                                                    }
-                                                                    return x;
+                                                                        if (x?._id === f?._id) {
+                                                                            const newOwing = !x.owing;
+                                                                            return {
+                                                                                ...x,
+                                                                                owing: newOwing,
+                                                                                oweAmount: newOwing ? x.oweAmount : 0, // or null, depending on your logic
+                                                                            };
+                                                                        }
+                                                                        return x;
                                                                     });
 
                                                                     if (mode === "equal") return distributeEqualOwe(updated);
@@ -988,30 +1001,30 @@ export default function ExpenseBottomSheet({
                                                         >
                                                             <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
 
-                                                                    <View style={styles.radioWrap}>
-                                                                        <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
-                                                                            {isOwing ? <View style={styles.radioInnerActive} /> : <View style={styles.radioInner} />}
-                                                                        </View>
+                                                                <View style={styles.radioWrap}>
+                                                                    <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
+                                                                        {isOwing ? <View style={styles.radioInnerActive} /> : <View style={styles.radioInner} />}
                                                                     </View>
+                                                                </View>
 
 
                                                                 <Text style={{ color: colors.text || "#fff", flex: 1 }}>{f.name}</Text>
                                                             </View>
                                                             {isOwing && <>
-                                                            {mode === "percent" ? (
-                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.owePercent ?? "")} onChangeText={(v) => setOwePercent(f?._id, v)} />
-                                                            ) : mode === "value" ? (
-                                                                <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.oweAmount ?? "")} onChangeText={(v) => setOweAmount(f?._id, v)} />
-                                                            ) : (
-                                                                <Text style={{ color: colors.text || "#fff' " }}>{Number(f.oweAmount || 0).toFixed(2)}</Text>
-                                                            )}</>}
+                                                                {mode === "percent" ? (
+                                                                    <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.owePercent ?? "")} onChangeText={(v) => setOwePercent(f?._id, v)} />
+                                                                ) : mode === "value" ? (
+                                                                    <TextInput keyboardType="decimal-pad" style={[styles.smallInput, { width: 100 }]} value={String(f.oweAmount ?? "")} onChangeText={(v) => setOweAmount(f?._id, v)} />
+                                                                ) : (
+                                                                    <Text style={{ color: colors.text || "#fff' " }}>{Number(f.oweAmount || 0).toFixed(2)}</Text>
+                                                                )}</>}
                                                         </TouchableOpacity>
                                                     );
                                                 })}
                                             </View>
                                             <View style={{ alignItems: "center", marginTop: 6 }}>
-                                            <Text style={[styles.helperMono, { color: theme.colors.muted }]}>{getRemainingBottom()}</Text>
-                                            <Text style={[styles.helperMono]}>{getRemainingTop()}</Text>
+                                                <Text style={[styles.helperMono, { color: theme.colors.muted }]}>{getRemainingBottom()}</Text>
+                                                <Text style={[styles.helperMono]}>{getRemainingTop()}</Text>
                                             </View>
 
                                         </View>
@@ -1078,10 +1091,42 @@ export default function ExpenseBottomSheet({
                 onSelect={(id) => {
                     handleSelectUnified(id);
                     // auto-close sheet
-                    paymentSheetRef.current?.dismiss?.();
+                    paymentSheetRef?.current?.dismiss?.();
                     setPaymentModal({ open: false, context: "personal", friendId: null });
                 }}
+                noResultsComponent={
+                    <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+                        <Text style={{ fontSize: 16, color: "#aaa", marginBottom: 12 }}>
+                            No payment methods found
+                        </Text>
+                        <TouchableOpacity
+                            style={{
+                                backgroundColor: "#00C49F",
+                                paddingVertical: 10,
+                                paddingHorizontal: 18,
+                                borderRadius: 8,
+                            }}
+                            onPress={() => {
+                                paymentSheetRef?.current?.dismiss();
+                                newPaymentSheetRef?.current?.present();
+                            }}
+                        >
+                            <Text style={{ color: "#fff", fontWeight: "600" }}>
+                                + Add Payment Method
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                }
                 onClose={() => setPaymentModal({ open: false, context: "personal", friendId: null })}
+            />
+            <BottomSheetPaymentAccount
+                innerRef={newPaymentSheetRef}
+                onSave={(payload) => {
+                    newPaymentSheetRef.current?.dismiss()
+                    onSave(payload)
+                }
+                }
+                onClose={() => {/* optional */ }}
             />
         </BottomSheetLayout>
     );
@@ -1197,7 +1242,7 @@ const createStyles = (c = {}) =>
         chip2Text: { color: c.text },
         chip2TextActive: { color: c.text, fontWeight: "700" },
 
-        splitRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4, height: 45  },
+        splitRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4, height: 45 },
         smallInput: { width: 100, padding: 8, borderBottomWidth: 1, borderColor: c.border || "#333", color: c.text || "#fff", textAlign: "right", borderRadius: 6, backgroundColor: c.cardAlt || "#111" },
         smallBtn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: c.cardAlt || "#111", borderWidth: 1, borderColor: c.border || "#444" },
         smallBtnText: { color: c.text || "#fff" },
