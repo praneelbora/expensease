@@ -64,9 +64,10 @@ router.post('/', auth, async (req, res) => {
             iconKey = 'auto',
             notes
         } = req.body || {};
-
+        console.log(req.body);
+        
         if (!label) throw { status: 400, message: 'label is required' };
-        if (!['upi', 'bank', 'card', 'cash', 'wallet', 'other'].includes(type)) {
+        if (!['upi', 'bank', 'card','debit card','credit card', 'cash', 'wallet', 'other'].includes(type)) {
             throw { status: 400, message: 'invalid type' };
         }
 
