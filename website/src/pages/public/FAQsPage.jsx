@@ -320,7 +320,7 @@ export default function FAQ() {
             <h4 className="font-semibold">Want to request a feature?</h4>
             <p className="mt-2 text-sm text-slate-700">Tell us what would make Expensease better for you — feature requests directly influence our roadmap.</p>
             <div className="mt-4">
-              <a href="/feedback" className="inline-flex items-center gap-2 rounded-xl border px-4 py-2">Suggest a feature</a>
+              <a href="/contact" className="inline-flex items-center gap-2 rounded-xl border px-4 py-2">Suggest a feature</a>
             </div>
           </div>
         </section>

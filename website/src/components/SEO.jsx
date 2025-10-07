@@ -1,33 +1,51 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Title, Meta, Link } from "react-head";
 
-const SEO = ({ title, description, canonical, schema }) => {
+const SEO = ({
+    title = "Expensease – Split & Track Expenses Easily",
+    description = "Split expenses, track spending, and manage group finances effortlessly with Expensease.",
+    canonical = "https://www.expensease.in",
+    image = "/image.png",
+    type = "website",
+    schema,
+}) => {
+    const fullTitle = title.includes("Expensease") ? title : `${title} | Expensease`;
+
+    // Basic fallback for crawlers before React hydration
+    useEffect(() => {
+        document.title = fullTitle;
+        const canonicalTag = document.querySelector("link[rel='canonical']");
+        if (canonicalTag) canonicalTag.href = canonical;
+    }, [fullTitle, canonical]);
+
     return (
         <>
-            {title && <Title>{title}</Title>}
-            {description && <Meta name="description" content={description} />}
-            {canonical && <Link rel="canonical" href={canonical} />}
-
-            {/* Basic SEO */}
+            <Title>{fullTitle}</Title>
+            <Meta name="description" content={description} />
+            <Link rel="canonical" href={canonical} />
             <Meta name="robots" content="index, follow" />
 
-            {/* Open Graph for social sharing */}
-            <Meta property="og:title" content={title} />
+            {/* OG Meta */}
+            <Meta property="og:type" content={type} />
+            <Meta property="og:title" content={fullTitle} />
             <Meta property="og:description" content={description} />
-            {canonical && <Meta property="og:url" content={canonical} />}
-            <Meta property="og:type" content="website" />
-            <Meta property="og:image" content="/image2.png" />
+            <Meta property="og:url" content={canonical} />
+            <Meta property="og:image" content={image} />
 
-            {/* Twitter Cards */}
+            {/* Twitter */}
             <Meta name="twitter:card" content="summary_large_image" />
-            <Meta name="twitter:title" content={title} />
+            <Meta name="twitter:title" content={fullTitle} />
             <Meta name="twitter:description" content={description} />
+            <Meta name="twitter:image" content={image} />
 
-            {/* Structured Data (JSON-LD) */}
+            {/* Structured Data */}
             {schema && (
-                <script type="application/ld+json">
-                    {JSON.stringify(schema)}
-                </script>
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{
+                        __html: JSON.stringify(schema, null, 2),
+                    }}
+                />
             )}
         </>
     );

@@ -143,10 +143,28 @@ export default function BlogPost() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 text-slate-900">
-      <SEO title={`${post.title} | Expensease`} description={post.excerpt || post.contentPlain.slice(0, 160)} canonical={canonical} />
+      <SEO
+        title={post.title}
+        description={post.excerpt || post.contentPlain.slice(0, 160)}
+        canonical={canonical}
+        type="article"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "BlogPosting",
+          headline: post.title,
+          description: post.excerpt,
+          author: { "@type": "Organization", name: "Expensease" },
+          publisher: {
+            "@type": "Organization",
+            name: "Expensease",
+            logo: { "@type": "ImageObject", url: `${BASE_URL}/image.png` },
+          },
+          datePublished: post.datePublished,
+          dateModified: post.dateModified || post.datePublished,
+          mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
+        }}
+      />
 
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
       <NavBar />
 

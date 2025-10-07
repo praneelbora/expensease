@@ -288,13 +288,13 @@ export default function Features() {
                         </div>
                     </div>
 
-                    <div className="rounded-2xl p-6 bg-gradient-to-r from-teal-50 to-indigo-50 text-center">
+                    {/* <div className="rounded-2xl p-6 bg-gradient-to-r from-teal-50 to-indigo-50 text-center">
                         <h4 className="font-semibold">Roadmap & feedback</h4>
                         <p className="mt-2 text-sm text-slate-700">Many features are shaped by user feedback, tell us what matters and we’ll prioritize it.</p>
                         <div className="mt-4">
                             <a href="/feedback" className="inline-flex items-center gap-2 rounded-xl border px-4 py-2">Give feedback</a>
                         </div>
-                    </div>
+                    </div> */}
                 </section>
             </main>
 

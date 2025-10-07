@@ -119,7 +119,7 @@ export default function NotFound() {
         schema={null}
       />
       {/* ensure crawlers don't index this view */}
-      <meta name="robots" content="noindex" />
+      <meta name="robots" content="" />
 
       <NavBar />
 

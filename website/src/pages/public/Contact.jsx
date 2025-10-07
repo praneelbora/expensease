@@ -296,7 +296,7 @@ export default function Contact() {
                             </div>
 
                             <div className="mt-3">
-                                <Link to="/faq" className="text-sm text-teal-600 hover:underline">Check FAQs</Link>
+                                <Link to="/faqs" className="text-sm text-teal-600 hover:underline">Check FAQs</Link>
                                 <div className="text-xs text-slate-400 mt-2">Many common questions are answered in the FAQ — it’s the fastest way to get help for general topics.</div>
                             </div>
                         </motion.div>
