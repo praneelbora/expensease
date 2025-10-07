@@ -14,6 +14,7 @@ import CategoryIcon from "./categoryIcon"; // ensure path is correct
 import { useTheme } from "context/ThemeProvider";
 import Search from "@/accIcons/search.svg"; // should exist in your accIcons folder
 import Check from "@/accIcons/check.svg"; // should exist in your accIcons folder   
+
 const BottomSheetList = ({
     innerRef,
     onClose,
@@ -26,12 +27,12 @@ const BottomSheetList = ({
     labelKey = "label",
     valueKey = "value",
     extraRightKey, // e.g. "code" to show currency code
+    noResultsComponent = null, // <-- accept a React node to show when filteredOptions is empty
 }) => {
     const insets = useSafeAreaInsets();
     const { theme } = useTheme();
     const colors = theme?.colors || {};
     const styles = useMemo(() => createStyles(colors), [colors]);
-
     const [search, setSearch] = useState("");
 
     const filteredOptions = useMemo(() => {
@@ -74,36 +75,49 @@ const BottomSheetList = ({
 
             {/* List */}
             <BottomSheetScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                {filteredOptions.map((opt) => {
-                    const active = value === opt[valueKey];
-                    return (
-                        <TouchableOpacity
-                            key={String(opt[valueKey])}
-                            style={[styles.row, active && { backgroundColor: (colors.cta ?? "#00C49F") + "22" /* subtle tint */ }]}
-                            onPress={() => {
-                                onSelect(opt[valueKey]);
-                                onClose?.(opt[valueKey]);
-                                innerRef.current?.dismiss();
-                            }}
-                        >
-                            {/* Left: icon + label */}
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 }}>
-                                {opt.icon ? (
-                                    <CategoryIcon category={opt.value} size={20} color={active ? colors.background : colors.text} />
-                                ) : null}
-                                <Text numberOfLines={1} style={styles.label}>
-                                    {opt[labelKey]}
-                                </Text>
-                            </View>
+                {filteredOptions.length === 0 ? (
+                    // Render the passed in React node (noResultsComponent) if provided,
+                    // otherwise render a simple "No results" message.
+                    <View style={styles.emptyWrap}>
+                        {noResultsComponent ? (
+                            // allow consumers to pass a full View / element
+                            noResultsComponent
+                        ) : (
+                            <Text style={styles.emptyText}>No results</Text>
+                        )}
+                    </View>
+                ) : (
+                    filteredOptions.map((opt) => {
+                        const active = value === opt[valueKey];
+                        return (
+                            <TouchableOpacity
+                                key={String(opt[valueKey])}
+                                style={[styles.row, active && { backgroundColor: (colors.cta ?? "#00C49F") + "22" /* subtle tint */ }]}
+                                onPress={() => {
+                                    onSelect(opt[valueKey]);
+                                    onClose?.(opt[valueKey]);
+                                    innerRef.current?.dismiss();
+                                }}
+                            >
+                                {/* Left: icon + label */}
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 }}>
+                                    {opt.icon ? (
+                                        <CategoryIcon category={opt.value} size={20} color={active ? colors.background : colors.text} />
+                                    ) : null}
+                                    <Text numberOfLines={1} style={styles.label}>
+                                        {opt[labelKey]}
+                                    </Text>
+                                </View>
 
-                            {/* Right: extra key or check */}
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                {extraRightKey && <Text style={styles.code}>{opt[extraRightKey]}</Text>}
-                                {active ? <Check width={18} height={18} color={colors.cta ?? "#00C49F"} /> : null}
-                            </View>
-                        </TouchableOpacity>
-                    );
-                })}
+                                {/* Right: extra key or check */}
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                    {extraRightKey && <Text style={styles.code}>{opt[extraRightKey]}</Text>}
+                                    {active ? <Check width={18} height={18} color={colors.cta ?? "#00C49F"} /> : null}
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    })
+                )}
 
                 {/* Safe area bottom spacer */}
                 <View style={{ height: insets.bottom + 12 }} />
@@ -173,4 +187,15 @@ const createStyles = (colors = {}) =>
         },
         label: { color: colors.text ?? "#EBF1D5", fontSize: 16, flexShrink: 1 },
         code: { color: colors.muted ?? "#aaa", fontSize: 14 },
+
+        // empty state styles
+        emptyWrap: {
+            paddingVertical: 28,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        emptyText: {
+            color: colors.muted ?? "#aaa",
+            fontSize: 15,
+        },
     });

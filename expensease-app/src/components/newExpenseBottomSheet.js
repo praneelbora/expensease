@@ -20,6 +20,7 @@ import {
     Keyboard,
     Animated
 } from "react-native";
+import BottomSheetPaymentAccount from "~/btmShtPayAcc";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -35,7 +36,7 @@ import { getFriends } from "/services/FriendService";
 import { getAllGroups } from "/services/GroupService";
 import { getSuggestions } from "/services/UserService";
 import { createExpense } from "/services/ExpenseService";
-import { fetchFriendsPaymentMethods } from "/services/PaymentMethodService";
+import { fetchFriendsPaymentMethods, createPaymentMethod } from "/services/PaymentMethodService";
 // import { logEvent } from "/utils/analytics";
 import SheetCurrencies from "~/shtCurrencies";
 import SheetCategories from "~/shtCategories";
@@ -143,7 +144,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
     const currencySheetRef = useRef(null);
     const categorySheetRef = useRef(null);
     const paymentSheetRef = useRef(null);
-
+    const newPaymentSheetRef = useRef(null);
     const openCategorySheet = () => categorySheetRef.current?.present();
     const openPaymentSheet = (ctx) => {
         setPaymentModalCtx(ctx);
@@ -1293,7 +1294,18 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
         if ((payersNeedingPM || []).length > 0) return true;       // a payer has multiple PMs but did not pick one
         return false;
     }, [splitFieldsFilled, selectedFriends, isPaidValid, payersNeedingPM]);
+    const onSavePayAcc = async (payload) => {
 
+        try {
+            await createPaymentMethod(payload, userToken);
+            await fetchPaymentMethods();
+        } catch (e) {
+            console.error(e);
+            alert(e.message || "Failed to save payment account");
+        } finally {
+            newPaymentSheetRef.current?.dismiss()
+        }
+    };
     // Split/owed side issues: no owers OR mode-specific mismatch
     const splitHasIssue = useMemo(() => {
         if (!splitFieldsFilled) return false;
@@ -1465,14 +1477,14 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                 >
                     <KeyboardAwareScrollView
                         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-  enableOnAndroid={true}
-  enableAutomaticScroll={false}      // Important: disable auto scrolling to focused input
-  extraScrollHeight={Platform.OS === "android" ? 0 : 40} // reduce extra height
-  keyboardOpeningTime={0}
-  keyboardShouldPersistTaps="handled"
-  showsVerticalScrollIndicator={false}
-  nestedScrollEnabled={false}
-  scrollEnabled={!keyboardOpen} // important: avoid nested scrolling on Android
+                        enableOnAndroid={true}
+                        enableAutomaticScroll={false}      // Important: disable auto scrolling to focused input
+                        extraScrollHeight={Platform.OS === "android" ? 0 : 40} // reduce extra height
+                        keyboardOpeningTime={0}
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                        nestedScrollEnabled={false}
+                        scrollEnabled={!keyboardOpen} // important: avoid nested scrolling on Android
                     >
                         {/* Mode toggle */}
                         <View style={styles.modeToggle}>
@@ -1749,9 +1761,9 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                 <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
                                                                     <View style={styles.radioWrap}>
                                                                         <View style={[styles.radioOuter, isPaying && styles.radioOuterActive]}>
-                                                                            {isPaying ? 
-                                                                            <View style={styles.radioInnerActive} /> : 
-                                                                            <View style={styles.radioInner} />}
+                                                                            {isPaying ?
+                                                                                <View style={styles.radioInnerActive} /> :
+                                                                                <View style={styles.radioInner} />}
                                                                         </View>
                                                                     </View>
 
@@ -1861,15 +1873,15 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                                     // toggle owing flag for this friend (works in all modes)
                                                                                     setSelectedFriends((prev) => {
                                                                                         const updated = prev.map((x) => {
-                                                                                        if (x?._id === f?._id) {
-                                                                                            const newOwing = !x.owing;
-                                                                                            return {
-                                                                                            ...x,
-                                                                                            owing: newOwing,
-                                                                                            oweAmount: newOwing ? x.oweAmount : 0, // or null, depending on your logic
-                                                                                            };
-                                                                                        }
-                                                                                        return x;
+                                                                                            if (x?._id === f?._id) {
+                                                                                                const newOwing = !x.owing;
+                                                                                                return {
+                                                                                                    ...x,
+                                                                                                    owing: newOwing,
+                                                                                                    oweAmount: newOwing ? x.oweAmount : 0, // or null, depending on your logic
+                                                                                                };
+                                                                                            }
+                                                                                            return x;
                                                                                         });
 
                                                                                         // re-run equal distribution if we're in equal mode
@@ -1883,11 +1895,11 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                                 <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
                                                                                     {/* Radio (equal mode) or simple bullet */}
 
-                                                                                        <View style={styles.radioWrap}>
-                                                                                            <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
-                                                                                                {isOwing ? <View style={styles.radioInnerActive} /> : <View style={styles.radioInner} />}
-                                                                                            </View>
+                                                                                    <View style={styles.radioWrap}>
+                                                                                        <View style={[styles.radioOuter, isOwing && styles.radioOuterActive]}>
+                                                                                            {isOwing ? <View style={styles.radioInnerActive} /> : <View style={styles.radioInner} />}
                                                                                         </View>
+                                                                                    </View>
 
 
                                                                                     <Text style={{ color: styles.colors.textFallback, flex: 1 }} numberOfLines={1}>
@@ -1895,32 +1907,32 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                                                     </Text>
                                                                                 </View>
                                                                                 {isOwing && <>
-                                                                                
-                                                                                {/* Right side: input or computed value depending on mode */}
-                                                                                {mode === "percent" ? (
-                                                                                    <TextInput
-                                                                                        placeholder="Percent"
-                                                                                        placeholderTextColor={styles.colors.mutedFallback}
-                                                                                        keyboardType="decimal-pad"
-                                                                                        value={String(f.owePercent ?? "")}
-                                                                                        onChangeText={(v) => setOwePercent(f?._id, v)}
-                                                                                        style={[styles.input, { width: 100, textAlign: "right" }]}
-                                                                                    />
-                                                                                ) : mode === "value" ? (
-                                                                                    <TextInput
-                                                                                        placeholder="Amount"
-                                                                                        placeholderTextColor={styles.colors.mutedFallback}
-                                                                                        keyboardType="decimal-pad"
-                                                                                        value={String(f.oweAmount || "")}
-                                                                                        onChangeText={(v) => setOweAmount(f?._id, v)}
-                                                                                        style={[styles.input, { width: 100, textAlign: "right" }]}
-                                                                                    />
-                                                                                ) : (
-                                                                                    // equal mode: display computed oweAmount
-                                                                                    <Text style={{ color: styles.colors.textFallback, marginVertical: 4 }}>
-                                                                                        {fmtMoney(currency, f.oweAmount || 0)}
-                                                                                    </Text>
-                                                                                )}
+
+                                                                                    {/* Right side: input or computed value depending on mode */}
+                                                                                    {mode === "percent" ? (
+                                                                                        <TextInput
+                                                                                            placeholder="Percent"
+                                                                                            placeholderTextColor={styles.colors.mutedFallback}
+                                                                                            keyboardType="decimal-pad"
+                                                                                            value={String(f.owePercent ?? "")}
+                                                                                            onChangeText={(v) => setOwePercent(f?._id, v)}
+                                                                                            style={[styles.input, { width: 100, textAlign: "right" }]}
+                                                                                        />
+                                                                                    ) : mode === "value" ? (
+                                                                                        <TextInput
+                                                                                            placeholder="Amount"
+                                                                                            placeholderTextColor={styles.colors.mutedFallback}
+                                                                                            keyboardType="decimal-pad"
+                                                                                            value={String(f.oweAmount || "")}
+                                                                                            onChangeText={(v) => setOweAmount(f?._id, v)}
+                                                                                            style={[styles.input, { width: 100, textAlign: "right" }]}
+                                                                                        />
+                                                                                    ) : (
+                                                                                        // equal mode: display computed oweAmount
+                                                                                        <Text style={{ color: styles.colors.textFallback, marginVertical: 4 }}>
+                                                                                            {fmtMoney(currency, f.oweAmount || 0)}
+                                                                                        </Text>
+                                                                                    )}
                                                                                 </>}
                                                                             </TouchableOpacity>
                                                                         );
@@ -1953,8 +1965,43 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                     {/* Sheets (keep them here, outside the scrollable content) */}
                     <SheetCurrencies innerRef={currencySheetRef} value={currency} options={currencyOptions} onSelect={setCurrency} onClose={() => { }} />
                     <SheetCategories innerRef={categorySheetRef} value={category} options={categoryOptions} onSelect={setCategory} onClose={() => { }} />
-                    <SheetPayments innerRef={paymentSheetRef} value={paymentValue} options={paymentOptions} onSelect={(id) => handleSelectPayment(id)} onClose={() => { }} />
-
+                    <SheetPayments
+                        innerRef={paymentSheetRef}
+                        value={paymentValue}
+                        options={paymentOptions}
+                        onSelect={(id) => handleSelectPayment(id)} onClose={() => { }}
+                        noResultsComponent={
+                            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+                                <Text style={{ fontSize: 16, color: "#aaa", marginBottom: 12 }}>
+                                    No payment methods found
+                                </Text>
+                                <TouchableOpacity
+                                    style={{
+                                        backgroundColor: "#00C49F",
+                                        paddingVertical: 10,
+                                        paddingHorizontal: 18,
+                                        borderRadius: 8,
+                                    }}
+                                    onPress={() => {
+                                        paymentSheetRef?.current?.dismiss();
+                                        newPaymentSheetRef?.current?.present();
+                                    }}
+                                >
+                                    <Text style={{ color: "#fff", fontWeight: "600" }}>
+                                        + Add Payment Method
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        }
+                    />
+                    <BottomSheetPaymentAccount
+                        innerRef={newPaymentSheetRef}
+                        onSave={(payload) => {
+                            paymentSheetRef.current?.dismiss()
+                            onSavePayAcc(payload)
+                        }
+                        }
+                    />
                     {/* Animated footer overlay */}
                     <Animated.View
                         pointerEvents="box-none"
@@ -1966,7 +2013,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                             paddingBottom: 12,
                             backgroundColor: theme?.colors?.background,
                             // move up by keyboard height smoothly: translateY = -kbAnim
-                            transform: [{ translateY: Platform.OS=='ios'?Animated.multiply(kbAnim, -1):0 }],
+                            transform: [{ translateY: Platform.OS == 'ios' ? Animated.multiply(kbAnim, -1) : 0 }],
                             zIndex: 9999,
                             elevation: 20,
                         }}
@@ -2153,8 +2200,8 @@ const createStyles = (theme = {}) => {
             justifyContent: "center",
             backgroundColor: "transparent",
         },
-        radioOuterActive: { borderColor: palette.cta,},
-        radioInner: { width: 10, height: 10, borderRadius: 10, backgroundColor: palette.border},
+        radioOuterActive: { borderColor: palette.cta, },
+        radioInner: { width: 10, height: 10, borderRadius: 10, backgroundColor: palette.border },
         radioInnerActive: { width: 10, height: 10, borderRadius: 10, backgroundColor: palette.cta },
 
         /* footer area (keyboard-friendly) */

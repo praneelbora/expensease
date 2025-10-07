@@ -1,7 +1,7 @@
 import React from "react";
 import BottomSheetList from "./btmShtList";
 
-const PaymentSheet = ({ innerRef, value, options, onSelect, onClose }) => {
+const PaymentSheet = ({ innerRef, value, options, onSelect, onClose, noResultsComponent }) => {
     return (
         <BottomSheetList
             innerRef={innerRef}
@@ -14,6 +14,7 @@ const PaymentSheet = ({ innerRef, value, options, onSelect, onClose }) => {
             labelKey="label"
             valueKey="_id"
             extraRightKey="type"
+            noResultsComponent={noResultsComponent}
         />
     );
 };
