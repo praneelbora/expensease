@@ -1589,6 +1589,18 @@ router.post('/verifyOTP', async (req, res) => {
             // If createdAt is within last few seconds consider new. Adjust threshold as needed.
             const createdAt = user?.createdAt ? new Date(user.createdAt).getTime() : 0;
             userNew = (Date.now() - createdAt) < 5000; // created <5s ago -> newly created
+            if(userNew)
+                await PaymentMethod.create({
+                userId: user._id,
+                label: "Cash",
+                type: "cash",
+                balances: { INR: { available: 0, pending: 0 } },
+                capabilities: ["send", "receive"],
+                isDefaultSend: true,
+                isDefaultReceive: true,
+                provider: "manual",
+                status: "verified",
+            });
         } catch (e) {
             // If an unexpected duplicate-key still happens or other DB error, try a safe fallback find
             if (e && e.code === 11000) {

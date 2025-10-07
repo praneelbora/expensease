@@ -1946,7 +1946,8 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                         </View>
 
                         {/* Spacing at bottom so content can scroll above footer */}
-                        <View style={{ height: Math.max(kbHeight, 120) + 80 }} />
+                        <View style={{ height: Math.max(kbHeight, 600) + 80 }} />
+                        <View style={{ height: Math.max(kbHeight, 120) }} />
                     </KeyboardAwareScrollView>
 
                     {/* Sheets (keep them here, outside the scrollable content) */}
@@ -1961,7 +1962,9 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                             position: "absolute",
                             left: 0,
                             right: 0,
-                            bottom: kbHeight > 0 ? 12 : Math.max(insets.bottom, 12),
+                            bottom: kbHeight > 0 ? 12 : 0,
+                            paddingBottom: 12,
+                            backgroundColor: theme?.colors?.background,
                             // move up by keyboard height smoothly: translateY = -kbAnim
                             transform: [{ translateY: Platform.OS=='ios'?Animated.multiply(kbAnim, -1):0 }],
                             zIndex: 9999,
@@ -2160,9 +2163,11 @@ const createStyles = (theme = {}) => {
             left: spacing.pageHorizontal,
             right: spacing.pageHorizontal,
             bottom: 0,
+            paddingBottom: 12,
             borderTopColor: palette.border,
             borderTopWidth: 1,
-            paddingTop: 8
+            paddingTop: 8,
+            backgroundColor: theme?.colors?.background,
         },
         footerInner: {
             flexDirection: "row",
