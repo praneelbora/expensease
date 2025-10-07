@@ -19,11 +19,13 @@ import SheetCategories from "~/shtCategories";
 import SheetPayments from "~/shtPayments";
 import { getSymbol, formatMoney } from "../utils/currencies";
 import { useTheme } from "context/ThemeProvider";
-import { getCategoryLabel, getCategoryOptions } from "../utils/categoryOptions";
+import { getCategoryLabel } from "../utils/categoryOptions";
+import { categoryMap } from "../utils/categories";
 import { fetchFriendsPaymentMethods } from "../services/PaymentMethodService";
 import { getGroupDetails } from "../services/GroupService";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import ChevronDown from "@/accIcons/chevronDown.svg"; // should exist in your accIcons folder
+import { useAuth } from "../context/AuthContext";
 /**
  * Props:
  * - innerRef (ref for the bottom sheet)
@@ -50,7 +52,6 @@ export default function ExpenseBottomSheet({
     currencyOptions = [],
     defaultCurrency = "INR",
     preferredCurrencies = [],
-    paymentMethods = [],
     onUpdateExpense,
     onDeleteExpense,
     fetchFriendsPaymentMethods: fetchFriendsPM = fetchFriendsPaymentMethods,
@@ -59,6 +60,7 @@ export default function ExpenseBottomSheet({
 
     const insets = useSafeAreaInsets();
     const { theme } = useTheme();
+    const { paymentMethods } = useAuth()
     const colors = theme?.colors || {};
     const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -83,6 +85,16 @@ export default function ExpenseBottomSheet({
     const [showHistory, setShowHistory] = useState(false);
     // date picker modal control
     const [showDatePicker, setShowDatePicker] = useState(false);
+    const categoryOptions = useMemo(
+            () =>
+                Object.entries(categoryMap || [])?.map(([key, cfg]) => ({
+                    value: key,
+                    label: cfg.label,
+                    icon: cfg.icon,
+                    keywords: cfg.keywords,
+                })),
+            []
+        );
 
     // readable label for the input (e.g. "19 Sep 2025")
     const formatReadable = (isoStr) => {
@@ -1054,7 +1066,7 @@ export default function ExpenseBottomSheet({
             <SheetCategories
                 innerRef={categorySheetRef}
                 value={form.category}
-                options={getCategoryOptions}
+                options={categoryOptions}
                 onSelect={(val) => setForm((f) => ({ ...f, category: val }))}
                 onClose={() => { }}
             />
