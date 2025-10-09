@@ -35,11 +35,13 @@ export async function clearTokens() {
     await deleteSecureItem(REFRESH_TOKEN_KEY);
 }
 
-function buildHeaders(token, extra = {}) {
-    const h = { "Content-Type": "application/json", ...extra };
+function buildHeaders(token, extra = {}, isFormData = false) {
+    const base = isFormData ? {} : { "Content-Type": "application/json" };
+    const h = { ...base, ...extra };
     if (token) h["x-auth-token"] = token;
     return h;
 }
+
 
 async function handle(res, fallbackMsg) {
     let data = null;
@@ -104,32 +106,34 @@ async function doFetch(path, { method = "GET", params, body, headers, retry = tr
     const token = await getAccessToken();
     const url = `${BASE_URL}${path}${params ? toQuery(params) : ""}`;
 
+    // 🧠 Detect if body is FormData (used for image uploads)
+    const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+
     const res = await fetch(url, {
         method,
-        headers: buildHeaders(token, headers),
-        body: body != null ? JSON.stringify(body) : undefined,
+        headers: buildHeaders(token, headers, isFormData),
+        body: body != null ? (isFormData ? body : JSON.stringify(body)) : undefined,
     });
 
     // Handle 401 -> attempt refresh once, then retry original
     if (res.status === 401 && retry) {
         try {
             await refreshAccessTokenOnce();
-            // retry once with new token
             const newToken = await getAccessToken();
             const res2 = await fetch(url, {
                 method,
-                headers: buildHeaders(newToken, headers),
-                body: body != null ? JSON.stringify(body) : undefined,
+                headers: buildHeaders(newToken, headers, isFormData),
+                body: body != null ? (isFormData ? body : JSON.stringify(body)) : undefined,
             });
             return handle(res2, "Request failed");
         } catch (e) {
-            // bubble up 401 (caller can log out)
             throw e;
         }
     }
 
     return handle(res, "Request failed");
 }
+
 
 // public helpers
 export const api = {

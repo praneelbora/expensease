@@ -171,7 +171,7 @@ export default function Header({
                                             <UserIcon size={26} color={theme.colors.muted} />
                                         );
                                     })()
-                                ) : !user?.name ? (
+                                ) : user?.name ? (
                                     <View style={[styles.placeholderCircle, { backgroundColor: theme.colors.card }]}>
                                         <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>
                                             {getInitials(user?.name)}

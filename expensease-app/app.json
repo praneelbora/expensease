@@ -106,6 +106,12 @@
           "microphonePermission": "Allow Expensease to access the microphone",
           "speechRecognitionPermission": "Allow Expensease to securely recognize user speech"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Expensease to access your photos to upload receipts."
+        }
       ]
     ],
     "extra": {

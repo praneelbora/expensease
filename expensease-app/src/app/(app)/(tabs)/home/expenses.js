@@ -14,6 +14,7 @@ import {
 import { SectionList } from "react-native";
 
 import FAB from "~/fab";
+
 import NewExpenseBottomSheet from "~/newExpenseBottomSheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";

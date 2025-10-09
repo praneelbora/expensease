@@ -31,12 +31,6 @@ export default function BottomSheetLayout({
   title,
   onClose,
   children,
-  footerOptions = {},
-  footerLeft = null,
-  footerCenter = null,
-  footerRight = null,
-  renderFooter = null,
-  hideFooter = false,
   addView = false,
 }) {
   const insets = useSafeAreaInsets();
@@ -44,72 +38,13 @@ export default function BottomSheetLayout({
   const colors = theme?.colors || {};
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  // normalize options
-  const {
-    showDelete = false,
-    onDelete,
-    deleteLabel = "Delete",
-    onCancel,
-    cancelLabel = "Cancel",
-    primaryLabel = "Save",
-    onPrimary,
-    primaryDisabled = false,
-    busy = false,
-  } = footerOptions;
-
-  const FOOTER_BASE = 60;
-  const footerPaddingBottom = insets.bottom ?? 0;
-  const footerTotalHeight = FOOTER_BASE + footerPaddingBottom;
 
   const defaultOnCancel = () => {
     if (onCancel) onCancel();
     innerRef?.current?.dismiss?.();
   };
 
-  const defaultLayout = (
-    <View style={styles.footerInner}>
-      {showDelete ? (
-        <TouchableOpacity
-          onPress={onDelete}
-          style={[styles.footerBtn, styles.btnDanger, busy && styles.btnDisabled]}
-          disabled={busy}
-        >
-          {busy ? <ActivityIndicator color={colors.text || "#fff"} /> : <Text style={[styles.footerBtnText, { color: "#fff" }]}>{deleteLabel}</Text>}
-        </TouchableOpacity>
-      ) : (
-        <View style={{ width: 96 }} />
-      )}
 
-      <View style={{ flex: 1 }} />
-
-      <TouchableOpacity onPress={defaultOnCancel} style={[styles.footerBtn, styles.btnMuted]}>
-        <Text style={[styles.footerBtnText]}>{cancelLabel}</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={onPrimary}
-        disabled={!!primaryDisabled || busy}
-        style={[styles.footerPrimaryBtn, (primaryDisabled || busy) && styles.btnDisabled]}
-      >
-        {busy ? <ActivityIndicator color={colors.text || "#fff"} /> : <Text style={[styles.footerPrimaryBtnText]}>{primaryLabel}</Text>}
-      </TouchableOpacity>
-    </View>
-  );
-
-  // If renderFooter provided, use it (it receives helpful state + defaultLayout for reference)
-  const footerContent = renderFooter
-    ? renderFooter({ busy, primaryDisabled, defaultLayout })
-    : // else if any footer slot provided, render a responsive layout placing slots
-    footerLeft || footerCenter || footerRight
-    ? (
-      <View style={styles.footerInner}>
-        <View style={{ minWidth: 96 }}>{footerLeft}</View>
-        <View style={{ flex: 1, marginHorizontal: 8 }}>{footerCenter}</View>
-        <View>{footerRight}</View>
-      </View>
-    )
-    : // fallback to footerOptions defaultLayout
-      defaultLayout;
 
   return (
     <MainBottomSheet innerRef={innerRef} onDismiss={onClose} addView={addView}>
@@ -124,15 +59,10 @@ export default function BottomSheetLayout({
       {/* Scroll area */}
       <BottomSheetScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: footerTotalHeight + insets.bottom }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom }}
       >
         {children}
       </BottomSheetScrollView>
-
-      {/* Footer wrap */}
-      {!hideFooter && <View style={[styles.footerWrap, { height: footerTotalHeight, paddingBottom: footerPaddingBottom, borderTopColor: colors.border || "#333", backgroundColor: colors.card || "#1f1f1f" }]}>
-        {footerContent}
-      </View>}
     </MainBottomSheet>
   );
 }

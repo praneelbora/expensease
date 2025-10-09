@@ -25,9 +25,12 @@ import Header from "~/header";
 import ExpenseRow from "~/expenseRow";
 import EmptyCTA from "~/cta";
 import FAB from "~/fab";
+import FAB2 from "~/fab2";
 import CategoryDistribution from '~/charts/category';
 import NewExpenseBottomSheet from "~/newExpenseBottomSheet";
+import ScanReceiptSheet from "~/scanSheet";
 import { useTheme } from "context/ThemeProvider";
+import { handlePickFromCamera, handlePickFromGallery } from "utils/permissions";
 
 import { FetchProvider, useFetch } from "context/FetchContext";
 
@@ -122,6 +125,7 @@ function DashboardScreenInner() {
     const { theme } = useTheme();
     const styles = useMemo(() => createStyles(theme), [theme]);
     const newExpenseBottomSheetRef = useRef()
+    const scannerSheetRef = useRef()
     const {
         user,
         userToken,
@@ -680,6 +684,23 @@ function DashboardScreenInner() {
                 <FAB onPress={() => {
                     newExpenseBottomSheetRef?.current?.present?.();
                 }} />
+
+                <FAB2 onPress={() => {
+                    scannerSheetRef?.current?.present?.()
+                }} />
+                
+                <ScanReceiptSheet
+                    innerRef={scannerSheetRef}
+                    uploadEndpoint={'https://your-server.com/api/receipt/parse'}
+                    onParsed={(payload) => {
+                        // payload contains: { rawText, items: [{name, amount}], totalAmount, ... }
+                        // Use payload to autofill your expense form (desc, amount, split items, etc.)
+                        console.log('parsed receipt', payload);
+                        // e.g. setDesc(payload.items[0]?.name ?? 'Scanned expense');
+                        // setAmount(payload.totalAmount ?? computedTotalFromItems);
+                    }}
+                />
+
                 {/* Modals (unchanged) */}
                 <Modal visible={!!showExpenseModal} transparent animationType="slide" onRequestClose={() => setShowExpenseModal(false)}>
                     <View style={styles.modalBackdrop}>

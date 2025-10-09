@@ -182,9 +182,9 @@ const BottomSheetPaymentAccount = ({
                 style={[styles.iconButton, active && styles.iconButtonActive, { width: itemSize }]}
             >
                 <Icon size={20} color={colors.text} />
-                <Text style={[styles.iconButtonLabel, active && { color: colors.text, opacity: 1 }]} numberOfLines={1}>
+                {item.label =='Auto' && <Text style={[styles.iconButtonLabel, active && { color: colors.text, opacity: 1 }]} numberOfLines={1}>
                     {item.label}
-                </Text>
+                </Text>}
             </TouchableOpacity>
         );
     };
@@ -410,7 +410,7 @@ const createStyles = (c = {}) =>
         modalOptionText: { color: c.text || "#EBF1D5", fontSize: 16 },
 
         iconButton: {
-            flexDirection: "column",
+            flexDirection: "row",
             alignItems: "center",
             justifyContent: "center",
             paddingVertical: 10,

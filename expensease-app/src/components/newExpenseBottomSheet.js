@@ -534,12 +534,23 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
         }
     }, [pullFriends, pullGroups, pullSuggestions]);
 
-    useEffect(() => {
-        (async () => {
-            await Promise.all([pullFriends(), pullGroups(), pullSuggestions()]);
-            setLoading(false);
-        })();
-    }, [pullFriends, pullGroups, pullSuggestions]);
+
+    useFocusEffect(
+        useCallback(() => {
+            let isActive = true; // optional guard for async calls
+
+            (async () => {
+                await Promise.all([pullFriends(), pullGroups(), pullSuggestions()]);
+                if (isActive) setLoading(false);
+            })();
+
+            return () => {
+                // cleanup when screen loses focus
+                isActive = false;
+            };
+        }, [pullFriends, pullGroups, pullSuggestions])
+    );
+
 
     // ---------- suggestions + search filters ----------
     const friendFilter = useCallback(
@@ -1483,8 +1494,16 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                         keyboardOpeningTime={0}
                         keyboardShouldPersistTaps="handled"
                         showsVerticalScrollIndicator={false}
-                        nestedScrollEnabled={false}
+                        nestedScrollEnabled={true}               // allow nested scrolling so pull works reliably
                         scrollEnabled={!keyboardOpen} // important: avoid nested scrolling on Android
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={refreshAll}
+                                tintColor={theme?.colors?.primary ?? "#00d0b0"}
+                                colors={[theme?.colors?.primary ?? "#00d0b0"]} // Android spinner color
+                            />
+                        }
                     >
                         {/* Mode toggle */}
                         <View style={styles.modeToggle}>
@@ -1548,9 +1567,15 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                 title="No friends or groups yet"
                                                 subtitle="Add a friend or create a group to start splitting expenses."
                                                 ctaLabel="Add Friend"
-                                                onPress={() => router.push("/friends")}
+                                                onPress={() => {
+                                                    router.push("friends")
+                                                    innerRef?.current?.dismiss()
+                                                }}
                                                 secondaryLabel="Add Group"
-                                                onSecondaryPress={() => router.push("/groups")}
+                                                onSecondaryPress={() => {
+                                                    router.push("groups")
+                                                    innerRef?.current?.dismiss()
+                                                }}
                                             />
                                         </View>
                                     ) : (
