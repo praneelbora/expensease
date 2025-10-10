@@ -17,16 +17,19 @@ import {
   Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { fetchFriendsPaymentMethods, createPaymentMethod } from "/services/PaymentMethodService";
+
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useTheme } from "context/ThemeProvider";
 import { useAuth } from "context/AuthContext";
 import BottomSheetLayout from "./btmShtHeaderFooter";
+import Dropdown from "./dropDown";
 import { uploadReceipt } from "../services/ImageService";
 import { api } from "../utils/api";
 import Edit from "@/accIcons/edit.svg";
-
+import { createExpense } from "/services/ExpenseService";
 /**
  * ScanReceiptSheet
  * - Preview uses dynamic height based on image aspect ratio (width: 100%)
@@ -58,7 +61,7 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
   const { theme } = useTheme();
   const { user } = useAuth();
   const colors = theme?.colors || {};
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, theme), [colors, theme]);
 
   // stages: choose | preview | picking | loading | parsed
   const [stage, setStage] = useState("choose");
@@ -99,10 +102,44 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
 
   // new: extra split mode - "proportional" | "equal"
   const [extraSplitMode, setExtraSplitMode] = useState("proportional");
-
+  const [editTotalsOpen, setEditTotalsOpen] = useState(false);            // NEW
+  const [splitModeMenuOpen, setSplitModeMenuOpen] = useState(false);      // NEW
   const pollTimerRef = useRef(null);
   const uploadStartRef = useRef(0);
+  const [receiptMeta, setReceiptMeta] = useState(null);
 
+  // who paid
+  const [payers, setPayers] = useState({}); // { [participantId]: { paying: boolean, amount?: number } }
+  const round2 = (n) => Math.round(n * 100) / 100;
+
+  const normalizeOwesToAmount = (rows, amount) => {
+    const targetCents = Math.round(Number(amount || 0) * 100);
+
+    // current owes in cents (only for rows.owing === true)
+    const oweIdxs = [];
+    const cents = rows.map((r, i) => {
+      if (r.owing) {
+        oweIdxs.push(i);
+        return Math.round(Number(r.oweAmount || 0) * 100);
+      }
+      return 0;
+    });
+
+    const sumCents = oweIdxs.reduce((s, i) => s + cents[i], 0);
+    const delta = targetCents - sumCents; // may be -1, 0, +1, etc.
+
+    if (delta !== 0 && oweIdxs.length > 0) {
+      const lastIdx = oweIdxs[oweIdxs.length - 1];
+      cents[lastIdx] += delta;
+    }
+
+    // write back normalized oweAmount
+    const fixed = rows.map((r, i) =>
+      r.owing ? { ...r, oweAmount: round2(cents[i] / 100) } : r
+    );
+
+    return fixed;
+  };
   // ---------- helper: fetch friends/groups + me ----------
   const fetchFriendsAndGroups = async () => {
     try {
@@ -277,8 +314,16 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
       const resp = await uploadReceipt(fileObj);
       const data = resp?.data ?? resp;
       if (!data) throw new Error("Empty response from server");
-      console.log("upload response:", data);
-
+      if (data.receiptId || data.file) {
+        setReceiptMeta({
+          receiptId: data.receiptId ?? null,
+          file: data.file ?? null,              // { bucket, key, url, contentType, size }
+          model: data.model ?? null,
+          paidUser: data.paid_user ?? null,
+          token_estimate: data.token_estimate ?? null,
+          processing_ms: data.processing_ms ?? null,
+        });
+      }
       const immediateParsed = data.parsed ?? (data.items || data.rawText ? data : null);
       if (immediateParsed) {
         const elapsed = Date.now() - uploadStartRef.current;
@@ -358,14 +403,18 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
     pollOnce();
     pollTimerRef.current = setInterval(pollOnce, POLL_INTERVAL_MS);
   };
-
   // ---------- apply parsed ----------
   const applyParsed = (parsed) => {
     setServerParsed(parsed || {});
     const items = Array.isArray(parsed.items) ? parsed.items : [];
     const normalized = items.map((it, idx) => {
       const id = it.id ?? `it-${idx}`;
-      return { id, name: it.name ?? "", amount: Number(it.amount ?? 0), consumers: Array.isArray(it.consumers) ? it.consumers.slice() : [] };
+      return {
+        id,
+        name: it.name ?? "",
+        amount: Number(it.amount ?? 0),
+        consumers: Array.isArray(it.consumers) ? it.consumers.slice() : [],
+      };
     });
     setEditingItems(normalized);
 
@@ -373,15 +422,19 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
     setLocalServiceCharge(parsed?.serviceCharge ?? (parsed?.serviceCharge === 0 ? 0 : null));
     setLocalServiceChargePercent(parsed?.serviceChargePercent ?? (parsed?.serviceChargePercent === 0 ? 0 : null));
 
+    // if selection already confirmed, assign default consumers and go parsed
     if (selectionConfirmed) {
+      // build participants based on current selection
       const participants =
         selectedFriend
           ? uniqById([...(currentUser ? [currentUser] : []), selectedFriend])
           : selectedGroup
-          ? uniqById([...(Array.isArray(selectedGroup.members) ? selectedGroup.members : []), ...(currentUser ? [currentUser] : [])])
-          : [];
+            ? uniqById([...(Array.isArray(selectedGroup.members) ? selectedGroup.members : []), ...(currentUser ? [currentUser] : [])])
+            : [];
       setConfirmedParticipants(participants);
       setStage("parsed");
+      // ensure default consumers
+      setTimeout(assignAllItemsToParticipants, 0);
     }
   };
 
@@ -391,7 +444,6 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
     setSelectedFriend((prev) => (prev && prev._id === f._id ? null : f));
     setSelectedGroup(null);
   };
-
   const onSelectGroupSingle = (g) => {
     if (selectionConfirmed) return;
     setSelectedGroup((prev) => (prev && prev._id === g._id ? null : g));
@@ -405,18 +457,73 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
     }
     setSelectionConfirmed(true);
 
-    // include current user if available
     if (selectedFriend) {
       const participants = uniqById([...(currentUser ? [currentUser] : []), selectedFriend]);
+      const ids = participants.map((p) => p._id).filter(Boolean);
+      editingItems.forEach((el) => (el.consumers = ids));
       setConfirmedParticipants(participants);
+      // NEW: fetch PMs for these participants
+      updateParticipantsPaymentMethods(ids);
     } else if (selectedGroup) {
       const members = Array.isArray(selectedGroup.members) ? selectedGroup.members : [];
       const participants = uniqById([...members, ...(currentUser ? [currentUser] : [])]);
+      const ids = participants.map((p) => p._id).filter(Boolean);
+      editingItems.forEach((el) => (el.consumers = ids));
       setConfirmedParticipants(participants);
+      // NEW: fetch PMs for these participants
+      updateParticipantsPaymentMethods(ids);
     }
 
-    if (parsingPending || !serverParsed) setStage("loading");
-    else setStage("parsed");
+    if (!parsingPending && serverParsed) {
+      setStage("parsed");
+      setTimeout(assignAllItemsToParticipants, 0);
+    } else {
+      setStage("loading");
+    }
+  };
+
+
+  // Fetch PMs for participants and merge into confirmedParticipants
+  const updateParticipantsPaymentMethods = async (ids) => {
+    if (!ids?.length) return;
+    try {
+      const map = await fetchFriendsPaymentMethods(ids, user?.token); // or userToken if you have it separately
+      setConfirmedParticipants((prev) =>
+        prev.map((p) => {
+          const pid = p._id || p.id;
+          const raw = map[pid] || [];
+          let selectedPaymentMethodId = p.selectedPaymentMethodId;
+
+          // keep previously picked PM if still available; otherwise smart-default
+          const stillValid = raw.some((m) => m.paymentMethodId === selectedPaymentMethodId);
+          if (!stillValid) {
+            selectedPaymentMethodId = raw.length === 1 ? raw[0].paymentMethodId : null;
+          }
+
+          return { ...p, paymentMethods: raw, selectedPaymentMethodId };
+        })
+      );
+
+      // also keep payers map in sync if some were already toggled on
+      setPayers((prev) => {
+        const next = { ...prev };
+        ids.forEach((pid) => {
+          const pms = map[pid] || [];
+          // if payer is active and has exactly one PM, default it
+          if (next[pid]?.paying) {
+            if (pms.length === 1) next[pid].paymentMethodId = pms[0].paymentMethodId;
+            // if previously chosen PM is no longer valid, clear it
+            if (pms.length > 1 && !pms.some((m) => m.paymentMethodId === next[pid].paymentMethodId)) {
+              next[pid].paymentMethodId = null;
+            }
+          }
+        });
+        return next;
+      });
+    } catch (e) {
+      // ignore for now (can toast/log if needed)
+      console.warn("updateParticipantsPaymentMethods failed", e);
+    }
   };
 
   // ---------- consumers modal ----------
@@ -562,45 +669,12 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
   const allItemsAssigned = useMemo(() => {
     if (!editingItems || editingItems.length === 0) return false;
     return editingItems.every((it) => Array.isArray(it.consumers) && it.consumers.length > 0);
-  }, [editingItems]);
-
+  }, [editingItems, confirmedParticipants]);
   // computed splits memo
   const splits = useMemo(() => computeSplits(), [editingItems, confirmedParticipants, serverParsed, localServiceCharge, localServiceChargePercent, extraSplitMode]);
 
   // ---------- finalize ----------
-  const finalizeAndClose = () => {
-    const finalServiceCharge = effectiveServiceChargeAmount();
-    const finalServiceChargePercent = parsedLocalServiceChargePercent();
 
-    const payload = {
-      parsed: serverParsed,
-      items: editingItems.map((it) => ({
-        id: it.id,
-        name: it.name,
-        amount: Number(it.amount || 0),
-        consumers: Array.isArray(it.consumers) && it.consumers.length ? it.consumers : confirmedParticipants.map((p) => p._id),
-      })),
-      metadata: {
-        description: serverParsed?.description ?? "",
-        currency: serverParsed?.currency ?? "INR",
-        category: serverParsed?.category ?? "",
-        date: serverParsed?.date ?? new Date().toISOString(),
-        tax: Number(serverParsed?.tax ?? 0),
-        tip: Number(serverParsed?.tip ?? 0),
-        serviceCharge: finalServiceCharge != null ? Number(finalServiceCharge) : null,
-        serviceChargePercent: finalServiceChargePercent != null ? Number(finalServiceChargePercent) : null,
-      },
-      selection: { friend: selectedFriend, group: selectedGroup, participants: confirmedParticipants },
-      jobId,
-      calculatedSplits: splits, // include computed breakdown for convenience (contains extraSplitMode)
-    };
-
-    if (typeof onParsed === "function") onParsed(payload);
-    try {
-      innerRef?.current?.dismiss?.();
-    } catch (e) {}
-    setTimeout(resetAll, 250);
-  };
 
   const onUseParsedWithConfirm = () => {
     // validate
@@ -641,6 +715,7 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
     setLocalServiceCharge(null);
     setLocalServiceChargePercent(null);
     setExtraSplitMode("proportional");
+    setReceiptMeta(null);
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
@@ -659,7 +734,7 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
 
   const FriendRow = ({ f }) => {
     const active = selectedFriend && selectedFriend._id === f._id;
-    const label = f.isMe ? `${f.name} (You)` : f.name;
+    const label = f.isMe ? `${f.name}` : f.name;
     return (
       <TouchableOpacity onPress={() => onSelectFriendSingle(f)} style={[styles.rowItem, active && styles.rowItemActive]}>
         <Text style={[styles.rowText, active && styles.rowTextActive]} numberOfLines={1}>{label}</Text>
@@ -688,14 +763,312 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
   }
 
   // ---------- renderFooter: dynamic footer content ----------
+
+  // grand total (used for paid validation)
+  const grandTotal = useMemo(() => {
+    const sub = subtotal();
+    const tax = Number(serverParsed?.tax ?? 0);
+    const tip = Number(serverParsed?.tip ?? 0);
+    const service = Number(effectiveServiceChargeAmount() ?? 0);
+    return Math.round((sub + tax + service + tip) * 100) / 100;
+  }, [editingItems, serverParsed, localServiceCharge, localServiceChargePercent, extraSplitMode]);
+
+  // keep payers map in sync with participants
+  useEffect(() => {
+    setPayers((prev) => {
+      const next = { ...prev };
+      const ids = (confirmedParticipants || []).map((p) => p._id || p.id).filter(Boolean);
+
+      // ensure keys exist
+      ids.forEach((id) => {
+        if (!next[id]) next[id] = { paying: false, amount: 0 };
+      });
+
+      // remove stale ids
+      Object.keys(next).forEach((id) => {
+        if (!ids.includes(id)) delete next[id];
+      });
+
+      // default: if no one selected yet, pick "me" if present, else first participant
+      const anyPaying = Object.values(next).some((v) => v.paying);
+      if (!anyPaying && ids.length > 0) {
+        const meId = (currentUser?._id && ids.includes(currentUser._id)) ? currentUser._id : ids[0];
+        Object.keys(next).forEach((k) => (next[k].paying = false));
+        next[meId].paying = true;
+        // single payer -> we'll treat amount as grandTotal implicitly
+        next[meId].amount = grandTotal;
+      }
+      return next;
+    });
+  }, [confirmedParticipants, currentUser, grandTotal]);
+
+  const getParticipantPMs = (participantId) => {
+    const person = confirmedParticipants.find(p => (p._id || p.id) === participantId);
+    const pms = Array.isArray(person?.paymentMethods) ? person.paymentMethods : [];
+    // normalize to {paymentMethodId, label}
+    return pms.map(pm => ({
+      paymentMethodId: pm.paymentMethodId || pm.id || pm._id || pm.token || String(pm.label || pm.type || "Method"),
+      label: pm.label || pm.nickname || pm.type || `•••• ${pm.last4 || ""}`.trim(),
+    }));
+  };
+
+  const setPayerPM = (participantId, paymentMethodId) => {
+    setPayers(prev => ({
+      ...prev,
+      [participantId]: { ...(prev[participantId] || { paying: false, amount: 0 }), paymentMethodId }
+    }));
+  };
+
+  const payingList = () =>
+    Object.entries(payers)
+      .filter(([, v]) => v.paying)
+      .map(([id, v]) => ({ id, ...v }));
+  // Split to 2 decimals; give any leftover cents to the LAST id
+  const splitEquallyWithRemainder = (total, ids) => {
+    const amounts = {};
+    const n = ids.length;
+    const totalCents = Math.round(Number(total || 0) * 100);
+    if (n <= 0) return amounts;
+
+    const base = Math.floor(totalCents / n);       // floor per person in cents
+    const remainder = totalCents - base * n;       // leftover cents (0..n-1)
+
+    for (let i = 0; i < n; i++) {
+      amounts[ids[i]] = base / 100;
+    }
+    // assign ALL leftover cents to the last person (as requested)
+    if (remainder > 0) {
+      const lastId = ids[n - 1];
+      amounts[lastId] = Math.round((amounts[lastId] * 100 + remainder)) / 100;
+    }
+    return amounts;
+  };
+
+  const togglePaying = (id) => {
+    setPayers((prev) => {
+      const next = { ...prev };
+      const was = !!next[id]?.paying;
+      next[id] = next[id] || { paying: false, amount: 0, paymentMethodId: next[id]?.paymentMethodId ?? null };
+      next[id].paying = !was;
+
+      // keep PM logic as-is...
+      if (next[id].paying) {
+        const pms = getParticipantPMs(id);
+        if (pms.length === 1) next[id].paymentMethodId = pms[0].paymentMethodId;
+        if (pms.length > 1 && !pms.some(pm => pm.paymentMethodId === next[id].paymentMethodId)) {
+          next[id].paymentMethodId = null;
+        }
+      }
+
+      // who is paying?
+      const activeIds = Object.entries(next).filter(([, v]) => v.paying).map(([pid]) => pid);
+
+      if (activeIds.length === 1) {
+        // single payer gets full total
+        const soloId = activeIds[0];
+        Object.keys(next).forEach((k) => { next[k].amount = 0; });
+        next[soloId].amount = grandTotal;
+      } else if (activeIds.length > 1) {
+        // split equally with rounding residue to LAST active payer
+        const map = splitEquallyWithRemainder(grandTotal, activeIds);
+        Object.keys(next).forEach((k) => {
+          if (activeIds.includes(k)) next[k].amount = map[k];
+          else next[k].amount = 0;
+        });
+      } else {
+        // no one paying
+        Object.keys(next).forEach((k) => { next[k].amount = 0; });
+      }
+
+      return next;
+    });
+  };
+
+
+
+  const setPayAmount = (id, text) => {
+    setPayers((prev) => {
+      const next = { ...prev };
+      const cleaned = String(text).replace(/[^0-9.\-]/g, "");
+      const num = cleaned === "" || cleaned === "-" || cleaned === "." ? 0 : Number(cleaned);
+      next[id] = next[id] || { paying: false, amount: 0 };
+      next[id].amount = isNaN(num) ? 0 : num;
+      return next;
+    });
+  };
+
+  const sumPaid = () =>
+    payingList().reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+  // validation: if multiple payers, enforce exact total; if one payer it's auto OK
+  const payersArr = payingList();
+  const multiplePayers = payersArr.length > 1;
+  const paidHasIssue = multiplePayers && Math.abs(sumPaid() - grandTotal) > 0.01;
+
+  // NEW: ensure each active payer with >1 PMs has chosen one
+  const pmMissingForActivePayer = payersArr.some(p => {
+    const pms = getParticipantPMs(p.id);
+    return pms.length > 1 && !p.paymentMethodId;
+  });
+
+  function uniqById(arr = []) {
+    const seen = new Set();
+    return arr.filter((x) => {
+      const id = x?._id ?? x?.id;
+      if (!id) return false;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }
+
+  // NEW: participant id array helper
+  const getConfirmedParticipantIds = () => {
+    return (confirmedParticipants || [])
+      .map((p) => p._id || p.id)
+      .filter(Boolean);
+  };
+
+  // NEW: apply default consumers to all items (used after parse / confirm)
+  const assignAllItemsToParticipants = () => {
+    const pids = getConfirmedParticipantIds();
+    if (pids.length === 0 || editingItems.length === 0) return;
+
+    setEditingItems((prev) =>
+      prev.map((it) => {
+        const cur = Array.isArray(it.consumers) ? it.consumers : [];
+        // if nothing assigned yet, assign everyone by default
+        if (!cur.length) return { ...it, consumers: [...pids] };
+        return it;
+      })
+    );
+  };
+  // add a local saving state (near other states)
+  const [saving, setSaving] = useState(false);
+
+  // helper: robust to number-ish inputs
+  const toNum = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  // Build splits array from current UI state
+  const buildSplitsForPayload = () => {
+    const rows = [];
+    confirmedParticipants.forEach((p) => {
+      const id = p._id || p.id;
+      const s = splits.participantTotals[id] || { total: 0 };
+      const payer = payers[id] || { paying: false, amount: 0, paymentMethodId: null };
+
+      // everyone "owes" their computed share (0 for none)
+      const oweAmount = toNum(s.total);
+
+      // only include a row if they owe or pay (matches your filter in handleSubmit)
+      if (oweAmount > 0 || payer.paying) {
+        rows.push({
+          friendId: id,
+          owing: oweAmount > 0,
+          paying: !!payer.paying,
+          oweAmount,
+          owePercent: null, // we’re using absolute split here
+          payAmount: multiplePayers ? toNum(payer.amount) : (payer.paying ? grandTotal : 0),
+          paymentMethodId: payer.paymentMethodId ?? p.selectedPaymentMethodId ?? null,
+        });
+      }
+    });
+    return rows;
+  };
+
+  // REPLACE finalizeAndClose with this:
+  const finalizeAndClose = async () => {
+    if (saving) return;
+
+    try {
+      setSaving(true);
+
+      // 1) Build participant splits from current UI state
+      const baseSplits = buildSplitsForPayload();
+      const normalizedSplits = normalizeOwesToAmount(baseSplits, grandTotal);
+
+      // 2) Build a final parsed snapshot that reflects user edits (tax/tip/service/subtotal/total)
+      const effectiveService = Number(effectiveServiceChargeAmount() ?? 0);
+      const parsedSnapshot = {
+        rawText: serverParsed?.rawText ?? null,
+        items: Array.isArray(serverParsed?.items) ? serverParsed.items : [],
+        subtotal: subtotal(),
+        tax: Number(serverParsed?.tax ?? 0),
+        taxBreakdown: serverParsed?.taxBreakdown ?? null,
+        serviceCharge: effectiveService,
+        serviceChargePercent: serverParsed?.serviceChargePercent ?? null,
+        tip: Number(serverParsed?.tip ?? 0),
+        discount: Number(serverParsed?.discount ?? 0),
+        totalAmount: grandTotal,
+        currency: serverParsed?.currency ?? "INR",
+        date: serverParsed?.date || null,
+        merchant: serverParsed?.merchant ?? null,
+        category: serverParsed?.category ?? null,
+        notes: serverParsed?.notes ?? null,
+      };
+
+      // 3) Expense payload
+      const payload = {
+        description: serverParsed?.description || serverParsed?.merchant?.name || "Receipt",
+        amount: Number(grandTotal),
+        category: serverParsed?.category || "default",
+        mode: "split",
+        splitMode: "value",
+        typeOf: "expense",
+        date: serverParsed?.date || new Date().toISOString(),
+        currency: serverParsed?.currency || "INR",
+        ...(selectedGroup?._id ? { groupId: selectedGroup._id } : {}),
+        splits: normalizedSplits,
+        // Attach receipt + parsing metadata so backend can persist/audit
+        ...(receiptMeta
+          ? {
+            receipt: {
+              receiptId: receiptMeta.receiptId ?? null,
+              storage: receiptMeta.file ? "s3" : null,
+              file: receiptMeta.file ?? null, // { bucket, key, url, contentType, size }
+              model: receiptMeta.model ?? null,
+              paidUser: receiptMeta.paidUser ?? null,
+              token_estimate: receiptMeta.token_estimate ?? null,
+              processing_ms: receiptMeta.processing_ms ?? null,
+              extraSplitMode, // "proportional" | "equal"
+              parsed: parsedSnapshot,
+            },
+          }
+          : {}),
+      };
+
+      // 4) Send to backend
+      await createExpense(payload, user?.token);
+
+      // 5) Success UX
+      try {
+        innerRef?.current?.dismiss?.();
+      } catch { }
+      resetAll();
+      Alert.alert("Success", "Expense saved.");
+    } catch (e) {
+      Alert.alert("Error", e?.message || "Failed to create expense.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
   const renderFooter = ({ busy, primaryDisabled, defaultLayout } = {}) => {
     // Preview footer: Choose another | Upload & Parse
     if (stage === "preview") {
       return (
         <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-          <TouchableOpacity style={styles.smallBtn} onPress={() => { setStage("choose"); setLocalImage(null); }}>
-            <Text style={styles.btnText}>Choose another</Text>
-          </TouchableOpacity>
+          {!uploading && <TouchableOpacity
+            style={styles.smallBtn}
+            onPress={() => { setStage("choose"); setLocalImage(null); }}
+            disabled={uploading}
+          >
+            {uploading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Remove</Text>}
+          </TouchableOpacity>}
 
           <View style={{ flex: 1 }} />
 
@@ -704,7 +1077,7 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
             onPress={() => localImage && uploadImageToServer(localImage.uri)}
             disabled={uploading || !localImage}
           >
-            {uploading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnTextPrimary}>Upload & Parse</Text>}
+            {uploading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnTextPrimary}>Upload</Text>}
           </TouchableOpacity>
         </View>
       );
@@ -714,12 +1087,7 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
     if (stage === "picking") {
       return (
         <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-          <TouchableOpacity style={styles.smallBtn} onPress={() => { resetAll(); innerRef?.current?.dismiss?.(); }}>
-            <Text style={styles.btnText}>Cancel</Text>
-          </TouchableOpacity>
-
           <View style={{ flex: 1 }} />
-
           <TouchableOpacity
             style={[styles.actionBtnSmall, (!selectedFriend && !selectedGroup) && styles.actionBtnDisabled]}
             onPress={onConfirmSelection}
@@ -731,26 +1099,32 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
       );
     }
 
-    // Parsed footer: Cancel | Use Parsed Result
+
+    // Parsed footer
     if (stage === "parsed") {
+      const disableSave = !allItemsAssigned || paidHasIssue || payersArr.length === 0 || pmMissingForActivePayer;
       return (
-        <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-          <TouchableOpacity style={styles.smallBtn} onPress={() => { resetAll(); }}>
-            <Text style={styles.btnText}>Cancel</Text>
-          </TouchableOpacity>
-
-          <View style={{ flex: 1 }} />
-
+        <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
           <TouchableOpacity
-            style={[styles.actionBtn, { flex: 1 }, !allItemsAssigned && styles.actionBtnDisabled]}
+            style={[styles.actionBtn, disableSave && styles.actionBtnDisabled]}
             onPress={onUseParsedWithConfirm}
-            disabled={!allItemsAssigned}
+            disabled={disableSave}
           >
-            <Text style={{ color: "#fff", fontWeight: "700" }}>{!allItemsAssigned ? "Assign all items" : "Use Parsed Result"}</Text>
+            <Text style={{ color: "#fff", fontWeight: "700", paddingHorizontal: 16 }}>
+              {!allItemsAssigned
+                ? "Assign all items"
+                : paidHasIssue
+                  ? "Fix paid amounts"
+                  : pmMissingForActivePayer
+                    ? "Choose payment methods"
+                    : "Save Expense"}
+            </Text>
           </TouchableOpacity>
         </View>
       );
     }
+
+
 
     // Default: empty footer (choose stage)
     return (
@@ -759,7 +1133,6 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
       </View>
     );
   };
-
   // ---------- main render ----------
   return (
     <BottomSheetLayout
@@ -770,59 +1143,49 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
       hideFooter={false}
     >
       <KeyboardAwareScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
-        {/* Choose */}
+        {/* Choose (unchanged) */}
         {stage === "choose" && (
+          // ...unchanged...
           <View style={{ marginTop: 12 }}>
             <Text style={styles.sectionLabel}>Scan a receipt</Text>
             <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
               <TouchableOpacity style={styles.largeBtn} onPress={pickFromCamera}>
-                <Text style={styles.largeBtnText}>Take Photo</Text>
+                <Text style={styles.largeBtnText}>Use Camera</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.largeBtn, styles.largeBtnAlt]} onPress={pickFromGallery}>
-                <Text style={[styles.largeBtnText, styles.largeBtnAltText]}>Upload from device</Text>
+                <Text style={[styles.largeBtnText, styles.largeBtnTextAlt]}>Upload Image</Text>
               </TouchableOpacity>
             </View>
             <Text style={styles.helperSmall}>Tip: use good lighting and lay the receipt flat.</Text>
           </View>
         )}
 
-        {/* Preview */}
+        {/* Preview (unchanged visual) */}
         {stage === "preview" && localImage && (
           <View style={{ marginTop: 12 }}>
             <Text style={styles.sectionLabel}>Preview</Text>
-            <Image
-              source={{ uri: localImage.uri }}
-              style={[styles.preview, { height: previewHeight }]}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: localImage.uri }} style={[styles.preview, { height: previewHeight }]} resizeMode="cover" />
           </View>
         )}
 
-        {/* Picking */}
+        {/* Picking (unchanged + loader text) */}
         {stage === "picking" && (
+          // ...unchanged...
           <View style={{ marginTop: 12 }}>
             <Text style={styles.sectionLabel}>Choose one friend or one group</Text>
-
             <TextInput placeholder="Search friends or groups" placeholderTextColor={colors.muted ?? "#999"} value={searchQ} onChangeText={setSearchQ} style={[styles.input, { marginTop: 8 }]} />
-
-            <Text style={{ marginTop: 12, fontSize: 13, fontWeight: "600" }}>Groups</Text>
+            <Text style={{ marginTop: 12, fontSize: 13, fontWeight: "600", color: colors.text }}>Groups</Text>
             <View style={{ marginTop: 8 }}>
-              {filteredGroups.length === 0 ? (
-                <Text style={styles.helperSmall}>No groups</Text>
-              ) : (
+              {filteredGroups.length === 0 ? <Text style={styles.helperSmall}>No groups</Text> : (
                 <FlatList data={filteredGroups} keyExtractor={(g) => g._id || g.id || g.name} renderItem={({ item }) => <GroupRow g={item} />} ItemSeparatorComponent={() => <View style={{ height: 8 }} />} scrollEnabled={false} />
               )}
             </View>
-
-            <Text style={{ marginTop: 12, fontSize: 13, fontWeight: "600" }}>Friends</Text>
+            <Text style={{ marginTop: 12, fontSize: 13, fontWeight: "600", color: colors.text }}>Friends</Text>
             <View style={{ marginTop: 8 }}>
-              {filteredFriends.length === 0 ? (
-                <Text style={styles.helperSmall}>No friends</Text>
-              ) : (
+              {filteredFriends.length === 0 ? <Text style={styles.helperSmall}>No friends</Text> : (
                 <FlatList data={filteredFriends} keyExtractor={(f) => f._id || f.id || f.name} renderItem={({ item }) => <FriendRow f={item} />} ItemSeparatorComponent={() => <View style={{ height: 8 }} />} scrollEnabled={false} />
               )}
             </View>
-
             <View style={{ marginTop: 16 }}>
               <Text style={styles.helperSmall}>{parsingPending ? "Parsing — you may confirm selection while it runs." : "Select one friend or group to continue."}</Text>
               {parsingPending && <ActivityIndicator style={{ marginTop: 12 }} size="large" />}
@@ -841,59 +1204,24 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
         {/* Parsed */}
         {stage === "parsed" && serverParsed && (
           <View style={{ marginTop: 12 }}>
-            {/* Header summary */}
+            {/* summary (unchanged) */}
             <View style={styles.summaryCard}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={{ fontSize: 16, fontWeight: "700" }}>{serverParsed?.description ?? "Receipt"}</Text>
-                <Text style={{ fontWeight: "700" }}>
+                {serverParsed?.merchant?.name && <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>{serverParsed?.merchant?.name ?? "Receipt"}</Text>}
+                <Text style={{ fontWeight: "700", color: colors.text }}>
                   {serverParsed?.currency ?? "INR"}{" "}
                   {formatCurrency(
-                    subtotal() +
-                      Number(serverParsed?.tax ?? 0) +
-                      Number(serverParsed?.tip ?? 0) +
-                      Number(effectiveServiceChargeAmount() ?? 0)
+                    subtotal() + Number(serverParsed?.tax ?? 0) + Number(serverParsed?.tip ?? 0) + Number(effectiveServiceChargeAmount() ?? 0)
                   )}
                 </Text>
               </View>
-
               <Text style={[styles.helperSmall, { marginTop: 6 }]}>{serverParsed?.date ? new Date(serverParsed.date).toLocaleDateString() : ""}</Text>
               <Text style={[styles.helperSmall, { marginTop: 4 }]}>{serverParsed?.category ?? ""}</Text>
-
-              <View style={{ marginTop: 8, flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                <View style={styles.pill}><Text style={styles.pillText}>Tax: {formatCurrency(serverParsed?.tax ?? 0)}</Text></View>
-                <View style={styles.pill}><Text style={styles.pillText}>Tip: {formatCurrency(serverParsed?.tip ?? 0)}</Text></View>
-                <View style={styles.pill}><Text style={styles.pillText}>Service: {formatCurrency(effectiveServiceChargeAmount() ?? 0)}{parsedLocalServiceChargePercent() != null ? ` (${parsedLocalServiceChargePercent()}%)` : ""}</Text></View>
-              </View>
-
-              {/* editable small controls for service charge + percent */}
-              <View style={{ marginTop: 12, flexDirection: "row", gap: 8, alignItems: "center" }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, color: colors.muted ?? "#666", marginBottom: 6 }}>Service charge (amount)</Text>
-                  <TextInput
-                    placeholder="Amount"
-                    value={localServiceCharge == null ? "" : String(localServiceCharge)}
-                    onChangeText={(t) => setLocalServiceCharge(t)}
-                    keyboardType="decimal-pad"
-                    style={styles.input}
-                  />
-                </View>
-
-                <View style={{ width: 120 }}>
-                  <Text style={{ fontSize: 12, color: colors.muted ?? "#666", marginBottom: 6 }}>Percent</Text>
-                  <TextInput
-                    placeholder="%"
-                    value={localServiceChargePercent == null ? "" : String(localServiceChargePercent)}
-                    onChangeText={(t) => setLocalServiceChargePercent(t)}
-                    keyboardType="decimal-pad"
-                    style={styles.input}
-                  />
-                </View>
-              </View>
             </View>
 
             {/* Items */}
             <View style={{ marginTop: 12 }}>
-              <Text style={{ fontSize: 13, fontWeight: "600" }}>Line items</Text>
+              <Text style={{ fontSize: 13, fontWeight: "600", color: colors.text }}>Line items</Text>
 
               {editingItems.length === 0 ? (
                 <Text style={[styles.helperSmall, { marginTop: 8 }]}>No items detected. Add manually if needed.</Text>
@@ -904,7 +1232,7 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
                     const assignedCount = Array.isArray(it.consumers) ? it.consumers.length : 0;
                     return (
                       <View key={it.id} style={styles.itemCard}>
-                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                        <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
                           <View style={{ flex: 1, marginRight: 12 }}>
                             {inEdit ? (
                               <>
@@ -916,19 +1244,20 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
                                 </View>
                               </>
                             ) : (
-                              <>
-                                <Text style={{ fontSize: 15, fontWeight: "600" }}>{it.name}</Text>
-                                <Text style={{ marginTop: 6, fontWeight: "700" }}>{formatCurrency(it.amount)}</Text>
-                              </>
+                              <View style={{ flex: 1, flexDirection: 'column', justifyContent: 'flex-start' }}>
+                                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>{it.name}</Text>
+                                <Text style={{ marginTop: 6, fontWeight: "600", color: colors.text }}>{formatCurrency(it.amount)}</Text>
+                              </View>
                             )}
                           </View>
 
-                          <View style={{ width: 150, alignItems: "flex-end" }}>
-                            <TouchableOpacity style={[styles.neutralBtn, { marginBottom: 8 }]} onPress={() => openConsumersModal(it)}>
-                              <Text style={{ fontWeight: "700" }}>{assignedCount === 0 ? "Assign people" : `${assignedCount} selected`}</Text>
+                          <View style={{ width: 150, alignItems: "flex-end", flexDirection: 'column', gap: 2 }}>
+                            <TouchableOpacity style={[styles.neutralBtn]} onPress={() => openConsumersModal(it)}>
+                              <Text style={{ fontWeight: "600", fontSize: 13, color: colors.text }}>{assignedCount === 0 ? "Assign people" : `${assignedCount} selected`}</Text>
                             </TouchableOpacity>
-
-                            <TouchableOpacity style={[styles.neutralBtn2]} onPress={() => startEditingItem(it.id)} disabled={inEdit}><Edit width={16} height={16} stroke={theme.colors.muted} /></TouchableOpacity>
+                            <TouchableOpacity style={[styles.neutralBtn2]} onPress={() => startEditingItem(it.id)} disabled={inEdit}>
+                              <Edit width={16} height={16} stroke={theme.colors.muted} />
+                            </TouchableOpacity>
                           </View>
                         </View>
                       </View>
@@ -938,80 +1267,261 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
               )}
             </View>
 
-            {/* Totals & actions (visual only - actions are in footer) */}
-            <View style={{ marginTop: 16 }}>
+            {/* NEW: Edit totals toggle button */}
+            <View style={{ marginTop: 6, alignItems: "flex-end" }}>
+              <TouchableOpacity onPress={() => setEditTotalsOpen((v) => !v)} style={[styles.neutralBtn]}>
+                <Text style={styles.pillText}>{editTotalsOpen ? "Hide totals editor" : "Edit totals"}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* NEW: totals editor */}
+            {editTotalsOpen && (
+              <View style={{ marginTop: 0 }}>
+                <View style={{ marginTop: 0, gap: 8 }}>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.helperSmall}>Tax</Text>
+                      <TextInput
+                        value={String(serverParsed?.tax ?? "")}
+                        onChangeText={(t) => setServerParsed((p) => ({ ...p, tax: Number(t || 0) }))}
+                        keyboardType="decimal-pad"
+                        style={styles.input}
+                        placeholder="0"
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.helperSmall}>Tip</Text>
+                      <TextInput
+                        value={String(serverParsed?.tip ?? "")}
+                        onChangeText={(t) => setServerParsed((p) => ({ ...p, tip: Number(t || 0) }))}
+                        keyboardType="decimal-pad"
+                        style={styles.input}
+                        placeholder="0"
+                      />
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.helperSmall}>Service Charge</Text>
+                      <TextInput
+                        value={localServiceCharge == null ? "" : String(localServiceCharge)}
+                        onChangeText={setLocalServiceCharge}
+                        keyboardType="decimal-pad"
+                        style={styles.input}
+                        placeholder="0"
+                      />
+                    </View>
+                    {/* <View style={{ width: 140 }}>
+                      <Text style={styles.helperSmall}>Service (%)</Text>
+                      <TextInput
+                        value={localServiceChargePercent == null ? "" : String(localServiceChargePercent)}
+                        onChangeText={setLocalServiceChargePercent}
+                        keyboardType="decimal-pad"
+                        style={styles.input}
+                        placeholder="0"
+                      />
+                    </View> */}
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Totals & split mode (dropdown) */}
+            <View style={{ marginTop: 16, paddingBottom: 8 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                 <Text style={{ color: colors.muted ?? "#666" }}>Subtotal</Text>
-                <Text style={{ fontWeight: "700" }}>{formatCurrency(subtotal())}</Text>
+                <Text style={{ fontWeight: "700", color: colors.text }}>{formatCurrency(subtotal())}</Text>
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
                 <Text style={{ color: colors.muted ?? "#666" }}>Tax</Text>
-                <Text style={{ fontWeight: "700" }}>{formatCurrency(serverParsed?.tax ?? 0)}</Text>
+                <Text style={{ fontWeight: "700", color: colors.text }}>{formatCurrency(serverParsed?.tax ?? 0)}</Text>
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
                 <Text style={{ color: colors.muted ?? "#666" }}>Service charge</Text>
-                <Text style={{ fontWeight: "700" }}>{formatCurrency(effectiveServiceChargeAmount() ?? 0)}</Text>
+                <Text style={{ fontWeight: "700", color: colors.text }}>{formatCurrency(effectiveServiceChargeAmount() ?? 0)}</Text>
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
                 <Text style={{ color: colors.muted ?? "#666" }}>Tip</Text>
-                <Text style={{ fontWeight: "700" }}>{formatCurrency(serverParsed?.tip ?? 0)}</Text>
+                <Text style={{ fontWeight: "700", color: colors.text }}>{formatCurrency(serverParsed?.tip ?? 0)}</Text>
               </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 8 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 8, alignItems: "center" }}>
                 <Text style={{ color: colors.muted ?? "#666" }}>Grand total</Text>
-                <Text style={{ fontWeight: "900", fontSize: 16 }}>
+                <Text style={{ fontWeight: "900", color: colors.text, fontSize: 16 }}>
                   {formatCurrency(subtotal() + Number(serverParsed?.tax ?? 0) + Number(serverParsed?.tip ?? 0) + Number(effectiveServiceChargeAmount() ?? 0))}
                 </Text>
               </View>
             </View>
 
-            {/* Extra-split control */}
-            <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: colors.border || "#eee", paddingTop: 12 }}>
-              <Text style={{ fontSize: 13, fontWeight: "700" }}>Split extra items</Text>
-              <Text style={[styles.helperSmall, { marginTop: 6 }]}>Choose how tax / service / tip are split between participants.</Text>
-
-              <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                <TouchableOpacity
-                  onPress={() => setExtraSplitMode("proportional")}
-                  style={[styles.smallBtn, extraSplitMode === "proportional" && styles.rowItemActive]}
-                >
-                  <Text style={[styles.btnText, extraSplitMode === "proportional" && styles.rowTextActive]}>Proportionally</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => setExtraSplitMode("equal")}
-                  style={[styles.smallBtn, extraSplitMode === "equal" && styles.rowItemActive]}
-                >
-                  <Text style={[styles.btnText, extraSplitMode === "equal" && styles.rowTextActive]}>Equally</Text>
-                </TouchableOpacity>
+            {/* NEW: split mode dropdown row */}
+            <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border || "#eee", }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={{ fontSize: 13, fontWeight: "500", color: colors.muted }}>Split tax, service charge and tip</Text>
+                <View style={{ width: 120 }}>
+                  <Dropdown
+                    value={extraSplitMode}
+                    onChange={(v) => setExtraSplitMode(v)}
+                    options={[
+                      { value: "proportional", label: "In Ratio" },
+                      { value: "equal", label: "Equally" },
+                    ]}
+                    placeholder="Choose…"
+                    align="right"
+                  />
+                </View>
               </View>
             </View>
 
-            {/* Per-participant summary */}
-            <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: colors.border || "#eee", paddingTop: 12 }}>
-              <Text style={{ fontSize: 13, fontWeight: "700" }}>Who owes what</Text>
+
+            <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border || "#eee" }}>
               {confirmedParticipants.length === 0 ? (
                 <Text style={[styles.helperSmall, { marginTop: 8 }]}>No participants selected.</Text>
               ) : (
                 <View style={{ marginTop: 8 }}>
                   {confirmedParticipants.map((p) => {
                     const id = p._id || p.id;
-                    const t = splits.participantTotals[id] || { itemShare: 0, taxShare: 0, serviceShare: 0, tipShare: 0, total: 0 };
-                    const label = p._id === currentUser?._id ? `${p.name} (You)` : p.name;
+                    const t =
+                      splits.participantTotals[id] || {
+                        itemShare: 0,
+                        taxShare: 0,
+                        serviceShare: 0,
+                        tipShare: 0,
+                        total: 0,
+                      };
+                    const label = p._id === currentUser?._id ? `${p.name}` : p.name;
+
                     return (
-                      <View key={id} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, alignItems: "center" }}>
-                        <View>
-                          <Text style={{ fontWeight: "700" }}>{label}</Text>
-                          <Text style={styles.helperSmall}>
-                            Items: {formatCurrency(t.itemShare)} • Tax: {formatCurrency(t.taxShare)} • Service: {formatCurrency(t.serviceShare)} • Tip: {formatCurrency(t.tipShare)}
+                      <View
+                        key={id}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "flex-start",
+                          paddingVertical: 8,
+                        }}
+                      >
+                        {/* LEFT: label + breakdown */}
+                        <View style={{ flex: 1, flexShrink: 1, minWidth: 0, paddingRight: 12 }}>
+                          <Text style={{ fontWeight: "700", color: colors.text }}>{label}</Text>
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                            <Text style={styles.helperSmall}>Items: {formatCurrency(t.itemShare)}• </Text>
+                            <Text style={styles.helperSmall}>Tax: {formatCurrency(t.taxShare)} •</Text>
+                            <Text style={styles.helperSmall}>Service: {formatCurrency(t.serviceShare)} • </Text>
+                            <Text style={styles.helperSmall}>Tip: {formatCurrency(t.tipShare)}</Text>
+
+                          </View>
+                        </View>
+
+                        {/* RIGHT: total, pinned right */}
+                        <View style={{ flexShrink: 0, alignItems: "flex-end" }}>
+                          <Text style={{ fontWeight: "800", color: colors.text }}>
+                            {formatCurrency(t.total)}
                           </Text>
                         </View>
-                        <Text style={{ fontWeight: "800" }}>{formatCurrency(t.total)}</Text>
                       </View>
                     );
                   })}
                 </View>
               )}
             </View>
+            {/* Who paid */}
+            <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border || "#eee", paddingTop: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>Who paid?</Text>
+                <Text style={[styles.helperSmall, { marginTop: 0 }]}>
+                  {multiplePayers ? "Enter amounts for each payer" : "Select the payer"}
+                </Text>
+              </View>
+
+              <View style={{ marginTop: 8 }}>
+                {confirmedParticipants.map((p) => {
+                  const id = p._id || p.id;
+                  const info = payers[id] || { paying: false, amount: 0 };
+                  const active = !!info.paying;
+                  const isMe = id === currentUser?._id;
+                  const label = isMe ? `${p.name}` : p.name;
+
+                  return (
+                    <TouchableOpacity
+                      key={`payer-${id}`}
+                      activeOpacity={0.8}
+                      onPress={() => togglePaying(id)}
+                      style={{
+                        paddingVertical: 8,
+                        flexDirection: "row",
+                        alignItems: "center",
+                      }}
+                    >
+                      {/* radio */}
+                      <View style={styles.radioWrap}>
+                        <View style={[styles.radioOuter, active && styles.radioOuterActive]}>
+                          <View style={active ? styles.radioInnerActive : styles.radioInner} />
+                        </View>
+                      </View>
+
+                      {/* name (wrap) */}
+                      <View style={{ flex: 1, flexShrink: 1, minWidth: 0, paddingRight: 8 }}>
+                        <Text style={{ color: colors.text, fontWeight: "600" }}>{label}</Text>
+                      </View>
+
+                      {/* amount input only when multiple payers & this one active */}
+                      {/* right side: PM dropdown (if many) + amount (if multi-payers) */}
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        {(() => {
+                          const pms = getParticipantPMs(id);
+                          if (active && pms.length > 1) {
+                            return (
+                              <View style={{}}>
+                                <Dropdown
+                                  value={info.paymentMethodId || undefined}
+                                  onChange={(val) => setPayerPM(id, val)}
+                                  options={pms.map(pm => ({ value: pm.paymentMethodId, label: pm.label }))}
+                                  placeholder="Method…"
+                                  align="right"
+                                  style={{ width: 90 }}
+                                />
+                              </View>
+                            );
+                          }
+                          if (active && pms.length === 1 && !info.paymentMethodId) {
+                            // auto fill single option for consistency
+                            setTimeout(() => setPayerPM(id, pms[0].paymentMethodId), 0);
+                          }
+                          return null;
+                        })()}
+
+                        {multiplePayers && active ? (
+                          <TextInput
+                            placeholder="0.00"
+                            keyboardType="decimal-pad"
+                            value={String(info.amount ?? "")}
+                            onChangeText={(v) => setPayAmount(id, v)}
+                            style={[styles.input, { minWidth: 90, textAlign: "right" }]}
+                            placeholderTextColor={colors.muted}
+                          />
+                        ) : null}
+                      </View>
+
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* helper / validation */}
+              <View style={{ marginTop: 6 }}>
+                {multiplePayers ? (
+                  <Text style={[styles.helperSmall, { color: paidHasIssue ? "#E53935" : colors.muted }]}>
+                    {paidHasIssue
+                      ? `Amounts mismatch: ${sumPaid().toFixed(2)} / ${grandTotal.toFixed(2)}`
+                      : `Total: ${sumPaid().toFixed(2)} / ${grandTotal.toFixed(2)}`}
+                  </Text>
+                ) : (
+                  <Text style={styles.helperSmall}>
+                    Grand total: {grandTotal.toFixed(2)}
+                  </Text>
+                )}
+              </View>
+            </View>
+
+
           </View>
         )}
 
@@ -1022,8 +1532,15 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
       <Modal visible={consumersModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={{ fontSize: 16, fontWeight: "700" }}>Assign people</Text>
-            <Text style={[styles.helperSmall, { marginTop: 6, marginBottom: 8 }]}>Tap names to toggle assignment for this item.</Text>
+            {/* header with close button */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Assign people</Text>
+              <TouchableOpacity onPress={closeConsumersModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={{ fontSize: 20, lineHeight: 20, color: colors.text }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.helperSmall, { marginTop: 6, marginBottom: 8 }]}>Tap to toggle for this item.</Text>
 
             <ScrollView style={{ maxHeight: 280 }}>
               {confirmedParticipants.length === 0 ? (
@@ -1033,10 +1550,18 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
                   const id = p._id || p.id;
                   const curConsumers = currentItemForModal ? (currentItemForModal.consumers || []) : [];
                   const active = currentItemForModal ? curConsumers.includes(id) : false;
-                  const label = p._id === currentUser?._id ? `${p.name} (You)` : p.name;
+                  const label = p._id === currentUser?._id ? `${p.name}` : p.name;
                   return (
-                    <TouchableOpacity key={id} onPress={() => toggleParticipantForCurrentModal(id)} style={[styles.rowItem, active && styles.rowItemActive, { marginBottom: 8 }]}>
-                      <Text style={[styles.rowText, active && styles.rowTextActive]}>{label}</Text>
+                    <TouchableOpacity
+                      key={id}
+                      onPress={() => toggleParticipantForCurrentModal(id)}
+                      style={[styles.rowItem, { marginBottom: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
+                    >
+                      <Text style={styles.rowText}>{label}</Text>
+                      {/* right-side ring/tick */}
+                      <View style={[styles.checkWrap, active ? styles.checkWrapActive : null]}>
+                        {active && <Text style={styles.checkTick}>✓</Text>}
+                      </View>
                     </TouchableOpacity>
                   );
                 })
@@ -1053,48 +1578,80 @@ const ScanReceiptSheet = ({ innerRef, onParsed, onClose }) => {
   );
 };
 
+
 export default ScanReceiptSheet;
 
 /* ---------------- Styles ----------------- */
-const createStyles = (colors = {}) =>
+const createStyles = (colors = {}, theme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.card ?? "#fff" },
     sectionLabel: { color: colors.cta ?? colors.primary ?? "#00C49F", fontSize: 12, letterSpacing: 1, marginVertical: 8, textTransform: "uppercase" },
 
     largeBtn: { flex: 1, borderRadius: 12, paddingVertical: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.cta ?? colors.primary ?? "#00C49F" },
-    largeBtnAlt: { backgroundColor: colors.cardAlt ?? "#f4f4f4", borderWidth: 1, borderColor: colors.border ?? "#ddd" },
+    largeBtnAlt: { backgroundColor: colors.cardMid ?? colors?.cardAlt ?? "#f4f4f4", borderWidth: 1, borderColor: colors.border ?? "#ddd" },
     largeBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+    largeBtnTextAlt: { color: colors.text, fontWeight: "700", fontSize: 16 },
 
     preview: { width: "100%", borderRadius: 8, backgroundColor: "#f4f4f4" },
 
-    smallBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, backgroundColor: colors.cardAlt ?? "#f4f4f4" },
+    smallBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, backgroundColor: colors.cardMid ?? colors?.cardAlt ?? "#f4f4f4" },
     smallBtnPrimary: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, backgroundColor: colors.cta ?? colors.primary ?? "#00C49F" },
     btnText: { color: colors.text ?? "#111", fontWeight: "600" },
     btnTextPrimary: { color: "#fff", fontWeight: "700" },
 
     helperSmall: { fontSize: 12, color: colors.muted ?? "#666", marginTop: 8 },
-    input: { borderWidth: 1, borderColor: "#eee", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.inputBg ?? "#fff" },
+    input: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.input ?? "#fff", color: colors.text },
 
-    rowItem: { paddingVertical: 12, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "#fff", borderWidth: 1, borderColor: "#f0f0f0" },
+    rowItem: { paddingVertical: 12, paddingHorizontal: 12, borderRadius: 8, backgroundColor: colors?.cardMid ?? colors?.cardAlt, borderWidth: 1, borderColor: colors.border },
     rowItemActive: { backgroundColor: colors.cta ?? "#00C49F" },
-    rowText: { color: "#111" },
+    rowText: { color: colors.text },
     rowTextActive: { color: "#fff" },
 
-    summaryCard: { borderWidth: 1, borderColor: colors.border || "#eee", borderRadius: 12, padding: 12, backgroundColor: colors.cardAlt ?? "#fff", marginTop: 8 },
+    summaryCard: { borderWidth: 1, borderColor: colors.border || "#eee", borderRadius: 12, padding: 12, backgroundColor: colors.cardMid ?? colors?.cardAlt ?? "#fff", marginTop: 8 },
 
-    itemCard: { borderWidth: 1, borderColor: colors.border || "#eee", borderRadius: 10, padding: 12, marginBottom: 10, backgroundColor: colors.cardAlt ?? "#fff", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+    itemCard: { borderWidth: 1, borderColor: colors.border || "#eee", borderRadius: 10, padding: 12, marginBottom: 10, backgroundColor: colors.cardMid ?? colors?.cardAlt ?? "#fff", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
 
-    neutralBtn: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "#eee", backgroundColor: "#fff" },
-    neutralBtn2: { width: 36, paddingVertical: 8, paddingHorizontal: 8, },
+    neutralBtn: { paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8, borderWidth: 1, borderColor: theme?.mode == 'dark' ? colors.border : colors.text, backgroundColor: colors.cardMid ?? colors?.cardAlt },
+    neutralBtn2: { paddingVertical: 6, paddingHorizontal: 6, marginBottom: -4 },
 
     pill: { backgroundColor: "#fff", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: "#eee" },
-    pillText: { fontSize: 12 },
+    pillText: { fontSize: 12, color: colors.text },
 
     actionBtn: { backgroundColor: colors.cta ?? colors.primary ?? "#00C49F", paddingVertical: 12, borderRadius: 10, alignItems: "center" },
-    actionBtnAlt: { backgroundColor: colors.cardAlt ?? "#f4f4f4", paddingVertical: 12, borderRadius: 10, alignItems: "center" },
+    actionBtnAlt: { backgroundColor: colors.cardMid ?? colors?.cardAlt ?? "#f4f4f4", paddingVertical: 12, borderRadius: 10, alignItems: "center" },
     actionBtnSmall: { backgroundColor: colors.cta ?? colors.primary ?? "#00C49F", paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
     actionBtnDisabled: { opacity: 0.5 },
 
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: 20 },
-    modalCard: { width: "100%", maxWidth: 680, backgroundColor: "#fff", borderRadius: 12, padding: 16 },
+    modalCard: { width: "100%", maxWidth: 680, backgroundColor: colors.card, borderRadius: 12, padding: 16 },
+    dropdownTrigger: {
+      borderWidth: 1, borderColor: "#eee", borderRadius: 10,
+      paddingHorizontal: 12, paddingVertical: 10,
+      backgroundColor: "#fff", flexDirection: "row",
+      alignItems: "center", justifyContent: "space-between"
+    },
+    dropdownMenu: {
+      marginTop: 6, borderWidth: 1, borderColor: "#eee", borderRadius: 10, overflow: "hidden",
+      backgroundColor: "#fff"
+    },
+    dropdownItem: { paddingVertical: 10, paddingHorizontal: 12 },
+    dropdownItemActive: { backgroundColor: "#eef8f4" },
+    dropdownItemText: { fontWeight: "600" },
+    dropdownItemTextActive: { fontWeight: "800" },
+
+    checkWrap: {
+      width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center",
+      borderWidth: 2, borderColor: "#bbb",
+    },
+    checkWrapActive: { borderColor: colors.cta ?? colors.primary ?? "#00C49F", },
+    checkTick: { fontSize: 14, fontWeight: "800", color: colors.primary },
+    checkRing: { width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: "#bbb" },
+    radioWrap: { width: 28, height: 28, alignItems: "center", justifyContent: "center", marginRight: 8 },
+    radioOuter: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: colors.border || "#ccc", alignItems: "center", justifyContent: "center" },
+    radioOuterActive: { borderColor: colors.cta || "#00C49F" },
+    radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: "transparent" },
+    radioInnerActive: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.cta || "#00C49F" },
+    pmBtn: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+    pmBtnText: { fontWeight: "600" },
+
   });

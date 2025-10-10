@@ -27,6 +27,10 @@ import { getGroupDetails } from "../services/GroupService";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import ChevronDown from "@/accIcons/chevronDown.svg"; // should exist in your accIcons folder
 import { useAuth } from "../context/AuthContext";
+import { getSignedReceiptUrl } from "../services/ImageService";
+
+import { Modal, Image, FlatList, Share, Linking } from "react-native";
+
 /**
  * Props:
  * - innerRef (ref for the bottom sheet)
@@ -58,7 +62,6 @@ export default function ExpenseBottomSheet({
     fetchFriendsPaymentMethods: fetchFriendsPM = fetchFriendsPaymentMethods,
     onSaved,
 }) {
-
     const insets = useSafeAreaInsets();
     const { theme } = useTheme();
     const { paymentMethods, fetchPaymentMethods } = useAuth()
@@ -139,7 +142,10 @@ export default function ExpenseBottomSheet({
         currency: (expense?.currency || defaultCurrency || "INR").toUpperCase(),
         splits: (expense?.splits || []).map(normalizeSplit),
     });
-
+    const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+    const [receiptImageUrl, setReceiptImageUrl] = useState(null);
+    const [receiptLoading, setReceiptLoading] = useState(false);
+    const [receiptShowRaw, setReceiptShowRaw] = useState(false);
     const [groupMembers, setGroupMembers] = useState([]);
     const [selectedFriends, setSelectedFriends] = useState(() => mergeMembersWithSplits([], form.splits));
 
@@ -506,7 +512,68 @@ export default function ExpenseBottomSheet({
         if (u._id === userId) return "You";
         return u.name || u.email || "";
     };
+    // client: inside ExpenseBottomSheet component (uses userToken variable)
 
+
+    const openReceiptModal = async () => {
+        const r = expense?.receiptId;
+        if (!r?._id) {
+            Alert.alert("No receipt", "No receipt attached to this expense.");
+            return;
+        }
+
+        setReceiptLoading(true);
+        try {
+            const signedUrl = await getSignedReceiptUrl(r._id);
+            setReceiptImageUrl(signedUrl);
+        } catch (err) {
+            Alert.alert("Failed to load receipt", err.message || "Could not get signed URL");
+        } finally {
+            setReceiptLoading(false);
+            setReceiptModalOpen(true);
+        }
+    };
+
+
+    // ---------- robust url resolver ----------
+    const getReceiptUrl = (receipt) => {
+        if (!receipt) return null;
+        // prefer explicit url if present
+        if (receipt.url) return String(receipt.url);
+
+        // if s3Key present and bucket present, build best-effort public URL (encoded)
+        if (receipt.s3Key && receipt.bucket) {
+            // remove leading slashes and encode
+            const key = String(receipt.s3Key).replace(/^\/+/, "");
+            const encoded = encodeURI(key);
+            // NOTE: adjust domain if you use a CloudFront/custom domain
+            return `https://${receipt.bucket}.s3.amazonaws.com/${encoded}`;
+        }
+
+        // fallback: maybe stored as 's3Key' without bucket or other fields
+        if (receipt.s3Key) return encodeURI(String(receipt.s3Key));
+        return null;
+    };
+
+    // ---------- share fallback ----------
+    const shareReceipt = async () => {
+        if (!receiptImageUrl) return Alert.alert("Cannot share", "Receipt image URL not available.");
+        try {
+            await Share.share({ title: "Receipt", message: `Receipt: ${form.description || "expense"}`, url: receiptImageUrl });
+        } catch (err) {
+            console.warn("Share failed:", err);
+        }
+    };
+
+
+    const openInBrowser = async () => {
+        if (!receiptImageUrl) return;
+        try {
+            await Linking.openURL(receiptImageUrl);
+        } catch (err) {
+            Alert.alert("Cannot open URL", err.message || "Failed to open receipt URL");
+        }
+    };
     const lastAudit = Array.isArray(expense?.auditLog) && expense?.auditLog.length ? expense.auditLog[expense.auditLog.length - 1] : null;
     // UI tab state + small helpers (add near other useState declarations)
     const [activeTab, setActiveTab] = useState("paid");
@@ -671,7 +738,7 @@ export default function ExpenseBottomSheet({
                                 const payTxt = (s.payAmount || 0) > 0 ? `paid ${getSymbol(expense?.currency)} ${fmtMoney(s.payAmount)}` : "";
                                 const andTxt = (s.payAmount || 0) > 0 && (parseFloat(s.oweAmount) || 0) > 0 ? " and " : "";
                                 const oweTxt = parseFloat(s.oweAmount) > 0 ? `owe${s?.friendId?._id !== userId ? "s" : ""} ${getSymbol(expense?.currency)} ${fmtMoney(parseFloat(s.oweAmount) || 0)}` : "";
-                                return <Text key={idx} style={s?.friendId?._id == userId ? null : styles.mutedText}>{`${name} ${payTxt}${andTxt}${oweTxt}`}</Text>;
+                                return <Text key={idx} style={s?.friendId?._id == userId ? { color: theme.colors.text } : styles.mutedText}>{`${name} ${payTxt}${andTxt}${oweTxt}`}</Text>;
                             })}
 
                             <View style={styles.divider} />
@@ -724,7 +791,21 @@ export default function ExpenseBottomSheet({
                     )}
                 </>
             )}
+            {/* Receipt thumbnail + View button */}
+            {expense?.receiptId && (
+                <View style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.smallText}>{expense.receiptId.parsed?.merchant?.name || expense.receiptId.originalName || "Receipt"}</Text>
+                        <Text style={[styles.mutedText, { marginTop: 6 }]}>{expense.receiptId.parsed?.date || expense.receiptId.createdAt ? fmtDate(expense.receiptId.parsed?.date || expense.receiptId.createdAt) : ""}</Text>
+                        <TouchableOpacity onPress={openReceiptModal} style={{ marginTop: 8 }}>
+                            <Text style={styles.tealLink}>View receipt</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
+
         </ScrollView>
+
     );
 
     // main editing UI
@@ -1128,6 +1209,165 @@ export default function ExpenseBottomSheet({
                 }
                 onClose={() => {/* optional */ }}
             />
+            {/* Receipt modal */}
+            <Modal visible={receiptModalOpen} animationType="slide" onRequestClose={() => setReceiptModalOpen(false)}>
+                <View style={{ flex: 1, backgroundColor: theme.colors.card || "#000", paddingTop: insets.top, paddingBottom: insets.bottom }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 12, borderBottomWidth: 1, borderColor: theme.colors.border }}>
+                        <View>
+                            <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "700" }}>
+                                {expense.receiptId?.parsed?.merchant?.name || "Receipt"}
+                            </Text>
+                            <Text style={{ color: theme.colors.muted, fontSize: 12 }}>{expense.receiptId?.parsed?.date || (expense.receiptId?.createdAt ? fmtDateTimeNoSecs(expense.receiptId.createdAt) : "")}</Text>
+                        </View>
+                        <View style={{ flexDirection: "row", gap: 10 }}>
+                            {/* <TouchableOpacity onPress={shareReceipt} style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
+                                <Text style={{ color: theme.colors.primary }}>Share</Text>
+                            </TouchableOpacity> */}
+                            <TouchableOpacity onPress={openInBrowser} style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
+                                <Text style={{ color: theme.colors.primary }}>View Image</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setReceiptModalOpen(false)} style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
+                                <Text style={{ color: theme.colors.negative }}>Close</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    <ScrollView contentContainerStyle={{ padding: 12 }}>
+                        {receiptLoading ? (
+                            <View style={{ padding: 20, alignItems: "center" }}>
+                                <ActivityIndicator size="large" />
+                            </View>
+                        ) : (
+                            <>
+                                {/* Image */}
+                                {/* Image area (always render Image; overlay spinner while loading) */}
+                                {receiptImageUrl ? (
+                                    <View
+                                        style={{
+                                            width: "100%",
+                                            height: 420,
+                                            borderRadius: 12,
+                                            marginBottom: 12,
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            overflow: "hidden",
+                                            position: "relative",
+                                        }}
+                                    >
+                                        <Image
+                                            source={{ uri: receiptImageUrl }}
+                                            style={{ width: "100%", height: "100%", resizeMode: "contain" }}
+                                        />
+                                        {receiptLoading && (
+                                            <View
+                                                style={{
+                                                    position: "absolute",
+                                                    left: 0,
+                                                    right: 0,
+                                                    top: 0,
+                                                    bottom: 0,
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    backgroundColor: "transparent",
+                                                }}
+                                            >
+                                                <ActivityIndicator size="large" />
+                                            </View>
+                                        )}
+                                    </View>
+                                ) : (
+                                    <View
+                                        style={{
+                                            height: 220,
+                                            borderRadius: 12,
+                                            backgroundColor: theme.colors.cardAlt,
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            marginBottom: 12,
+                                        }}
+                                    >
+                                        <Text style={{ color: theme.colors.muted, marginBottom: 8 }}>Image not available</Text>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                const debugUrl = getReceiptUrl(expense?.receiptId);
+                                                if (debugUrl) Linking.openURL(debugUrl).catch(() => Alert.alert("Open failed", "Cannot open URL"));
+                                            }}
+                                        >
+                                            <Text style={{ color: theme.colors.primary, textDecorationLine: "underline" }}>
+                                                {expense?.receiptId?.url ? "Open URL" : "Try open generated URL"}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+
+
+
+                                {/* Toggle parsed / raw */}
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                    <Text style={{ color: theme.colors.muted }}>Receipt data</Text>
+                                    <TouchableOpacity onPress={() => setReceiptShowRaw((v) => !v)}>
+                                        <Text style={{ color: theme.colors.primary }}>{receiptShowRaw ? "Show parsed" : "Show raw"}</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {receiptShowRaw ? (
+                                    <View style={{ backgroundColor: theme.colors.cardAlt, padding: 12, borderRadius: 8 }}>
+                                        <Text style={{ color: theme.colors.text, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" }}>
+                                            {expense.receiptId?.rawText || "No OCR text captured."}
+                                        </Text>
+                                    </View>
+                                ) : (
+                                    <>
+                                        {/* Parsed summary */}
+                                        <View style={{ backgroundColor: theme.colors.cardAlt, padding: 12, borderRadius: 8, marginBottom: 12 }}>
+                                            <Text style={{ color: theme.colors.text, fontWeight: "700", marginBottom: 6 }}>{expense.receiptId?.parsed?.merchant?.name || "Merchant"}</Text>
+                                            <Text style={{ color: theme.colors.muted, marginBottom: 6 }}>{expense.receiptId?.parsed?.date}</Text>
+                                            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                                                <Text style={{ color: theme.colors.muted }}>Total</Text>
+                                                <Text style={{ color: theme.colors.text, fontWeight: "700" }}>{fmtCurrency(expense.receiptId?.parsed?.totalAmount || expense.receiptId?.parsed?.billTotal || form.amount, form.currency)}</Text>
+                                            </View>
+                                            {expense.receiptId?.parsed?.serviceCharge != null && (
+                                                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                                                    <Text style={{ color: theme.colors.muted }}>Service</Text>
+                                                    <Text style={{ color: theme.colors.text }}>{fmtCurrency(expense.receiptId.parsed.serviceCharge, form.currency)}</Text>
+                                                </View>
+                                            )}
+                                            {expense.receiptId?.parsed?.tax != null && (
+                                                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                                                    <Text style={{ color: theme.colors.muted }}>Tax</Text>
+                                                    <Text style={{ color: theme.colors.text }}>{fmtCurrency(expense.receiptId.parsed.tax, form.currency)}</Text>
+                                                </View>
+                                            )}
+                                        </View>
+
+                                        {/* Items list */}
+                                        {Array.isArray(expense.receiptId?.parsed?.items) && expense.receiptId.parsed.items.length > 0 && (
+                                            <View style={{ marginBottom: 24 }}>
+                                                <Text style={{ color: theme.colors.muted, marginBottom: 8 }}>Items</Text>
+                                                <FlatList
+                                                    data={expense.receiptId.parsed.items}
+                                                    keyExtractor={(_, idx) => String(idx)}
+                                                    scrollEnabled={false}
+                                                    renderItem={({ item }) => (
+                                                        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1, borderColor: theme.colors.border }}>
+                                                            <View style={{ flex: 1, paddingRight: 8 }}>
+                                                                <Text numberOfLines={1} style={{ color: theme.colors.text }}>{item.name || item.description || "-"}</Text>
+                                                                {item.qty ? <Text style={{ color: theme.colors.muted, fontSize: 12 }}>{item.qty} × {fmtCurrency(item.unitPrice || item.price || 0, form.currency)}</Text> : null}
+                                                            </View>
+                                                            <Text style={{ color: theme.colors.text, fontWeight: "700" }}>{fmtCurrency(item.amount || item.total || item.price || 0, form.currency)}</Text>
+                                                        </View>
+                                                    )}
+                                                />
+                                            </View>
+                                        )}
+                                    </>
+                                )}
+                            </>
+                        )}
+                    </ScrollView>
+                </View>
+            </Modal>
+
         </BottomSheetLayout>
     );
 

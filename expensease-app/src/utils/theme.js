@@ -50,6 +50,7 @@ export const LightTheme = {
         textLight: "#EBF1D5",
         textDark: "#121212",
         card: "#F3F4F6",      // LIGHT GREY
+        cardMid: "#E0E0E1",      // LIGHT GREY
         cardAlt: "#cccccc",   // DARKER GREY
         primary: "#14b8a6",   // PRIMARY TEAL
         cta: "#00C49F",       // ??
@@ -77,6 +78,7 @@ export const DarkTheme = {
         muted: "#888888",
         negative: "#ef4444",
         positive: "#14b8a6",
+        input: "#121212"
     },
     statusBarStyle: "light-content",
 };

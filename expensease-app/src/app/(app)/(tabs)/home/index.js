@@ -695,7 +695,7 @@ function DashboardScreenInner() {
                     onParsed={(payload) => {
                         // payload contains: { rawText, items: [{name, amount}], totalAmount, ... }
                         // Use payload to autofill your expense form (desc, amount, split items, etc.)
-                        console.log('parsed receipt', payload);
+                        // console.log('parsed receipt', payload);
                         // e.g. setDesc(payload.items[0]?.name ?? 'Scanned expense');
                         // setAmount(payload.totalAmount ?? computedTotalFromItems);
                     }}

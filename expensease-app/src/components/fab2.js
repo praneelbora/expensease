@@ -2,6 +2,7 @@
 import React from "react";
 import { TouchableOpacity, View, Text, StyleSheet, Platform } from "react-native";
 import { useTheme } from "context/ThemeProvider";
+import { useAuth } from "context/AuthContext";
 import Plus from "@/accIcons/plus.svg";
 
 const isIos = Platform.OS === 'ios';
@@ -17,6 +18,7 @@ const isIosLessThan26 = isIos && platformVersionNumber < 26;
 
 export default function FAB({ onPress = () => { }, size = 54, left = 18, bottom = Platform.OS === "ios" ? 68 : 18, accessibilityLabel = "Add" }) {
     const { theme } = useTheme();
+    const { user } = useAuth();
     const styles = makeStyles(theme, size, left, bottom);
     return (
         <TouchableOpacity style={[styles.fab, { backgroundColor: theme.mode == 'light' ? '#fff' : '#3a3a3a' }]} onPress={onPress}>
