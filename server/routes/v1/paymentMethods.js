@@ -169,6 +169,7 @@ router.patch('/:paymentMethodId', auth, async (req, res) => {
 
         const allowed = [
             'label',
+            'type',
             'defaultCurrency',
             'supportedCurrencies',
             'capabilities',

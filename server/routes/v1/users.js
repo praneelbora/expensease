@@ -856,6 +856,9 @@ const toObjectId = (id) => {
  * Get friend suggestions for a user based on frequency + recency of shared expenses,
  * padded to return at least `topN` items when possible.
  */
+/**
+ * Friend suggestions — only from user's explicit friend list.
+ */
 const getFriendSuggestions = async (userId, topN = 5) => {
     topN = normalizeTopN(topN);
 
@@ -865,84 +868,86 @@ const getFriendSuggestions = async (userId, topN = 5) => {
         .map((f) => toObjectId(f))
         .filter(Boolean);
 
+    // if user has no friends, return empty array (no global fallback)
+    if (friendObjectIds.length === 0) return [];
+
     // weights (tweakable)
     const FREQ_WEIGHT = 0.7;
     const RECENCY_WEIGHT = 0.3;
 
-    let results = [];
-    if (friendObjectIds.length > 0) {
-        results = await Expense.aggregate([
-            {
-                $match: {
-                    $or: [
-                        { createdBy: toObjectId(userId) },
-                        { "splits.friendId": toObjectId(userId) }
-                    ]
-                }
-            },
-            { $unwind: "$splits" },
-            {
-                $match: {
-                    "splits.friendId": { $in: friendObjectIds, $ne: toObjectId(userId) }
-                }
-            },
-            {
-                $group: {
-                    _id: "$splits.friendId",
-                    frequency: { $sum: 1 },
-                    lastSeen: { $max: "$date" }
-                }
-            },
-            {
-                $addFields: {
-                    daysAgo: { $divide: [{ $subtract: ["$$NOW", "$lastSeen"] }, 1000 * 60 * 60 * 24] }
-                }
-            },
-            {
-                $addFields: {
-                    recencyWeight: {
-                        $cond: [{ $lt: ["$daysAgo", 0] }, 1, { $divide: [1, { $add: ["$daysAgo", 1] }] }]
-                    }
-                }
-            },
-            {
-                $addFields: {
-                    score: {
-                        $add: [
-                            { $multiply: [FREQ_WEIGHT, "$frequency"] },
-                            { $multiply: [RECENCY_WEIGHT, "$recencyWeight"] }
-                        ]
-                    }
-                }
-            },
-            { $sort: { score: -1, frequency: -1, lastSeen: -1 } },
-            { $limit: topN },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "_id",
-                    foreignField: "_id",
-                    as: "friend"
-                }
-            },
-            { $unwind: "$friend" },
-            {
-                $project: {
-                    _id: 0,
-                    friendId: "$friend._id",
-                    name: "$friend.name",
-                    email: "$friend.email",
-                    frequency: 1,
-                    lastSeen: 1,
-                    score: 1
+    // find frequency & recency of interactions where user's friends appear in splits
+    let results = await Expense.aggregate([
+        {
+            $match: {
+                $or: [
+                    { createdBy: toObjectId(userId) },
+                    { "splits.friendId": toObjectId(userId) }
+                ]
+            }
+        },
+        { $unwind: "$splits" },
+        {
+            // only consider splits that reference the user's friends (and not the user)
+            $match: {
+                "splits.friendId": { $in: friendObjectIds, $ne: toObjectId(userId) }
+            }
+        },
+        {
+            $group: {
+                _id: "$splits.friendId",
+                frequency: { $sum: 1 },
+                lastSeen: { $max: "$date" }
+            }
+        },
+        {
+            $addFields: {
+                daysAgo: { $divide: [{ $subtract: ["$$NOW", "$lastSeen"] }, 1000 * 60 * 60 * 24] }
+            }
+        },
+        {
+            $addFields: {
+                recencyWeight: {
+                    $cond: [{ $lt: ["$daysAgo", 0] }, 1, { $divide: [1, { $add: ["$daysAgo", 1] }] }]
                 }
             }
-        ]).exec();
-    }
+        },
+        {
+            $addFields: {
+                score: {
+                    $add: [
+                        { $multiply: [FREQ_WEIGHT, "$frequency"] },
+                        { $multiply: [RECENCY_WEIGHT, "$recencyWeight"] }
+                    ]
+                }
+            }
+        },
+        { $sort: { score: -1, frequency: -1, lastSeen: -1 } },
+        { $limit: topN },
+        {
+            $lookup: {
+                from: "users",
+                localField: "_id",
+                foreignField: "_id",
+                as: "friend"
+            }
+        },
+        { $unwind: "$friend" },
+        {
+            $project: {
+                _id: 0,
+                friendId: "$friend._id",
+                name: "$friend.name",
+                email: "$friend.email",
+                frequency: 1,
+                lastSeen: 1,
+                score: 1
+            }
+        }
+    ]).exec();
 
-    // pad with other user friends
+    // Pad with remaining friends from user's friend list (no global fallback)
     const pickedIds = new Set(results.map(r => String(r.friendId)));
-    if (results.length < topN && friendObjectIds.length > 0) {
+    if (results.length < topN) {
         const deficit = topN - results.length;
         const remainingIds = friendObjectIds
             .map(String)
@@ -966,51 +971,8 @@ const getFriendSuggestions = async (userId, topN = 5) => {
                 lastSeen: null,
                 score: 0
             }));
-            padded.forEach(p => pickedIds.add(String(p.friendId)));
             results = results.concat(padded);
         }
-    }
-
-    // fallback to globally-popular users if still short
-    if (results.length < topN) {
-        const deficit = topN - results.length;
-        const excludeIds = Array.from(pickedIds).concat([String(userId)]).filter(Boolean);
-        const excludeObjectIds = excludeIds.map(id => toObjectId(id)).filter(Boolean);
-
-        const popular = await Expense.aggregate([
-            { $match: { createdBy: { $exists: true, $ne: null, $nin: excludeObjectIds } } },
-            {
-                $group: {
-                    _id: "$createdBy",
-                    frequency: { $sum: 1 },
-                    lastSeen: { $max: "$date" }
-                }
-            },
-            { $sort: { frequency: -1, lastSeen: -1 } },
-            { $limit: deficit },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "_id",
-                    foreignField: "_id",
-                    as: "user"
-                }
-            },
-            { $unwind: "$user" },
-            {
-                $project: {
-                    _id: 0,
-                    friendId: "$user._id",
-                    name: "$user.name",
-                    email: "$user.email",
-                    frequency: 1,
-                    lastSeen: 1,
-                    score: "$frequency"
-                }
-            }
-        ]).exec();
-
-        results = results.concat(popular);
     }
 
     return results.slice(0, topN);
@@ -1018,7 +980,11 @@ const getFriendSuggestions = async (userId, topN = 5) => {
 
 
 /**
- * Get group suggestions for a user padded to at least `topN`.
+ * Get group suggestions for a user — only from groups the user belongs to.
+ */
+/**
+ * Get group suggestions for a user — only from groups the user belongs to.
+ * Uses the Group model to determine membership (checks Group.members).
  */
 const getGroupSuggestions = async (userId, topN = 5) => {
     topN = normalizeTopN(topN);
@@ -1026,7 +992,19 @@ const getGroupSuggestions = async (userId, topN = 5) => {
     const FREQ_WEIGHT = 0.75;
     const RECENCY_WEIGHT = 0.25;
 
-    // 1) aggregation by groupId
+    // 1) fetch group ids where the user is a member (via Group.members)
+    const memberGroups = await Group.find({ members: toObjectId(userId) })
+        .select("_id name")
+        .lean();
+
+    const userGroupIds = Array.isArray(memberGroups) && memberGroups.length > 0
+        ? memberGroups.map(g => toObjectId(g._id)).filter(Boolean)
+        : [];
+
+    // if user is not part of any groups, return empty array (no global fallback)
+    if (userGroupIds.length === 0) return [];
+
+    // 2) aggregation restricted to groups the user is a member of
     let results = await Expense.aggregate([
         {
             $match: {
@@ -1034,7 +1012,7 @@ const getGroupSuggestions = async (userId, topN = 5) => {
                     { createdBy: toObjectId(userId) },
                     { "splits.friendId": toObjectId(userId) }
                 ],
-                groupId: { $exists: true, $ne: null }
+                groupId: { $in: userGroupIds } // IMPORTANT: limit to user's groups only
             }
         },
         {
@@ -1087,74 +1065,31 @@ const getGroupSuggestions = async (userId, topN = 5) => {
         }
     ]).exec();
 
+    // 3) pad with user's groups that didn't appear in the aggregation
     const pickedIds = new Set(results.map(r => String(r.groupId)));
-
-    // 2) add user's groups (if user has them)
-    if (results.length < topN) {
-        const user = await User.findById(userId).select("groups").lean();
-        const userGroupIds = Array.isArray(user?.groups) ? user.groups.filter(Boolean) : [];
-        const remainingIds = userGroupIds.map(String).filter(id => !pickedIds.has(id)).slice(0, topN - results.length).map(toObjectId).filter(Boolean);
-
-        if (remainingIds.length > 0) {
-            const remaining = await Group.find({ _id: { $in: remainingIds } })
-                .select("name")
-                .limit(remainingIds.length)
-                .lean();
-
-            const padded = remaining.map(g => ({
-                groupId: g._id,
-                name: g.name,
-                frequency: 0,
-                lastSeen: null,
-                score: 0
-            }));
-            padded.forEach(p => pickedIds.add(String(p.groupId)));
-            results = results.concat(padded);
-        }
-    }
-
-    // 3) fallback to globally popular groups
     if (results.length < topN) {
         const deficit = topN - results.length;
-        const exclude = Array.from(pickedIds).map(id => toObjectId(id)).filter(Boolean);
 
-        const popularGroups = await Expense.aggregate([
-            { $match: { groupId: { $exists: true, $ne: null, $nin: exclude } } },
-            {
-                $group: {
-                    _id: "$groupId",
-                    frequency: { $sum: 1 },
-                    lastSeen: { $max: "$date" }
-                }
-            },
-            { $sort: { frequency: -1, lastSeen: -1 } },
-            { $limit: deficit },
-            {
-                $lookup: {
-                    from: "groups",
-                    localField: "_id",
-                    foreignField: "_id",
-                    as: "group"
-                }
-            },
-            { $unwind: "$group" },
-            {
-                $project: {
-                    _id: 0,
-                    groupId: "$group._id",
-                    name: "$group.name",
-                    frequency: 1,
-                    lastSeen: 1,
-                    score: "$frequency"
-                }
-            }
-        ]).exec();
+        // use the memberGroups we fetched earlier to pad (preserves name if needed)
+        const remaining = memberGroups
+            .filter(g => !pickedIds.has(String(g._id)))
+            .slice(0, deficit);
 
-        results = results.concat(popularGroups);
+        const padded = remaining.map(g => ({
+            groupId: g._id,
+            name: g.name,
+            frequency: 0,
+            lastSeen: null,
+            score: 0
+        }));
+
+        results = results.concat(padded);
     }
 
     return results.slice(0, topN);
 };
+
+
 
 // NEW route
 router.get("/suggestions", auth, async (req, res) => {
@@ -1589,18 +1524,18 @@ router.post('/verifyOTP', async (req, res) => {
             // If createdAt is within last few seconds consider new. Adjust threshold as needed.
             const createdAt = user?.createdAt ? new Date(user.createdAt).getTime() : 0;
             userNew = (Date.now() - createdAt) < 5000; // created <5s ago -> newly created
-            if(userNew)
+            if (userNew)
                 await PaymentMethod.create({
-                userId: user._id,
-                label: "Cash",
-                type: "cash",
-                balances: { INR: { available: 0, pending: 0 } },
-                capabilities: ["send", "receive"],
-                isDefaultSend: true,
-                isDefaultReceive: true,
-                provider: "manual",
-                status: "verified",
-            });
+                    userId: user._id,
+                    label: "Cash",
+                    type: "cash",
+                    balances: { INR: { available: 0, pending: 0 } },
+                    capabilities: ["send", "receive"],
+                    isDefaultSend: true,
+                    isDefaultReceive: true,
+                    provider: "manual",
+                    status: "verified",
+                });
         } catch (e) {
             // If an unexpected duplicate-key still happens or other DB error, try a safe fallback find
             if (e && e.code === 11000) {

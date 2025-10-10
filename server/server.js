@@ -11,6 +11,7 @@ const loans = require('./routes/v1/loans');
 const paymentMethods = require('./routes/v1/paymentMethods');
 const contacts = require('./routes/v1/contacts');
 const voice = require('./routes/v1/voice');
+const images = require('./routes/v1/images');
 
 const expenses2 = require('./routes/v2/expenses');
 const contacts2 = require('./routes/v2/contacts');
@@ -39,6 +40,7 @@ app.use('/api/v1/loans', loans);
 app.use('/api/v1/paymentMethods', paymentMethods);
 app.use('/api/v1/contacts', contacts);
 app.use('/api/v1/voice', voice);
+app.use('/api/v1/image', images);
 
 app.use('/api/v2/expenses', expenses2);
 app.use('/api/v2/contacts', contacts2);
