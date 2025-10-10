@@ -4,6 +4,10 @@ const express = require('express');
 const router = express.Router();
 const Expense = require('../../models/Expense');
 const User = require('../../models/User');
+const Group = require('../../models/Group');
+const Receipt = require('../../models/Receipt');
+const PaymentMethod = require('../../models/PaymentMethod');
+const PaymentMethodTxn = require('../../models/PaymentMethodTransaction');
 const auth = require("../../middleware/auth");
 const notif = require('../v1/notifs'); // <-- single-file notif helper (sendToUsers, pushNotifications, etc.)
 
@@ -55,6 +59,125 @@ const calculateDebt = (groupExpenses, members) => {
     });
     return totalDebt;
 };
+const normaliseSplits = (raw = [], meId) => {
+    return (raw || []).map((s) => ({
+        payerType: s.payerType || 'user',
+        friendId: String(s.friendId) === 'me' ? meId : s.friendId,
+        owing: !!s.owing,
+        paying: !!s.paying,
+        oweAmount: Number(s.oweAmount) || 0,
+        owePercent: Number(s.owePercent) || 0,
+        payAmount: Number(s.payAmount) || 0,
+        // accept either name but persist as paidFromPaymentMethodId
+        paidFromPaymentMethodId: s.paidFromPaymentMethodId || s.paymentMethodId || undefined,
+    }));
+};
+
+// -------- validations ----------
+const assertGroup = async (groupId) => {
+    if (!groupId) return;
+    const g = await Group.findById(groupId);
+    if (!g) throw { status: 400, message: 'Invalid groupId' };
+};
+
+const pickCurrency = (v, fallback) => {
+    if (typeof v !== 'string') return (fallback || 'INR');
+    const up = v.toUpperCase().trim();
+    return /^[A-Z]{3}$/.test(up) ? up : (fallback || 'INR');
+};
+
+// make sure PM exists, belongs to user, supports send/receive + currency
+const loadAndValidatePM = async ({ pmId, userId, need = 'send', currency }) => {
+    if (!pmId) return null;
+    const pm = await PaymentMethod.findOne({ _id: pmId, userId });
+    if (!pm) throw { status: 400, message: 'Invalid paymentMethod Id' };
+
+    return pm;
+};
+
+// update balances (minor units) + create txn (simple, no model methods)
+const applyPMDebit = async ({ pm, userId, currency, amountMajor, related, session }) => {
+    const cur = String(currency || 'INR').toUpperCase();
+    // read current available (minor)
+    const prev = (pm.balances?.get?.(cur)?.available) ?? (pm.balances?.[cur]?.available) ?? 0;
+    const deltaMinor = amountMajor;
+    const next = prev - deltaMinor;
+
+    // write back new balance + bump usage
+    await PaymentMethod.updateOne(
+        { _id: pm._id, userId },
+        {
+            // ensure subdoc exists when first writing this currency
+            $set: {
+                [`balances.${cur}.available`]: next,
+                [`balances.${cur}.pending`]: prev,
+            },
+            $inc: { usageCount: 1 },
+        },
+        { session }
+    );
+
+    // journal the movement
+    await PaymentMethodTxn.create([{
+        paymentMethodId: pm._id,
+        userId,
+        currency: cur,
+        amount: deltaMinor,    // negative = debit
+        kind: 'debit',
+        balanceAfter: next,
+        related,               // { type: 'expense', id, note }
+    }], { session });
+
+    return next;
+};
+
+// optional: fallback pick default send if personal missing pmId
+const pickDefaultSendPM = async (userId) => {
+    const send = await PaymentMethod.findOne({ userId, isDefaultSend: true }).sort({ createdAt: -1 });
+    if (send) return send;
+    const recv = await PaymentMethod.findOne({ userId, isDefaultReceive: true }).sort({ createdAt: -1 });
+    if (recv) return recv;
+    return PaymentMethod.findOne({ userId }).sort({ isDefaultSend: -1, isDefaultReceive: -1, usageCount: -1, createdAt: -1 });
+};
+
+async function creditBackPM({ pmId, userId, currency, amount, session, related }) {
+    const cur = String(currency).toUpperCase();
+    const pmDoc = await PaymentMethod.findOne(
+        { _id: pmId, userId },
+        { balances: 1 }
+    ).session(session);
+    if (!pmDoc) return;
+
+    const prevAvail =
+        pmDoc?.balances?.get?.(cur)?.available ??
+        pmDoc?.balances?.[cur]?.available ??
+        0;
+    const nextAvail = prevAvail + Number(amount);
+
+    await PaymentMethod.updateOne(
+        { _id: pmId, userId },
+        {
+            $set: { [`balances.${cur}.available`]: nextAvail },
+            $inc: { usageCount: -1 },
+        },
+        { session }
+    );
+
+    await PaymentMethodTxn.create(
+        [
+            {
+                paymentMethodId: pmId,
+                userId,
+                currency: cur,
+                amount: Number(amount),
+                kind: "credit",
+                balanceAfter: nextAvail,
+                related,
+            },
+        ],
+        { session }
+    );
+}
 
 /**
  * simplifyDebts: unchanged but will log results when used
@@ -231,6 +354,71 @@ function computeDirectPairNetForGroup(groupExpenses = [], userId, friendId) {
 
     return tx;
 }
+
+// Return array of userId strings deduped
+const recipientsFromSplits = (splits = []) => {
+    const s = new Set();
+    (splits || []).forEach(p => {
+        if (!p) return;
+        const fid = String(p.friendId?._id || p.friendId);
+        if (fid) s.add(fid);
+    });
+    return Array.from(s);
+};
+
+// If groupId present, fetch group members (returns array of ids)
+const groupMemberIds = async (groupId) => {
+    if (!groupId) return [];
+    const g = await Group.findById(groupId).select('members').lean();
+    if (!g || !Array.isArray(g.members)) return [];
+    return g.members.map(m => String(m));
+};
+
+// remove actorId from recipients and dedupe
+const filterOutActor = (recips = [], actorId) => {
+    const s = new Set(recips || []);
+    s.delete(String(actorId));
+    return Array.from(s);
+};
+// Keep titles short and bodies concise. data should be stable for client routing.
+const templates = {
+    splitExpenseCreated: ({ actorName, amount, currency, expenseId, groupId }) => ({
+        title: 'New split added',
+        body: `${actorName} added a split — ${amount} ${currency}`,
+        data: { type: 'expense_split_created', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, amount, currency, actorName }
+    }),
+    splitExpenseEdited: ({ actorName, expenseId, shortDesc, amount, currency, groupId }) => ({
+        title: 'Split updated',
+        body: `${actorName} updated: ${shortDesc || `${amount} ${currency}`}`,
+        data: { type: 'expense_split_updated', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, amount, currency, actorName }
+    }),
+    splitExpenseDeleted: ({ actorName, expenseId, shortDesc, groupId }) => ({
+        title: 'Split removed',
+        body: `${actorName} removed a split${shortDesc ? ` — ${shortDesc}` : ''}`,
+        data: { type: 'expense_split_deleted', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, actorName }
+    }),
+    groupExpenseCreated: ({ actorName, amount, currency, expenseId, groupId, groupName }) => ({
+        title: `${groupName}: new expense`,
+        body: `${actorName} added ${amount} ${currency}`,
+        data: { type: 'group_expense_created', expenseId: String(expenseId), groupId: String(groupId), groupName, amount, currency, actorName }
+    }),
+    groupExpenseEdited: ({ actorName, expenseId, groupId, groupName, shortDesc }) => ({
+        title: `${groupName}: expense updated`,
+        body: `${actorName} updated an expense${shortDesc ? ` — ${shortDesc}` : ''}`,
+        data: { type: 'group_expense_updated', expenseId: String(expenseId), groupId: String(groupId), groupName, actorName }
+    }),
+    groupExpenseDeleted: ({ actorName, expenseId, groupId, groupName, shortDesc }) => ({
+        title: `${groupName}: expense removed`,
+        body: `${actorName} deleted an expense${shortDesc ? ` — ${shortDesc}` : ''}`,
+        data: { type: 'group_expense_deleted', expenseId: String(expenseId), groupId: String(groupId), groupName, actorName }
+    }),
+    settlementCreated: ({ fromName, toName, amount, currency, expenseId, groupId = null }) => ({
+        title: 'Payment recorded',
+        body: `${fromName} settled ${amount} ${currency} with ${toName}`,
+        data: { type: 'settlement_created', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, amount, currency, fromName, toName }
+    })
+};
+
 
 /* ---------------- ROUTES ---------------- */
 
@@ -453,7 +641,7 @@ router.get('/friends', auth, async (req, res) => {
     }
 });
 
-// POST /v1/expenses/settle
+// POST /v2/expenses/settle
 router.post('/settle', auth, async (req, res) => {
     try {
         const {
@@ -813,6 +1001,251 @@ router.post('/settle', auth, async (req, res) => {
         res.status(500).json({ error: 'Failed to settle amount' });
     }
 });
+
+router.post('/', auth, async (req, res) => {
+    const session = await mongoose.startSession();
+    try {
+        const {
+            description,
+            amount,
+            category,
+            mode,
+            typeOf,
+            splitMode,
+            splits,
+            groupId,
+            date,
+            currency,
+            paymentMethodId,                // top-level (personal) alias
+            paidFromPaymentMethodId,        // top-level canonical name (personal)
+            receivedToPaymentMethodId,      // optional receive-to (for loans/income)
+
+            // Optional: receipt from the client — we'll ONLY read receipt.receiptId
+            receipt,                        // { receiptId?: string, ...ignored }
+        } = req.body;
+
+        if (amount == null || Number.isNaN(Number(amount))) {
+            return res.status(400).json({ error: 'Invalid amount' });
+        }
+
+        await assertGroup(groupId);
+
+        const me = await User.findById(req.user.id).select('defaultCurrency preferredCurrencies name');
+        if (!me) return res.status(401).json({ error: 'Unauthorized' });
+
+        const usedCurrency = pickCurrency(currency, me.defaultCurrency || 'INR');
+        const splitsN = normaliseSplits(splits, req.user.id);
+
+        // Split validations (unchanged)
+        if (mode === 'split') {
+            const paySum = Number(
+                splitsN.filter(s => s.paying).reduce((n, s) => n + (Number(s.payAmount) || 0), 0).toFixed(2)
+            );
+            const oweSum = Number(
+                splitsN.filter(s => s.owing).reduce((n, s) => n + (Number(s.oweAmount) || 0), 0).toFixed(2)
+            );
+            const total = Number(Number(amount).toFixed(2));
+
+            if (paySum !== total) {
+                return res.status(400).json({ error: `Sum of payAmounts (${paySum}) must equal amount (${total}).` });
+            }
+            if (splitMode === 'value' && oweSum !== total) {
+                return res.status(400).json({ error: `Sum of oweAmounts (${oweSum}) must equal amount (${total}) in 'value' mode.` });
+            }
+            if (splitMode === 'percent') {
+                const pct = Number(
+                    splitsN.filter(s => s.owing).reduce((n, s) => n + (Number(s.owePercent) || 0), 0).toFixed(4)
+                );
+                if (pct !== 100) {
+                    return res.status(400).json({ error: `Sum of owePercent must be 100.` });
+                }
+            }
+        }
+
+        // Validate payer PMs in splits (unchanged)
+        for (const s of splitsN) {
+            if (s.paying && s.paidFromPaymentMethodId) {
+                const pmOwnerId = s.friendId;
+                const pm = await loadAndValidatePM({
+                    pmId: s.paidFromPaymentMethodId,
+                    userId: pmOwnerId,
+                    need: 'send',
+                    currency: usedCurrency
+                });
+                if (!pm) return res.status(400).json({ error: `Invalid payment account for payer ${pmOwnerId}` });
+                s.paidFromPaymentMethodId = pm._id;
+            }
+        }
+
+        // Prepare expense doc
+        const expenseDoc = new Expense({
+            createdBy: req.user.id,
+            description,
+            amount: Number(amount),
+            category,
+            mode,
+            typeOf,
+            splitMode: mode === 'split' ? splitMode : 'equal',
+            date: date ? new Date(date) : undefined,
+            splits: splitsN,
+            currency: usedCurrency,
+            ...(groupId && { groupId }),
+        });
+
+        // ---- ONLY SAVE receiptId IF PROVIDED (no creates/updates to Receipt) ----
+        if (receipt && typeof receipt === 'object' && receipt.receiptId) {
+            // Optional light check: looks like an ObjectId length
+            // (Remove this if you don't want any checks)
+            if (String(receipt.receiptId).length >= 12) {
+                expenseDoc.receiptId = receipt.receiptId;
+            }
+        }
+        // -----------------------------------------------------------------------
+
+        // top-level PMs (personal) (unchanged)
+        let topPayerPM = null;
+        if (mode === 'personal') {
+            const topPMId = paidFromPaymentMethodId || paymentMethodId;
+            if (topPMId) {
+                topPayerPM = await loadAndValidatePM({
+                    pmId: topPMId,
+                    userId: req.user.id,
+                    need: 'send',
+                    currency: usedCurrency
+                });
+                if (topPayerPM) expenseDoc.paidFromPaymentMethodId = topPayerPM._id;
+            } else {
+                const fallback = await pickDefaultSendPM(req.user.id);
+                if (fallback) {
+                    await loadAndValidatePM({ pmId: fallback._id, userId: req.user.id, need: 'send', currency: usedCurrency });
+                    topPayerPM = fallback;
+                    expenseDoc.paidFromPaymentMethodId = fallback._id;
+                }
+            }
+        }
+
+        if (receivedToPaymentMethodId) {
+            const recvPM = await loadAndValidatePM({
+                pmId: receivedToPaymentMethodId,
+                userId: req.user.id,
+                need: 'receive',
+                currency: usedCurrency
+            });
+            if (recvPM) expenseDoc.receivedToPaymentMethodId = recvPM._id;
+        }
+
+        // Transaction (unchanged)
+        await session.withTransaction(async () => {
+            await expenseDoc.save({ session });
+
+            if (mode === 'personal' && topPayerPM) {
+                await applyPMDebit({
+                    pm: topPayerPM,
+                    userId: req.user.id,
+                    currency: usedCurrency,
+                    amountMajor: amount,
+                    related: { type: 'expense', id: String(expenseDoc._id), note: 'personal expense' }
+                });
+            }
+
+            if (mode === 'split') {
+                for (const s of splitsN) {
+                    if (s.paying && s.paidFromPaymentMethodId) {
+                        await applyPMDebit({
+                            pm: await PaymentMethod.findById(s.paidFromPaymentMethodId),
+                            userId: s.friendId,
+                            currency: usedCurrency,
+                            amountMajor: s.payAmount,
+                            related: { type: 'expense', id: String(expenseDoc._id), note: 'split expense (share paid)' }
+                        });
+                    }
+                }
+            }
+
+            await User.updateOne(
+                { _id: req.user.id },
+                {
+                    $inc: { [`preferredCurrencyUsage.${usedCurrency}`]: 1 },
+                    $addToSet: { preferredCurrencies: usedCurrency },
+                },
+                { session }
+            );
+        });
+
+        const populated = await Expense.findById(expenseDoc._id)
+            .populate('createdBy', 'name email')
+            .populate('splits.friendId', 'name email')
+            .populate('auditLog.updatedBy', 'name email')
+            .lean();
+
+        // Notifications (unchanged)
+        (async () => {
+            try {
+                const actor = me || await User.findById(req.user.id).select('name').lean();
+                const actorName = actor?.name || 'Someone';
+
+                let recips = recipientsFromSplits(populated.splits);
+
+                if (populated.groupId) {
+                    try {
+                        const gm = await groupMemberIds(populated.groupId);
+                        gm.forEach(id => recips.push(id));
+                    } catch { }
+                }
+
+                recips = filterOutActor(recips, req.user.id);
+
+                if (recips.length) {
+                    let payload;
+                    let category;
+                    let opts = { channel: 'push', fromFriendId: String(req.user.id), groupId: populated.groupId ? String(populated.groupId) : null };
+
+                    if (mode === 'split' && !populated.groupId) {
+                        category = 'split_expense';
+                        payload = templates.splitExpenseCreated({
+                            actorName,
+                            amount: populated.amount,
+                            currency: populated.currency,
+                            expenseId: populated._id,
+                            groupId: null
+                        });
+                    } else if (populated.groupId) {
+                        category = 'group_expense';
+                        const groupDoc = await Group.findById(populated.groupId).select('name').lean();
+                        payload = templates.groupExpenseCreated({
+                            actorName,
+                            amount: populated.amount,
+                            currency: populated.currency,
+                            expenseId: populated._id,
+                            groupId: populated.groupId,
+                            groupName: groupDoc?.name || 'Group'
+                        });
+                    } else {
+                        category = 'personal_expense_summaries';
+                        payload = {
+                            title: 'New expense added',
+                            body: `${actorName} added ${populated.amount} ${populated.currency}`,
+                            data: { type: 'expense_created', expenseId: String(populated._id), groupId: null, amount: populated.amount, currency: populated.currency, actorName }
+                        };
+                    }
+
+                    await notif.sendToUsers(recips, payload.title, payload.body, payload.data, category, opts);
+                }
+            } catch (e) {
+                console.error('Expense notification failed:', e);
+            }
+        })();
+
+        return res.status(201).json(populated);
+    } catch (err) {
+        console.error('Create expense error:', err);
+        const status = err?.status || 500;
+        return res.status(status).json({ error: err?.message || 'Failed to create expense' });
+    } finally {
+        session.endSession();
+    }
+});
+
 
 
 module.exports = router;

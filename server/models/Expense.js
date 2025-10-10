@@ -32,6 +32,7 @@ const expenseSchema = new mongoose.Schema(
         splits: [splitSchema], // Array of splits (details for each friend)
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // User who created the expense
         groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group' }, // User who created the expense
+        receiptId: { type: mongoose.Schema.Types.ObjectId, ref: 'Receipt' }, // User who created the expense
         date: { type: Date, default: Date.now }, // Timestamp of when the expense was created,
         typeOf: { type: String, enum: ['expense', 'settle', 'income', 'loan'], default: 'expense' },
         category: { type: String }, // New field to store expense category

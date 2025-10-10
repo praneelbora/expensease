@@ -4,15 +4,21 @@ const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const crypto = require("crypto");
 const path = require("path");
 
-const S3_REGION = process.env.S3_REGION;
+const S3_REGION = process.env.AWS_REGION;
 const S3_BUCKET = process.env.S3_BUCKET;
 const S3_PUBLIC_BASE_URL = process.env.S3_PUBLIC_BASE_URL || null;
 
-if (!S3_REGION || !S3_BUCKET) {
-  console.warn("⚠️  S3_REGION / S3_BUCKET not set");
+if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+  console.warn("⚠️ AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY not set in .env");
 }
 
-const s3 = new S3Client({ region: S3_REGION });
+const s3 = new S3Client({
+  region: S3_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
 
 function randomKey(ext = "") {
   const id = crypto.randomUUID();
@@ -45,16 +51,17 @@ async function uploadBufferToS3({ buffer, contentType, userId, originalName }) {
   if (S3_PUBLIC_BASE_URL) {
     url = `${S3_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
   }
+
   return { bucket: S3_BUCKET, key, etag: resp.ETag, url };
 }
 
-async function getSignedGetUrl(key, expiresIn = 600) {
+async function getSignedFileUrl(key, expiresIn = 60 * 10) {
   const cmd = new GetObjectCommand({ Bucket: S3_BUCKET, Key: key });
-  return getSignedUrl(s3, cmd, { expiresIn });
+  return await getSignedUrl(s3, cmd, { expiresIn });
 }
 
 module.exports = {
   s3,
   uploadBufferToS3,
-  getSignedGetUrl,
+  getSignedFileUrl,
 };

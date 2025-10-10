@@ -374,6 +374,7 @@ router.post('/', auth, async (req, res) => {
             .populate('createdBy', 'name email')
             .populate('splits.friendId', 'name email')
             .populate('auditLog.updatedBy', 'name email')
+            .populate('receiptId')
             .lean();
 
         // Build recipients & template depending on mode / group presence
@@ -467,8 +468,10 @@ router.get('/group/:id', auth, async (req, res) => {
 
         const expenses = await Expense.find({ groupId })
             .populate('createdBy', 'name email')
+            .populate('receiptId')
             .populate('splits.friendId', 'name email')
             .populate('auditLog.updatedBy', 'name email')
+            .populate('receiptId')
             .sort({ createdAt: -1 })
 
         res.status(200).json({ group, expenses, id: req.user.id });
@@ -494,7 +497,8 @@ router.get('/', auth, async (req, res) => {
             .populate('splits.paidFromPaymentMethodId', '_id label')
             .populate('auditLog.updatedBy', 'name email')
             .populate('groupId', 'name')
-            .populate('paidFromPaymentMethodId');
+            .populate('paidFromPaymentMethodId')
+            .populate('receiptId')
 
         res.json({ expenses, id: req.user.id });
     } catch (error) {
@@ -785,7 +789,7 @@ router.get('/friend/:friendId', auth, async (req, res) => {
         const expenses = await Expense.find({
             'splits.friendId': { $all: [userId, friendId] },
             groupId: { $exists: false }, // ⛔️ Optional: only NON-group expenses
-        }).populate('splits.friendId', '_id name').populate('auditLog.updatedBy', 'name email')
+        }).populate('splits.friendId', '_id name').populate('auditLog.updatedBy', 'name email').populate('receiptId')
         return res.status(200).json(expenses);
     } catch (error) {
         console.error("Error fetching friend expenses:", error);
@@ -889,6 +893,7 @@ router.put('/:id', auth, async (req, res) => {
             .populate('createdBy', 'name email')
             .populate('splits.friendId', 'name email')
             .populate('auditLog.updatedBy', 'name email')
+            .populate('receiptId')
             .lean();
 
         // Notify affected users (best-effort)

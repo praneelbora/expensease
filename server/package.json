@@ -10,7 +10,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@google/genai": "^1.21.0",
+    "@aws-sdk/client-s3": "^3.907.0",
+    "@aws-sdk/s3-request-presigner": "^3.907.0",
+    "@google/genai": "^1.23.0",
     "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
@@ -23,6 +25,7 @@
     "libphonenumber-js": "^1.12.23",
     "mongoose": "^8.13.2",
     "multer": "^2.0.2",
-    "nodemailer": "^7.0.5"
+    "nodemailer": "^7.0.5",
+    "sharp": "^0.34.4"
   }
 }

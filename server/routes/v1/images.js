@@ -1,31 +1,39 @@
+// routes/receipts.js
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+const sharp = require("sharp");
 const { GoogleGenAI } = require("@google/genai");
+
 const auth = require("../../middleware/auth");
 const User = require("../../models/User");
+const Receipt = require("../../models/Receipt");
+const { uploadBufferToS3 } = require("../../services/s3");
+// AWS SDK v3 imports for signed URL
+const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+
+// create S3 client (uses env vars). Ensure AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY are set.
+const s3 = new S3Client({
+  region: process.env.AWS_REGION || "us-east-1",
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
+
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+const GEMINI_PAID_API_KEY = process.env.GEMINI_PAID_API_KEY || null;
+const GEMINI_PAID_MODEL = process.env.GEMINI_PAID_MODEL || null;
 
 if (!GEMINI_API_KEY) {
     console.error("⚠️ GEMINI_API_KEY not set in environment variables");
 }
 
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-
-// ---------- multer setup ----------
-const uploadDir = path.join(process.cwd(), "uploads", "receipts");
-fs.mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-    destination: uploadDir,
-    filename: (req, file, cb) => {
-        cb(null, `receipt_${Date.now()}${path.extname(file.originalname)}`);
-    },
-});
-const upload = multer({ storage });
+// ---------- multer (memory) ----------
+const upload = multer({ storage: multer.memoryStorage() });
 
 // ---------- JSON Parser Helper ----------
 function tryParseJsonFromText(text) {
@@ -45,7 +53,7 @@ function tryParseJsonFromText(text) {
             try {
                 const parsed2 = JSON.parse(m[0]);
                 if (parsed2 && typeof parsed2 === "object") return parsed2;
-            } catch (ee) { }
+            } catch { }
         }
     }
     return { rawText: cleaned };
@@ -63,242 +71,16 @@ function estimateGeminiCost(promptLength, outputLength, model = "gemini-1.5-flas
     return cost;
 }
 
-// ---------- Main Route ----------
-// ---------- Main Route ----------
-router.post("/", auth, upload.single("image"), async (req, res) => {
-    try {
-        console.log("📥 req.file:", req.file);
+function buildPrompt() {
+    const today = new Date().toISOString().split("T")[0];
+    const allowedCategories = [
+        "Default", "Education", "Donate", "Electronics", "Entertainment",
+        "Food & Drinks", "Games", "Gift", "Groceries", "Heart", "Health Care",
+        "Insurance", "Investment", "House", "General", "Office", "Religion",
+        "Shopping", "Sports", "Subscriptions", "Transport", "Travel", "Pets"
+    ];
 
-        if (!req.file) {
-            return res.status(400).json({ error: "no_image", message: "Please upload an image" });
-        }
-
-        const filePath = req.file.path;
-        console.log("📸 Received file:", filePath);
-
-        const base64 = fs.readFileSync(filePath, "base64");
-        console.log(req.user);
-        const user = await User.findById(req.user.id)
-        // Determine if user is paid and pick API key + model accordingly
-        const isPaid = !!(user && user.paid === true);
-
-        // Choose API key (paid override) and model (paid override)
-        const paidApiKey = process.env.GEMINI_PAID_API_KEY;
-        const paidModelEnv = process.env.GEMINI_PAID_MODEL;
-
-        let apiKeyToUse = GEMINI_API_KEY;
-        let modelName = GEMINI_MODEL; // default model for free users (same as before)
-
-        if (isPaid) {
-            if (paidApiKey) {
-                apiKeyToUse = paidApiKey;
-            } else {
-                console.warn("⚠️ Paid user but GEMINI_PAID_API_KEY is not set — falling back to GEMINI_API_KEY");
-            }
-
-            if (paidModelEnv) {
-                modelName = paidModelEnv;
-            } else {
-                // you can change the paid default model here if you want
-                modelName = GEMINI_MODEL;
-                console.info("ℹ️ GEMINI_PAID_MODEL not set — using default paid model:", modelName);
-            }
-        }
-        console.log(modelName);// routes/receipts.js  (rename your current file to this path if you like)
-        const express = require("express");
-        const router = express.Router();
-        const multer = require("multer");
-        const sharp = require("sharp");
-        const { GoogleGenAI } = require("@google/genai");
-
-        const auth = require("../../middleware/auth");
-        const User = require("../../models/User");
-        const Receipt = require("../../models/Receipt");
-        const { uploadBufferToS3 } = require("../../utils/s3");
-
-        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-        const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
-        const GEMINI_PAID_API_KEY = process.env.GEMINI_PAID_API_KEY || null;
-        const GEMINI_PAID_MODEL = process.env.GEMINI_PAID_MODEL || null;
-
-        if (!GEMINI_API_KEY) {
-            console.error("⚠️ GEMINI_API_KEY not set in environment variables");
-        }
-
-        // ---------- multer (memory) ----------
-        const upload = multer({ storage: multer.memoryStorage() });
-
-        // ---------- JSON Parser Helper ----------
-        function tryParseJsonFromText(text) {
-            if (!text || typeof text !== "string") return null;
-            const cleaned = text
-                .trim()
-                .replace(/^[\s`]*```(?:json)?\s*/i, "")
-                .replace(/```[\s]*$/i, "")
-                .trim();
-
-            try {
-                const parsed = JSON.parse(cleaned);
-                if (parsed && typeof parsed === "object") return parsed;
-            } catch (e) {
-                const m = cleaned.match(/\{[\s\S]*\}/);
-                if (m) {
-                    try {
-                        const parsed2 = JSON.parse(m[0]);
-                        if (parsed2 && typeof parsed2 === "object") return parsed2;
-                    } catch { }
-                }
-            }
-            return { rawText: cleaned };
-        }
-
-        // ---------- Cost Estimator ----------
-        function estimateGeminiCost(promptLength, outputLength, model = "gemini-1.5-flash") {
-            const pricing = {
-                "gemini-1.5-flash": { input: 0.000075, output: 0.00030 },
-                "gemini-1.5-pro": { input: 0.00025, output: 0.0010 },
-                "gemini-2.5-flash": { input: 0.000075, output: 0.00030 },
-            };
-            const rate = pricing[model] || pricing["gemini-1.5-flash"];
-            const cost = (promptLength * rate.input + outputLength * rate.output) * 89 / 1000;
-            return cost;
-        }
-
-        function buildPrompt() {
-            const today = new Date().toISOString().split("T")[0];
-            const allowedCategories = [
-                "Default", "Education", "Donate", "Electronics", "Entertainment",
-                "Food & Drinks", "Games", "Gift", "Groceries", "Heart", "Health Care",
-                "Insurance", "Investment", "House", "General", "Office", "Religion",
-                "Shopping", "Sports", "Subscriptions", "Transport", "Travel", "Pets"
-            ];
-            return `
-You are a STRICT JSON-only receipt parser. Output EXACTLY one JSON object and NOTHING else.
-${/* … keep your full schema & rules from your current prompt … */""}
-Today is ${today}.
-Allowed categories: ${JSON.stringify(allowedCategories)}
-`.trim();
-        }
-
-        // ---------- Upload + parse ----------
-        router.post("/", auth, upload.single("image"), async (req, res) => {
-            try {
-                if (!req.file) {
-                    return res.status(400).json({ error: "no_image", message: "Please upload an image" });
-                }
-
-                // Pick model/API key by user tier
-                const user = await User.findById(req.user.id).lean();
-                const isPaid = !!(user && user.paid === true);
-                const apiKeyToUse = isPaid ? (process.env.GEMINI_PAID_API_KEY || GEMINI_API_KEY) : GEMINI_API_KEY;
-                const modelName = isPaid ? (GEMINI_PAID_MODEL || GEMINI_MODEL) : GEMINI_MODEL;
-
-                // Normalize to JPEG (optional but keeps size/quality sane)
-                const normalized = await sharp(req.file.buffer)
-                    .rotate()
-                    .jpeg({ quality: 82 })
-                    .toBuffer();
-
-                // Upload to S3
-                const s3Info = await uploadBufferToS3({
-                    buffer: normalized,
-                    contentType: "image/jpeg",
-                    userId: req.user.id,
-                    originalName: req.file.originalname,
-                });
-
-                // Create a Receipt doc with status=processing
-                const receipt = await Receipt.create({
-                    userId: req.user.id,
-                    storage: "s3",
-                    bucket: s3Info.bucket,
-                    s3Key: s3Info.key,
-                    url: s3Info.url || null,
-                    originalName: req.file.originalname,
-                    contentType: "image/jpeg",
-                    size: normalized.length,
-                    etag: s3Info.etag || null,
-                    status: "processing",
-                    model: modelName,
-                });
-
-                // Gemini parse
-                const aiClient = new GoogleGenAI({ apiKey: apiKeyToUse });
-                const prompt = buildPrompt();
-
-                const startTime = Date.now();
-                const base64 = normalized.toString("base64");
-
-                const result = await aiClient.models.generateContent({
-                    model: modelName,
-                    temperature: 0,
-                    maxOutputTokens: 1500,
-                    contents: [
-                        {
-                            role: "user", parts: [
-                                { text: prompt },
-                                { inlineData: { mimeType: "image/jpeg", data: base64 } },
-                            ]
-                        },
-                    ],
-                });
-
-                const endTime = Date.now();
-                const responseText = result?.response?.text?.() || result?.text || "";
-                const parsed = tryParseJsonFromText(responseText);
-
-                // Cost estimate
-                const promptTokens = Math.round(prompt.length / 4);
-                const outputTokens = Math.round(responseText.length / 4);
-                const estimatedCost = estimateGeminiCost(promptTokens, outputTokens, modelName);
-
-                // Update receipt with result
-                receipt.status = "done";
-                receipt.parsed = parsed;
-                if (parsed && typeof parsed === "object" && parsed.rawText) {
-                    receipt.rawText = parsed.rawText;
-                }
-                await receipt.save();
-
-                return res.json({
-                    success: true,
-                    receiptId: receipt._id,
-                    file: {
-                        bucket: receipt.bucket,
-                        key: receipt.s3Key,
-                        url: receipt.url,            // null if private/no CDN base
-                        contentType: receipt.contentType,
-                        size: receipt.size,
-                    },
-                    parsed,
-                    model: modelName,
-                    token_estimate: { promptTokens, outputTokens },
-                    estimated_cost_usd: estimatedCost,
-                    processing_ms: endTime - startTime,
-                });
-            } catch (err) {
-                console.error("Receipt upload/parse error:", err);
-                return res.status(500).json({ error: "server_error", message: err.message });
-            }
-        });
-
-        module.exports = router;
-
-
-        // create an ai client for this request using the selected key
-        const aiClient = new GoogleGenAI({ apiKey: apiKeyToUse });
-
-        // ---------- improved, strict JSON prompt (with service charge) ----------
-        const today = new Date().toISOString().split("T")[0];
-
-        const allowedCategories = [
-            "Default", "Education", "Donate", "Electronics", "Entertainment",
-            "Food & Drinks", "Games", "Gift", "Groceries", "Heart", "Health Care",
-            "Insurance", "Investment", "House", "General", "Office", "Religion",
-            "Shopping", "Sports", "Subscriptions", "Transport", "Travel", "Pets"
-        ];
-
-        const prompt = `
+    return `
 You are a STRICT JSON-only receipt parser. Output EXACTLY one JSON object and NOTHING else.
 Follow the schema and rules precisely. Use null for unknown values and empty arrays where appropriate.
 Do NOT produce any explanatory text, headings, or code fences.
@@ -407,11 +189,58 @@ OUTPUT EXAMPLE:
 
 If you cannot determine a field confidently, set it to null. Return ONLY the JSON object.
 `.trim();
+}
 
-        // --- call Gemini with deterministic settings ---
+// ---------- Upload + parse ----------
+router.post("/", auth, upload.single("image"), async (req, res) => {
+    let receipt = null;
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "no_image", message: "Please upload an image" });
+        }
+
+        // Pick model/API key by user tier
+        const user = await User.findById(req.user.id).lean();
+        const isPaid = !!(user && user.paid === true);
+        const apiKeyToUse = isPaid ? (GEMINI_PAID_API_KEY || GEMINI_API_KEY) : GEMINI_API_KEY;
+        const modelName = isPaid ? (GEMINI_PAID_MODEL || GEMINI_MODEL) : GEMINI_MODEL;
+
+        // Normalize to JPEG (rotate by EXIF, compress)
+        const normalized = await sharp(req.file.buffer)
+            .rotate()
+            .jpeg({ quality: 82 })
+            .toBuffer();
+
+        // Upload to S3
+        const s3Info = await uploadBufferToS3({
+            buffer: normalized,
+            contentType: "image/jpeg",
+            userId: req.user.id,
+            originalName: req.file.originalname,
+        });
+
+        // Create a Receipt doc with status=processing
+        receipt = await Receipt.create({
+            userId: req.user.id,
+            storage: "s3",
+            bucket: s3Info.bucket,
+            s3Key: s3Info.key,
+            url: s3Info.url || null,
+            originalName: req.file.originalname,
+            contentType: "image/jpeg",
+            size: normalized.length,
+            etag: s3Info.etag || null,
+            status: "processing",
+            model: modelName,
+        });
+
+        // Gemini parse
+        const aiClient = new GoogleGenAI({ apiKey: apiKeyToUse });
+        const prompt = buildPrompt();
+
         const startTime = Date.now();
+        const base64 = normalized.toString("base64");
 
-        // Use the per-request aiClient and selected modelName
         const result = await aiClient.models.generateContent({
             model: modelName,
             temperature: 0,
@@ -421,7 +250,7 @@ If you cannot determine a field confidently, set it to null. Return ONLY the JSO
                     role: "user",
                     parts: [
                         { text: prompt },
-                        { inlineData: { mimeType: req.file.mimetype, data: base64 } },
+                        { inlineData: { mimeType: "image/jpeg", data: base64 } },
                     ],
                 },
             ],
@@ -431,28 +260,84 @@ If you cannot determine a field confidently, set it to null. Return ONLY the JSO
         const responseText = result?.response?.text?.() || result?.text || "";
         const parsed = tryParseJsonFromText(responseText);
 
-        // --- Rough Token Estimation ---
+        // Cost estimate
         const promptTokens = Math.round(prompt.length / 4);
         const outputTokens = Math.round(responseText.length / 4);
         const estimatedCost = estimateGeminiCost(promptTokens, outputTokens, modelName);
 
-        console.log(`🧠 Gemini model: ${modelName} (paid user: ${isPaid})`);
-        console.log(`⌛ Processing time: ${(endTime - startTime) / 1000}s`);
-        console.log(`💬 Prompt tokens: ~${promptTokens}`);
-        console.log(`📝 Output tokens: ~${outputTokens}`);
-        console.log(`🧾 Estimated cost: ~${estimatedCost.toFixed(5)} INR`);
+        // Update receipt with result
+        receipt.status = "done";
+        receipt.parsed = parsed;
+        if (parsed && typeof parsed === "object" && parsed.rawText) {
+            receipt.rawText = parsed.rawText;
+        }
+        await receipt.save();
 
         return res.json({
             success: true,
+            receiptId: receipt._id,
+            file: {
+                bucket: receipt.bucket,
+                key: receipt.s3Key,
+                url: receipt.url,            // null if private/no CDN base
+                contentType: receipt.contentType,
+                size: receipt.size,
+            },
             parsed,
             model: modelName,
             token_estimate: { promptTokens, outputTokens },
             estimated_cost_usd: estimatedCost,
+            processing_ms: endTime - startTime,
+            paid_user: isPaid,
         });
     } catch (err) {
-        console.error("Receipt parse error:", err);
+        console.error("Receipt upload/parse error:", err);
+
+        if (receipt) {
+            try {
+                receipt.status = "failed";
+                receipt.error = err?.message || String(err);
+                await receipt.save();
+            } catch (e2) {
+                console.error("Failed to update receipt status:", e2);
+            }
+        }
+
         return res.status(500).json({ error: "server_error", message: err.message });
     }
 });
+
+
+router.get("/:id/signed-url", auth, async (req, res) => {
+  try {
+    const receiptId = req.params.id;
+    if (!receiptId) return res.status(400).json({ error: "missing_id", message: "receipt id required" });
+
+    // fetch receipt record
+    const receipt = await Receipt.findById(receiptId).lean();
+    if (!receipt) return res.status(404).json({ error: "not_found", message: "Receipt not found" });
+
+    // bucket/key resolution
+    const Bucket = receipt.bucket || process.env.DEFAULT_BUCKET;
+    const Key = receipt.s3Key || receipt.key || receipt.path;
+    if (!Bucket || !Key) return res.status(400).json({ error: "missing_storage_info", message: "Receipt missing bucket or key" });
+
+    // build command and generate signed url (expires in seconds)
+    const cmd = new GetObjectCommand({ Bucket, Key });
+    const expiresIn = Number(process.env.RECEIPT_SIGNED_URL_EXPIRES_IN) || 300; // default 5 minutes
+    const url = await getSignedUrl(s3, cmd, { expiresIn });
+
+    // optionally log minimal info but avoid leaking secrets
+    console.log(`[signed-url] generated for receipt ${receiptId} (expires ${expiresIn}s)`);
+    console.log(url);
+    
+    return res.json({ url });
+  } catch (err) {
+    console.error("signed-url error:", err);
+    // don't leak AWS errors to client; return generic message
+    return res.status(500).json({ error: "server_error", message: "Failed to generate signed URL" });
+  }
+});
+
 
 module.exports = router;
