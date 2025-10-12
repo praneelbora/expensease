@@ -181,10 +181,29 @@ export default function AccountScreen() {
         }
     };
 
-    const onCopyEmail = async () => {
-        if (!user?.email) return;
-        await Clipboard.setStringAsync(user.email);
-        showBanner("info", "Email copied.", 1500);
+    const handleDoUpdate = async () => {
+        // try to get store url from admin payload, else fallback to placeholder
+        try {
+            const admin = await fetchAdminVersionPayload();
+            const storeUrl = Platform.OS === "ios"
+                ? (admin?.iosStoreUrl || admin?.iosStoreUrlFallback)
+                : (admin?.androidStoreUrl || admin?.androidStoreUrlFallback);
+
+            // if releaseNotes exist, show them in modal (quick)
+            if (admin?.releaseNotes) setUpdateNotes(admin.releaseNotes);
+
+            const url = updateInfo?.updateURL || 'https://www.expensease.in';
+            const opened = await Linking.openURL(url).catch((e) => {
+                console.warn("Failed to open store url:", e);
+                Alert.alert("Unable to open store", "Please update your app from the App Store / Play Store.");
+            });
+
+            // If you use expo-updates and support OTA updates you could attempt to fetch + apply here.
+            // For now we just open the store.
+        } catch (err) {
+            console.warn("handleDoUpdate error:", err);
+            Alert.alert("Update", "Could not find update link. Please check the store.");
+        }
     };
 
     const onLogout = () => {
@@ -310,10 +329,46 @@ export default function AccountScreen() {
                         </View>
                     </View>
                 </View>
+                {!updateInfo?.isNewUpdateAvailable ? (
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: theme.colors.primary,
+                            padding: 10,
+                            borderRadius: 8,
+                            marginVertical: 8,
+                        }}
+                        onPress={() => setShowUpdateModal(true)}
+                    >
+                        <Text style={{ color: theme.colors.background, fontWeight: "700" }}>Update available</Text>
+                    </TouchableOpacity>
+                ) : null}
+                {(!user?.phone || (user?.email == user?.appleEmail)) && <TouchableOpacity
+                    onPress={() => router.push("settings/link")}
+                    style={{
+                        marginBottom: 8,
+                        paddingVertical: 12,
+                        paddingHorizontal: 14,
+                        borderRadius: 10,
+                        backgroundColor: theme.colors.card,
+                        borderWidth: 1,
+                        borderColor: theme.colors.border,
+                        alignItems: "center",
+                    }}
+                    activeOpacity={0.8}
+                >
+                    <Text style={{ color: theme.colors.text, fontWeight: "700", fontSize: 18 }}>
+                        Link Your Phone & Email
+                    </Text>
+                    <Text style={{ color: theme.colors.muted, fontSize: 14, marginTop: 6, textAlign: 'center' }}>
+                        Connect phone number and email to use Expensease across devices.
+                        Linked accounts help login faster and make it easier for your friends to add you.
+                    </Text>
 
+
+                </TouchableOpacity>}
 
                 {/* Scrollable list of items */}
-                <ScrollView ref={scrollerRef} style={styles.scroller} contentContainerStyle={{ paddingBottom: 24 }}>
+                <ScrollView ref={scrollerRef} style={styles.scroller} contentContainerStyle={{ paddingBottom: 100 }}>
                     {[
                         { label: "Payment Accounts", icon: <Payment width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/paymentAccounts") },
                         { label: "Linked Accounts", icon: <LinkIcon width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/link") },
@@ -336,6 +391,95 @@ export default function AccountScreen() {
                     ))}
                 </ScrollView>
             </View>
+            <AvatarPickerSheet
+                innerRef={avatarSheetRef}
+                currentId={selectedAvatar}
+                initialSelection={selectedAvatar}
+                onSave={handleSaveAvatar}
+                onClose={() => { }}
+                userCoins={Number(user?.coins || 0)}
+                cost={AVATAR_COST}
+            />
+            <Modal visible={showEditNameModal} transparent animationType="fade" onRequestClose={closeEditName}>
+                <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.4)" }}>
+                    <View style={{ width: "92%", backgroundColor: theme.colors.card, borderRadius: 12, padding: 16 }}>
+                        <Text style={{ fontSize: 18, fontWeight: "700", color: theme.colors.text }}>Edit name</Text>
+                        <View style={{ marginTop: 12 }}>
+                            <TextInput
+                                value={editNameValue}
+                                onChangeText={(t) => setEditNameValue(t)}
+                                placeholder="Your name"
+                                placeholderTextColor={theme.colors.muted}
+                                style={{
+                                    height: 44,
+                                    borderRadius: 8,
+                                    borderWidth: 1,
+                                    borderColor: "#E6EEF8",
+                                    paddingHorizontal: 12,
+                                    color: theme.colors.text,
+                                    backgroundColor: theme.colors.background,
+                                }}
+                                autoCapitalize="words"
+                                editable={!savingName}
+                            />
+                            <Text style={{ marginTop: 8, color: theme.colors.muted }}>This will be visible to friends.</Text>
+                            {nameError ? <Text style={{ color: "#F43F5E", marginTop: 8 }}>{nameError}</Text> : null}
+                        </View>
+
+                        <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 14 }}>
+                            <TouchableOpacity onPress={closeEditName} style={{ padding: 8 }}>
+                                <Text style={{ color: theme.colors.text }}>Cancel</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={saveName}
+                                style={{
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 8,
+                                    backgroundColor: theme.colors.primary,
+                                    borderRadius: 8,
+                                    marginLeft: 8,
+                                    opacity: savingName ? 0.7 : 1,
+                                }}
+                                disabled={savingName}
+                            >
+                                {savingName ? <ActivityIndicator color="#fff" /> : <Text style={{ color: theme.colors.background, fontWeight: "700" }}>Save</Text>}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+            <Modal visible={showUpdateModal} transparent animationType="fade" onRequestClose={() => setShowUpdateModal(false)}>
+                <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.4)" }}>
+                    <View style={{ width: "92%", backgroundColor: theme.colors.card, borderRadius: 12, padding: 16 }}>
+                        <Text style={{ fontSize: 18, fontWeight: "700", color: theme.colors.text }}>Update available</Text>
+                        <Text style={{ marginTop: 8, color: theme.colors.muted }}>
+                            {updateNotes || "A new version of the app is available. Please update to get the latest features and fixes."}
+                        </Text>
+
+                        <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 12 }}>
+                            <TouchableOpacity onPress={() => setShowUpdateModal(false)} style={{ padding: 8 }}>
+                                <Text style={{ color: theme.colors.text }}>Later</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={async () => {
+                                    await handleDoUpdate();
+                                }}
+                                style={{
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 8,
+                                    backgroundColor: theme.colors.primary,
+                                    borderRadius: 8,
+                                    marginLeft: 8,
+                                }}
+                            >
+                                <Text style={{ color: theme.colors.background, fontWeight: "700" }}>Update</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -346,7 +490,7 @@ const createStyles = (theme) =>
         scroller: { flex: 1 },
         strongText: { color: theme.colors.text, fontSize: 22, fontWeight: "700" },
         strongText2: { color: theme.colors.muted, fontSize: 14 },
-        
+
         avatarTouchable: {
             width: 72,
             height: 72,

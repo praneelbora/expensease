@@ -231,8 +231,8 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                 try {
                     const dev = await ContactsService.getDeviceContacts();
                     enriched = Array.isArray(dev) ? dev : [];
-                    console.log('enriched: ',enriched.length);
-                    
+                    console.log('enriched: ', enriched.length);
+
                 } catch (e) {
                     console.warn('getDeviceContacts failed:', e);
                 }
@@ -245,12 +245,12 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                         maxContacts: 50000,
                     });
                     // console.log('247 - res: ',res);
-                    
+
                     hashes = Array.isArray(res?.hashes) ? res.hashes : [];
-                    console.log('hashes.length: ',hashes?.length);
-                    console.log('skippedCount.length: ',res?.skippedCount?.length);
-                    console.log('enrichedContacts.length: ',res?.enrichedContacts?.length);
-                    
+                    console.log('hashes.length: ', hashes?.length);
+                    console.log('skippedCount.length: ', res?.skippedCount?.length);
+                    console.log('enrichedContacts.length: ', res?.enrichedContacts?.length);
+
                     skippedCount = res?.skippedCount || 0;
                     if (Array.isArray(res?.enrichedContacts) && res.enrichedContacts.length > 0) enriched = res.enrichedContacts;
                 } catch (e) {
@@ -261,7 +261,7 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
             // If enriched present but no hashes, attempt hashContacts or extract fields
             if ((!hashes || hashes.length === 0) && Array.isArray(enriched) && enriched.length > 0) {
                 console.log('line 263');
-                
+
                 if (typeof ContactsService.hashContacts === 'function') {
                     try {
                         const h = await ContactsService.hashContacts(enriched);
@@ -293,8 +293,8 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
             // Normalize device contacts to always have phones/emails arrays and contactHashes
             const normalized = (Array.isArray(enriched) ? enriched : []).map((dc) => normalizeDeviceContact(dc));
             setDeviceContacts(normalized);
-            console.log('devicecontacs: ',normalized.length);
-            
+            console.log('devicecontacs: ', normalized.length);
+
             // harvest hashes once again if missing
             if (!hashes || hashes.length === 0) {
                 hashes = normalized.flatMap((n) => n.contactHashes || []).filter(Boolean);
@@ -354,8 +354,8 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                 }
             }
             const normalized = (Array.isArray(enriched) ? enriched : []).map((dc) => normalizeDeviceContact(dc));
-            console.log('normalized.length: ',normalized.length);
-            
+            console.log('normalized.length: ', normalized.length);
+
             setDeviceContacts(normalized);
         } catch (e) {
             console.warn('loadDeviceContactsOnly error', e);
@@ -446,122 +446,122 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
         return { type: 'none', req: null };
     };
 
-/* ---------------- device contactHash -> name map (memoized) ---------------- */
-const contactHashNameMap = useMemo(() => {
-  const m = new Map();
+    /* ---------------- device contactHash -> name map (memoized) ---------------- */
+    const contactHashNameMap = useMemo(() => {
+        const m = new Map();
 
-  for (const dc of deviceContacts || []) {
-    // remove noisy logs in production
+        for (const dc of deviceContacts || []) {
+            // remove noisy logs in production
 
-    // Prefer displayName, then raw.label, then check raw.contactHash.name
-    const nameCandidates = [];
-    if (dc?.displayName) nameCandidates.push(dc.displayName);
-    if (dc?.raw?.label) nameCandidates.push(dc.raw.label);
+            // Prefer displayName, then raw.label, then check raw.contactHash.name
+            const nameCandidates = [];
+            if (dc?.displayName) nameCandidates.push(dc.displayName);
+            if (dc?.raw?.label) nameCandidates.push(dc.raw.label);
 
-    // If raw.contactHash exists and has a name, prefer that
-    if (dc?.raw?.contactHash) {
-      const rc = dc.raw.contactHash;
-      if (rc?.name) nameCandidates.push(rc.name);
-      if (rc?.label && !rc?.name) nameCandidates.push(rc.label);
-    }
-
-    // Also scan raw.contactHashes array shapes (some providers)
-    if (Array.isArray(dc?.raw?.contactHashes)) {
-      for (const chObj of dc.raw.contactHashes) {
-        const candidate = chObj?.contactHash ? chObj.contactHash : chObj;
-        if (candidate?.name) nameCandidates.push(candidate.name);
-        if (candidate?.label && !candidate?.name) nameCandidates.push(candidate.label);
-      }
-    }
-
-    // final name pick
-    const name = nameCandidates.find(Boolean);
-    if (!name) continue;
-
-    // Now collect all hashes we can associate with this device contact:
-    const hashes = new Set();
-
-    // 1) prefer normalized dc.contactHashes if available
-    for (const ch of (dc.contactHashes || [])) if (ch) hashes.add(ch);
-
-    // 2) fallback to dc.raw.contactHash.contactHash (single object shape)
-    if (dc?.raw?.contactHash && dc.raw.contactHash.contactHash) hashes.add(dc.raw.contactHash.contactHash);
-
-    // 3) fallback to raw.contactHashes array entries
-    if (Array.isArray(dc?.raw?.contactHashes)) {
-      for (const chObj of dc.raw.contactHashes) {
-        const candidate = chObj?.contactHash ? chObj.contactHash : (typeof chObj === 'string' ? chObj : null);
-        if (candidate) hashes.add(candidate);
-      }
-    }
-
-    // nothing to store if no hash
-    if (hashes.size === 0) continue;
-
-    // write into map (first-wins)
-    for (const h of hashes) {
-      if (!m.has(h)) m.set(h, String(name).trim());
-    }
-  }
-
-  return m;
-}, [deviceContacts]);
-
-
-/* ---------------- aggregate server users by user id ---------------- */
-const aggregatedUsersById = useMemo(() => {
-    const map = new Map();
-
-    for (const sm of serverMatches || []) {
-        // sm.contactHash may be the hash that ties a device contact → this match
-        const smHash = sm?.contactHash || null;
-
-        for (const u of (sm.matchedUsers || [])) {
-            const uid = String(u._id || u.id || u.userId || u.user_id || (u.email || u.phone) || Math.random().toString(36));
-            const existing = map.get(uid) || { userId: uid, name: null, emails: new Set(), phones: new Set(), avatar: null, raw: [] };
-
-            if (u.email) existing.emails.add(String(u.email));
-            if (u.phone) existing.phones.add(String(u.phone));
-
-            // prefer any server-provided name first
-            existing.name = existing.name || u.name || u.fullName || u.displayName || null;
-            
-            // if still no name, try to use device contact name via this sm contactHash
-            if (!existing.name && smHash && contactHashNameMap.has(smHash)) {
-                existing.name = contactHashNameMap.get(smHash);
+            // If raw.contactHash exists and has a name, prefer that
+            if (dc?.raw?.contactHash) {
+                const rc = dc.raw.contactHash;
+                if (rc?.name) nameCandidates.push(rc.name);
+                if (rc?.label && !rc?.name) nameCandidates.push(rc.label);
             }
 
-            // As another fallback, also check any contactHashes already attached to this user raw object (if present)
-            // (some responses may include raw user-contact mappings)
-            if (!existing.name && Array.isArray(u.contactHashes)) {
-                for (const ch of u.contactHashes) {
-                    if (ch && contactHashNameMap.has(ch)) {
-                        existing.name = contactHashNameMap.get(ch);
-                        break;
-                    }
+            // Also scan raw.contactHashes array shapes (some providers)
+            if (Array.isArray(dc?.raw?.contactHashes)) {
+                for (const chObj of dc.raw.contactHashes) {
+                    const candidate = chObj?.contactHash ? chObj.contactHash : chObj;
+                    if (candidate?.name) nameCandidates.push(candidate.name);
+                    if (candidate?.label && !candidate?.name) nameCandidates.push(candidate.label);
                 }
             }
 
-            existing.avatar = existing.avatar || u.avatar || u.profilePic || null;
-            existing.raw.push({ fromHash: smHash, rawUser: u });
-            map.set(uid, existing);
-        }
-    }
+            // final name pick
+            const name = nameCandidates.find(Boolean);
+            if (!name) continue;
 
-    // convert sets to arrays for easier use later
-    const out = new Map();
-    for (const [k, v] of map.entries()) {
-        out.set(k, {
-            userId: v.userId,
-            name: v.name,
-            emails: Array.from(v.emails),
-            phones: Array.from(v.phones),
-            avatar: v.avatar,
-            raw: v.raw,
-        });
-    }
-    return out;
-}, [serverMatches, contactHashNameMap]);
+            // Now collect all hashes we can associate with this device contact:
+            const hashes = new Set();
+
+            // 1) prefer normalized dc.contactHashes if available
+            for (const ch of (dc.contactHashes || [])) if (ch) hashes.add(ch);
+
+            // 2) fallback to dc.raw.contactHash.contactHash (single object shape)
+            if (dc?.raw?.contactHash && dc.raw.contactHash.contactHash) hashes.add(dc.raw.contactHash.contactHash);
+
+            // 3) fallback to raw.contactHashes array entries
+            if (Array.isArray(dc?.raw?.contactHashes)) {
+                for (const chObj of dc.raw.contactHashes) {
+                    const candidate = chObj?.contactHash ? chObj.contactHash : (typeof chObj === 'string' ? chObj : null);
+                    if (candidate) hashes.add(candidate);
+                }
+            }
+
+            // nothing to store if no hash
+            if (hashes.size === 0) continue;
+
+            // write into map (first-wins)
+            for (const h of hashes) {
+                if (!m.has(h)) m.set(h, String(name).trim());
+            }
+        }
+
+        return m;
+    }, [deviceContacts]);
+
+
+    /* ---------------- aggregate server users by user id ---------------- */
+    const aggregatedUsersById = useMemo(() => {
+        const map = new Map();
+
+        for (const sm of serverMatches || []) {
+            // sm.contactHash may be the hash that ties a device contact → this match
+            const smHash = sm?.contactHash || null;
+
+            for (const u of (sm.matchedUsers || [])) {
+                const uid = String(u._id || u.id || u.userId || u.user_id || (u.email || u.phone) || Math.random().toString(36));
+                const existing = map.get(uid) || { userId: uid, name: null, emails: new Set(), phones: new Set(), avatar: null, raw: [] };
+
+                if (u.email) existing.emails.add(String(u.email));
+                if (u.phone) existing.phones.add(String(u.phone));
+
+                // prefer any server-provided name first
+                existing.name = existing.name || u.name || u.fullName || u.displayName || null;
+
+                // if still no name, try to use device contact name via this sm contactHash
+                if (!existing.name && smHash && contactHashNameMap.has(smHash)) {
+                    existing.name = contactHashNameMap.get(smHash);
+                }
+
+                // As another fallback, also check any contactHashes already attached to this user raw object (if present)
+                // (some responses may include raw user-contact mappings)
+                if (!existing.name && Array.isArray(u.contactHashes)) {
+                    for (const ch of u.contactHashes) {
+                        if (ch && contactHashNameMap.has(ch)) {
+                            existing.name = contactHashNameMap.get(ch);
+                            break;
+                        }
+                    }
+                }
+
+                existing.avatar = existing.avatar || u.avatar || u.profilePic || null;
+                existing.raw.push({ fromHash: smHash, rawUser: u });
+                map.set(uid, existing);
+            }
+        }
+
+        // convert sets to arrays for easier use later
+        const out = new Map();
+        for (const [k, v] of map.entries()) {
+            out.set(k, {
+                userId: v.userId,
+                name: v.name,
+                emails: Array.from(v.emails),
+                phones: Array.from(v.phones),
+                avatar: v.avatar,
+                raw: v.raw,
+            });
+        }
+        return out;
+    }, [serverMatches, contactHashNameMap]);
 
 
     /* ---------------- build unified contact rows (with merging duplicates) ---------------- */
@@ -856,23 +856,48 @@ const aggregatedUsersById = useMemo(() => {
     const unifiedContacts = useMemo(buildUnifiedContacts, [deviceContacts, serverMatches, aggregatedUsersById]);
 
     /* ---------------- actions ---------------- */
+    /* ---------------- actions ---------------- */
     const handleSendFriendRequestToUser = async (contactRow) => {
         try {
-            let target = null;
+            // Figure out the best target + type in priority: userId → email → phone
+            let payload = null;
+
+            // 1) If we already have a platform user (aggregated)
             if (Array.isArray(contactRow.aggregatedUsers) && contactRow.aggregatedUsers.length > 0) {
                 const u = contactRow.aggregatedUsers[0];
-                target = (u.emails && u.emails[0]) || (u.phones && u.phones[0]) || null;
+                if (u?.id) {
+                    payload = { type: 'userId', value: u.id };
+                } else if (Array.isArray(u?.emails) && u.emails[0]) {
+                    payload = { type: 'email', value: u.emails[0] };
+                } else if (Array.isArray(u?.phones) && u.phones[0]) {
+                    payload = { type: 'phone', value: u.phones[0] };
+                }
             }
-            if (!target && Array.isArray(contactRow.emails) && contactRow.emails.length > 0) target = contactRow.emails[0];
-            if (!target && Array.isArray(contactRow.phones) && contactRow.phones.length > 0) target = contactRow.phones[0];
-            if (!target) return Alert.alert('Unable to add', 'No contact info available to send request.');
-            await sendFriendRequest(target);
+
+            // 2) Fallback to raw contact emails
+            if (!payload && Array.isArray(contactRow.emails) && contactRow.emails.length > 0) {
+                payload = { type: 'email', value: contactRow.emails[0] };
+            }
+
+            // 3) Fallback to raw contact phones
+            if (!payload && Array.isArray(contactRow.phones) && contactRow.phones.length > 0) {
+                payload = { type: 'phone', value: contactRow.phones[0] };
+            }
+
+            if (!payload) {
+                return Alert.alert('Unable to add', 'No contact info available to send request.');
+            }
+
+            await sendFriendRequest(payload);
             await pullRequests();
             Alert.alert('Request sent', 'Friend request sent successfully.');
         } catch (e) {
             Alert.alert('Error', e?.message || 'Failed to send friend request');
         }
     };
+
+
+
 
     const handleInviteRow = async (contactRow) => {
         try {
@@ -1101,7 +1126,7 @@ const aggregatedUsersById = useMemo(() => {
                                         </TouchableOpacity>
                                     );
                                 }
-                                if(item?.aggregatedUsers[0]?.userId == user._id) return null
+                                if (item?.aggregatedUsers[0]?.userId == user._id) return null
                                 return (
                                     <View key={item.id} style={styles.reqRow}>
                                         <View style={{ flex: 1 }}>

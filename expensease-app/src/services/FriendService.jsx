@@ -2,13 +2,17 @@
 import { api } from "../utils/api";
 
 const BASE = "/v1/friends";
+const BASE2 = "/v2/friends";
 
 // List all friends
 export const getFriends = () => api.get(`${BASE}/`);
 
 // Send a friend request by email
-export const sendFriendRequest = (email) =>
-    api.post(`${BASE}/request`, { email });
+// Keep a single-argument API for clarity; still supports legacy signature.
+export const sendFriendRequest = (arg1) => {
+  let body = { type: arg1.type, value: arg1.value };
+  return api.post(`${BASE2}/request`, body);
+};
 
 // Accept an incoming friend request
 export const acceptFriendRequest = (requestId) =>

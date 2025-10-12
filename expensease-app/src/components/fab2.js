@@ -45,7 +45,7 @@ const makeStyles = (theme, size, left, bottom) =>
             shadowRadius: 8,
             shadowOffset: { width: 4, height: 4 },
             elevation: 6,
-            zIndex: 999
+            zIndex: 600
 
         },
         fabText: {},

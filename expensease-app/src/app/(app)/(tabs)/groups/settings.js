@@ -212,9 +212,9 @@ export default function GroupSettingsScreen() {
         }
     };
 
-    const addFriend = async (email) => {
+    const addFriend = async (id) => {
         try {
-            const res = await sendFriendRequest(email, userToken);
+            const res = await sendFriendRequest({type: 'userId', value: id});
             await fetchFriendsList();
             await fetchReqs();
             if (res?.message) Alert.alert("Success", res.message);
@@ -385,7 +385,7 @@ export default function GroupSettingsScreen() {
                                                 {!me && !friend ? (
                                                     <>
                                                         {!hasSent && !hasRecv ? (
-                                                            <TouchableOpacity onPress={() => addFriend(m.email)} style={styles.addFriendBtn}>
+                                                            <TouchableOpacity onPress={() => addFriend(m._id)} style={styles.addFriendBtn}>
                                                                 <Text style={styles.addFriendBtnText}>Add Friend</Text>
                                                             </TouchableOpacity>
                                                         ) : hasSent ? (
