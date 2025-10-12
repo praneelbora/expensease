@@ -124,13 +124,13 @@ export default function BottomSheetLayout({
       {/* Scroll area */}
       <BottomSheetScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: footerTotalHeight + insets.bottom }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: footerTotalHeight + insets.bottom, backgroundColor:theme?.colors?.background }}
       >
         {children}
       </BottomSheetScrollView>
 
       {/* Footer wrap */}
-      {!hideFooter && <View style={[styles.footerWrap, { height: footerTotalHeight, paddingBottom: footerPaddingBottom, borderTopColor: colors.border || "#333", backgroundColor: colors.card || "#1f1f1f" }]}>
+      {!hideFooter && <View style={[styles.footerWrap, { height: footerTotalHeight, paddingBottom: footerPaddingBottom, borderTopColor: colors.border || "#333", backgroundColor: colors.background || "#1f1f1f" }]}>
         {footerContent}
       </View>}
     </MainBottomSheet>
@@ -144,6 +144,7 @@ const createStyles = (c = {}) =>
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+      backgroundColor: c?.background,
       paddingHorizontal: 16,
       paddingBottom: 12,
       borderBottomWidth: 1,

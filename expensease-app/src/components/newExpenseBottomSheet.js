@@ -1443,6 +1443,10 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
         };
     }, [kbAnim]);
 
+    // at top (you already import Keyboard)
+    const dismissKb = () => {
+        try { Keyboard.dismiss(); } catch (_) { }
+    };
 
 
     return (
@@ -1659,7 +1663,11 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                     <TextInput placeholder="Description" placeholderTextColor={styles.colors.mutedFallback} value={desc} onChangeText={setDesc} style={styles.input} />
 
                                     <View style={{ flexDirection: "row", gap: 8 }}>
-                                        <TouchableOpacity onPress={openCurrencySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
+                                        <TouchableOpacity onPress={() => {
+                                            dismissKb();
+                                            openCurrencySheet();
+                                        }}
+                                            style={[styles.input, styles.btnLike, { flex: 1 }]}>
                                             <Text style={[styles.btnLikeText, currency ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{currency || "Currency"}</Text>
                                         </TouchableOpacity>
                                         <TextInput
@@ -1678,11 +1686,18 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                     </View>
 
                                     <View style={{ flexDirection: "row", gap: 8 }}>
-                                        <TouchableOpacity onPress={openCategorySheet} style={[styles.input, styles.btnLike, { flex: 1 }]}>
+                                        <TouchableOpacity onPress={() => {
+                                            dismissKb();
+                                            openCategorySheet()
+                                        }}
+                                            style={[styles.input, styles.btnLike, { flex: 1 }]}>
                                             <Text style={[styles.btnLikeText, selectedCategory || category ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>{selectedCategory || category || "Category"}</Text>
                                         </TouchableOpacity>
 
-                                        <TouchableOpacity onPress={() => setShowDatePicker(true)} style={[styles.input, { flex: 1, justifyContent: "center" }]} activeOpacity={0.7}>
+                                        <TouchableOpacity onPress={() => {
+                                            dismissKb();
+                                            setShowDatePicker(true)
+                                        }} style={[styles.input, { flex: 1, justifyContent: "center" }]} activeOpacity={0.7}>
                                             <Text style={expenseDate ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }}>
                                                 {expenseDate ? formatReadable(expenseDate) : "Select date"}
                                             </Text>
@@ -1701,7 +1716,11 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                     </View>
 
                                     {expenseMode === "personal" && (
-                                        <TouchableOpacity onPress={() => openPaymentSheet({ context: "personal" })} style={[styles.input, styles.btnLike]}>
+                                        <TouchableOpacity onPress={() => {
+                                            dismissKb();
+                                            openPaymentSheet({ context: "personal" })
+                                        }}
+                                            style={[styles.input, styles.btnLike]}>
                                             <Text style={[styles.btnLikeText, paymentMethod ? { color: styles.colors.textFallback } : { color: styles.colors.mutedFallback }]}>
                                                 {paymentMethod ? (paymentMethods.find((a) => a?._id === paymentMethod)?.label || "Payment Account") : "Payment Account"}
                                             </Text>
@@ -1711,11 +1730,13 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                     {expenseMode === "split" && desc && num(amount) > 0 && category ? (
                                         <>
 
-
                                             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                                                 {/* Paid by button */}
                                                 <TouchableOpacity
-                                                    onPress={() => setActiveTab("paid")}
+                                                    onPress={() => {
+                                                        dismissKb();
+                                                        setActiveTab("paid")
+                                                    }}
                                                     style={[
                                                         styles.summaryBtn,
                                                         activeTab === "paid" && styles.summaryBtnActive,
@@ -1738,7 +1759,10 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
 
                                                 {/* Split by button */}
                                                 <TouchableOpacity
-                                                    onPress={() => setActiveTab("owed")}
+                                                    onPress={() => {
+                                                        dismissKb();
+                                                        setActiveTab("owed")
+                                                    }}
                                                     style={[
                                                         styles.summaryBtn,
                                                         activeTab === "owed" && styles.summaryBtnActive,
@@ -1755,12 +1779,6 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                     </Text>
                                                 </TouchableOpacity>
                                             </View>
-
-
-
-
-
-
                                             {activeTab === "paid" ? (
                                                 <>
                                                     <Text style={styles.helperSmall}>(Select the people who paid.)</Text>
@@ -1837,10 +1855,9 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                             <Text style={[styles.helperMono, { color: styles.colors.mutedFallback }]}>{fmtMoney(currency, num(amount) - paidTotal)} left</Text>
                                                         </View>
                                                     ) : null}
+                                                    <View style={{ height: Math.max(kbHeight, 240) }} />
                                                 </>
                                             ) : null}
-
-
                                             {/* Owed by tab */}
                                             {activeTab === "owed" ? (
 
@@ -1966,6 +1983,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                                             </View>
                                                         </View>
                                                     ) : null}
+                                                    <View style={{ height: Math.max(kbHeight, 240) }} />
                                                 </>
                                             ) : null}
                                         </>
@@ -1983,8 +2001,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                         </View>
 
                         {/* Spacing at bottom so content can scroll above footer */}
-                        <View style={{ height: Math.max(kbHeight, 600) + 80 }} />
-                        <View style={{ height: Math.max(kbHeight, 120) }} />
+
                     </KeyboardAwareScrollView>
 
                     {/* Sheets (keep them here, outside the scrollable content) */}
@@ -2034,7 +2051,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                             position: "absolute",
                             left: 0,
                             right: 0,
-                            bottom: kbHeight > 0 ? 12 : 0,
+                            bottom: kbHeight > 0 ? 0 : 8,
                             paddingBottom: 12,
                             backgroundColor: theme?.colors?.background,
                             // move up by keyboard height smoothly: translateY = -kbAnim
@@ -2066,7 +2083,7 @@ const MainBottomSheet = ({ children, innerRef, selctedMode = "personal", onDismi
                                     </TouchableOpacity>
                                 </View>
 
-                                <View style={{ marginLeft: 12 }}>
+                                <View style={{ flexDirection: 'column', marginLeft: 12 }}>
                                     <VoiceInput initialValue={desc} locale="en-US" onParsed={handleVoiceParsed} token={userToken} />
                                 </View>
                             </View>

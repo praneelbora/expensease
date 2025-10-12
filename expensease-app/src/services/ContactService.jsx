@@ -144,9 +144,8 @@ export async function fetchAndHashContacts({
 
     const { data } = await Contacts.getContactsAsync({
         fields: [Contacts.Fields.Emails, Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
-        pageSize: 1000,
+        pageSize: 50000,
     });
-
     let results = [];
     let skipped = 0;
 
@@ -283,7 +282,6 @@ export async function uploadContactHashesBatched(hashes = [], opts = {}) {
   };
 
   const batches = chunkArray(uniq, batchSize);
-
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const aggregatedMatchesMap = new Map();
@@ -361,7 +359,6 @@ export async function uploadContactHashesBatched(hashes = [], opts = {}) {
   // prepare aggregated response
   const matches = Array.from(aggregatedMatchesMap.values());
   const matchedUsers = Array.from(aggregatedUsersMap.values());
-
   return {
     uploaded: totalUploaded,
     matches,

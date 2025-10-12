@@ -3,7 +3,7 @@ import React from "react";
 import { TouchableOpacity, View, Text, StyleSheet, Platform } from "react-native";
 import { useTheme } from "context/ThemeProvider";
 import { useAuth } from "context/AuthContext";
-import Plus from "@/accIcons/plus.svg";
+import Receipt from "@/accIcons/receipt.svg";
 
 const isIos = Platform.OS === 'ios';
 // Platform.Version is number on Android, string or number on iOS — normalize
@@ -22,7 +22,8 @@ export default function FAB({ onPress = () => { }, size = 54, left = 18, bottom 
     const styles = makeStyles(theme, size, left, bottom);
     return (
         <TouchableOpacity style={[styles.fab, { backgroundColor: theme.mode == 'light' ? '#fff' : '#3a3a3a' }]} onPress={onPress}>
-            <Text style={{ color: theme.mode == 'light' ? '#000' : '#fff', fontWeight: "700" }}>Scan Bill</Text>
+            <Receipt width={22} height={22} color={theme.mode == 'light' ? '#000' : '#fff'} />
+            <Text style={{ color: theme.mode == 'light' ? '#000' : '#fff', fontWeight: "700" }}>Scan Receipt</Text>
         </TouchableOpacity>
     );
 }
@@ -31,8 +32,8 @@ const makeStyles = (theme, size, left, bottom) =>
     StyleSheet.create({
         fab: {
             position: "absolute",
-            left: 16,
-            bottom: Platform.OS == 'ios' && !isIosLessThan26 ? 92 : 24,
+            right: 16,
+            bottom: Platform.OS == 'ios' && !isIosLessThan26 ? 92 + 54 : 24,
             borderRadius: 999,
             paddingHorizontal: 16,
             paddingVertical: 12,
@@ -43,7 +44,7 @@ const makeStyles = (theme, size, left, bottom) =>
             shadowOpacity: 0.36,
             shadowRadius: 8,
             shadowOffset: { width: 4, height: 4 },
-            elevation: 10,
+            elevation: 6,
             zIndex: 999
 
         },

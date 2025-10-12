@@ -673,7 +673,7 @@ function DashboardScreenInner() {
                                 </View>
                             )}
                             <CategoryDistribution expenses={expenses} defaultCurrenc={defaultCurrency} userId={userId} />
-                            <View style={{ height: 180, width: '100%' }} />
+                            <View style={{ height: 220, width: '100%' }} />
                         </>
                     )}
                 </ScrollView>
