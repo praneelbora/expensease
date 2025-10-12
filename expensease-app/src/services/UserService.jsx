@@ -306,41 +306,42 @@ export const verifyOTP = verifyOtp;
  * @returns {object} server body (should include { success, phone, user })
  * @throws {Error} with .status and .body fields for caller to inspect
  */
-export async function verifyPhoneLink(phoneNumber, code) {
+// services/UserService.js (or wherever verifyPhoneLink lives)
+export async function verifyPhoneLink(phoneNumber, code, opts = {}) {
   if (!phoneNumber) throw new Error("phoneNumber required");
   if (!code) throw new Error("code required");
 
-  try {
-    const body = await api.post(`${BASE_USERS}/verify-phone-link`, {
-      phoneNumber,
-      code,
-    });
+  const payload = {
+    phoneNumber,
+    code,
+    // target: 'primary' | 'secondary' (defaults to 'primary')
+    ...(opts?.target ? { target: String(opts.target) } : {}),
+  };
 
-    // If your api wrapper returns { error } on non-ok, check and throw here
+  try {
+    const body = await api.post(`${BASE_USERS}/verify-phone-link`, payload);
+
     if (body && body.error) {
       const err = new Error(body.error || "Phone verification failed");
       err.status = body.status || 400;
       err.body = body;
       throw err;
     }
-
     return body;
   } catch (err) {
-    // If underlying api throws an object-like error, normalize it so UI can handle
     if (err && err.response) {
-      // axios-like error
       const status = err.response.status;
       let parsed = null;
-      try { parsed = err.response.data; } catch (e) { parsed = null; }
+      try { parsed = err.response.data; } catch (_) { }
       const e2 = new Error(parsed?.error || parsed?.message || `Request failed (${status})`);
       e2.status = status;
       e2.body = parsed;
       throw e2;
     }
-    // generic error already
     throw err;
   }
 }
+
 
 
 

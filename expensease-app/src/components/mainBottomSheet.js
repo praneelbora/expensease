@@ -16,7 +16,7 @@ const MainBottomSheet = ({ children, innerRef, onDismiss, snapPoints = ["100%"],
     const { theme } = useTheme?.() || {};
     const colors = theme?.colors || {};
 
-    const backgroundColor = colors.card ?? "#212121";
+    const backgroundColor = colors.background ?? "#212121";
 
     return (
         <BottomSheetModal

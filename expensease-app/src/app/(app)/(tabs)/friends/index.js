@@ -31,7 +31,6 @@ import {
     fetchReceivedRequests,
     acceptFriendRequest,
     rejectFriendRequest,
-    sendFriendRequest,
 } from "services/FriendService";
 import { getAllExpenses } from "services/ExpenseService";
 import { getLoans } from "services/LoanService";

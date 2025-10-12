@@ -2,7 +2,7 @@
   "expo": {
     "name": "Expensease",
     "slug": "expensease",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "scheme": "expensease",
     "orientation": "portrait",
     "icon": "./assets/default/icon.png",
@@ -103,6 +103,12 @@
         {
           "microphonePermission": "Allow Expensease to access the microphone",
           "speechRecognitionPermission": "Allow Expensease to securely recognize user speech"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Expensease to access your photos to upload receipts."
         }
       ]
     ],

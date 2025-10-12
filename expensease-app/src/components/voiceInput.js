@@ -11,7 +11,11 @@ import {
     Platform,
     Modal,
     SafeAreaView,
-    Pressable
+    Pressable,
+    KeyboardAvoidingView,
+    Keyboard,
+    Animated,
+    Easing,
 } from "react-native";
 import Voice from "@react-native-voice/voice";
 import {
@@ -79,6 +83,41 @@ export default function VoiceInput({
 
     const [open, setOpen] = useState(false); // main modal open flag
 
+    // === keyboard animation state ===
+    const keyboardOffset = useRef(new Animated.Value(0)).current;
+    const animateTo = (toValue, duration = 200) => {
+        Animated.timing(keyboardOffset, {
+            toValue,
+            duration,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true, // translateY
+        }).start();
+    };
+
+    useEffect(() => {
+        // Use "will" events on iOS (smoother), "did" on Android
+        const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+        const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+        const onShow = (e) => {
+            const h = e?.endCoordinates?.height ?? 0;
+            // Shift up by keyboard height minus a small safe gap
+            const gap = 12;
+            animateTo(-1 * (h - gap), Platform.OS === "ios" ? e?.duration ?? 200 : 200);
+        };
+        const onHide = (e) => {
+            animateTo(0, Platform.OS === "ios" ? e?.duration ?? 180 : 180);
+        };
+
+        const subShow = Keyboard.addListener(showEvent, onShow);
+        const subHide = Keyboard.addListener(hideEvent, onHide);
+
+        return () => {
+            subShow?.remove?.();
+            subHide?.remove?.();
+        };
+    }, [keyboardOffset]);
+
     // --- Voice event bindings (same logic)
     useEffect(() => {
         Voice.onSpeechStart = () => setError(null);
@@ -101,39 +140,22 @@ export default function VoiceInput({
             setIsListening(false);
         };
 
-
         return () => {
-            // async cleanup wrapped in IIFE — so we can await stop before destroying native modules
             (async () => {
                 try {
-                    // 1) Stop recorder first (await to reduce race)
                     await stopAndReleaseIfRecording();
                 } catch (e) {
                     console.warn("Error stopping recorder during unmount (ignored):", e);
                 }
-
-                // 2) Clear timers/state
                 clearAllTimers();
-
-                // 3) Stop & remove voice listeners — these can touch native modules too
+                try { await Voice.stop(); } catch (_) { }
+                try { Voice.removeAllListeners(); } catch (_) { }
                 try {
-                    await Voice.stop(); // safe to try; may throw if native gone
-                } catch (_) { }
-
-                try {
-                    Voice.removeAllListeners();
-                } catch (_) { }
-
-                // 4) Finally destroy the Voice module (if desired)
-                try {
-                    // await Voice.destroy() if the API returns a promise
                     const maybePromise = Voice.destroy();
                     if (maybePromise && typeof maybePromise.then === "function") {
                         await maybePromise;
                     }
-                } catch (e) {
-                    // ignore errors here as well
-                }
+                } catch (e) { }
             })();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,74 +192,25 @@ export default function VoiceInput({
         }
     }
 
-    async function prepareAndStartRecorder() {
-        await setAudioModeAsync({
-            allowsRecording: true,
-            playsInSilentMode: true,
-        });
-        if (recorder && typeof recorder.prepareToRecordAsync === "function") {
-            await recorder.prepareToRecordAsync();
-        }
-        recordStartTsRef.current = Date.now();
-        setRemainingMs(MAX_RECORD_MS);
-
-        if (countdownIntervalRef.current) {
-            clearInterval(countdownIntervalRef.current);
-        }
-        countdownIntervalRef.current = setInterval(() => {
-            const elapsed = Date.now() - (recordStartTsRef.current || Date.now());
-            const rem = Math.max(MAX_RECORD_MS - elapsed, 0);
-            setRemainingMs(rem);
-        }, 200);
-
-        recordTimeoutRef.current = setTimeout(async () => {
-            try {
-                await stopListening();
-            } catch { }
-        }, MAX_RECORD_MS);
-
-        minDurationRef.current = setTimeout(() => {
-            minDurationRef.current = null;
-        }, MIN_RECORD_MS);
-
-        recorder.record();
-    }
-
-    // --- safe stop + release
     async function stopAndReleaseIfRecording() {
         try {
             if (!recorder) return null;
-
-            // Prefer checking recorderState first (cheap) but still guard the method
             const status = recorderState;
             if (status?.isRecording && recorder && typeof recorder.stop === "function") {
-                try {
-                    // stop may call into native code which might already be gone
-                    await recorder.stop();
-                } catch (innerErr) {
-                    // Expect native-shared-object errors here sometimes — log a friendly message but don't rethrow
+                try { await recorder.stop(); } catch (innerErr) {
                     console.warn("recorder.stop() threw (ignored):", innerErr?.message || innerErr);
                 }
             }
-
-            // If there's a stop-and-unload or unload method in your recorder API, call it here too:
             if (recorder && typeof recorder.unload === "function") {
-                try {
-                    await recorder.unload();
-                } catch (e) {
-                    // ignore; many implementations don't require unload
-                }
+                try { await recorder.unload(); } catch { }
             } else if (recorder && typeof recorder.stopAndUnloadAsync === "function") {
-                try {
-                    await recorder.stopAndUnloadAsync();
-                } catch (e) {
+                try { await recorder.stopAndUnloadAsync(); } catch (e) {
                     console.warn("stopAndUnloadAsync error (ignored):", e);
                 }
             }
 
             const uri = recorder?.uri ?? null;
 
-            // clear timers
             if (recordTimeoutRef.current) {
                 clearTimeout(recordTimeoutRef.current);
                 recordTimeoutRef.current = null;
@@ -246,10 +219,8 @@ export default function VoiceInput({
                 clearInterval(countdownIntervalRef.current);
                 countdownIntervalRef.current = null;
             }
-
             return uri;
         } catch (err) {
-            // defensive: log and return null
             console.warn("stopAndReleaseIfRecording error (final):", err?.message || err);
             return null;
         } finally {
@@ -266,7 +237,6 @@ export default function VoiceInput({
         }
     }
 
-
     async function startListening() {
         try {
             setError(null);
@@ -276,16 +246,11 @@ export default function VoiceInput({
             const ok = await ensureRecordingPermissions();
             if (!ok) return;
 
-            // show listening UI immediately so user doesn't feel a lag
             setIsListening(true);
 
-            // prepare audio mode / recorder concurrently but don't block starting voice recognition
             const preparePromise = (async () => {
                 try {
-                    await setAudioModeAsync({
-                        allowsRecording: true,
-                        playsInSilentMode: true,
-                    });
+                    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
                     if (recorder && typeof recorder.prepareToRecordAsync === "function") {
                         await recorder.prepareToRecordAsync();
                     }
@@ -294,51 +259,31 @@ export default function VoiceInput({
                 }
             })();
 
-            // start speech recognition ASAP (so user sees immediate activity)
-            try {
-                await Voice.start(locale);
-            } catch (vErr) {
+            try { await Voice.start(locale); } catch (vErr) {
                 console.warn("Voice.start error (non-fatal):", vErr);
             }
 
-            // once recorder is prepared (or after attempted prepare), start timer + recorder
-            try {
-                await preparePromise;
-            } catch (e) {
-                // already logged; continue to attempt to start recorder anyway
-            }
+            try { await preparePromise; } catch { }
 
-            // record start timestamp + countdown
             recordStartTsRef.current = Date.now();
             setRemainingMs(MAX_RECORD_MS);
 
-            if (countdownIntervalRef.current) {
-                clearInterval(countdownIntervalRef.current);
-            }
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
             countdownIntervalRef.current = setInterval(() => {
                 const elapsed = Date.now() - (recordStartTsRef.current || Date.now());
                 const rem = Math.max(MAX_RECORD_MS - elapsed, 0);
                 setRemainingMs(rem);
             }, 200);
 
-            if (recordTimeoutRef.current) {
-                clearTimeout(recordTimeoutRef.current);
-            }
+            if (recordTimeoutRef.current) clearTimeout(recordTimeoutRef.current);
             recordTimeoutRef.current = setTimeout(async () => {
-                try {
-                    await stopListening();
-                } catch { }
+                try { await stopListening(); } catch { }
             }, MAX_RECORD_MS);
 
-            if (minDurationRef.current) {
-                clearTimeout(minDurationRef.current);
-            }
-            minDurationRef.current = setTimeout(() => {
-                minDurationRef.current = null;
-            }, MIN_RECORD_MS);
+            if (minDurationRef.current) clearTimeout(minDurationRef.current);
+            minDurationRef.current = setTimeout(() => { minDurationRef.current = null; }, MIN_RECORD_MS);
 
             try {
-                // start actual recorder (best-effort)
                 if (recorder && typeof recorder.record === "function") {
                     recorder.record();
                 }
@@ -352,13 +297,10 @@ export default function VoiceInput({
         }
     }
 
-
     async function stopListening() {
         try {
             if (minDurationRef.current) return;
-            try {
-                await Voice.stop();
-            } catch { }
+            try { await Voice.stop(); } catch { }
             await stopAndReleaseIfRecording();
             setIsListening(false);
             clearAllTimers();
@@ -369,9 +311,7 @@ export default function VoiceInput({
     }
 
     async function cancelTranscript() {
-        try {
-            await stopListening();
-        } catch { }
+        try { await stopListening(); } catch { }
         setPartialTranscript("");
         setFinalTranscript("");
         setError(null);
@@ -388,9 +328,7 @@ export default function VoiceInput({
         setError(null);
 
         try {
-            try {
-                await stopListening();
-            } catch (err) {
+            try { await stopListening(); } catch (err) {
                 console.warn("failed to fully stop before send:", err);
             }
             await stopAndReleaseIfRecording();
@@ -419,18 +357,16 @@ export default function VoiceInput({
         }
     }
 
-    // compact display & control calculations
     const displayText = partialTranscript && !finalTranscript ? partialTranscript : finalTranscript;
     const hasNonEmptyText = !!(displayText && String(displayText).trim());
     const showCancel = isListening || hasNonEmptyText;
     const remainingSeconds = Math.ceil(remainingMs / 1000);
     const selectedLabel = supportedLocales?.find((l) => l.value === locale)?.label || locale;
 
-    // small styles
     const s = compactStyles(colors, { isListening, showCancel });
 
     return (
-        <SafeAreaView pointerEvents="box-none">
+        <View pointerEvents="box-none">
             {/* Floating mic button (initial view) */}
             <View style={s.floatingContainer} pointerEvents="box-none">
                 <TouchableOpacity
@@ -445,124 +381,129 @@ export default function VoiceInput({
 
             {/* Full modal with compact UI shown when user taps the mic */}
             <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-                {/* Pressable backdrop: tapping outside the card closes the modal */}
-                <Pressable style={s.modalBackdrop} onPress={() => { cancelTranscript(); setOpen(false); }}>
-                    {/* inner Pressable stops propagation so taps on the card do NOT close */}
-                    <Pressable onPress={() => { }} style={s.modalCard}>
-                        {/* Header: X (close) and BETA label */}
-                        <View style={s.modalHeader}>
-                            <TouchableOpacity onPress={() => { cancelTranscript(); setOpen(false); }} style={s.headerBtn}>
-                                <Feather name="x" size={20} color={colors.muted} />
-                            </TouchableOpacity>
-
-                            <Text style={s.modalTitleText}>Voice input</Text>
-
-                            {/* BETA label instead of send button */}
-                            <View style={s.headerBtn}>
-                                <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "700" }}>(Beta)</Text>
-                            </View>
-                        </View>
-
-                        {/* Catchy Explanation / micro-help */}
-                        <Text style={s.explainText}>
-                            Quick & hands-free — say something like: "200 to Ayaan for dinner". I'll automatically pick out the amount, who it's for, and what it's for so you can log expenses in a tap.
-                        </Text>
-
-                        {/* Transcript card with breathing room */}
-                        <View style={s.transcriptCardInner}>
-                            <View style={s.topRowInner}>
-                                <Text style={s.promptTextInner}>{promptLabel}</Text>
-                                <TouchableOpacity onPress={() => setLocaleOpen(true)} style={s.localeChipInner}>
-                                    <Text numberOfLines={1} style={s.localeTextInner}>{selectedLabel}</Text>
-                                    <Feather name="chevron-down" size={14} color={colors.muted} />
-                                </TouchableOpacity>
-                            </View>
-
-                            <TextInput
-                                multiline
-                                placeholder="Tap mic and speak..."
-                                placeholderTextColor={colors.muted}
-                                value={displayText}
-                                onChangeText={(txt) => {
-                                    setFinalTranscript(txt);
-                                    setPartialTranscript("");
-                                }}
-                                style={s.transcriptInputInner}
-                                editable={!loadingSend}
-                            />
-
-                            <View style={s.statusRowInner}>
-                                <Text style={s.statusTextInner}>{isListening ? `Recording • ${remainingSeconds}s` : hasNonEmptyText ? "Ready to send" : "Idle"}</Text>
-                                {loadingSend ? <ActivityIndicator size="small" color={colors.muted} /> : null}
-                            </View>
-
-                            {error ? <Text style={[s.errorTextInner, { color: colors.negative }]}>{error}</Text> : null}
-                        </View>
-
-                        {/* Controls placed outside the bordered transcript card so they "float" visually */}
-                        <View style={s.controlsOuterRow}>
-                            {showCancel ? (
-                                <TouchableOpacity onPress={cancelTranscript} style={s.iconBtnOuter} accessibilityLabel="Discard transcript">
-                                    <Feather name="x" size={18} color={colors.text} />
-                                </TouchableOpacity>
-                            ) : (
-                                <View style={s.iconBtnPlaceholderOuter} />
-                            )}
-
-                            <TouchableOpacity
-                                onPress={() => (isListening ? stopListening() : startListening())}
-                                activeOpacity={0.85}
-                                style={[s.micBtnOuter, isListening ? s.micBtnActiveOuter : null]}
-                                accessibilityLabel={isListening ? "Stop recording" : "Start recording"}
-                            >
-                                <Feather name={isListening ? "mic-off" : "mic"} size={24} color={colors.text} />
-                            </TouchableOpacity>
-
-                            {showCancel ? (
-                                <TouchableOpacity onPress={sendTranscript} style={s.iconBtnOuter} disabled={loadingSend} accessibilityLabel="Send transcript">
-                                    {loadingSend ? <ActivityIndicator size="small" color={colors.text} /> : <Feather name="check" size={18} color={colors.text} />}
-                                </TouchableOpacity>
-                            ) : (
-                                <View style={s.iconBtnPlaceholderOuter} />
-                            )}
-                        </View>
-
-                        {/* Locale picker modal inside main modal */}
-                        <Modal visible={localeOpen} transparent animationType="fade" onRequestClose={() => setLocaleOpen(false)}>
-                            <View style={s.modalBackdropInner}>
-                                <View style={[s.localeModalCard, { backgroundColor: colors.card }]}>
-                                    <Text style={[s.modalTitleSmall, { color: colors.text }]}>Language</Text>
-                                    <ScrollView style={{ maxHeight: 240 }}>
-                                        {supportedLocales.map((l) => {
-                                            const isSel = l.value === locale;
-                                            return (
-                                                <TouchableOpacity
-                                                    key={l.value}
-                                                    onPress={() => {
-                                                        setLocale(l.value);
-                                                        setLocaleOpen(false);
-                                                    }}
-                                                    style={[s.localeRowInner, isSel && s.localeRowSelInner]}
-                                                >
-                                                    <Text style={s.localeRowTextInner}>{l.label}</Text>
-                                                    {isSel ? <Feather name="check" size={16} color={colors.cta} /> : null}
-                                                </TouchableOpacity>
-                                            );
-                                        })}
-                                    </ScrollView>
-                                    <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 8 }}>
-                                        <TouchableOpacity onPress={() => setLocaleOpen(false)}>
-                                            <Text style={{ color: colors.muted }}>Close</Text>
-                                        </TouchableOpacity>
+                {/* KeyboardAvoidingView shifts the whole sheet safely */}
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === "ios" ? "padding" : "height"}
+                    style={{ flex: 1 }}
+                    keyboardVerticalOffset={Platform.select({ ios: 0, android: 0 })}
+                >
+                    {/* Pressable backdrop: tapping outside the card closes the modal */}
+                    <Pressable style={s.modalBackdrop} onPress={() => { cancelTranscript(); setOpen(false); }}>
+                        {/* inner Pressable stops propagation so taps on the card do NOT close */}
+                        <Pressable onPress={() => { }} style={{ width: "100%" }}>
+                            {/* Animated card: translateY with keyboard */}
+                            <Animated.View style={[s.modalCard]}>
+                                {/* Header */}
+                                <View style={s.modalHeader}>
+                                    <TouchableOpacity onPress={() => { cancelTranscript(); setOpen(false); }} style={s.headerBtn}>
+                                        <Feather name="x" size={20} color={colors.muted} />
+                                    </TouchableOpacity>
+                                    <Text style={s.modalTitleText}>Voice input</Text>
+                                    <View style={s.headerBtn}>
+                                        <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "700" }}>(Beta)</Text>
                                     </View>
                                 </View>
-                            </View>
-                        </Modal>
 
+                                <Text style={s.explainText}>
+                                    Quick & hands-free — say something like: "200 to Ayaan for dinner". I'll automatically pick out the amount, who it's for, and what it's for so you can log expenses in a tap.
+                                </Text>
+
+                                {/* Transcript card */}
+                                <View style={s.transcriptCardInner}>
+                                    <View style={s.topRowInner}>
+                                        <Text style={s.promptTextInner}>{promptLabel}</Text>
+                                        <TouchableOpacity onPress={() => setLocaleOpen(true)} style={s.localeChipInner}>
+                                            <Text numberOfLines={1} style={s.localeTextInner}>{selectedLabel}</Text>
+                                            <Feather name="chevron-down" size={14} color={colors.muted} />
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    <TextInput
+                                        multiline
+                                        placeholder="Tap mic and speak..."
+                                        placeholderTextColor={colors.muted}
+                                        value={displayText}
+                                        onChangeText={(txt) => {
+                                            setFinalTranscript(txt);
+                                            setPartialTranscript("");
+                                        }}
+                                        style={s.transcriptInputInner}
+                                        editable={!loadingSend}
+                                    />
+
+                                    <View style={s.statusRowInner}>
+                                        <Text style={s.statusTextInner}>{isListening ? `Recording • ${remainingSeconds}s` : hasNonEmptyText ? "Ready to send" : "Idle"}</Text>
+                                        {loadingSend ? <ActivityIndicator size="small" color={colors.muted} /> : null}
+                                    </View>
+
+                                    {error ? <Text style={[s.errorTextInner, { color: colors.negative }]}>{error}</Text> : null}
+                                </View>
+
+                                {/* Controls */}
+                                <View style={s.controlsOuterRow}>
+                                    {showCancel ? (
+                                        <TouchableOpacity onPress={cancelTranscript} style={s.iconBtnOuter} accessibilityLabel="Discard transcript">
+                                            <Feather name="x" size={18} color={colors.text} />
+                                        </TouchableOpacity>
+                                    ) : (
+                                        <View style={s.iconBtnPlaceholderOuter} />
+                                    )}
+
+                                    <TouchableOpacity
+                                        onPress={() => (isListening ? stopListening() : startListening())}
+                                        activeOpacity={0.85}
+                                        style={[s.micBtnOuter, isListening ? s.micBtnActiveOuter : null]}
+                                        accessibilityLabel={isListening ? "Stop recording" : "Start recording"}
+                                    >
+                                        <Feather name={isListening ? "mic-off" : "mic"} size={24} color={colors.text} />
+                                    </TouchableOpacity>
+
+                                    {showCancel ? (
+                                        <TouchableOpacity onPress={sendTranscript} style={s.iconBtnOuter} disabled={loadingSend} accessibilityLabel="Send transcript">
+                                            {loadingSend ? <ActivityIndicator size="small" color={colors.text} /> : <Feather name="check" size={18} color={colors.text} />}
+                                        </TouchableOpacity>
+                                    ) : (
+                                        <View style={s.iconBtnPlaceholderOuter} />
+                                    )}
+                                </View>
+
+                                {/* Locale picker modal inside main modal */}
+                                <Modal visible={localeOpen} transparent animationType="fade" onRequestClose={() => setLocaleOpen(false)}>
+                                    <View style={s.modalBackdropInner}>
+                                        <View style={[s.localeModalCard, { backgroundColor: colors.card }]}>
+                                            <Text style={[s.modalTitleSmall, { color: colors.text }]}>Language</Text>
+                                            <ScrollView style={{ maxHeight: 240 }}>
+                                                {supportedLocales.map((l) => {
+                                                    const isSel = l.value === locale;
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={l.value}
+                                                            onPress={() => {
+                                                                setLocale(l.value);
+                                                                setLocaleOpen(false);
+                                                            }}
+                                                            style={[s.localeRowInner, isSel && s.localeRowSelInner]}
+                                                        >
+                                                            <Text style={s.localeRowTextInner}>{l.label}</Text>
+                                                            {isSel ? <Feather name="check" size={16} color={colors.cta} /> : null}
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </ScrollView>
+                                            <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 8 }}>
+                                                <TouchableOpacity onPress={() => setLocaleOpen(false)}>
+                                                    <Text style={{ color: colors.muted }}>Close</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    </View>
+                                </Modal>
+                            </Animated.View>
+                        </Pressable>
                     </Pressable>
-                </Pressable>
+                </KeyboardAvoidingView>
             </Modal>
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -656,7 +597,7 @@ const compactStyles = (colors, opts = {}) =>
         statusRowInner: { marginTop: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
         statusTextInner: { color: colors.muted, fontSize: 13 },
 
-        /* Controls outside transcript box */
+        /* Controls */
         controlsOuterRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 4 },
         micBtnOuter: {
             width: 72,

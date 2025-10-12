@@ -7,7 +7,7 @@ const BASE2 = "/v2/expenses";
 // Create
 export const createExpense = async (expenseData) => {
     // apiClient handles token + JSON + errors
-    return api.post(`${BASE}`, expenseData);
+    return api.post(`${BASE2}`, expenseData);
 };
 
 // Delete
