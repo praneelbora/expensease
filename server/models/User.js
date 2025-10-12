@@ -66,6 +66,7 @@ const userSchema = new mongoose.Schema({
   appleEmail: { type: String, unique: true, sparse: true, trim: true, default: undefined },
   appleId: { type: String, unique: true, sparse: true, trim: true, default: undefined },
   phone: { type: String, unique: true, sparse: true, trim: true, default: undefined },
+  secondaryPhone: { type: String, unique: true, sparse: true, trim: true, default: undefined },
   friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   customCategories: [
     { name: String, emoji: String }

@@ -15,6 +15,7 @@ const images = require('./routes/v1/images');
 
 const expenses2 = require('./routes/v2/expenses');
 const contacts2 = require('./routes/v2/contacts');
+const friends2 = require('./routes/v2/friends');
 
 const app = express();
 app.use(cors());
@@ -44,6 +45,7 @@ app.use('/api/v1/image', images);
 
 app.use('/api/v2/expenses', expenses2);
 app.use('/api/v2/contacts', contacts2);
+app.use('/api/v2/friends', friends2);
 module.exports = app;
 // const PORT = process.env.PORT || 3000;
 // app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

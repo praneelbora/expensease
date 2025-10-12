@@ -277,7 +277,7 @@ router.post("/apple-login", async (req, res) => {
 
         // Return user with a sane email field (prefer user.email, fallback to user.appleEmail)
         const returnedEmail = user.email || user.appleEmail || null;
-
+        ensureUserHashes(user._id)
         return res.status(200).json({
             responseBody: { "x-auth-token": authToken },
             user: { id: user._id, name: user.name, email: returnedEmail, picture: user.picture },
@@ -288,6 +288,109 @@ router.post("/apple-login", async (req, res) => {
         return res.status(500).json({ error: "Apple login failed", detail: String(err?.message || err) });
     }
 });
+// helper: normalize email and phone (reuse your existing helpers if present)
+const normalizeEmailServer = (email) => {
+    if (!email || typeof email !== 'string') return null;
+    return email.trim().toLowerCase();
+};
+
+let parsePhoneNumberFromString = null;
+try {
+    // optional dependency; fallback will be used if missing
+    parsePhoneNumberFromString = require('libphonenumber-js').parsePhoneNumberFromString;
+} catch (e) {
+    parsePhoneNumberFromString = null;
+}
+
+const normalizePhoneServer = (raw, defaultCtry = 'IN') => {
+    if (!raw || typeof raw !== 'string') return null;
+    try {
+        if (parsePhoneNumberFromString) {
+            const pn = parsePhoneNumberFromString(raw, defaultCtry);
+            if (pn && typeof pn.isValid === 'function' ? pn.isValid() : true) {
+                if (pn && pn.number) return pn.number; // E.164
+            }
+        }
+    } catch (e) {
+        // fallback
+    }
+    const digits = String(raw).replace(/\D+/g, '');
+    if (digits.length >= 8) return `+${digits}`;
+    return null;
+};
+
+// hashing (use same SALT as rest of code)
+const SALT = process.env.CONTACT_HASH_KEY || '';
+const hashServer = (val) => {
+    if (!val) return null;
+    return crypto.createHash('sha256').update(SALT + val).digest('hex');
+};
+
+/**
+ * ensureUserHashes(userId)
+ * - computes normalized hashes for this user's phone/email
+ * - adds them to phoneHashes/emailHashes with $addToSet if missing
+ * - safe: idempotent, logs failures but does not throw unhandled rejection
+ */
+async function ensureUserHashes(userId, opts = {}) {
+    if (!userId) return;
+    const defaultCountry = (opts.defaultCountry || process.env.DEFAULT_COUNTRY || 'IN').toString();
+
+    try {
+        // load minimal user doc
+        const u = await User.findById(userId).select('phone email phoneHashes emailHashes').lean();
+        if (!u) {
+            console.info(`ensureUserHashes: user ${userId} not found`);
+            return;
+        }
+
+        const addToSet = {};
+        // phone
+        if (u.phone) {
+            const normalizedPhone = normalizePhoneServer(String(u.phone), defaultCountry);
+            if (normalizedPhone) {
+                const phash = hashServer(normalizedPhone);
+                if (!Array.isArray(u.phoneHashes) || !u.phoneHashes.includes(phash)) {
+                    addToSet.phoneHashes = phash;
+                }
+            } else {
+                console.info(`ensureUserHashes: user ${userId} phone could not be normalized: ${String(u.phone).slice(0, 60)}`);
+            }
+        }
+
+        // email
+        if (u.email) {
+            const normalizedEmail = normalizeEmailServer(u.email);
+            if (normalizedEmail) {
+                const ehash = hashServer(normalizedEmail);
+                if (!Array.isArray(u.emailHashes) || !u.emailHashes.includes(ehash)) {
+                    addToSet.emailHashes = ehash;
+                }
+            } else {
+                console.info(`ensureUserHashes: user ${userId} email could not be normalized: ${String(u.email).slice(0, 120)}`);
+            }
+        }
+
+        if (Object.keys(addToSet).length === 0) {
+            // nothing to do
+            if (process.env.NODE_ENV !== 'production') {
+                console.info(`ensureUserHashes: user ${userId} - no hashes to add`);
+            }
+            return;
+        }
+
+        // perform single atomic update using $addToSet (idempotent)
+        const update = { $addToSet: {} };
+        if (addToSet.phoneHashes) update.$addToSet.phoneHashes = addToSet.phoneHashes;
+        if (addToSet.emailHashes) update.$addToSet.emailHashes = addToSet.emailHashes;
+
+        await User.updateOne({ _id: userId }, update).exec();
+        console.info(`ensureUserHashes: user ${userId} - added fields: ${Object.keys(addToSet).join(',')}`);
+    } catch (err) {
+        // never rethrow - we intentionally do not block the main request
+        console.warn(`ensureUserHashes: user ${userId} - error ensuring hashes:`, err?.message || err);
+    }
+}
 
 
 // // 👤 Authenticated User Info
@@ -295,6 +398,7 @@ router.get('/', auth, async (req, res) => {
     try {
         const user = await User.findById(req.user.id)
         res.json(user);
+        ensureUserHashes(user._id)
     } catch (error) {
         console.error('/ GET user error:', error);
         res.status(500).json({ error: 'Failed to fetch user' });
@@ -418,7 +522,7 @@ router.post("/google-login", async (req, res) => {
 
         // --- Issue JWT ---
         const authToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "100d" });
-
+        ensureUserHashes(user._id)
         res.status(200).json({
             responseBody: { "x-auth-token": authToken },
             user: { id: user._id, name: user.name, email: user.email, picture: user.picture },
@@ -743,7 +847,7 @@ router.patch('/profile', auth, async (req, res) => {
 
         console.log(new Date().toISOString(), 'INFO', routeTag, 'db update result: userId=' + user._id + ', updatedFields=' + Object.keys(update).join(','));
         console.log(new Date().toISOString(), 'INFO', routeTag, 'response', { status: 200, durationMs: Date.now() - start });
-
+        ensureUserHashes(user._id)
         // Build response (avoid exposing sensitive arrays like raw push token internals if you prefer)
         return res.json({
             user: {
@@ -1201,7 +1305,7 @@ router.post("/login", async (req, res) => {
         }
 
         const authToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "100d" });
-
+        ensureUserHashes(user._id)
         return res.status(200).json({
             responseBody: { "x-auth-token": authToken },
             user: { id: user._id, name: user.name, email: user.email, picture: user.picture },
@@ -1561,7 +1665,7 @@ router.post('/verifyOTP', async (req, res) => {
         // ---- JWT issue ----
         const jwtToken = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '100d' });
         console.log(userNew, userNew);
-
+        ensureUserHashes(user._id)
         return res.status(200).json({
             new: user?.name ? user?.name?.length == 0 ? true : userNew : true,
             responseBody: { 'x-auth-token': jwtToken },
@@ -1575,22 +1679,37 @@ router.post('/verifyOTP', async (req, res) => {
 
 
 // POST /v1/users/verify-phone-link
+// routes/users.js (or wherever your router is)
 router.post('/verify-phone-link', auth, async (req, res) => {
     try {
-        const phoneNumber = (req.body && (req.body.phoneNumber || req.body.phone)) ? String(req.body.phoneNumber || req.body.phone).trim() : null;
-        const code = req.body && (req.body.code || req.body.otp) ? String(req.body.code || req.body.otp).trim() : null;
+        const phoneNumber = (req.body && (req.body.phoneNumber || req.body.phone))
+            ? String(req.body.phoneNumber || req.body.phone).trim()
+            : null;
+        const code = req.body && (req.body.code || req.body.otp)
+            ? String(req.body.code || req.body.otp).trim()
+            : null;
+        const target = (req.body?.target === 'secondary') ? 'secondary' : 'primary'; // default primary
+
         if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber required' });
         if (!code) return res.status(400).json({ error: 'code (OTP) required' });
 
-        console.log('[verify-phone-link] incoming phone:', phoneNumber, 'otp:', code);
+        console.log('[verify-phone-link] incoming phone:', phoneNumber, 'otp:', code, 'target:', target);
+
+        const normalizedPhone = normalizePhone(phoneNumber); // implement/keep your existing normalizer
+        if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phone number' });
 
         // DEV bypass (optional)
-        const normalizedPhone = normalizePhone(phoneNumber);
         if (DEV_BYPASS_PHONES.has(normalizedPhone)) {
-            console.log('[verify-phone-link] dev bypass - attaching phone', normalizedPhone, 'to user', req.user.id);
-            await User.findByIdAndUpdate(req.user.id, { $set: { phone: normalizedPhone } }, { new: true });
+            const fieldKey = (target === 'secondary') ? 'secondaryPhone' : 'phone';
+            console.log('[verify-phone-link] dev bypass - attaching', fieldKey, normalizedPhone, 'to user', req.user.id);
+            const update = { $set: { [fieldKey]: normalizedPhone } };
+            await User.findByIdAndUpdate(req.user.id, update, { new: true });
             const fresh = await User.findById(req.user.id).lean();
-            return res.status(200).json({ success: true, phone: normalizedPhone, user: { id: fresh._id, phone: fresh.phone } });
+            return res.status(200).json({
+                success: true,
+                phone: normalizedPhone,
+                user: { id: fresh._id, phone: fresh.phone, secondaryPhone: fresh.secondaryPhone }
+            });
         }
 
         const MSG_AUTH = process.env.MSG_AUTHKEY;
@@ -1615,7 +1734,6 @@ router.post('/verify-phone-link', auth, async (req, res) => {
                 path: urlObj.pathname + urlObj.search,
                 headers: { authkey: MSG_AUTH },
             };
-
             const r = https.request(options, (gRes) => {
                 const chunks = [];
                 gRes.on('data', (c) => chunks.push(c));
@@ -1629,44 +1747,50 @@ router.post('/verify-phone-link', auth, async (req, res) => {
                     } catch (e) { reject(e); }
                 });
             });
-
             r.on('error', (err) => reject(err));
             r.end();
         });
 
         console.log('[verify-phone-link] gateway response:', JSON.stringify(gatewayResponse).slice(0, 2000));
-
         const gw = gatewayResponse.body;
         if (!gw || gw.type !== 'success') {
             console.warn('[verify-phone-link] gateway rejected OTP', gw);
             return res.status(400).json({ error: 'OTP verification failed', detail: gw });
         }
 
-        // Normalize phone and double-check collisions.
         const phoneNormalized = normalizedPhone;
-        console.log('[verify-phone-link] normalized phone:', phoneNormalized);
+        const fieldKey = (target === 'secondary') ? 'secondaryPhone' : 'phone';
+        console.log('[verify-phone-link] normalized phone:', phoneNormalized, 'field:', fieldKey);
 
-        // Try transactional update (best) — if not available we fall back.
+        // ---------- Transactional path ----------
         let session = null;
         try {
             session = await mongoose.startSession();
             let resultUser = null;
 
             await session.withTransaction(async () => {
-                console.log('[verify-phone-link] running transaction check/update');
+                console.log('[verify-phone-link] transaction check/update target:', fieldKey);
 
-                // re-check for existing phone under the same session
-                const existing = await User.findOne({ phone: phoneNormalized }).session(session).lean();
+                // Check collisions on ANY user's phone OR secondaryPhone
+                const existing = await User.findOne({
+                    $or: [{ phone: phoneNormalized }, { secondaryPhone: phoneNormalized }],
+                }).session(session).lean();
+
                 if (existing && String(existing._id) !== String(req.user.id)) {
                     const err = new Error('Phone number already linked with another account.');
                     err.status = 409;
-                    throw err; // abort transaction
+                    throw err; // abort
                 }
 
-                // update the current user record inside session
+                // Build update object
+                const update = { $set: { [fieldKey]: phoneNormalized } };
+
+                // If changing primary via this route you may decide to forbid; we allow only when fieldKey === 'phone' and was empty.
+                // If you want to restrict primary changes, add a guard: read current user and ensure phone is empty before $set.
+
                 resultUser = await User.findOneAndUpdate(
                     { _id: req.user.id },
-                    { $set: { phone: phoneNormalized } },
+                    update,
                     { new: true, session, useFindAndModify: false }
                 );
 
@@ -1677,77 +1801,77 @@ router.post('/verify-phone-link', auth, async (req, res) => {
                 }
             });
 
-            // transaction committed
-            console.log('[verify-phone-link] transaction committed, resultUser id:', resultUser?._id);
-            // read fresh doc (outside session) to be certain
+            console.log('[verify-phone-link] transaction committed for user:', req.user.id);
             const fresh = await User.findById(req.user.id).lean();
-            return res.status(200).json({ success: true, phone: phoneNormalized, user: { id: fresh._id, phone: fresh.phone } });
-        } catch (txErr) {
-            // handle our deliberate errors
-            if (txErr && txErr.status === 409) {
-                console.warn('[verify-phone-link] tx conflict:', txErr.message);
-                return res.status(409).json({ error: txErr.message });
-            }
-            if (txErr && txErr.status === 404) {
-                return res.status(404).json({ error: txErr.message });
-            }
 
-            // transactions might not be supported or committed; fall back
-            console.warn('[verify-phone-link] transaction failed/unavailable, falling back. err:', txErr?.message || txErr);
+            // optional: kick off any post-link tasks
+            try { await ensureUserHashes(req.user.id); } catch (e) { console.warn('ensureUserHashes error', e); }
+
+            return res.status(200).json({
+                success: true,
+                phone: phoneNormalized,
+                user: { id: fresh._id, phone: fresh.phone, secondaryPhone: fresh.secondaryPhone },
+            });
+        } catch (txErr) {
+            if (txErr && (txErr.status === 409 || txErr.status === 404)) {
+                console.warn('[verify-phone-link] tx error:', txErr.message);
+                return res.status(txErr.status).json({ error: txErr.message });
+            }
+            console.warn('[verify-phone-link] transaction failed, fallback:', txErr?.message || txErr);
         } finally {
             if (session) {
                 try { session.endSession(); } catch (e) { console.warn('session end error', e); }
             }
         }
 
-        // ----------------- Fallback path -----------------
-        console.log('[verify-phone-link] fallback: checking existing phone (non-transactional)');
-        const existing = await User.findOne({ phone: phoneNormalized }).lean();
+        // ---------- Fallback (non-transactional) ----------
+        console.log('[verify-phone-link] fallback: checking existing phone/secondaryPhone');
+        const existing = await User.findOne({
+            $or: [{ phone: phoneNormalized }, { secondaryPhone: phoneNormalized }],
+        }).lean();
+
         if (existing && String(existing._id) !== String(req.user.id)) {
-            console.warn('[verify-phone-link] fallback conflict - phone already in use by', existing._id);
+            console.warn('[verify-phone-link] fallback conflict - already in use by', existing._id);
             return res.status(409).json({ error: 'Phone number already linked with another account.' });
         }
 
-        // Perform the update guardedly — then read the document back and return it.
         try {
-            console.log('[verify-phone-link] fallback update: findByIdAndUpdate', req.user.id);
-            const updated = await User.findByIdAndUpdate(req.user.id, { $set: { phone: phoneNormalized } }, { new: true, runValidators: true });
-            console.log('[verify-phone-link] fallback update result (may be null):', !!updated);
+            console.log('[verify-phone-link] fallback update field:', fieldKey);
+            const update = { $set: { [fieldKey]: phoneNormalized } };
+            await User.findByIdAndUpdate(req.user.id, update, { new: true, runValidators: true });
 
-            // Read fresh user doc to confirm
             const fresh = await User.findById(req.user.id).lean();
             if (!fresh) {
-                console.error('[verify-phone-link] user not found after update', req.user.id);
                 return res.status(404).json({ error: 'Authenticated user not found after update' });
             }
-
-            // If phone not present on fresh doc, then something went wrong with the write
-            if (!fresh.phone || String(fresh.phone) !== String(phoneNormalized)) {
-                console.error('[verify-phone-link] write seemingly succeeded but DB read does not show phone. fresh.phone:', fresh.phone);
+            if (String(fresh[fieldKey] || '') !== String(phoneNormalized)) {
                 return res.status(500).json({
                     error: 'Phone verification succeeded but attaching phone failed (DB read mismatch).',
-                    detail: { expected: phoneNormalized, got: fresh.phone },
+                    detail: { expected: phoneNormalized, got: fresh[fieldKey] },
                 });
             }
 
-            console.log('[verify-phone-link] SUCCESS - attached phone to user', req.user.id);
-            return res.status(200).json({ success: true, phone: phoneNormalized, user: { id: fresh._id, phone: fresh.phone } });
+            try { await ensureUserHashes(req.user.id); } catch (e) { console.warn('ensureUserHashes error', e); }
+
+            console.log('[verify-phone-link] SUCCESS fallback:', fieldKey, 'attached for', req.user.id);
+            return res.status(200).json({
+                success: true,
+                phone: phoneNormalized,
+                user: { id: fresh._id, phone: fresh.phone, secondaryPhone: fresh.secondaryPhone },
+            });
         } catch (updateErr) {
             console.error('[verify-phone-link] fallback update error:', updateErr);
 
-            // robust duplicate detection
             const isDup =
                 updateErr &&
                 (updateErr.code === 11000 ||
-                    (updateErr.codeName && updateErr.codeName === 'DuplicateKey') ||
-                    (String(updateErr?.errmsg || updateErr?.message || '').indexOf('E11000') !== -1) ||
-                    (updateErr.keyValue && updateErr.keyValue.phone));
+                    updateErr.codeName === 'DuplicateKey' ||
+                    (String(updateErr?.errmsg || updateErr?.message || '').includes('E11000')) ||
+                    (updateErr.keyValue && (updateErr.keyValue.phone || updateErr.keyValue.secondaryPhone)));
 
             if (isDup) {
-                console.warn('[verify-phone-link] duplicate-key race detected in fallback update');
                 return res.status(409).json({ error: 'Phone number already linked with another account (race condition).' });
             }
-
             return res.status(500).json({ error: 'Failed to attach phone', detail: String(updateErr?.message || updateErr) });
         }
     } catch (err) {
@@ -1755,6 +1879,7 @@ router.post('/verify-phone-link', auth, async (req, res) => {
         return res.status(500).json({ error: 'Server error', detail: String(err?.message || err) });
     }
 });
+
 
 
 // POST /v1/users/link-google
@@ -1833,7 +1958,7 @@ router.post('/link-google', auth, async (req, res) => {
         }
 
         const freshUser = await User.findById(currentUserId).lean();
-
+        ensureUserHashes(currentUserId)
         return res.status(200).json({
             success: true,
             user: {

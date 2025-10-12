@@ -6,18 +6,23 @@ const auth = require('../../middleware/auth');
 const ContactUpload = require('../../models/ContactUpload'); // path adjust if needed
 const User = require('../../models/User');
 
-const MAX_CONTACTS_PER_REQUEST = 1000; // client already caps; server enforces
+const crypto = require('crypto');
+const { parsePhoneNumberFromString } = require('libphonenumber-js');
+
+const MAX_CONTACTS_PER_REQUEST = 100000; // client already caps; server enforces
 const MAX_CONTACTS_PER_USER = 50000; // optional global cap per user (adjust if you want)
+// Logging control
+const LOG_DEBUG = !!process.env.CONTACTS_LOG_DEBUG; // set to '1' or 'true' for verbose logging
 
 // helper to safely build ObjectId (returns value if already ObjectId or null on invalid)
 const toObjectIdSafe = (v) => {
     if (!v) return null;
     if (mongoose.isValidObjectId(v)) {
-        // if it's already an ObjectId instance, return it; if string, create new ObjectId
         try {
             if (typeof v === 'object' && v._bsontype === 'ObjectID') return v;
             return new mongoose.Types.ObjectId(String(v));
         } catch (e) {
+            if (LOG_DEBUG) console.warn('toObjectIdSafe: invalid id conversion', v, e);
             return null;
         }
     }
@@ -43,24 +48,23 @@ function sanitizeContactsArray(raw) {
  * POST /v1/contacts/upload
  * Body: { contacts: [{ contactHash: '<hex>', type: 'phone'|'email' }, ...] }
  * Auth: required
- *
- * Behavior:
- * - Validate & dedupe incoming hashes
- * - Enforce per-request cap
- * - Bulk upsert into ContactUpload (owner + contactHash unique)
- * - Lookup matches in User collection by phoneHashes/emailHashes
- * - Return summary: uploaded count, matches: [{ contactHash, matchedUsers: [{_id, name, email, phone, avatar}] }]
  */
-// POST /upload
 router.post('/upload', auth, async (req, res) => {
+    const start = Date.now();
     try {
         const ownerId = req.user && req.user.id;
-        if (!ownerId) return res.status(401).json({ error: 'Unauthorized' });
+        if (!ownerId) {
+            console.warn('contacts/upload: unauthorized request');
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
 
         const rawContacts = req.body && req.body.contacts;
         const contacts = sanitizeContactsArray(rawContacts);
 
-        if (!contacts.length) return res.status(400).json({ error: 'No valid contacts in request' });
+        if (!contacts.length) {
+            console.info(`contacts/upload: user=${ownerId} - no valid contacts in request`);
+            return res.status(400).json({ error: 'No valid contacts in request' });
+        }
 
         // dedupe by contactHash
         const uniq = new Map();
@@ -70,14 +74,22 @@ router.post('/upload', auth, async (req, res) => {
         const deduped = Array.from(uniq.values());
 
         if (deduped.length > MAX_CONTACTS_PER_REQUEST) {
+            console.warn(`contacts/upload: user=${ownerId} - too many contacts (${deduped.length})`);
             return res.status(413).json({ error: `Too many contacts in a single request. Max ${MAX_CONTACTS_PER_REQUEST}` });
         }
 
         const ownerObjId = toObjectIdSafe(ownerId);
 
         // Optional: enforce a global cap per user (count existing + new <= MAX_CONTACTS_PER_USER)
-        const existingCount = await ContactUpload.countDocuments({ userId: ownerObjId }).catch(() => 0);
+        let existingCount = 0;
+        try {
+            existingCount = await ContactUpload.countDocuments({ userId: ownerObjId }).catch(() => 0);
+        } catch (e) {
+            console.warn('contacts/upload: countDocuments failed, proceeding with 0', e);
+            existingCount = 0;
+        }
         if (existingCount + deduped.length > MAX_CONTACTS_PER_USER) {
+            console.warn(`contacts/upload: user=${ownerId} - would exceed max contacts (have=${existingCount} adding=${deduped.length})`);
             return res.status(413).json({ error: 'Contact upload would exceed allowed storage for this account' });
         }
 
@@ -101,32 +113,33 @@ router.post('/upload', auth, async (req, res) => {
         }));
 
         if (bulkOps.length > 0) {
+            if (LOG_DEBUG) console.info(`contacts/upload: user=${ownerId} - bulk upsert ops=${bulkOps.length}`);
             await ContactUpload.bulkWrite(bulkOps);
+            if (LOG_DEBUG) console.info(`contacts/upload: user=${ownerId} - bulk upsert completed`);
         }
 
         // 2) Lookup matches in User collection
         const hashes = deduped.map((d) => d.contactHash);
 
-        // find users who have any of these hashes
+        if (LOG_DEBUG) console.info(`contacts/upload: user=${ownerId} - searching users for ${hashes.length} hashes`);
+
         const users = await User.find({
             $or: [{ phoneHashes: { $in: hashes } }, { emailHashes: { $in: hashes } }],
         })
-            .select('_id name email phone profilePic phoneHashes emailHashes') // minimal, safe fields
+            .select('_id name email phone profilePic phoneHashes emailHashes')
             .lean();
+
+        if (LOG_DEBUG) console.info(`contacts/upload: user=${ownerId} - found ${Array.isArray(users) ? users.length : 0} candidate users`);
 
         // 3) build mapping: contactHash -> [ { user, matchedBy: ['phone','email'] } ... ]
         const matchesMap = new Map(); // contactHash -> array of matches
-
-        // aggregated user map: userId -> { user, matchedBy:Set, matchedHashes:Set }
         const aggregatedUserMap = new Map();
 
         if (Array.isArray(users) && users.length) {
-            // create a quick map of users for faster access (optional)
             for (const u of users) {
                 const phoneHashes = Array.isArray(u.phoneHashes) ? u.phoneHashes : [];
                 const emailHashes = Array.isArray(u.emailHashes) ? u.emailHashes : [];
 
-                // iterate incoming hashes only (usually smaller)
                 for (const incomingHash of hashes) {
                     let matchedTypes = [];
 
@@ -135,7 +148,6 @@ router.post('/upload', auth, async (req, res) => {
 
                     if (matchedTypes.length === 0) continue;
 
-                    // push into matchesMap for this incomingHash
                     const arr = matchesMap.get(incomingHash) || [];
                     arr.push({
                         _id: u._id,
@@ -143,12 +155,11 @@ router.post('/upload', auth, async (req, res) => {
                         email: u.email || null,
                         phone: u.phone || null,
                         avatar: u.profilePic || null,
-                        matchedBy: matchedTypes, // one or both
-                        matchedHashes: [incomingHash], // which incoming hash caused this match
+                        matchedBy: matchedTypes,
+                        matchedHashes: [incomingHash],
                     });
                     matchesMap.set(incomingHash, arr);
 
-                    // update aggregated map for the user
                     const userKey = String(u._id);
                     if (!aggregatedUserMap.has(userKey)) {
                         aggregatedUserMap.set(userKey, {
@@ -184,10 +195,14 @@ router.post('/upload', auth, async (req, res) => {
         }
         if (matchBulk.length) {
             try {
+                if (LOG_DEBUG) console.info(`contacts/upload: user=${ownerId} - writing ${matchBulk.length} matchedUserId updates`);
                 await ContactUpload.bulkWrite(matchBulk);
+                if (LOG_DEBUG) console.info(`contacts/upload: user=${ownerId} - matchedUserId updates written`);
             } catch (e) {
                 console.warn('contacts: failed to write matchedUserId updates', e);
             }
+        } else {
+            if (LOG_DEBUG) console.info(`contacts/upload: user=${ownerId} - no matches to update in ContactUpload`);
         }
 
         // 5) Prepare response matches array (per incoming contact)
@@ -211,10 +226,13 @@ router.post('/upload', auth, async (req, res) => {
             matchedHashes: Array.from(ag.matchedHashes), // which incoming hashes matched this user
         }));
 
+        const durationMs = Date.now() - start;
+        console.info(`contacts/upload: user=${ownerId} - uploaded ${deduped.length} unique contacts, matchedUsers=${aggregatedMatchedUsers.length}, duration=${durationMs}ms`);
+
         return res.json({
             uploaded: deduped.length,
             matches: matches.filter((m) => Array.isArray(m.matchedUsers) && m.matchedUsers.length > 0),
-            matchedUsers: aggregatedMatchedUsers, // aggregated list (useful to know if same user matched multiple incoming hashes)
+            matchedUsers: aggregatedMatchedUsers,
             summary: {
                 totalReceived: contacts.length,
                 totalUnique: deduped.length,
@@ -234,12 +252,18 @@ router.post('/upload', auth, async (req, res) => {
  * Query: ?limit=50&skip=0
  */
 router.get('/', auth, async (req, res) => {
+    const start = Date.now();
     try {
         const ownerId = req.user && req.user.id;
-        if (!ownerId) return res.status(401).json({ error: 'Unauthorized' });
+        if (!ownerId) {
+            console.warn('contacts/list: unauthorized request');
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
 
-        const limit = Math.max(1, Math.min(1000, parseInt(req.query.limit || '100', 10)));
+        const limit = Math.max(1, Math.min(10000, parseInt(req.query.limit || '100', 10)));
         const skip = Math.max(0, parseInt(req.query.skip || '0', 10));
+
+        if (LOG_DEBUG) console.info(`contacts/list: user=${ownerId} - fetching skip=${skip} limit=${limit}`);
 
         const docs = await ContactUpload.find({ userId: ownerId })
             .sort({ createdAt: -1 })
@@ -247,6 +271,8 @@ router.get('/', auth, async (req, res) => {
             .limit(limit)
             .lean();
 
+        const durationMs = Date.now() - start;
+        console.info(`contacts/list: user=${ownerId} - returned ${docs.length} items in ${durationMs}ms`);
         return res.json({ count: docs.length, items: docs });
     } catch (err) {
         console.error('contacts/list error:', err);
@@ -259,11 +285,17 @@ router.get('/', auth, async (req, res) => {
  * Delete all uploaded contacts of the authenticated user (for GDPR / user-initiated deletion)
  */
 router.delete('/', auth, async (req, res) => {
+    const start = Date.now();
     try {
         const ownerId = req.user && req.user.id;
-        if (!ownerId) return res.status(401).json({ error: 'Unauthorized' });
+        if (!ownerId) {
+            console.warn('contacts/delete-all: unauthorized request');
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
 
-        await ContactUpload.deleteMany({ userId: ownerId });
+        const result = await ContactUpload.deleteMany({ userId: ownerId });
+        const durationMs = Date.now() - start;
+        console.info(`contacts/delete-all: user=${ownerId} - deletedCount=${result?.deletedCount ?? 0} duration=${durationMs}ms`);
         return res.status(204).send();
     } catch (err) {
         console.error('contacts/delete-all error:', err);
@@ -276,15 +308,27 @@ router.delete('/', auth, async (req, res) => {
  * Delete a single uploaded contact for the user
  */
 router.delete('/:contactHash', auth, async (req, res) => {
+    const start = Date.now();
     try {
         const ownerId = req.user && req.user.id;
-        if (!ownerId) return res.status(401).json({ error: 'Unauthorized' });
+        if (!ownerId) {
+            console.warn('contacts/delete: unauthorized request');
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
 
         const contactHash = (req.params.contactHash || '').toString().trim();
-        if (!contactHash) return res.status(400).json({ error: 'Missing contactHash' });
+        if (!contactHash) {
+            console.info(`contacts/delete: user=${ownerId} - missing contactHash`);
+            return res.status(400).json({ error: 'Missing contactHash' });
+        }
 
         const removed = await ContactUpload.deleteOne({ userId: ownerId, contactHash });
-        if (removed.deletedCount === 0) return res.status(404).json({ error: 'Not found' });
+        const durationMs = Date.now() - start;
+        if (removed.deletedCount === 0) {
+            console.info(`contacts/delete: user=${ownerId} - contactHash=${contactHash} not found (duration=${durationMs}ms)`);
+            return res.status(404).json({ error: 'Not found' });
+        }
+        console.info(`contacts/delete: user=${ownerId} - deleted contactHash=${contactHash} (duration=${durationMs}ms)`);
         return res.status(204).send();
     } catch (err) {
         console.error('contacts/delete error:', err);
@@ -292,9 +336,12 @@ router.delete('/:contactHash', auth, async (req, res) => {
     }
 });
 
-// requires at top of file (add if not already present)
-const crypto = require('crypto');
-const { parsePhoneNumberFromString } = require('libphonenumber-js');
+/*
+ * Below are helper methods / rehash routes (commented-out test routes kept as-is).
+ * They already had console.info/console.warn usage in the original file; keep that if you re-enable them.
+ * NOTE: If you enable heavy bulk operations in production, consider changing console.* to a structured logger.
+ */
+
 
 // server-side contact hashing route
 // POST /v1/contacts/rehash-users?limit=200&skip=0&defaultCountry=IN

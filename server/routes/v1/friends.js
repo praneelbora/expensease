@@ -76,6 +76,8 @@ const notify = {
 
 router.post('/request', auth, async (req, res) => {
     try {
+      console.log(req.body);
+      
         const { email } = req.body;
         const senderId = req.user.id;
 
