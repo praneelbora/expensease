@@ -329,7 +329,7 @@ export default function AccountScreen() {
                         </View>
                     </View>
                 </View>
-                {!updateInfo?.isNewUpdateAvailable ? (
+                {updateInfo?.isNewUpdateAvailable ? (
                     <TouchableOpacity
                         style={{
                             backgroundColor: theme.colors.primary,

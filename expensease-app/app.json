@@ -20,12 +20,10 @@
       "usesAppleSignIn": true,
       "icon": "./assets/default/ios/icon-ios-10241x.png",
       "associatedDomains": [
-        "applinks:expensease.in",
         "applinks:expensease.in"
       ],
       "infoPlist": {
         "UIBackgroundModes": [
-          "remote-notification",
           "remote-notification"
         ],
         "NSContactsUsageDescription": "We use your contacts to invite friends and find people you know in Expensease.",
