@@ -309,7 +309,6 @@ router.get('/', auth, async (req, res) => {
     try {
         const user = await User.findById(req.user.id)
             .populate('friends', '_id name email picture avatarId'); // only populate name and email fields of friends
-
         res.status(200).json(user.friends);
     } catch (error) {
         console.log('friends/ error: ', error);

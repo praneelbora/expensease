@@ -17,7 +17,7 @@ const PaymentMethodTxn = require("../../models/PaymentMethodTransaction");
 const Admin = require('../../models/Admin');
 const FriendRequest = require('../../models/FriendRequest');
 const jwkToPem = require("jwk-to-pem");
-
+const crypto = require('crypto');
 const { savePushTokenPublic, savePushTokenAuthed, savePushToken } = require("./controller.js");
 
 // --- DEV bypass config (place near other constants / requires) ---
@@ -162,6 +162,90 @@ async function verifyAppleIdentityToken(idToken) {
         throw new Error("Apple identity token verification failed: " + (err?.message || err));
     }
 }
+const SALT = process.env.CONTACT_HASH_KEY || '';
+const hashServer = (val) => {
+    if (!val) return null;
+    return crypto.createHash('sha256').update(SALT + val).digest('hex');
+};
+
+/**
+ * ensureUserHashes(userId)
+ * - computes normalized hashes for this user's phone/email
+ * - adds them to phoneHashes/emailHashes with $addToSet if missing
+ * - safe: idempotent, logs failures but does not throw unhandled rejection
+ */
+async function ensureUserHashes(userId, opts = {}) {
+    if (!userId) return;
+    const defaultCountry = (opts.defaultCountry || process.env.DEFAULT_COUNTRY || 'IN').toString();
+
+    try {
+        // load minimal user doc
+        const u = await User.findById(userId).select('phone email phoneHashes emailHashes').lean();
+        if (!u) {
+            console.info(`ensureUserHashes: user ${userId} not found`);
+            return;
+        }
+
+        const addToSet = {};
+        // phone
+        if (u.phone) {
+            const normalizedPhone = normalizePhoneServer(String(u.phone), defaultCountry);
+            if (normalizedPhone) {
+                const phash = hashServer(normalizedPhone);
+                if (!Array.isArray(u.phoneHashes) || !u.phoneHashes.includes(phash)) {
+                    addToSet.phoneHashes = phash;
+                }
+            } else {
+                console.info(`ensureUserHashes: user ${userId} phone could not be normalized: ${String(u.phone).slice(0, 60)}`);
+            }
+        }
+        // secondary
+        if (u.secondaryPhone) {
+            const normalizedPhone = normalizePhoneServer(String(u.secondaryPhone), defaultCountry);
+            if (normalizedPhone) {
+                const phash = hashServer(normalizedPhone);
+                if (!Array.isArray(u.phoneHashes) || !u.phoneHashes.includes(phash)) {
+                    addToSet.phoneHashes = phash;
+                }
+            } else {
+                console.info(`ensureUserHashes: user ${userId} phone could not be normalized: ${String(u.secondaryPhone).slice(0, 60)}`);
+            }
+        }
+
+        // email
+        if (u.email) {
+            const normalizedEmail = normalizeEmailServer(u.email);
+            if (normalizedEmail) {
+                const ehash = hashServer(normalizedEmail);
+                if (!Array.isArray(u.emailHashes) || !u.emailHashes.includes(ehash)) {
+                    addToSet.emailHashes = ehash;
+                }
+            } else {
+                console.info(`ensureUserHashes: user ${userId} email could not be normalized: ${String(u.email).slice(0, 120)}`);
+            }
+        }
+
+        if (Object.keys(addToSet).length === 0) {
+            // nothing to do
+            if (process.env.NODE_ENV !== 'production') {
+                console.info(`ensureUserHashes: user ${userId} - no hashes to add`);
+            }
+            return;
+        }
+
+        // perform single atomic update using $addToSet (idempotent)
+        const update = { $addToSet: {} };
+        if (addToSet.phoneHashes) update.$addToSet.phoneHashes = addToSet.phoneHashes;
+        if (addToSet.emailHashes) update.$addToSet.emailHashes = addToSet.emailHashes;
+
+        await User.updateOne({ _id: userId }, update).exec();
+        console.info(`ensureUserHashes: user ${userId} - added fields: ${Object.keys(addToSet).join(',')}`);
+    } catch (err) {
+        // never rethrow - we intentionally do not block the main request
+        console.warn(`ensureUserHashes: user ${userId} - error ensuring hashes:`, err?.message || err);
+    }
+}
+
 
 /* Apple login route */
 router.post("/apple-login", async (req, res) => {
@@ -319,78 +403,6 @@ const normalizePhoneServer = (raw, defaultCtry = 'IN') => {
     return null;
 };
 
-// hashing (use same SALT as rest of code)
-const SALT = process.env.CONTACT_HASH_KEY || '';
-const hashServer = (val) => {
-    if (!val) return null;
-    return crypto.createHash('sha256').update(SALT + val).digest('hex');
-};
-
-/**
- * ensureUserHashes(userId)
- * - computes normalized hashes for this user's phone/email
- * - adds them to phoneHashes/emailHashes with $addToSet if missing
- * - safe: idempotent, logs failures but does not throw unhandled rejection
- */
-async function ensureUserHashes(userId, opts = {}) {
-    if (!userId) return;
-    const defaultCountry = (opts.defaultCountry || process.env.DEFAULT_COUNTRY || 'IN').toString();
-
-    try {
-        // load minimal user doc
-        const u = await User.findById(userId).select('phone email phoneHashes emailHashes').lean();
-        if (!u) {
-            console.info(`ensureUserHashes: user ${userId} not found`);
-            return;
-        }
-
-        const addToSet = {};
-        // phone
-        if (u.phone) {
-            const normalizedPhone = normalizePhoneServer(String(u.phone), defaultCountry);
-            if (normalizedPhone) {
-                const phash = hashServer(normalizedPhone);
-                if (!Array.isArray(u.phoneHashes) || !u.phoneHashes.includes(phash)) {
-                    addToSet.phoneHashes = phash;
-                }
-            } else {
-                console.info(`ensureUserHashes: user ${userId} phone could not be normalized: ${String(u.phone).slice(0, 60)}`);
-            }
-        }
-
-        // email
-        if (u.email) {
-            const normalizedEmail = normalizeEmailServer(u.email);
-            if (normalizedEmail) {
-                const ehash = hashServer(normalizedEmail);
-                if (!Array.isArray(u.emailHashes) || !u.emailHashes.includes(ehash)) {
-                    addToSet.emailHashes = ehash;
-                }
-            } else {
-                console.info(`ensureUserHashes: user ${userId} email could not be normalized: ${String(u.email).slice(0, 120)}`);
-            }
-        }
-
-        if (Object.keys(addToSet).length === 0) {
-            // nothing to do
-            if (process.env.NODE_ENV !== 'production') {
-                console.info(`ensureUserHashes: user ${userId} - no hashes to add`);
-            }
-            return;
-        }
-
-        // perform single atomic update using $addToSet (idempotent)
-        const update = { $addToSet: {} };
-        if (addToSet.phoneHashes) update.$addToSet.phoneHashes = addToSet.phoneHashes;
-        if (addToSet.emailHashes) update.$addToSet.emailHashes = addToSet.emailHashes;
-
-        await User.updateOne({ _id: userId }, update).exec();
-        console.info(`ensureUserHashes: user ${userId} - added fields: ${Object.keys(addToSet).join(',')}`);
-    } catch (err) {
-        // never rethrow - we intentionally do not block the main request
-        console.warn(`ensureUserHashes: user ${userId} - error ensuring hashes:`, err?.message || err);
-    }
-}
 
 
 // // 👤 Authenticated User Info
@@ -874,57 +886,61 @@ router.patch('/profile', auth, async (req, res) => {
 
 
 
-router.delete('/me', auth, async (req, res) => {
+router.delete("/me", auth, async (req, res) => {
+    const userId = req.user.id;
     const session = await mongoose.startSession();
+
     try {
-        const userId = req.user.id;
-
         await session.withTransaction(async () => {
-            // 1) Collect this user's payment account IDs
-            const pmIds = await PaymentMethod
-                .find({ userId }, { _id: 1 })
-                .session(session)
-                .lean()
-                .then(rows => rows.map(r => r._id));
+            const now = new Date();
 
-            // 2) Delete PM transactions (journal)
-            if (pmIds.length) {
-                await PaymentMethodTxn.deleteMany(
-                    { userId, paymentMethodId: { $in: pmIds } },
-                    { session }
-                );
-            }
-
-            // 3) Delete payment accounts
-            await PaymentMethod.deleteMany({ userId }, { session });
-
-            // 4) Delete expenses created by the user
-            await Expense.deleteMany({ createdBy: userId }, { session });
-
-            // 5) Remove the user from any splits in other peoples' expenses
-            await Expense.updateMany(
-                { 'splits.friendId': userId },
-                { $pull: { splits: { friendId: userId } } },
+            // 1) Anonymize + soft-delete the user (NO hard delete)
+            await User.updateOne(
+                { _id: userId },
+                {
+                    $set: {
+                        isDeleted: true,
+                        deletedAt: now,
+                        name: "Deleted user",
+                        anonName: "Deleted user",
+                        avatarId: null,
+                        anonAvatarId: "deleted"
+                    },
+                    // Scrub PII/auth fields so nothing sensitive remains on the user doc
+                    $unset: {
+                        email: "",
+                        phone: "",
+                        appleEmail: "",
+                        appleId: "",
+                        googleId: "",
+                        upiId: "",
+                        secondaryPhone: "",
+                        password: "",
+                        googleId: "",
+                        // Any other tokens/ids you store directly on the user
+                    },
+                    // Wipe push token arrays (still leave the fields to match schema)
+                    $set: {
+                        "pushTokens.ios": [],
+                        "pushTokens.android": [],
+                        "emailHashes": [],
+                        "phoneHashes": [],
+                    }
+                },
                 { session }
             );
 
-            // 6) Remove the user from groups
-            await Group.updateMany(
-                { 'members._id': userId },
-                { $pull: { members: { _id: userId } } },
-                { session }
-            );
-            // (Optional) delete empty groups afterwards
-            await Group.deleteMany({ members: { $size: 0 } }, { session });
+            // 2) Do NOT touch groups or expenses (per your constraint)
+            //    - No Group.updateMany(...)
+            //    - No Expense.updateMany(...)
 
-            // 7) Delete friend requests involving this user (if model exists)
+            // 3) Optional: clean up friend requests that involve this user (pure hygiene)
             if (FriendRequest) {
                 await FriendRequest.deleteMany(
                     {
                         $or: [
                             { from: userId },
                             { to: userId },
-                            // common alt field names:
                             { requester: userId },
                             { recipient: userId }
                         ]
@@ -933,19 +949,20 @@ router.delete('/me', auth, async (req, res) => {
                 );
             }
 
-            // 8) Finally, delete the user
-            await User.deleteOne({ _id: userId }, { session });
+            // 5) Optional: invalidate sessions/refresh tokens/push tokens if stored in separate collections
+            // if (Session) await Session.deleteMany({ userId }, { session });
+            // if (DeviceToken) await DeviceToken.deleteMany({ userId }, { session });
         });
 
-        res.status(204).send(); // no content
+        // Return success; client should log out and clear local state
+        res.status(200).json({ success: true });
     } catch (err) {
-        console.error('Delete user error:', err);
-        res.status(500).json({ error: 'Failed to delete user' });
+        console.error("Account delete (soft) error:", err);
+        res.status(500).json({ error: "Server error" });
     } finally {
         session.endSession();
     }
 });
-
 
 
 const normalizeTopN = (topN) => Math.max(1, Math.min(50, Number(topN) || 5));

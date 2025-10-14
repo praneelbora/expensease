@@ -177,6 +177,12 @@ const userSchema = new mongoose.Schema({
     receipt_scan: { type: MeterSchema, default: () => ({ dailyLimit: 5,  monthlyLimit: 100 }) },
     voice:        { type: MeterSchema, default: () => ({ dailyLimit: 3,  monthlyLimit: 60  }) },
   },
+  // --- account deletion flags ---
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: { type: Date, default: null },
+  // Display-only fallbacks so old UIs/joins don’t break visually
+  anonName: { type: String },
+  anonAvatarId: { type: String },
 
 }, { timestamps: true });
 

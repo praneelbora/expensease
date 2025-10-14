@@ -11,6 +11,7 @@ const auth = require("../../middleware/auth");
 const PaymentMethod = require('../../models/PaymentMethod');
 const PaymentMethodTxn = require('../../models/PaymentMethodTransaction');
 const notif = require('./notifs'); // single-file notif helper (ensure path is correct)
+const ExcelJS = require('exceljs');
 
 // -------- currency helpers (minor units) ----------
 const CURRENCY_DECIMALS = {
@@ -143,41 +144,41 @@ async function creditBackPM({ pmId, userId, currency, amount, session, related }
    ------------------------- */
 // Keep titles short and bodies concise. data should be stable for client routing.
 const templates = {
-  splitExpenseCreated: ({ actorName, amount, currency, expenseId, groupId }) => ({
-    title: 'New split added',
-    body: `${actorName} added a split — ${amount} ${currency}`,
-    data: { type: 'expense_split_created', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, amount, currency, actorName }
-  }),
-  splitExpenseEdited: ({ actorName, expenseId, shortDesc, amount, currency, groupId }) => ({
-    title: 'Split updated',
-    body: `${actorName} updated: ${shortDesc || `${amount} ${currency}`}`,
-    data: { type: 'expense_split_updated', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, amount, currency, actorName }
-  }),
-  splitExpenseDeleted: ({ actorName, expenseId, shortDesc, groupId }) => ({
-    title: 'Split removed',
-    body: `${actorName} removed a split${shortDesc ? ` — ${shortDesc}` : ''}`,
-    data: { type: 'expense_split_deleted', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, actorName }
-  }),
-  groupExpenseCreated: ({ actorName, amount, currency, expenseId, groupId, groupName }) => ({
-    title: `${groupName}: new expense`,
-    body: `${actorName} added ${amount} ${currency}`,
-    data: { type: 'group_expense_created', expenseId: String(expenseId), groupId: String(groupId), groupName, amount, currency, actorName }
-  }),
-  groupExpenseEdited: ({ actorName, expenseId, groupId, groupName, shortDesc }) => ({
-    title: `${groupName}: expense updated`,
-    body: `${actorName} updated an expense${shortDesc ? ` — ${shortDesc}` : ''}`,
-    data: { type: 'group_expense_updated', expenseId: String(expenseId), groupId: String(groupId), groupName, actorName }
-  }),
-  groupExpenseDeleted: ({ actorName, expenseId, groupId, groupName, shortDesc }) => ({
-    title: `${groupName}: expense removed`,
-    body: `${actorName} deleted an expense${shortDesc ? ` — ${shortDesc}` : ''}`,
-    data: { type: 'group_expense_deleted', expenseId: String(expenseId), groupId: String(groupId), groupName, actorName }
-  }),
-  settlementCreated: ({ fromName, toName, amount, currency, expenseId, groupId=null }) => ({
-    title: 'Payment recorded',
-    body: `${fromName} settled ${amount} ${currency} with ${toName}`,
-    data: { type: 'settlement_created', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, amount, currency, fromName, toName }
-  })
+    splitExpenseCreated: ({ actorName, amount, currency, expenseId, groupId }) => ({
+        title: 'New split added',
+        body: `${actorName} added a split — ${amount} ${currency}`,
+        data: { type: 'expense_split_created', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, amount, currency, actorName }
+    }),
+    splitExpenseEdited: ({ actorName, expenseId, shortDesc, amount, currency, groupId }) => ({
+        title: 'Split updated',
+        body: `${actorName} updated: ${shortDesc || `${amount} ${currency}`}`,
+        data: { type: 'expense_split_updated', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, amount, currency, actorName }
+    }),
+    splitExpenseDeleted: ({ actorName, expenseId, shortDesc, groupId }) => ({
+        title: 'Split removed',
+        body: `${actorName} removed a split${shortDesc ? ` — ${shortDesc}` : ''}`,
+        data: { type: 'expense_split_deleted', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, actorName }
+    }),
+    groupExpenseCreated: ({ actorName, amount, currency, expenseId, groupId, groupName }) => ({
+        title: `${groupName}: new expense`,
+        body: `${actorName} added ${amount} ${currency}`,
+        data: { type: 'group_expense_created', expenseId: String(expenseId), groupId: String(groupId), groupName, amount, currency, actorName }
+    }),
+    groupExpenseEdited: ({ actorName, expenseId, groupId, groupName, shortDesc }) => ({
+        title: `${groupName}: expense updated`,
+        body: `${actorName} updated an expense${shortDesc ? ` — ${shortDesc}` : ''}`,
+        data: { type: 'group_expense_updated', expenseId: String(expenseId), groupId: String(groupId), groupName, actorName }
+    }),
+    groupExpenseDeleted: ({ actorName, expenseId, groupId, groupName, shortDesc }) => ({
+        title: `${groupName}: expense removed`,
+        body: `${actorName} deleted an expense${shortDesc ? ` — ${shortDesc}` : ''}`,
+        data: { type: 'group_expense_deleted', expenseId: String(expenseId), groupId: String(groupId), groupName, actorName }
+    }),
+    settlementCreated: ({ fromName, toName, amount, currency, expenseId, groupId = null }) => ({
+        title: 'Payment recorded',
+        body: `${fromName} settled ${amount} ${currency} with ${toName}`,
+        data: { type: 'settlement_created', expenseId: String(expenseId), groupId: groupId ? String(groupId) : null, amount, currency, fromName, toName }
+    })
 };
 
 /* -------------------------
@@ -186,28 +187,28 @@ const templates = {
 
 // Return array of userId strings deduped
 const recipientsFromSplits = (splits = []) => {
-  const s = new Set();
-  (splits || []).forEach(p => {
-    if (!p) return;
-    const fid = String(p.friendId?._id || p.friendId);
-    if (fid) s.add(fid);
-  });
-  return Array.from(s);
+    const s = new Set();
+    (splits || []).forEach(p => {
+        if (!p) return;
+        const fid = String(p.friendId?._id || p.friendId);
+        if (fid) s.add(fid);
+    });
+    return Array.from(s);
 };
 
 // If groupId present, fetch group members (returns array of ids)
 const groupMemberIds = async (groupId) => {
-  if (!groupId) return [];
-  const g = await Group.findById(groupId).select('members').lean();
-  if (!g || !Array.isArray(g.members)) return [];
-  return g.members.map(m => String(m));
+    if (!groupId) return [];
+    const g = await Group.findById(groupId).select('members').lean();
+    if (!g || !Array.isArray(g.members)) return [];
+    return g.members.map(m => String(m));
 };
 
 // remove actorId from recipients and dedupe
 const filterOutActor = (recips = [], actorId) => {
-  const s = new Set(recips || []);
-  s.delete(String(actorId));
-  return Array.from(s);
+    const s = new Set(recips || []);
+    s.delete(String(actorId));
+    return Array.from(s);
 };
 
 /* -------------------------
@@ -379,70 +380,70 @@ router.post('/', auth, async (req, res) => {
 
         // Build recipients & template depending on mode / group presence
         (async () => {
-          try {
-            const actor = me || await User.findById(req.user.id).select('name').lean();
-            const actorName = actor?.name || 'Someone';
+            try {
+                const actor = me || await User.findById(req.user.id).select('name').lean();
+                const actorName = actor?.name || 'Someone';
 
-            // recipients: splits participants
-            let recips = recipientsFromSplits(populated.splits);
+                // recipients: splits participants
+                let recips = recipientsFromSplits(populated.splits);
 
-            // if groupId present, also include group members (avoid spam by deduping)
-            if (populated.groupId) {
-              try {
-                const gm = await groupMemberIds(populated.groupId);
-                gm.forEach(id => recips.push(id));
-              } catch (e) {
-                // ignore group fetch errors; still proceed with splits recipients
-              }
+                // if groupId present, also include group members (avoid spam by deduping)
+                if (populated.groupId) {
+                    try {
+                        const gm = await groupMemberIds(populated.groupId);
+                        gm.forEach(id => recips.push(id));
+                    } catch (e) {
+                        // ignore group fetch errors; still proceed with splits recipients
+                    }
+                }
+
+                recips = filterOutActor(recips, req.user.id);
+
+                if (recips.length === 0) {
+                    // for personal mode you may want to notify the payer/receiver; default: do nothing
+                    // if you want to notify creator for personal mode, uncomment:
+                    // recips = [String(req.user.id)];
+                }
+
+                if (recips.length) {
+                    let payload;
+                    let category;
+                    let opts = { channel: 'push', fromFriendId: String(req.user.id), groupId: populated.groupId ? String(populated.groupId) : null };
+
+                    if (mode === 'split' && !populated.groupId) {
+                        category = 'split_expense';
+                        payload = templates.splitExpenseCreated({
+                            actorName,
+                            amount: populated.amount,
+                            currency: populated.currency,
+                            expenseId: populated._id,
+                            groupId: null
+                        });
+                    } else if (populated.groupId) {
+                        category = 'group_expense';
+                        const groupDoc = await Group.findById(populated.groupId).select('name').lean();
+                        payload = templates.groupExpenseCreated({
+                            actorName,
+                            amount: populated.amount,
+                            currency: populated.currency,
+                            expenseId: populated._id,
+                            groupId: populated.groupId,
+                            groupName: groupDoc?.name || 'Group'
+                        });
+                    } else {
+                        category = 'personal_expense_summaries';
+                        payload = {
+                            title: 'New expense added',
+                            body: `${actorName} added ${populated.amount} ${populated.currency}`,
+                            data: { type: 'expense_created', expenseId: String(populated._id), groupId: null, amount: populated.amount, currency: populated.currency, actorName }
+                        };
+                    }
+
+                    await notif.sendToUsers(recips, payload.title, payload.body, payload.data, category, opts);
+                }
+            } catch (e) {
+                console.error('Expense notification failed:', e);
             }
-
-            recips = filterOutActor(recips, req.user.id);
-
-            if (recips.length === 0) {
-              // for personal mode you may want to notify the payer/receiver; default: do nothing
-              // if you want to notify creator for personal mode, uncomment:
-              // recips = [String(req.user.id)];
-            }
-
-            if (recips.length) {
-              let payload;
-              let category;
-              let opts = { channel: 'push', fromFriendId: String(req.user.id), groupId: populated.groupId ? String(populated.groupId) : null };
-
-              if (mode === 'split' && !populated.groupId) {
-                category = 'split_expense';
-                payload = templates.splitExpenseCreated({
-                  actorName,
-                  amount: populated.amount,
-                  currency: populated.currency,
-                  expenseId: populated._id,
-                  groupId: null
-                });
-              } else if (populated.groupId) {
-                category = 'group_expense';
-                const groupDoc = await Group.findById(populated.groupId).select('name').lean();
-                payload = templates.groupExpenseCreated({
-                  actorName,
-                  amount: populated.amount,
-                  currency: populated.currency,
-                  expenseId: populated._id,
-                  groupId: populated.groupId,
-                  groupName: groupDoc?.name || 'Group'
-                });
-              } else {
-                category = 'personal_expense_summaries';
-                payload = {
-                  title: 'New expense added',
-                  body: `${actorName} added ${populated.amount} ${populated.currency}`,
-                  data: { type: 'expense_created', expenseId: String(populated._id), groupId: null, amount: populated.amount, currency: populated.currency, actorName }
-                };
-              }
-
-              await notif.sendToUsers(recips, payload.title, payload.body, payload.data, category, opts);
-            }
-          } catch (e) {
-            console.error('Expense notification failed:', e);
-          }
         })();
 
         return res.status(201).json(populated);
@@ -583,19 +584,19 @@ router.post('/settle', auth, async (req, res) => {
             );
         }
         (async () => {
-          try {
-            const fromUser = await User.findById(fromUserId).select('name').lean();
-            const toUser = await User.findById(toUserId).select('name').lean();
-            const title = 'Payment recorded';
-            const msg = `${fromUser?.name || 'Someone'} settled ${amount} ${currency} with ${toUser?.name || 'someone'}.`;
-            const data = { type: 'settlement', expenseId: String(settleExpense._id), groupId: groupId || null, amount, currency };
-            const category = groupId ? 'group_settlement' : 'friend_settlement';
-            const opts = { channel: 'push', fromFriendId: String(fromUserId), groupId: groupId ? String(groupId) : null };
+            try {
+                const fromUser = await User.findById(fromUserId).select('name').lean();
+                const toUser = await User.findById(toUserId).select('name').lean();
+                const title = 'Payment recorded';
+                const msg = `${fromUser?.name || 'Someone'} settled ${amount} ${currency} with ${toUser?.name || 'someone'}.`;
+                const data = { type: 'settlement', expenseId: String(settleExpense._id), groupId: groupId || null, amount, currency };
+                const category = groupId ? 'group_settlement' : 'friend_settlement';
+                const opts = { channel: 'push', fromFriendId: String(fromUserId), groupId: groupId ? String(groupId) : null };
 
-            await notif.sendToUsers([String(fromUserId), String(toUserId)], title, msg, data, category, opts);
-          } catch (e) {
-            console.error('Settle notification failed:', e);
-          }
+                await notif.sendToUsers([String(fromUserId), String(toUserId)], title, msg, data, category, opts);
+            } catch (e) {
+                console.error('Settle notification failed:', e);
+            }
         })();
         res.status(201).json({ settleExpense, allSettled: allZero });
     } catch (err) {
@@ -714,64 +715,64 @@ router.delete("/:id", auth, async (req, res) => {
 
             // Notify affected users about deletion (best-effort)
             (async () => {
-              try {
-                const affected = new Set();
-                if (expense.createdBy) affected.add(String(expense.createdBy));
-                if (Array.isArray(expense.splits)) {
-                  expense.splits.forEach(s => { if (s && s.friendId) affected.add(String(s.friendId)); });
-                }
-                // if group => also include group members (optional) -- here we include group members
-                if (expense.groupId) {
-                  try {
-                    const gm = await groupMemberIds(expense.groupId);
-                    gm.forEach(id => affected.add(id));
-                  } catch (e) {}
-                }
+                try {
+                    const affected = new Set();
+                    if (expense.createdBy) affected.add(String(expense.createdBy));
+                    if (Array.isArray(expense.splits)) {
+                        expense.splits.forEach(s => { if (s && s.friendId) affected.add(String(s.friendId)); });
+                    }
+                    // if group => also include group members (optional) -- here we include group members
+                    if (expense.groupId) {
+                        try {
+                            const gm = await groupMemberIds(expense.groupId);
+                            gm.forEach(id => affected.add(id));
+                        } catch (e) { }
+                    }
 
-                // don't notify the actor who performed deletion
-                affected.delete(String(req.user.id));
+                    // don't notify the actor who performed deletion
+                    affected.delete(String(req.user.id));
 
-                if (affected.size) {
-                  // fetch actor name
-                  const actor = await User.findById(req.user.id).select('name').lean();
-                  const actorName = actor?.name || 'Someone';
-                  let payload;
-                  let category;
-                  if (expense.groupId) {
-                    category = 'group_expense';
-                    const groupDoc = await Group.findById(expense.groupId).select('name').lean();
-                    payload = templates.groupExpenseDeleted({
-                      actorName,
-                      expenseId: expense._id,
-                      groupId: expense.groupId,
-                      groupName: groupDoc?.name || 'Group',
-                      shortDesc: expense.description
-                    });
-                  } else if (expense.mode === 'split') {
-                    category = 'split_expense';
-                    payload = templates.splitExpenseDeleted({
-                      actorName,
-                      expenseId: expense._id,
-                      shortDesc: expense.description
-                    });
-                  } else {
-                    category = 'personal_expense_summaries';
-                    payload = {
-                      title: 'Expense deleted',
-                      body: `${actorName} deleted an expense${expense.description ? ` — ${expense.description}` : ''}`,
-                      data: { type: 'expense_deleted', expenseId: String(expense._id), groupId: expense.groupId ? String(expense.groupId) : null, actorName }
-                    };
-                  }
+                    if (affected.size) {
+                        // fetch actor name
+                        const actor = await User.findById(req.user.id).select('name').lean();
+                        const actorName = actor?.name || 'Someone';
+                        let payload;
+                        let category;
+                        if (expense.groupId) {
+                            category = 'group_expense';
+                            const groupDoc = await Group.findById(expense.groupId).select('name').lean();
+                            payload = templates.groupExpenseDeleted({
+                                actorName,
+                                expenseId: expense._id,
+                                groupId: expense.groupId,
+                                groupName: groupDoc?.name || 'Group',
+                                shortDesc: expense.description
+                            });
+                        } else if (expense.mode === 'split') {
+                            category = 'split_expense';
+                            payload = templates.splitExpenseDeleted({
+                                actorName,
+                                expenseId: expense._id,
+                                shortDesc: expense.description
+                            });
+                        } else {
+                            category = 'personal_expense_summaries';
+                            payload = {
+                                title: 'Expense deleted',
+                                body: `${actorName} deleted an expense${expense.description ? ` — ${expense.description}` : ''}`,
+                                data: { type: 'expense_deleted', expenseId: String(expense._id), groupId: expense.groupId ? String(expense.groupId) : null, actorName }
+                            };
+                        }
 
-                  const opts = { channel: 'push', fromFriendId: String(req.user.id), groupId: expense.groupId ? String(expense.groupId) : null };
-                  await notif.sendToUsers(Array.from(affected), payload.title, payload.body, payload.data, category, opts);
+                        const opts = { channel: 'push', fromFriendId: String(req.user.id), groupId: expense.groupId ? String(expense.groupId) : null };
+                        await notif.sendToUsers(Array.from(affected), payload.title, payload.body, payload.data, category, opts);
+                    }
+                } catch (e) {
+                    console.error('Delete notification failed:', e);
                 }
-              } catch (e) {
-                console.error('Delete notification failed:', e);
-              }
             })();
         });
-        
+
         return res.status(200).json({ message: "Expense deleted & PM balances reversed." });
     } catch (error) {
         console.error("Delete error:", error);
@@ -898,68 +899,68 @@ router.put('/:id', auth, async (req, res) => {
 
         // Notify affected users (best-effort)
         (async () => {
-          try {
-            // find actor display name
-            const actor = await User.findById(req.user.id).select('name').lean();
-            const actorName = actor?.name || 'Someone';
+            try {
+                // find actor display name
+                const actor = await User.findById(req.user.id).select('name').lean();
+                const actorName = actor?.name || 'Someone';
 
-            const recipsSet = new Set();
+                const recipsSet = new Set();
 
-            if (updated.createdBy) recipsSet.add(String(updated.createdBy._id || updated.createdBy));
-            if (Array.isArray(updated.splits)) {
-              updated.splits.forEach(s => {
-                if (s && s.friendId) recipsSet.add(String(s.friendId?._id || s.friendId));
-              });
+                if (updated.createdBy) recipsSet.add(String(updated.createdBy._id || updated.createdBy));
+                if (Array.isArray(updated.splits)) {
+                    updated.splits.forEach(s => {
+                        if (s && s.friendId) recipsSet.add(String(s.friendId?._id || s.friendId));
+                    });
+                }
+                // if group -> add group members optionally
+                if (updated.groupId) {
+                    try {
+                        const gm = await groupMemberIds(updated.groupId);
+                        gm.forEach(id => recipsSet.add(id));
+                    } catch (e) { }
+                }
+
+                // don't notify actor
+                recipsSet.delete(String(req.user.id));
+                const recips = Array.from(recipsSet);
+
+                if (recips.length) {
+                    let payload;
+                    let category;
+                    if (updated.groupId) {
+                        category = 'group_expense';
+                        const groupDoc = await Group.findById(updated.groupId).select('name').lean();
+                        payload = templates.groupExpenseEdited({
+                            actorName,
+                            expenseId: updated._id,
+                            groupId: updated.groupId,
+                            groupName: groupDoc?.name || 'Group',
+                            shortDesc: updated.description
+                        });
+                    } else if (updated.mode === 'split') {
+                        category = 'split_expense';
+                        payload = templates.splitExpenseEdited({
+                            actorName,
+                            expenseId: updated._id,
+                            shortDesc: updated.description,
+                            amount: updated.amount,
+                            currency: updated.currency
+                        });
+                    } else {
+                        category = 'personal_expense_summaries';
+                        payload = {
+                            title: 'Expense updated',
+                            body: `${actorName} updated an expense${updated.description ? ` — ${updated.description}` : ''}`,
+                            data: { type: 'expense_updated', expenseId: String(updated._id), groupId: updated.groupId ? String(updated.groupId) : null, actorName }
+                        };
+                    }
+
+                    const opts = { channel: 'push', fromFriendId: String(req.user.id), groupId: updated.groupId ? String(updated.groupId) : null };
+                    await notif.sendToUsers(recips, payload.title, payload.body, payload.data, category, opts);
+                }
+            } catch (e) {
+                console.error('Update notification failed:', e);
             }
-            // if group -> add group members optionally
-            if (updated.groupId) {
-              try {
-                const gm = await groupMemberIds(updated.groupId);
-                gm.forEach(id => recipsSet.add(id));
-              } catch (e) {}
-            }
-
-            // don't notify actor
-            recipsSet.delete(String(req.user.id));
-            const recips = Array.from(recipsSet);
-
-            if (recips.length) {
-              let payload;
-              let category;
-              if (updated.groupId) {
-                category = 'group_expense';
-                const groupDoc = await Group.findById(updated.groupId).select('name').lean();
-                payload = templates.groupExpenseEdited({
-                  actorName,
-                  expenseId: updated._id,
-                  groupId: updated.groupId,
-                  groupName: groupDoc?.name || 'Group',
-                  shortDesc: updated.description
-                });
-              } else if (updated.mode === 'split') {
-                category = 'split_expense';
-                payload = templates.splitExpenseEdited({
-                  actorName,
-                  expenseId: updated._id,
-                  shortDesc: updated.description,
-                  amount: updated.amount,
-                  currency: updated.currency
-                });
-              } else {
-                category = 'personal_expense_summaries';
-                payload = {
-                  title: 'Expense updated',
-                  body: `${actorName} updated an expense${updated.description ? ` — ${updated.description}` : ''}`,
-                  data: { type: 'expense_updated', expenseId: String(updated._id), groupId: updated.groupId ? String(updated.groupId) : null, actorName }
-                };
-              }
-
-              const opts = { channel: 'push', fromFriendId: String(req.user.id), groupId: updated.groupId ? String(updated.groupId) : null };
-              await notif.sendToUsers(recips, payload.title, payload.body, payload.data, category, opts);
-            }
-          } catch (e) {
-            console.error('Update notification failed:', e);
-          }
         })();
 
         res.json(updated);
@@ -967,6 +968,349 @@ router.put('/:id', auth, async (req, res) => {
         console.error('Update expense failed:', err);
         res.status(500).json({ error: 'Failed to update expense' });
     }
+});
+
+// GET /v5/report/download-csv?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+// Adds CSV export for authenticated user
+// GET /v5/report/download-csv
+router.get('/download-csv', auth, async (req, res) => {
+  try {
+    const userId = String(req.user.id);
+    const qsStart = req.query.startDate;
+    const qsEnd = req.query.endDate;
+
+    // Parse dates (default: last 30 days)
+    const start = qsStart && /^\d{4}-\d{2}-\d{2}$/.test(qsStart)
+      ? new Date(`${qsStart}T00:00:00.000Z`)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const end = qsEnd && /^\d{4}-\d{2}-\d{2}$/.test(qsEnd)
+      ? new Date(`${qsEnd}T23:59:59.999Z`)
+      : new Date();
+
+    // Query expenses where user is creator or a split participant within date range
+    const expenses = await Expense.find({
+      $and: [
+        {
+          $or: [
+            { createdBy: userId },
+            { 'splits.friendId': userId },
+          ],
+        },
+        { date: { $gte: start, $lte: end } },
+      ],
+    })
+      .sort({ date: 1, createdAt: 1 })
+      .populate('createdBy', 'name email')
+      .populate('groupId', 'name')
+      .populate('splits.friendId', 'name email')
+      .lean();
+
+    // Collect payment method IDs referenced so we can lookup labels
+    const pmIds = new Set();
+    for (const e of expenses) {
+      if (e.paidFromPaymentMethodId) pmIds.add(String(e.paidFromPaymentMethodId));
+      if (Array.isArray(e.splits)) {
+        for (const s of e.splits) {
+          if (s && s.paidFromPaymentMethodId) pmIds.add(String(s.paidFromPaymentMethodId));
+        }
+      }
+    }
+
+    // Fetch payment methods (if any) to get friendly label
+    const pmMap = {};
+    if (pmIds.size) {
+      const PaymentMethod = require('../../models/PaymentMethod'); // ensure model path
+      const pms = await PaymentMethod.find({ _id: { $in: Array.from(pmIds) } }).select('_id label type provider').lean();
+      for (const p of pms) pmMap[String(p._id)] = (p.label || (p.type ? `${p.type}` : String(p._id)));
+    }
+
+    // Helpers
+    const escapeCsv = (v) => {
+      if (v == null) return '';
+      const s = typeof v === 'string' ? v : String(v);
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
+    const formatDateReadable = (d) => {
+      if (!d) return '';
+      try {
+        return new Date(d).toLocaleString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+      } catch {
+        return String(d);
+      }
+    };
+
+    // Headers: added you_owe, you_pay, your_payment_method
+    const headers = [
+      'description',
+      'currency',
+      'amount_total',
+      'you_owe',
+      'you_pay',
+      'your_payment_method',
+      'category',
+      'date',
+      'group',
+      'typeOf',
+      'createdAt',
+      'createdBy_name',
+      'group_or_friend',
+    ];
+
+    // Build rows
+    const rows = expenses.map((e) => {
+      // Find the split entry for the current user
+      let mySplit = null;
+      if (Array.isArray(e.splits)) {
+        for (const s of e.splits) {
+          const fid = String(s.friendId?._id || s.friendId);
+          if (fid === userId) {
+            mySplit = s;
+            break;
+          }
+        }
+      }
+
+      const youOwe = mySplit && mySplit.owing ? Number(mySplit.oweAmount || 0) : 0;
+      const youPay = mySplit && mySplit.paying ? Number(mySplit.payAmount || 0) : 0;
+
+      // Determine which payment method relates to the user
+      let myPmId = null;
+      if (mySplit && mySplit.paidFromPaymentMethodId) myPmId = String(mySplit.paidFromPaymentMethodId);
+      else if (String(e.createdBy) === userId && e.paidFromPaymentMethodId) myPmId = String(e.paidFromPaymentMethodId);
+      const myPmLabel = myPmId ? (pmMap[myPmId] || myPmId) : '';
+
+      // Build group_or_friend
+      let groupOrFriend = '';
+      if (e.groupId) {
+        groupOrFriend = `${e.groupId.name || String(e.groupId)} (group)`;
+      } else if (Array.isArray(e.splits) && e.splits.length) {
+        const names = [];
+        const seen = new Set();
+        for (const s of e.splits) {
+          const fid = String(s.friendId?._id || s.friendId);
+          if (!fid || fid === userId) continue;
+          const name = (s.friendId && (s.friendId.name || s.friendId.email)) || fid;
+          if (!seen.has(name)) {
+            seen.add(name);
+            names.push(name);
+          }
+        }
+        if (names.length) groupOrFriend = `${names.join('; ')} (friend)`;
+      }
+
+      return [
+        e.description || '',
+        e.currency || '',
+        (typeof e.amount === 'number' ? e.amount : (e.amount || '')),
+        youOwe,
+        youPay,
+        myPmLabel,
+        e.category || '',
+        formatDateReadable(e.date),
+        e.groupId ? (e.groupId.name || String(e.groupId)) : '',
+        e.typeOf || '',
+        formatDateReadable(e.createdAt),
+        e.createdBy ? (e.createdBy.name || '') : '',
+        groupOrFriend,
+      ].map(escapeCsv).join(',');
+    });
+
+    const csvContent = [
+      headers.map(escapeCsv).join(','),
+      ...rows,
+    ].join('\n');
+
+    const sIso = new Date(start).toISOString().slice(0, 10);
+    const eIso = new Date(end).toISOString().slice(0, 10);
+    const fileName = `expensease_report_${userId}_${sIso}_${eIso}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    return res.status(200).send(csvContent);
+  } catch (err) {
+    console.error('download-csv error:', err);
+    return res.status(500).json({ error: 'Failed to generate CSV' });
+  }
+});
+
+router.get('/download-excel', auth, async (req, res) => {
+  try {
+    const userId = String(req.user.id);
+    const qsStart = req.query.startDate;
+    const qsEnd = req.query.endDate;
+
+    const start = qsStart && /^\d{4}-\d{2}-\d{2}$/.test(qsStart)
+      ? new Date(`${qsStart}T00:00:00.000Z`)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = qsEnd && /^\d{4}-\d{2}-\d{2}$/.test(qsEnd)
+      ? new Date(`${qsEnd}T23:59:59.999Z`)
+      : new Date();
+
+    // Fetch expenses
+    const expenses = await Expense.find({
+      $and: [
+        {
+          $or: [
+            { createdBy: userId },
+            { 'splits.friendId': userId },
+          ],
+        },
+        { date: { $gte: start, $lte: end } },
+      ],
+    })
+      .sort({ date: 1 })
+      .populate('createdBy', 'name')
+      .populate('groupId', 'name')
+      .populate('splits.friendId', 'name')
+      .lean();
+
+    // Fetch payment methods (for labels)
+    const pmIds = new Set();
+    for (const e of expenses) {
+      if (e.paidFromPaymentMethodId) pmIds.add(String(e.paidFromPaymentMethodId));
+      if (Array.isArray(e.splits)) {
+        for (const s of e.splits) {
+          if (s?.paidFromPaymentMethodId) pmIds.add(String(s.paidFromPaymentMethodId));
+        }
+      }
+    }
+
+    const pmMap = {};
+    if (pmIds.size) {
+      const pms = await PaymentMethod.find({ _id: { $in: Array.from(pmIds) } })
+        .select('_id label type provider')
+        .lean();
+      for (const p of pms) {
+        pmMap[String(p._id)] = p.label || p.type || 'Unknown';
+      }
+    }
+
+    // 🔹 Create workbook
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Expensease';
+    wb.created = new Date();
+
+    // ============ TAB 1: Detailed Expenses ============
+    const ws1 = wb.addWorksheet('Detailed Expenses');
+    ws1.columns = [
+      { header: 'Description', key: 'description', width: 25 },
+      { header: 'Currency', key: 'currency', width: 10 },
+      { header: 'Total Amount', key: 'total', width: 15 },
+      { header: 'You Owe', key: 'youOwe', width: 12 },
+      { header: 'You Paid', key: 'youPay', width: 12 },
+      { header: 'Your Payment Method', key: 'pm', width: 20 },
+      { header: 'Category', key: 'category', width: 18 },
+      { header: 'Group/Friend', key: 'groupFriend', width: 25 },
+      { header: 'Date', key: 'date', width: 22 },
+    ];
+
+    for (const e of expenses) {
+      let mySplit = e.splits?.find(s => String(s.friendId?._id || s.friendId) === userId);
+      const youOwe = mySplit?.owing ? Number(mySplit.oweAmount || 0) : 0;
+      const youPay = mySplit?.paying ? Number(mySplit.payAmount || 0) : 0;
+
+      let myPmId = mySplit?.paidFromPaymentMethodId
+        ? String(mySplit.paidFromPaymentMethodId)
+        : e.paidFromPaymentMethodId
+          ? String(e.paidFromPaymentMethodId)
+          : null;
+
+      const groupOrFriend = e.groupId
+        ? `${e.groupId.name} (Group)`
+        : (e.splits
+            ?.filter(s => String(s.friendId?._id || s.friendId) !== userId)
+            ?.map(s => s.friendId?.name || 'Friend')
+            ?.join(', ') || '');
+
+      ws1.addRow({
+        description: e.description || '',
+        currency: e.currency || '',
+        total: e.amount,
+        youOwe,
+        youPay,
+        pm: myPmId ? pmMap[myPmId] || myPmId : '',
+        category: e.category || '',
+        groupFriend: groupOrFriend,
+        date: new Date(e.date).toLocaleString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }),
+      });
+    }
+
+    // ============ TAB 2: Category Monthly Summary ============
+    const ws2 = wb.addWorksheet('Monthly Category Summary');
+    ws2.addRow(['Bucket', 'May 2025 (INR)', 'Aug 2025 (INR)', 'Sep 2025 (INR)', 'Oct 2025 (INR)', 'Total (INR)']);
+    ws2.getRow(1).font = { bold: true };
+
+    // Build monthly totals per category
+    const monthly = {};
+    for (const e of expenses) {
+      const cat = e.category || 'Uncategorized';
+      const monthKey = new Date(e.date).toLocaleString('en-US', { month: 'short', year: 'numeric' }); // e.g. "Oct 2025"
+      if (!monthly[cat]) monthly[cat] = {};
+      monthly[cat][monthKey] = (monthly[cat][monthKey] || 0) + (e.amount || 0);
+    }
+
+    const allMonths = Array.from(
+      new Set(Object.values(monthly).flatMap(o => Object.keys(o)))
+    ).sort();
+
+    for (const cat of Object.keys(monthly)) {
+      const row = [cat];
+      let total = 0;
+      for (const m of allMonths) {
+        const val = monthly[cat][m] || 0;
+        total += val;
+        row.push(`₹ ${val.toFixed(2)}`);
+      }
+      row.push(`₹ ${total.toFixed(2)}`);
+      ws2.addRow(row);
+    }
+
+    // ============ TAB 3: Yearly Summary ============
+    const ws3 = wb.addWorksheet('Yearly Summary');
+    ws3.addRow(['Category', 'Year', 'Total (INR)']);
+    ws3.getRow(1).font = { bold: true };
+
+    const yearly = {};
+    for (const e of expenses) {
+      const year = new Date(e.date).getFullYear();
+      const cat = e.category || 'Uncategorized';
+      if (!yearly[year]) yearly[year] = {};
+      yearly[year][cat] = (yearly[year][cat] || 0) + (e.amount || 0);
+    }
+
+    for (const [year, cats] of Object.entries(yearly)) {
+      for (const [cat, val] of Object.entries(cats)) {
+        ws3.addRow([cat, year, `₹ ${val.toFixed(2)}`]);
+      }
+    }
+
+    // ============ Finalize ============
+    const fileName = `expensease_report_${userId}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('download-excel error:', err);
+    return res.status(500).json({ error: 'Failed to generate Excel report' });
+  }
 });
 
 
