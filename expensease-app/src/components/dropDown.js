@@ -1,4 +1,4 @@
-// Dropdown.js
+// dropDown.js
 import React, { useRef, useState, useEffect } from "react";
 import {
   View,
@@ -190,7 +190,7 @@ export default function Dropdown({
 const getStyles = (colors = {}, mode = "light") => {
   const baseText = colors.text || (mode === "dark" ? "#f9f9f9" : "#121212");
   const baseBorder = colors.border || (mode === "dark" ? "#2a2a2a" : "#e3e3e3");
-  const baseCard = colors.card || (mode === "dark" ? "#191919" : "#FFFFFF");
+  const baseCard = colors.background || (mode === "dark" ? "#191919" : "#FFFFFF");
   const baseMuted = colors.muted || (mode === "dark" ? "#888888" : "#555555");
   const baseCta = colors.cta || colors.primary || "#14b8a6";
   const baseCardMid = colors.cardMid || (mode === "dark" ? "#1F1F1F" : "#E0E0E1");

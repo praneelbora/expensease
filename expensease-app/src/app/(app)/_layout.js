@@ -1,4 +1,4 @@
-// app/_layout.js
+// app/(app)/_layout.js
 import React, { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { Stack, SplashScreen as RouterSplashScreen } from "expo-router";
@@ -8,7 +8,8 @@ import { useAuth } from "context/AuthContext";
 /* call early so native splash doesn't auto-hide */
 (async () => {
   try {
-    await RouterSplashScreen?.preventAutoHideAsync?.();
+    const response = await RouterSplashScreen?.preventAutoHideAsync?.();
+    console.log('response: ', response);
   } catch (e) {
     console.warn("preventAutoHideAsync failed:", e);
   }
@@ -21,18 +22,6 @@ const RootLayout = () => {
   const [initialAuthChecked, setInitialAuthChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Hide splash once bootstrap finished (same as before)
-  useEffect(() => {
-    if (!hydrated || authLoading) return;
-
-    (async () => {
-      try {
-        await RouterSplashScreen?.hideAsync?.();
-      } catch (e) {
-        console.warn("hideAsync failed:", e);
-      }
-    })();
-  }, [hydrated, authLoading]);
 
   // When hydration completes for the first time, capture a stable initial auth decision
   useEffect(() => {
@@ -49,17 +38,20 @@ const RootLayout = () => {
     if (!initialAuthChecked) return;
     setIsAuthenticated(Boolean(userToken && user));
   }, [initialAuthChecked, userToken, user]);
-
-  // While auth bootstrap running (or we haven't captured initial auth) -> keep splash / show fallback loader
+  // Keep native splash until the decision is made
+  useEffect(() => {
+    const ready = hydrated && !authLoading && initialAuthChecked;
+    if (!ready) return;
+    (async () => {
+      try {
+        await RouterSplashScreen.hideAsync();
+      } catch (e) {
+        console.warn("hideAsync failed:", e);
+      }
+    })();
+  }, [hydrated, authLoading, initialAuthChecked]);
   if (!hydrated || authLoading || !initialAuthChecked) {
-    return (
-      <>
-        <StatusBar style="light" />
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#000" }}>
-          <ActivityIndicator size="large" />
-        </View>
-      </>
-    );
+    return null;
   }
 
   // ---------------- Authenticated Stack ----------------

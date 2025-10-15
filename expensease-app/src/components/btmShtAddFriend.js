@@ -247,10 +247,6 @@ const BottomSheetFriendManager = ({ innerRef, apiBase = '', onRedirect }) => {
                     // console.log('247 - res: ',res);
 
                     hashes = Array.isArray(res?.hashes) ? res.hashes : [];
-                    console.log('hashes.length: ', hashes?.length);
-                    console.log('skippedCount.length: ', res?.skippedCount?.length);
-                    console.log('enrichedContacts.length: ', res?.enrichedContacts?.length);
-
                     skippedCount = res?.skippedCount || 0;
                     if (Array.isArray(res?.enrichedContacts) && res.enrichedContacts.length > 0) enriched = res.enrichedContacts;
                 } catch (e) {

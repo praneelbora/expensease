@@ -15,6 +15,13 @@ export const deleteExpense = async (expenseId) => {
     return api.del(`${BASE}/${expenseId}`);
 };
 
+// Downlaod Report
+export const downloadReport = async (expenseId) => {
+    return api.get(`${BASE}/download-csv`);
+};
+export const downloadExcel = async () => {
+    return api.get(`${BASE}/download-excel`);
+};
 // List all (optionally accept filters later)
 export const getAllExpenses = async () => {
     return api.get(`${BASE}`);

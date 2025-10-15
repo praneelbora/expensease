@@ -33,8 +33,11 @@ import FAQ from "@/accIcons/faq.svg";
 import Sun from "@/accIcons/sun.svg";
 import Bell from "@/accIcons/bell.svg";
 import Edit from "@/accIcons/edit.svg";
+import Shield from "@/accIcons/shield.svg";
+import Download from "@/accIcons/download.svg";
 import Currency from "@/accIcons/currency.svg";
 import LinkIcon from "@/accIcons/link.svg"; // New icon for Linked Accounts
+import UserIcon from "@/accIcons/user.svg"; // New icon for Linked Accounts
 
 import { allCurrencies } from "utils/currencies";
 
@@ -297,9 +300,7 @@ export default function AccountScreen() {
                                             return AvatarComp ? <AvatarComp width={58} height={58} /> : <Text style={{ color: theme.colors.muted }}>—</Text>;
                                         })()
                                     ) : (
-                                        <View style={[styles.placeholderCircle, { backgroundColor: theme.colors.card }]}>
-                                            <Text style={[styles.placeholderText, { color: theme.colors.muted }]}>{getInitials(user?.name || "")}</Text>
-                                        </View>
+                                        <UserIcon width={36} height={36} color={theme.colors.muted} />
                                     )}
                                 </View>
                             </View>
@@ -368,18 +369,20 @@ export default function AccountScreen() {
                 </TouchableOpacity>}
 
                 {/* Scrollable list of items */}
-                <ScrollView ref={scrollerRef} style={styles.scroller} contentContainerStyle={{ paddingBottom: 100 }}>
+                <ScrollView ref={scrollerRef} style={styles.scroller} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
                     {[
                         { label: "Payment Accounts", icon: <Payment width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/paymentAccounts") },
                         { label: "Linked Accounts", icon: <LinkIcon width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/link") },
                         { label: "Currency", icon: <Currency width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/currency") },
                         { label: "Guide", icon: <Guide width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/guide") },
+                        { label: "Download Excel", icon: <Download width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/report") },
                         { label: "Theme", icon: <Sun width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/theme") },
                         { label: "Notifications", icon: <Bell width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/notifications") },
                         { label: "Instagram", icon: <Instagram width={24} height={24} stroke={theme.colors.primary} />, onPress: () => Linking.openURL("https://www.instagram.com/_expensease") },
                         { label: "FAQ", icon: <FAQ width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/faq") },
                         { label: "Contact", icon: <Contact width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/contact") },
                         { label: "Privacy", icon: <Privacy width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/privacy") },
+                        { label: "Account & Data", icon: <Shield width={24} height={24} stroke={theme.colors.primary} />, onPress: () => router.push("settings/account") },
                         { label: "Logout", icon: <Logout width={24} height={24} stroke={theme.colors.negative} />, onPress: onLogout },
                     ].map((item, idx) => (
                         <TouchableOpacity key={idx} style={styles.optionRow} onPress={item.onPress}>
@@ -513,7 +516,7 @@ const createStyles = (theme) =>
             borderRadius: 34,
             overflow: "hidden",
             alignItems: "center",
-            backgroundColor: "transparent",
+            backgroundColor: theme?.mode === "dark"?"#333333":"transparent",
         },
         placeholderCircle: {
             width: 64,
