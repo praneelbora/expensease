@@ -33,7 +33,7 @@ const makeStyles = (theme, size, left, bottom) =>
         fab: {
             position: "absolute",
             right: 16,
-            bottom: Platform.OS == 'ios' && !isIosLessThan26 ? 92 + 54 : 24,
+            bottom: Platform.OS == 'ios' && !isIosLessThan26 ? 92 + 54 : 14 + 54,
             borderRadius: 999,
             paddingHorizontal: 16,
             paddingVertical: 12,

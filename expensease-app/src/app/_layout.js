@@ -1,12 +1,12 @@
 // app/_layout.js
 import React, { useEffect } from "react";
 import { View, Platform } from "react-native";
-import { Slot, router, SplashScreen as RouterSplashScreen } from "expo-router"; // use expo-router's SplashScreen wrapper
+import { Slot, router } from "expo-router"; // use expo-router's SplashScreen wrapper
 import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-import { AuthProvider, useAuth } from "context/AuthContext";
+import { AuthProvider } from "context/AuthContext";
 import { NotificationProvider } from "context/NotificationContext";
 import { FetchProvider } from "context/FetchContext";
 import { ThemeProvider, useTheme } from "context/ThemeProvider";
@@ -61,7 +61,6 @@ try {
 /* ------------------ InnerLayout ------------------ */
 const InnerLayout = () => {
   const { theme } = useTheme();
-  const { hydrated } = useAuth();
 
   useEffect(() => {
     // notification response deep-linking (when app is foreground or background)
@@ -113,20 +112,22 @@ const InnerLayout = () => {
     };
   }, []);
 
-  useEffect(() => {
-    // only hide the splash once auth bootstrap (hydration) finished
-    if (!hydrated) return;
+  // useEffect(() => {
+  //   // only hide the splash once auth bootstrap (hydration) finished
+  //   console.log(hydrated);
+    
+  //   if (!hydrated) return;
 
-    (async () => {
-      try {
-        // Hide the splash using expo-router's SplashScreen helper
-        await RouterSplashScreen.hideAsync();
-      } catch (e) {
-        // fallback: try hide from expo-splash-screen (if you ever import it directly)
-        console.warn("Unable to hide router splash screen:", e);
-      }
-    })();
-  }, [hydrated]);
+  //   (async () => {
+  //     try {
+  //       // Hide the splash using expo-router's SplashScreen helper
+  //       await RouterSplashScreen.hideAsync();
+  //     } catch (e) {
+  //       // fallback: try hide from expo-splash-screen (if you ever import it directly)
+  //       console.warn("Unable to hide router splash screen:", e);
+  //     }
+  //   })();
+  // }, [hydrated]);
 
   return (
     <>

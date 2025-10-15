@@ -168,7 +168,7 @@ export default function Header({
                                         return AvatarComp ? (
                                             <AvatarComp width={33} height={33} />
                                         ) : (
-                                            <UserIcon size={26} color={theme.colors.muted} />
+                                            <UserIcon size={22} color={theme.colors.muted} />
                                         );
                                     })()
                                 ) : user?.name ? (

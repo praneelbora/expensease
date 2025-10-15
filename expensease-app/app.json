@@ -2,7 +2,7 @@
   "expo": {
     "name": "Expensease",
     "slug": "expensease",
-    "version": "0.2.0",
+    "version": "0.2.2",
     "scheme": "expensease",
     "orientation": "portrait",
     "icon": "./assets/default/icon.png",
@@ -20,6 +20,7 @@
       "usesAppleSignIn": true,
       "icon": "./assets/default/ios/icon-ios-10241x.png",
       "associatedDomains": [
+        "applinks:links.expensease.in",
         "applinks:expensease.in"
       ],
       "infoPlist": {
@@ -42,6 +43,7 @@
         {
           "action": "VIEW",
           "data": [
+            { "scheme": "https", "host": "links.expensease.in", "pathPrefix": "/" },
             {
               "scheme": "https",
               "host": "expensease.in",

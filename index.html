@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Expensease</title>
+  <meta name="description" content="Open Expensease — open the app if installed or visit the website." />
+  <link rel="canonical" href="https://links.expensease.in" />
+  <link rel="icon" type="image/png" href="https://links.expensease.in/icon1.png" />
+  <!-- Smart App Banner for iOS (helpful on Safari) -->
+  <meta name="apple-itunes-app" content="app-id=6752623771" />
+  <style>
+    :root{--accent:#4f46e5;--muted:#6b7280;--card:#fff;--radius:12px;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    html,body{height:100%;margin:0}
+    body{display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#f8fafc,#eef2ff);padding:20px;color:#111}
+    .card{width:100%;max-width:480px;background:var(--card);border-radius:var(--radius);padding:22px;box-shadow:0 10px 30px rgba(15,23,42,0.06);box-sizing:border-box}
+    .logo{width:64px;height:64px;border-radius:12px;object-fit:cover}
+    .row{display:flex;gap:12px;align-items:center}
+    h1{margin:0;font-size:18px}
+    p.lead{color:var(--muted);margin:8px 0}
+    .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+    .btn{padding:10px 14px;border-radius:10px;background:var(--accent);color:white;text-decoration:none;border:none;font-weight:700;cursor:pointer}
+    .btn.secondary{background:#fff;color:#111;border:1px solid #e6e9f2}
+    .store-row{margin-top:12px;display:flex;gap:8px}
+    .store-text{padding:8px 12px;border-radius:9px;background:#111;color:#fff;font-weight:700;text-decoration:none}
+    .hint{margin-top:10px;color:var(--muted);font-size:13px}
+    .small{font-size:12px;color:#9ca3af;margin-top:14px}
+  </style>
+</head>
+<body>
+  <div class="card" role="dialog" aria-labelledby="title">
+    <div class="row">
+      <img src="https://links.expensease.in/icon1.png" alt="Expensease" class="logo" />
+      <div>
+        <h1 id="title">Open Expensease</h1>
+        <p class="lead" id="lead">Attempting to open the app. If it fails, you'll be sent to the store.</p>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="openAppBtn" class="btn">Open Expensease</button>
+      <a id="openWebBtn" class="btn secondary" href="https://www.expensease.in" target="_blank" rel="noopener">Open website</a>
+    </div>
+
+    <div class="store-row" id="storeRow" style="display:none">
+      <a id="playBtn" class="store-text" href="#" target="_blank" rel="noopener">Get on Google Play</a>
+      <a id="iosBtn" class="store-text" href="#" target="_blank" rel="noopener" style="background:#fff;color:#111;border:1px solid #e6e9f2">Get on App Store</a>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    // CONFIG - change to your app values
+    const APP_STORE_ID = "6752623771";
+    const PLAYSTORE_PACKAGE = "com.praneelbora.expensease";
+    const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=" + PLAYSTORE_PACKAGE;
+    const APP_STORE_URL = "https://apps.apple.com/app/id" + APP_STORE_ID;
+    const domain = "links.expensease.in";
+
+    // Detect OS
+    function detectOS() {
+      const ua = navigator.userAgent || navigator.vendor || window.opera || "";
+      const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (isIOS) return "iOS";
+      if (/Android/.test(ua)) return "Android";
+      if (!/Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return "Desktop";
+      return "Other";
+    }
+
+    // Read deep path from path or ?path=
+    function getDeepPath() {
+      try {
+        const url = new URL(window.location.href);
+        const q = url.searchParams.get("path");
+        if (q) return q.startsWith("/") ? q : "/" + q;
+        if (url.pathname && url.pathname !== "/") return url.pathname;
+      } catch (e) {}
+      return "/";
+    }
+
+    // Build deeplink (custom scheme)
+    const deepPath = getDeepPath(); // "/friends/abc" or "/"
+    const trimmed = (deepPath === "/" || deepPath === "") ? "home" : deepPath.replace(/^\/+/, '');
+    const deeplink = `expensease://${trimmed}`;                 // custom scheme
+    const universalLink = `https://${domain}${deepPath}`;       // optional web universal link
+    const webFallback = "https://www.expensease.in" + deepPath;
+
+    // Android intent fallback (optional)
+    const intentUrl = `intent://${trimmed}#Intent;scheme=expensease;package=${PLAYSTORE_PACKAGE};S.browser_fallback_url=${encodeURIComponent(PLAY_STORE_URL)};end`;
+
+    // Elements
+    const os = detectOS();
+    const openBtn = document.getElementById("openAppBtn");
+    const openWebBtn = document.getElementById("openWebBtn");
+    const playBtn = document.getElementById("playBtn");
+    const iosBtn = document.getElementById("iosBtn");
+    const storeRow = document.getElementById("storeRow");
+    const hint = document.getElementById("hint");
+
+    // Show/hide store row and set links
+    if (os === "Android") {
+      storeRow.style.display = "flex";
+      playBtn.style.display = "inline-block";
+      iosBtn.style.display = "none";
+      playBtn.href = PLAY_STORE_URL;
+    } else if (os === "iOS") {
+      storeRow.style.display = "flex";
+      iosBtn.style.display = "inline-block";
+      playBtn.style.display = "none";
+      iosBtn.href = APP_STORE_URL;
+    } else {
+      storeRow.style.display = "none";
+    }
+
+    // Visibility helper — cancel fallback if page hidden (app probably opened)
+    let fallbackTimer = null;
+    function cancelFallback() {
+      if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+    }
+    function scheduleStoreRedirect(storeUrl, delay) {
+      cancelFallback();
+      fallbackTimer = setTimeout(() => { window.location = storeUrl; }, delay);
+    }
+
+    // Attempt to open via deeplink; if fails open store.
+    // We'll attempt automatically on load for mobile.
+    function attemptOpenOnce(auto = true) {
+      // Only do for mobile
+      if (os === "Desktop") return;
+      // If browser supports page visibility, listen for it
+      function onVisibilityChange() {
+        if (document.hidden) {
+          // user left the page (app likely opened) — cancel store redirect
+          cancelFallback();
+          // remove listeners
+          document.removeEventListener('visibilitychange', onVisibilityChange);
+          window.removeEventListener('pagehide', onPageHide);
+          window.removeEventListener('blur', onBlur);
+        }
+      }
+      function onPageHide() { cancelFallback(); }
+      function onBlur() { /* some browsers blur when app opens */ cancelFallback(); }
+
+      document.addEventListener('visibilitychange', onVisibilityChange);
+      window.addEventListener('pagehide', onPageHide);
+      window.addEventListener('blur', onBlur);
+
+      // Timeouts: tuned so app has enough time to open before going to store.
+      // iOS typically needs ~1200-1600ms; Android may open faster. We'll use 1500ms default.
+      const STORE_DELAY_MS = (os === "iOS") ? 1500 : 1200;
+
+      // 1) Try to open with custom scheme
+      try {
+        // For maximum compatibility, use location assignment first.
+        window.location = deeplink;
+      } catch (e) {
+        // ignore
+      }
+
+      // 2) For Android, after a small pause if still on page, try intent: (helps Chrome)
+      if (os === "Android") {
+        // schedule a small step: attempt intent after 600ms, then store after STORE_DELAY_MS
+        setTimeout(() => {
+          // If page still visible, try intent.
+          if (!document.hidden) {
+            try { window.location = intentUrl; } catch (e) {}
+          }
+        }, 600);
+        // Schedule store redirect
+        // scheduleStoreRedirect(PLAY_STORE_URL, STORE_DELAY_MS + 600);
+      } else if (os === "iOS") {
+        // iOS: attempt deeplink (above), then if still visible after STORE_DELAY_MS -> send to App Store.
+        // scheduleStoreRedirect(APP_STORE_URL, STORE_DELAY_MS);
+      } else {
+        // Other: fallback to web
+        scheduleStoreRedirect(webFallback, 1000);
+      }
+    }
+
+    // Manual open button uses the same deeplink logic but without automatic store redirects if user retries.
+    function manualOpen() {
+      cancelFallback();
+      // try custom scheme once
+      try { window.location = deeplink; } catch(e) {}
+      // For Android also attempt intent then store fallback
+      if (os === "Android") {
+        setTimeout(() => { if (!document.hidden) try { window.location = intentUrl; } catch(e) {} }, 600);
+        setTimeout(() => { if (!document.hidden) window.location = PLAY_STORE_URL; }, 1800);
+      } else if (os === "iOS") {
+        setTimeout(() => { if (!document.hidden) window.location = APP_STORE_URL; }, 1500);
+      }
+    }
+
+    // Hook up manual button
+    openBtn.addEventListener('click', manualOpen);
+
+    // Auto attempt on load for mobile
+    window.addEventListener('load', () => {
+      // small delay to allow rendering & visibility API to be ready
+      setTimeout(() => {
+        if (os === "Android" || os === "iOS" || os === "Other") {
+          attemptOpenOnce(true);
+        }
+      }, 400);
+    });
+
+    // Desktop website button
+    openWebBtn.href = webFallback;
+
+    // Expose deeplink for debugging if needed
+    // window._deeplink = deeplink;
+  })();
+  </script>
+</body>
+</html>
